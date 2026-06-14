@@ -1,0 +1,468 @@
+//! 配置子模块：`loader`。
+
+use super::schema::Config;
+use crate::errors::{AsterError, MapAsterErr, Result};
+use crate::utils::paths::{
+    DEFAULT_CONFIG_PATH, resolve_config_relative_path, resolve_config_relative_sqlite_url,
+};
+use config::{Config as RawConfig, Environment, File, FileFormat};
+use std::path::{Path, PathBuf};
+use toml_edit::{DocumentMut, Item, Table, value};
+
+pub fn load() -> Result<Config> {
+    let base_dir = std::env::current_dir()
+        .map_aster_err_ctx("failed to resolve current dir", AsterError::config_error)?;
+    let env_database_url = std::env::var("ASTER__DATABASE__URL").ok();
+    load_from_dir(&base_dir, env_database_url.as_deref(), true)
+}
+
+pub fn ensure_default_config_for_current_dir(default: &Config) -> Result<PathBuf> {
+    let base_dir = std::env::current_dir()
+        .map_aster_err_ctx("failed to resolve current dir", AsterError::config_error)?;
+    let config_path = base_dir.join(DEFAULT_CONFIG_PATH);
+    ensure_default_config_exists(&config_path, default)?;
+    Ok(config_path)
+}
+
+fn load_from_dir(
+    base_dir: &Path,
+    env_database_url: Option<&str>,
+    include_env: bool,
+) -> Result<Config> {
+    let config_path = base_dir.join(DEFAULT_CONFIG_PATH);
+
+    ensure_default_config_exists(&config_path, &Config::default())?;
+    let stable_defaults_config = ensure_stable_default_config_keys(&config_path, None)?;
+
+    let mut builder = RawConfig::builder();
+    builder = match stable_defaults_config {
+        Some(config_content) => {
+            builder.add_source(File::from_str(&config_content, FileFormat::Toml))
+        }
+        None => builder.add_source(File::from(config_path.as_path()).required(false)),
+    };
+
+    if include_env {
+        builder = builder.add_source(
+            Environment::with_prefix("ASTER")
+                .separator("__")
+                .try_parsing(true),
+        );
+    } else if let Some(database_url) = env_database_url {
+        builder = builder
+            .set_override("database.url", database_url)
+            .map_aster_err(AsterError::config_error)?;
+    }
+
+    let raw = builder.build().map_aster_err(AsterError::config_error)?;
+    reject_deprecated_config_keys(&raw)?;
+
+    let mut cfg = raw
+        .try_deserialize::<Config>()
+        .map_aster_err(AsterError::config_error)?;
+
+    resolve_loaded_paths(base_dir, &config_path, &mut cfg)?;
+
+    eprintln!(
+        "[INFO] Configuration loaded from: {}",
+        config_path.display()
+    );
+    Ok(cfg)
+}
+
+fn reject_deprecated_config_keys(raw: &RawConfig) -> Result<()> {
+    if raw.get_string("server.managed_ingress_local_root").is_ok() {
+        return Err(AsterError::config_error(
+            "server.managed_ingress_local_root has moved to server.follower.managed_ingress_local_root",
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_default_config_exists(config_path: &Path, default: &Config) -> Result<()> {
+    if config_path.exists() {
+        return Ok(());
+    }
+
+    create_default_config(config_path, default)
+}
+
+fn create_default_config(config_path: &Path, default: &Config) -> Result<()> {
+    let toml_str = toml::to_string_pretty(default).map_aster_err(AsterError::config_error)?;
+
+    let content = format!(
+        "# AsterYggdrasil configuration file\n\
+         # Generated on first startup; edit as needed.\n\
+         # Relative paths are resolved against the directory containing this file (default: ./data).\n\
+         # This repository is a reusable template; project-specific services can extend these sections.\n\n\
+         {toml_str}"
+    );
+
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent).map_aster_err_ctx(
+            &format!("failed to create config dir '{}'", parent.display()),
+            AsterError::config_error,
+        )?;
+    }
+
+    std::fs::write(config_path, &content).map_aster_err_ctx(
+        &format!("failed to write {}", config_path.display()),
+        AsterError::config_error,
+    )?;
+
+    eprintln!(
+        "[INFO] Default configuration written to: {}",
+        config_path.display()
+    );
+    eprintln!("[INFO] Please review and modify it as needed.");
+    Ok(())
+}
+
+fn ensure_stable_default_config_keys(
+    config_path: &Path,
+    current_content: Option<&str>,
+) -> Result<Option<String>> {
+    let content = match current_content {
+        Some(content) => content.to_string(),
+        None => std::fs::read_to_string(config_path).map_err(|error| {
+            AsterError::config_error(format!("failed to read {}: {error}", config_path.display()))
+        })?,
+    };
+
+    let mut doc = content.parse::<DocumentMut>().map_err(|error| {
+        AsterError::config_error(format!(
+            "failed to parse {}: {error}",
+            config_path.display()
+        ))
+    })?;
+
+    let mut changed = false;
+    let auth_item = doc
+        .as_table_mut()
+        .entry("auth")
+        .or_insert(Item::Table(Table::new()));
+    let Some(auth_table) = auth_item.as_table_mut() else {
+        return Err(AsterError::config_error("auth must be a table"));
+    };
+    if !auth_table.contains_key("mfa_secret_key") {
+        auth_table.insert(
+            "mfa_secret_key",
+            value(crate::config::AuthConfig::default().mfa_secret_key),
+        );
+        changed = true;
+    }
+
+    if !changed {
+        return Ok(None);
+    }
+
+    let updated = doc.to_string();
+    if let Err(error) = std::fs::write(config_path, &updated) {
+        eprintln!(
+            "[ERROR] Failed to write generated stable configuration keys to {}: {error}. Fix config file permissions before starting.",
+            config_path.display()
+        );
+        return Err(AsterError::config_error(format!(
+            "failed to persist generated stable configuration keys to {}: {error}",
+            config_path.display()
+        )));
+    } else {
+        eprintln!(
+            "[INFO] Added generated stable configuration keys to: {}",
+            config_path.display()
+        );
+    }
+    Ok(Some(updated))
+}
+
+fn resolve_loaded_paths(base_dir: &Path, config_path: &Path, cfg: &mut Config) -> Result<()> {
+    let config_dir = config_path.parent().unwrap_or(base_dir);
+
+    cfg.server.temp_dir = resolve_config_relative_path(base_dir, config_dir, &cfg.server.temp_dir)?;
+    cfg.server.follower.managed_ingress_local_root = resolve_config_relative_path(
+        base_dir,
+        config_dir,
+        &cfg.server.follower.managed_ingress_local_root,
+    )?;
+    cfg.database.url = resolve_config_relative_sqlite_url(base_dir, config_dir, &cfg.database.url)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_default_config_exists, load_from_dir};
+    use crate::config::{Config, node_mode::NodeRuntimeMode};
+    use crate::utils::paths::{
+        DEFAULT_CONFIG_PATH, DEFAULT_SQLITE_DATABASE_PATH, DEFAULT_SQLITE_DATABASE_URL,
+        DEFAULT_TEMP_DIR,
+    };
+    use std::path::{Path, PathBuf};
+
+    fn make_temp_dir(test_name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "asteryggdrasil-config-loader-{test_name}-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write(path: &Path, content: &[u8]) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn load_creates_default_config_under_data_dir() {
+        let dir = make_temp_dir("create-default");
+
+        let cfg = load_from_dir(&dir, None, false).unwrap();
+        let generated = std::fs::read_to_string(dir.join(DEFAULT_CONFIG_PATH)).unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.server.start_mode, NodeRuntimeMode::Primary);
+        assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
+        assert_eq!(
+            cfg.server.follower.managed_ingress_local_root,
+            "data/managed-ingress"
+        );
+        assert!(cfg.network_trust.trusted_proxies.is_empty());
+        assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
+        assert!(generated.contains("# AsterYggdrasil configuration file"));
+        assert!(generated.contains("[server]"));
+        assert!(generated.contains(r#"start_mode = "primary""#));
+        assert!(generated.contains(r#"url = "sqlite://asteryggdrasil.db?mode=rwc""#));
+        assert!(generated.contains(r#"temp_dir = ".tmp""#));
+        assert!(generated.contains("[server.follower]"));
+        assert!(generated.contains(r#"managed_ingress_local_root = "managed-ingress""#));
+        assert!(generated.contains("[network_trust]"));
+        assert!(generated.contains(r#"trusted_proxies = []"#));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ensure_default_config_exists_can_seed_follower_mode() {
+        let dir = make_temp_dir("create-follower-default");
+        let config_path = dir.join(DEFAULT_CONFIG_PATH);
+        let mut default = Config::default();
+        default.server.start_mode = NodeRuntimeMode::Follower;
+
+        ensure_default_config_exists(&config_path, &default).unwrap();
+
+        let generated = std::fs::read_to_string(&config_path).unwrap();
+        assert!(generated.contains(r#"start_mode = "follower""#));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_ignores_root_config_file_and_creates_data_config() {
+        let dir = make_temp_dir("legacy-config");
+        write(
+            &dir.join("config.toml"),
+            br#"[database]
+url = "sqlite://custom.db?mode=rwc"
+"#,
+        );
+
+        let cfg = load_from_dir(&dir, None, false).unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert!(dir.join("config.toml").exists());
+        assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_ignores_root_sqlite_database_file_for_default_layout() {
+        let dir = make_temp_dir("legacy-db");
+        write(&dir.join("asteryggdrasil.db"), b"legacy");
+
+        let cfg = load_from_dir(&dir, None, false).unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert!(dir.join("asteryggdrasil.db").exists());
+        assert!(!dir.join(DEFAULT_SQLITE_DATABASE_PATH).exists());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_keeps_existing_data_prefixed_paths_without_double_data() {
+        let dir = make_temp_dir("legacy-data-prefixed-values");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[database]
+url = "sqlite://data/asteryggdrasil.db?mode=rwc"
+
+[server]
+temp_dir = "data/.tmp"
+
+[server.follower]
+managed_ingress_local_root = "data/managed-ingress"
+"#,
+        );
+
+        let cfg = load_from_dir(&dir, None, false).unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
+        assert_eq!(
+            cfg.server.follower.managed_ingress_local_root,
+            "data/managed-ingress"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_rejects_deprecated_server_managed_ingress_root() {
+        let dir = make_temp_dir("deprecated-managed-ingress-root");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[server]
+managed_ingress_local_root = "custom-managed-ingress"
+"#,
+        );
+
+        let error = load_from_dir(&dir, None, false).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("server.follower.managed_ingress_local_root")
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_resolves_relative_database_override_under_data_dir() {
+        let dir = make_temp_dir("env-db-url-relative");
+        write(&dir.join("asteryggdrasil.db"), b"legacy");
+
+        let cfg = load_from_dir(&dir, Some("sqlite://custom.db?mode=rwc"), false).unwrap();
+
+        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc");
+        assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
+        assert!(dir.join("asteryggdrasil.db").exists());
+        assert!(!dir.join(DEFAULT_SQLITE_DATABASE_PATH).exists());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_keeps_data_prefixed_database_override_without_double_data() {
+        let dir = make_temp_dir("env-db-url-legacy-root-relative");
+
+        let cfg = load_from_dir(&dir, Some("sqlite://data/custom.db?mode=rwc"), false).unwrap();
+
+        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_accepts_root_sqlite_database_for_relative_default_override() {
+        let dir = make_temp_dir("env-db-url-relative-default");
+        write(&dir.join("asteryggdrasil.db"), b"legacy");
+
+        let cfg = load_from_dir(&dir, Some("sqlite://asteryggdrasil.db?mode=rwc"), false).unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_accepts_root_sqlite_database_for_data_prefixed_default_override() {
+        let dir = make_temp_dir("env-db-url-data-prefixed-default");
+        write(&dir.join("asteryggdrasil.db"), b"legacy");
+
+        let cfg = load_from_dir(
+            &dir,
+            Some("sqlite://data/asteryggdrasil.db?mode=rwc"),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_rejects_relative_paths_outside_base_dir() {
+        let dir = make_temp_dir("path-outside-base-dir");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[server]
+temp_dir = "../../outside/.tmp"
+"#,
+        );
+
+        let err = load_from_dir(&dir, None, false).unwrap_err();
+        assert!(err.to_string().contains("outside data base_dir"));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_rejects_sqlite_url_outside_base_dir() {
+        let dir = make_temp_dir("sqlite-url-outside-base-dir");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[database]
+url = "sqlite://../../outside/asteryggdrasil.db?mode=rwc"
+"#,
+        );
+
+        let err = load_from_dir(&dir, None, false).unwrap_err();
+        assert!(err.to_string().contains("outside data base_dir"));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_rejects_zero_rate_limit_values() {
+        let dir = make_temp_dir("invalid-rate-limit-zero");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[rate_limit]
+enabled = true
+
+[rate_limit.auth]
+seconds_per_request = 0
+burst_size = 5
+"#,
+        );
+
+        let err = load_from_dir(&dir, None, false).unwrap_err();
+        assert!(err.to_string().contains("invalid value: integer `0`"));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_rejects_zero_rate_limit_burst_size() {
+        let dir = make_temp_dir("invalid-rate-limit-burst-zero");
+        write(
+            &dir.join(DEFAULT_CONFIG_PATH),
+            br#"[rate_limit]
+enabled = true
+
+[rate_limit.auth]
+seconds_per_request = 1
+burst_size = 0
+"#,
+        );
+
+        let err = load_from_dir(&dir, None, false).unwrap_err();
+        assert!(err.to_string().contains("invalid value: integer `0`"));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
