@@ -4,6 +4,8 @@ This directory contains developer-facing documentation for AsterYggdrasil.
 
 The public `docs/` tree is reserved for deployment-facing and user-facing documentation. Keep implementation notes, architecture notes, extension guides, and maintenance checklists here instead.
 
+AsterYggdrasil is currently a self-hosted Minecraft skin site and Yggdrasil authentication server. Developer docs should describe the implementation that exists in this repository, not the old generic service-template story.
+
 ## Languages
 
 - [English](./en/README.md)
@@ -16,4 +18,4 @@ The public `docs/` tree is reserved for deployment-facing and user-facing docume
 
 ## Status
 
-These docs describe the current AsterYggdrasil implementation. They are not a plan archive and should be updated when the foundation contracts change.
+These docs describe the current AsterYggdrasil implementation. They are not a plan archive and should be updated when backend, frontend, protocol, or runtime contracts change.

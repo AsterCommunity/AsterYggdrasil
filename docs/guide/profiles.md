@@ -1,6 +1,8 @@
 # 玩家档案
 
-Minecraft profile 是玩家在 Yggdrasil 协议里的角色身份。AsterYggdrasil 把 profile 单独建表，不把它混在站点用户表里。
+Minecraft profile 是玩家在 Yggdrasil 协议里的角色身份。站点账号负责登录，profile 负责进服时的玩家名、UUID 和材质属性。
+
+AsterYggdrasil 把 profile 单独建模，不把它混在用户表里。这样一个站点账号可以有多个 Minecraft profile，管理员也能清楚地看到“账号”和“角色身份”之间的关系。
 
 ## 创建和列表
 
@@ -10,6 +12,8 @@ Minecraft profile 是玩家在 Yggdrasil 协议里的角色身份。AsterYggdras
 GET    /api/v1/profiles/minecraft
 POST   /api/v1/profiles/minecraft
 GET    /api/v1/profiles/minecraft/{uuid}/textures
+PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
 DELETE /api/v1/profiles/minecraft/{uuid}
 ```
 
@@ -17,12 +21,29 @@ DELETE /api/v1/profiles/minecraft/{uuid}
 
 ```text
 GET    /api/v1/admin/minecraft-profiles
+GET    /api/v1/admin/minecraft-profiles/{uuid}
 GET    /api/v1/admin/users/{user_id}/minecraft-profiles
 GET    /api/v1/admin/minecraft-profiles/{uuid}/textures
+DELETE /api/v1/admin/minecraft-profiles/{uuid}/textures/{skin|cape}
+DELETE /api/v1/admin/minecraft-textures/{hash}
 DELETE /api/v1/admin/minecraft-profiles/{uuid}
 ```
 
 管理员列表支持按 name、uuid、user 相关条件筛选。
+
+## 和 wardrobe 的关系
+
+用户可以先把 skin/cape 上传到 wardrobe：
+
+```text
+GET    /api/v1/wardrobe/textures
+POST   /api/v1/wardrobe/textures/{skin|cape}
+DELETE /api/v1/wardrobe/textures/{texture_id}
+```
+
+然后再把 wardrobe 里的某个 texture 绑定到 profile 的 skin 或 cape 槽位。
+
+这和 Yggdrasil 直接上传不冲突。直接上传会把处理后的材质写到指定 profile；wardrobe 则更像个人材质库，适合复用和管理。
 
 ## 名称规则
 

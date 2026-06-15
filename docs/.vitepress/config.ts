@@ -83,6 +83,8 @@ export default withMermaid(
 					},
 					nav: [
 						{ text: "首页", link: "/" },
+						{ text: "关于", link: "/guide/about" },
+						{ text: "用户手册", link: "/guide/user-guide" },
 						{ text: "接入", link: "/guide/yggdrasil-api" },
 						{ text: "部署", link: "/deployment/docker" },
 						{ text: `v${version}`, link: "https://github.com/AsterCommunity/AsterYggdrasil" },
@@ -92,7 +94,9 @@ export default withMermaid(
 							text: "运行 AsterYggdrasil",
 							items: [
 								{ text: "概览", link: "/" },
+								{ text: "关于", link: "/guide/about" },
 								{ text: "快速开始", link: "/guide/getting-started" },
+								{ text: "用户手册", link: "/guide/user-guide" },
 								{ text: "Yggdrasil API", link: "/guide/yggdrasil-api" },
 								{ text: "启动器登录", link: "/guide/launcher-login" },
 								{ text: "玩家档案", link: "/guide/profiles" },
@@ -118,6 +122,8 @@ export default withMermaid(
 				themeConfig: {
 					nav: [
 						{ text: "Home", link: "/en/" },
+						{ text: "About", link: "/en/guide/about" },
+						{ text: "User Guide", link: "/en/guide/user-guide" },
 						{ text: "Integration", link: "/en/guide/yggdrasil-api" },
 						{ text: "Deployment", link: "/en/deployment/docker" },
 						{ text: `v${version}`, link: "https://github.com/AsterCommunity/AsterYggdrasil" },
@@ -127,7 +133,9 @@ export default withMermaid(
 							text: "Run AsterYggdrasil",
 							items: [
 								{ text: "Overview", link: "/en/" },
+								{ text: "About", link: "/en/guide/about" },
 								{ text: "Getting Started", link: "/en/guide/getting-started" },
+								{ text: "User Guide", link: "/en/guide/user-guide" },
 								{ text: "Yggdrasil API", link: "/en/guide/yggdrasil-api" },
 								{ text: "Launcher Login", link: "/en/guide/launcher-login" },
 								{ text: "Minecraft Profiles", link: "/en/guide/profiles" },

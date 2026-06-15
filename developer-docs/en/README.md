@@ -1,16 +1,43 @@
 # AsterYggdrasil Developer Guide
 
-AsterYggdrasil is a foundation repository. Treat it as shared runtime code first and a product starter second. Generic concerns belong here; product workflows belong in the product repository that needs them.
+AsterYggdrasil is a self-hosted Minecraft skin site and Yggdrasil authentication server. It is no longer a generic Rust + React template. The current codebase already contains account auth, external auth, passkeys, user profiles, Minecraft profiles, wardrobe textures, authlib-injector-compatible protocol routes, runtime config, background tasks, audit, and an administration frontend.
+
+These docs describe the current implementation and extension contracts. New work should model Minecraft/Yggdrasil concepts directly and must not reintroduce old file-drive, team-sharing, or generic starter assumptions.
 
 ## Core Principles
 
-- Keep foundation modules domain-neutral.
-- Prefer existing service, repository, DTO, and OpenAPI patterns over new local frameworks.
-- Do not add ordinary user task APIs unless the product has a real task visibility model.
-- Do not add `api::subcode` or another client-visible subcode system. Extend `AsterErrorCode` instead.
-- Add audit records for administrator actions, security-sensitive changes, and runtime lifecycle events.
+- Read the existing service, repository, DTO, OpenAPI, frontend service, and page patterns before changing code.
+- Use product-domain names such as `yggdrasil`, `minecraft_profile`, `texture`, `skin`, `cape`, `wardrobe`, and `authlib_injector`.
+- Project and admin APIs use the common response envelope; Yggdrasil protocol endpoints must keep their native protocol response shapes.
+- Extend `AsterErrorCode` for new public error reasons. Do not add another client-visible subcode system.
+- Add audit records for administrator actions, security-sensitive changes, Minecraft profile/texture changes, Yggdrasil token/session behavior, and runtime lifecycle events.
 - Add OpenAPI schemas and generated frontend types whenever an API contract changes.
 - Keep migrations append-only once a project has shipped.
+- `frontend-panel/` is now product UI. Do not extend it as if it were still a template/demo information architecture.
+
+## Current Product Domains
+
+The backend currently includes:
+
+- Local account setup, registration, login, refresh/logout, session management, and user profile updates.
+- Passkey/WebAuthn login and credential management.
+- External auth providers, OAuth/OIDC login, account linking, and email verification flows.
+- Minecraft profile creation, listing, deletion, and texture binding.
+- Wardrobe texture library for skin/cape upload, validation, storage, binding, and deletion.
+- Yggdrasil/authlib-injector protocol routes for metadata, authenticate, refresh, validate, invalidate, signout, join, hasJoined, profile, and textures.
+- Admin APIs for config, users, Minecraft profiles, audit logs, external auth providers, background tasks, and system info.
+- Runtime config, mail outbox, audit, background tasks, metrics, CORS/CSRF, security headers, and rate limiting.
+
+The frontend currently includes:
+
+- `/` public connection page with authlib-injector setup information.
+- `/init` first administrator setup.
+- `/login` and `/register` account entry with external auth and passkey login.
+- `/dashboard` workbench.
+- `/dashboard/profiles` Minecraft profile and launcher/texture workflow.
+- `/dashboard/wardrobe` current-user texture library.
+- `/dashboard/settings` personal settings, sessions, and passkeys.
+- `/dashboard/admin/*` config, users, Minecraft profiles, external auth, audit, task, and about pages.
 
 ## Backend Extension Path
 
@@ -26,10 +53,10 @@ src/api/routes/                HTTP handlers and route registration
 src/api/openapi.rs             OpenAPI paths and schemas
 tests/                         integration coverage
 frontend-panel/src/services/   frontend service wrapper
-frontend-panel/src/pages/      admin UI when needed
+frontend-panel/src/pages/      UI page when needed
 ```
 
-Do not put query logic in handlers. Handlers should validate HTTP input, call services, and return the common response envelope.
+Texture blobs go through `src/texture_storage/`; do not bring back the old file-drive model. Yggdrasil behavior belongs under `src/services/yggdrasil_service/`, texture behavior belongs under `src/services/texture_service/`, and handlers should only authenticate, extract HTTP input, call services, and return responses.
 
 ## Runtime Startup
 
@@ -40,7 +67,7 @@ Startup is split under `src/runtime/startup/`:
 - `follower.rs` builds follower runtime state.
 - `mod.rs` selects by `config.server.start_mode` and records `server_start`.
 
-`server.start_mode = "primary"` runs dispatcher and maintenance loops. `server.start_mode = "follower"` keeps common service state but skips primary-only runtime background tasks.
+`server.start_mode = "primary"` runs dispatcher and maintenance loops. `server.start_mode = "follower"` keeps common service state but skips primary-only background tasks, avoiding duplicate mail delivery or duplicate maintenance side effects across nodes.
 
 ## Graceful Shutdown
 
@@ -60,7 +87,20 @@ When adding long-running workers, they must observe the shutdown token and leave
 
 The task system lives in `src/services/task_service/` and `src/runtime/tasks.rs`.
 
-Current template task kinds are only `system_runtime` tasks. Admin APIs can list, retry, and clean up tasks; ordinary user task APIs are intentionally absent.
+The persisted `BackgroundTaskKind` currently remains `system_runtime`. Concrete system work is distinguished by `SystemRuntimeTaskKind`, currently:
+
+- `background-task-dispatch`
+- `system-health-check`
+- `auth-session-cleanup`
+- `external-auth-flow-cleanup`
+- `mail-outbox-dispatch`
+- `audit-cleanup`
+- `task-cleanup`
+- `yggdrasil-token-cleanup`
+- `yggdrasil-storage-consistency-check`
+- `yggdrasil-texture-cleanup`
+
+Admin APIs can list, retry, and clean up tasks; there is no ordinary user task API right now. If a domain task kind is added, define its payload/result types, registry entry, retry classification, initial steps, presentation, visibility rules, and tests together.
 
 Key contracts:
 
@@ -71,23 +111,26 @@ Key contracts:
 - Task presentation uses stable message codes so the frontend does not parse task payloads or result blobs.
 - Add task integration tests for claim, retry, cleanup, and shutdown behavior when changing dispatch semantics.
 
-If a product adds a domain task kind, define its payload/result types, registry entry, retry classification, initial steps, presentation, and visibility rules together.
-
 Mail outbox delivery is also a system runtime task. See [Mail Runtime Extension](./mail-runtime.md) for the concrete extension rules.
 
 ## Audit Service
 
-Audit code lives in `src/services/audit_service/`.
+Audit code lives in `src/services/audit_service/`; stable enums live in `src/types/audit.rs`.
 
 Use audit for:
 
 - server start and shutdown
-- login and security-relevant auth changes
-- admin config changes
-- admin external auth provider changes
+- setup, register, login, logout, refresh token, and session revoke
+- passkey register, rename, delete, and login
+- admin config changes and config actions
+- admin user changes and session revocation
+- admin external auth provider create, update, delete, and test
+- external auth login, link, and unlink
 - admin task retry and cleanup
 - mail send and mail delivery failure
-- product-specific administrator state changes
+- Minecraft profile create and delete
+- Minecraft texture upload, bind, and delete
+- Yggdrasil authenticate, refresh, invalidate, signout, and join server
 
 Audit entries should include structured details and presentation metadata. Frontend code should display `presentation` first and use raw `details` only as a fallback/debug surface.
 
@@ -95,9 +138,15 @@ Mail audit details, presentation, and tests are covered in [Mail Runtime Extensi
 
 ## API And Errors
 
-All API responses use the common envelope in `src/api/response.rs`.
+Project APIs use the common envelope in `src/api/response.rs`:
 
-Client-facing failures should expose stable `AsterErrorCode` values. The old internal `E001`-style codes are for server diagnostics only. Do not introduce a second public subcode layer in foundation modules.
+```json
+{ "code": "success", "msg": "", "data": {} }
+```
+
+Client-facing failures expose stable `AsterErrorCode` values. Existing domains cover auth, external auth, mail, config, audit logs, tasks, Minecraft profiles, Minecraft textures, wardrobe, passkeys, avatars, and frontend config.
+
+Yggdrasil/authlib-injector protocol endpoints are the exception: they return protocol-compatible status codes, fields, and error bodies without the project envelope. Keep protocol error mapping around `src/services/yggdrasil_service/error.rs` and `src/api/routes/yggdrasil.rs`; do not pollute the global error system with protocol-only shapes.
 
 When changing API contracts:
 
@@ -110,24 +159,26 @@ When changing API contracts:
 Commands:
 
 ```bash
-cargo test --features openapi generate_openapi
+cargo test --features openapi --test generate_openapi
 cd frontend-panel
 bun run generate-api
 ```
 
 ## Frontend Extension Path
 
-The frontend lives in `frontend-panel/`.
+The frontend lives in `frontend-panel/`. It is not a marketing site or a template demo.
 
 Use:
 
-- `src/services/` for API wrappers
-- `src/types/api.ts` for re-exported generated API types
-- `src/lib/presentation.ts` for stable audit/task display formatting
-- `src/pages/admin/` for administrator pages
-- existing table/form/page shell components before adding new UI primitives
+- `src/services/` for API wrappers.
+- `src/types/api.generated.ts` for generated API types and `src/types/api.ts` for re-exports and aliases.
+- `src/lib/presentation.ts` for stable audit/task display formatting.
+- `src/pages/app/` for signed-in user pages.
+- `src/pages/admin/` for administrator pages.
+- `src/components/yggdrasil/` for launcher, Minecraft preview, copy field, and other Yggdrasil/Minecraft components.
+- `src/components/admin/`, `src/components/common/`, and `src/components/layout/` for admin and shared UI composition.
 
-Admin screens should stay dense, predictable, and operational. Avoid marketing-style layouts inside the admin panel.
+Admin screens should stay dense, predictable, and operational. Profile and wardrobe pages should follow real Minecraft workflows, not template feature cards or file-drive management patterns.
 
 ## Testing
 
@@ -135,10 +186,9 @@ Useful commands:
 
 ```bash
 cargo fmt
-cargo check --bins
-cargo check --features openapi
-cargo clippy --tests -- -D warnings
+cargo check
 cargo test
+cargo test --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run check
@@ -149,53 +199,30 @@ bun run build
 Targeted commands used often:
 
 ```bash
+cargo test --test test_yggdrasil
 cargo test --test test_admin_tasks
 cargo test --test test_audit
-cargo test --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
+cargo test --test test_auth
+cargo test --test test_external_auth
+cargo test --test test_database_backends
 cargo test mail_template
+cargo test texture_service
 cargo test task_service::presentation
 cargo test shutdown_release_returns_processing_task_to_retry_without_failure_update
 ```
 
-## Using cargo-generate
+When changing migrations, repositories, or SQL, at least run the SQLite coverage; for cross-database semantics, run `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo test --test test_database_backends`. When changing frontend services or key pages, run `bun run test`; for page workflows, run the relevant Playwright tests.
 
-The root `cargo-generate.toml` makes this repository usable as a `cargo generate` source while ignoring build/runtime artifacts:
-
-```bash
-cargo install cargo-generate
-cargo generate --git https://github.com/AsterCommunity/AsterYggdrasil --name my-service
-cd my-service
-./init.sh
-```
-
-The generated project still contains identifiers such as `aster_yggdrasil` and `AsterYggdrasil` until initialization. Run `./init.sh --help` for non-interactive options.
-
-Because initialization can update package names inside lockfiles, regenerate them afterwards with `cargo generate-lockfile` and `cd frontend-panel && bun install`.
-
-Recommended follow-up checklist:
-
-- `Cargo.toml`: package name, description, repository, binary naming if changed.
-- `Dockerfile`: binary path, image labels, database default path.
-- `docker-compose.yml`: image name, service name, database default path.
-- `README.md` and `README.zh.md`: project name, description, links.
-- `frontend-panel/package.json`: package name.
-- `frontend-panel/src/config/app.ts`: frontend display defaults.
-- `config.example.toml`: default database path and service-facing examples.
-- `src/api/openapi.rs`: API title and description.
-- `src/main.rs`: startup log labels if the product should not say AsterYggdrasil.
-
-After renaming, run backend and frontend checks before adding domain code.
-
-## Boundary Checklist
+## Product Boundary Checklist
 
 Before adding a module to AsterYggdrasil, ask:
 
-- Is this useful to most future Aster services?
-- Can it be configured without product assumptions?
-- Does it avoid importing product-specific business concepts into the shared foundation?
-- Does it have tests at the service/repository/API level that match the blast radius?
-- Does the frontend get stable presentation data instead of parsing backend internals?
+- Is this needed by the Minecraft skin site, Yggdrasil auth, account security, runtime operations, or admin panel?
+- Does the name express the product domain instead of old template, file-drive, or team-sharing concepts?
+- Do protocol endpoints preserve authlib-injector/Yggdrasil-compatible response formats?
+- Do project APIs keep the common envelope and stable `AsterErrorCode` values?
+- Are sensitive values kept out of plaintext storage, logs, audit details, and error messages?
+- Do tests cover the relevant service/repository/API risk?
+- Does the frontend receive stable presentation data or DTOs instead of parsing backend internals?
 
-If the answer is no, put it in the product repository.
-
-For a concrete product-scale reference, inspect AsterDrive after understanding this foundation. Use it to study extension patterns, not to decide what belongs in AsterYggdrasil.
+If the answer is no, stop and confirm the requirement before adding unrelated product surface. Untested code is irresponsible; stale docs are the same problem wearing a different coat.

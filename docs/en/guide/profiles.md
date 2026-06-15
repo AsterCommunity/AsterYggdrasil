@@ -1,6 +1,8 @@
 # Minecraft Profiles
 
-A Minecraft profile is the player's identity in the Yggdrasil protocol. AsterYggdrasil stores profiles in a separate table instead of mixing them into the site user table.
+A Minecraft profile is the player's identity in the Yggdrasil protocol. Site accounts handle login; profiles handle the player name, UUID, and texture properties used by launchers and servers.
+
+AsterYggdrasil models profiles separately instead of mixing them into the user table. One site account can own multiple Minecraft profiles, and administrators can inspect the account-to-profile relationship clearly.
 
 ## Create and List
 
@@ -10,6 +12,8 @@ Current-user APIs:
 GET    /api/v1/profiles/minecraft
 POST   /api/v1/profiles/minecraft
 GET    /api/v1/profiles/minecraft/{uuid}/textures
+PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
 DELETE /api/v1/profiles/minecraft/{uuid}
 ```
 
@@ -17,12 +21,29 @@ Admin APIs:
 
 ```text
 GET    /api/v1/admin/minecraft-profiles
+GET    /api/v1/admin/minecraft-profiles/{uuid}
 GET    /api/v1/admin/users/{user_id}/minecraft-profiles
 GET    /api/v1/admin/minecraft-profiles/{uuid}/textures
+DELETE /api/v1/admin/minecraft-profiles/{uuid}/textures/{skin|cape}
+DELETE /api/v1/admin/minecraft-textures/{hash}
 DELETE /api/v1/admin/minecraft-profiles/{uuid}
 ```
 
 The admin list supports filtering by name, uuid, and user-related conditions.
+
+## Relation to Wardrobe
+
+Users can upload skin/cape files to their wardrobe first:
+
+```text
+GET    /api/v1/wardrobe/textures
+POST   /api/v1/wardrobe/textures/{skin|cape}
+DELETE /api/v1/wardrobe/textures/{texture_id}
+```
+
+Then they can bind one wardrobe texture to a profile's skin or cape slot.
+
+This does not conflict with direct Yggdrasil upload. Direct upload writes the processed texture to the target profile; wardrobe behaves more like a personal texture library for reuse and management.
 
 ## Name Rules
 

@@ -34,9 +34,11 @@ GET /api/yggdrasil/
 Metadata includes:
 
 - `meta.serverName`: display name.
+- `meta.implementationName`: implementation name, currently `AsterYggdrasil`.
+- `meta.implementationVersion`: running service version.
+- `meta.feature.non_email_login`: whether non-email login is allowed, controlled by `yggdrasil_allow_profile_name_login`.
 - `skinDomains`: texture URL domain allowlist.
 - `signaturePublickey`: RSA public key used to verify signed profile properties.
-- `feature`: authlib-injector feature switches.
 
 Metadata responses are sent with no-cache headers. After signing key rotation, clients should fetch metadata again instead of verifying new profile properties with an old cached key.
 
@@ -84,12 +86,12 @@ Looks up profiles by profile name. The request body is an array of names, and th
 ## Texture API
 
 ```text
-PUT    /api/yggdrasil/api/user/profile/{uuid}/{textureType}
-DELETE /api/yggdrasil/api/user/profile/{uuid}/{textureType}
+PUT    /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+DELETE /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
 GET    /api/yggdrasil/textures/{hash}
 ```
 
-`textureType` is either `skin` or `cape`. Upload and delete require a valid access token. Public reads return the processed PNG directly by hash.
+Upload and delete require a valid access token. Public reads return the processed PNG directly by hash.
 
 ## Protocol Errors
 

@@ -1,54 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="100%" height="100%">
   <title>AsterYggdrasil App Icon</title>
-  
-  <defs>
-    <!-- Mask to cut gaps in the back half of the orbital ring -->
-    <mask id="mask-orbit-back">
-      <!-- Base mask: Everything white is visible -->
-      <rect width="100%" height="100%" fill="white" />
-      
-      <!-- Cutout for the 'A' (using a thicker black stroke to create an 8px gap) -->
-      <path d="M 106 406 L 256 106 L 406 406" 
-            fill="none" stroke="black" stroke-width="56" 
-            stroke-linecap="round" stroke-linejoin="round" />
-            
-      <!-- Cutout for the Aster Star (using a 16px stroke to create an 8px gap) -->
-      <path d="M 256 226 Q 256 296 326 296 Q 256 296 256 366 Q 256 296 186 296 Q 256 296 256 226 Z" 
-            fill="black" stroke="black" stroke-width="16" stroke-linejoin="round" />
-    </mask>
-
-    <!-- Mask to cut gaps in the 'A' and Star where the front orbital ring crosses them -->
-    <mask id="mask-a-star">
-      <rect width="100%" height="100%" fill="white" />
-      
-      <!-- Cutout for the front orbital ring (butt caps prevent it from cutting the edges) -->
-      <path d="M 406 296 A 150 50 0 0 1 106 296" 
-            fill="none" stroke="black" stroke-width="32" stroke-linecap="butt" />
-    </mask>
-  </defs>
-
-  <!-- 1. Deep Slate Circular Badge Background -->
-  <circle cx="256" cy="256" r="256" fill="#0F172A" />
-
-  <!-- 2. Orbit (Back Half) - Goes behind the structure -->
-  <path d="M 106 296 A 150 50 0 0 1 406 296" 
-        fill="none" stroke="#3B82F6" stroke-width="16" 
-        stroke-linecap="round" mask="url(#mask-orbit-back)" />
-
-  <!-- 3. Core Geometry (The 'A' and the Star) - Masked by the front orbit -->
-  <g mask="url(#mask-a-star)">
-    <!-- The Structural 'A' Chevron -->
-    <path d="M 106 406 L 256 106 L 406 406" 
-          fill="none" stroke="#F8FAFC" stroke-width="40" 
-          stroke-linecap="round" stroke-linejoin="round" />
-          
-    <!-- The Central Aster Star -->
-    <path d="M 256 226 Q 256 296 326 296 Q 256 296 256 366 Q 256 296 186 296 Q 256 296 256 226 Z" 
-          fill="#3B82F6" />
+  <rect x="1.5" y="1.5" width="85" height="85" rx="15.5" fill="#07110D" fill-opacity="0.92"/>
+  <rect x="1.5" y="1.5" width="85" height="85" rx="15.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="3"/>
+  <g filter="url(#shadow)">
+    <rect x="11" y="10" width="20" height="20" rx="4" fill="#56C787"/>
+    <rect x="34" y="10" width="20" height="20" rx="4" fill="#56C787"/>
+    <rect x="57" y="10" width="20" height="20" rx="4" fill="#56C787"/>
+    <rect x="11" y="35" width="20" height="20" rx="4" fill="#514D47"/>
+    <rect x="34" y="35" width="20" height="20" rx="4" fill="#AF5B00"/>
+    <rect x="57" y="35" width="20" height="20" rx="4" fill="#B86102"/>
+    <rect x="11" y="60" width="20" height="20" rx="4" fill="#514D47"/>
+    <rect x="34" y="60" width="20" height="20" rx="4" fill="#B86102"/>
+    <rect x="57" y="60" width="20" height="20" rx="4" fill="#B86102"/>
   </g>
-
-  <!-- 4. Orbit (Front Half) - Loops over the structure to lock it in -->
-  <path d="M 406 296 A 150 50 0 0 1 106 296" 
-        fill="none" stroke="#3B82F6" stroke-width="16" stroke-linecap="round" />
-
+  <defs>
+    <filter id="shadow" x="5" y="6" width="78" height="82" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
 </svg>

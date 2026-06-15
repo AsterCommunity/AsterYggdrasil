@@ -34,9 +34,11 @@ GET /api/yggdrasil/
 metadata 包含：
 
 - `meta.serverName`: 服务显示名称。
+- `meta.implementationName`: 实现名称，当前为 `AsterYggdrasil`。
+- `meta.implementationVersion`: 当前服务版本。
+- `meta.feature.non_email_login`: 是否允许非邮箱标识登录，当前由 `yggdrasil_allow_profile_name_login` 控制。
 - `skinDomains`: 材质 URL 域名白名单。
 - `signaturePublickey`: 用于验证 profile properties 签名的 RSA 公钥。
-- `feature`: authlib-injector 功能开关。
 
 metadata 响应使用防缓存头。签名密钥轮换后，客户端应重新获取 metadata，避免继续用旧公钥验签。
 
@@ -84,12 +86,12 @@ POST /api/yggdrasil/api/profiles/minecraft
 ## Texture API
 
 ```text
-PUT    /api/yggdrasil/api/user/profile/{uuid}/{textureType}
-DELETE /api/yggdrasil/api/user/profile/{uuid}/{textureType}
+PUT    /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+DELETE /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
 GET    /api/yggdrasil/textures/{hash}
 ```
 
-`textureType` 只能是 `skin` 或 `cape`。上传和删除需要有效 access token，公开读取按 hash 直接返回处理后的 PNG。
+上传和删除需要有效 access token，公开读取按 hash 直接返回处理后的 PNG。
 
 ## 协议错误
 

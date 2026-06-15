@@ -1,6 +1,6 @@
 # 邮件运行时扩展
 
-邮件系统是 AsterYggdrasil 的通用运行时能力，不是某个产品流程。它提供 SMTP 发送、模板渲染、持久化 outbox、primary-only 投递、Admin 测试邮件和 audit 集成。下游项目需要注册激活、密码重置、邀请、告警或通知邮件时，应复用这套路径。
+邮件系统是 AsterYggdrasil 账号和运行时能力的一部分。它提供 SMTP 发送、模板渲染、持久化 outbox、primary-only 投递、Admin 测试邮件和 audit 集成。注册激活、密码重置、联系方式变更、外部认证邮箱验证和登录验证码都应复用这套路径，不要在请求路径里直接打 SMTP。
 
 ## 代码结构
 
@@ -66,7 +66,7 @@ login_email_code
 
 ## Outbox 和投递
 
-业务流程不要直接在请求路径里发 SMTP。应该调用：
+AsterYggdrasil 业务流程不要直接在请求路径里发 SMTP。应该调用：
 
 ```text
 mail_outbox_service::enqueue(...)
@@ -157,7 +157,7 @@ error
 ```bash
 cargo test mail_template
 cargo test --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
-cargo test --features openapi generate_openapi
+cargo test --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run generate-api

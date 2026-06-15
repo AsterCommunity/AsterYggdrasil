@@ -41,6 +41,8 @@ yggdrasil_allow_skin_upload
 yggdrasil_allow_cape_upload
 yggdrasil_token_ttl_days
 yggdrasil_max_active_tokens
+yggdrasil_max_texture_upload_bytes
+yggdrasil_max_texture_pixels
 yggdrasil_skin_domains
 yggdrasil_public_base_url
 yggdrasil_signature_public_key

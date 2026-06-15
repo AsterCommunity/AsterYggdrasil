@@ -1,8 +1,25 @@
 # Yggdrasil 材质处理
 
-AsterYggdrasil 的材质接口位于 `/api/yggdrasil/api/user/profile/{uuid}/{textureType}`，其中 `textureType` 只能是 `skin` 或 `cape`。公开读取接口位于 `/api/yggdrasil/textures/{hash}`。
+AsterYggdrasil 现在有两套材质入口。
 
-材质上传走 Yggdrasil/authlib-injector 协议响应格式，不使用项目管理 API 的 envelope。管理端查看和删除材质时使用 `/api/v1/...` 管理 API，并继续返回统一 envelope。
+面向启动器和 authlib-injector 兼容工具的是 Yggdrasil 上传接口：
+
+```text
+PUT    /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+DELETE /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+GET    /api/yggdrasil/textures/{hash}
+```
+
+面向站点用户的是 wardrobe 和 profile 绑定接口：
+
+```text
+GET    /api/v1/wardrobe/textures
+POST   /api/v1/wardrobe/textures/{skin|cape}
+PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+```
+
+Yggdrasil 协议接口返回协议格式，不使用项目 API envelope。`/api/v1/...` 站点和管理接口继续返回统一 envelope。
 
 ## 上传校验
 

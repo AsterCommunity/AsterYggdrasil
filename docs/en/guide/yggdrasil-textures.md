@@ -1,8 +1,25 @@
 # Yggdrasil Textures
 
-AsterYggdrasil exposes texture upload through `/api/yggdrasil/api/user/profile/{uuid}/{textureType}`, where `textureType` is either `skin` or `cape`. Public texture reads use `/api/yggdrasil/textures/{hash}`.
+AsterYggdrasil has two texture entrypoints.
 
-Texture upload follows the Yggdrasil/authlib-injector response shape and does not use the project API envelope. Admin texture metadata and deletion endpoints live under `/api/v1/...` and continue to use the standard envelope.
+For launchers and authlib-injector-compatible tools, use the Yggdrasil texture API:
+
+```text
+PUT    /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+DELETE /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
+GET    /api/yggdrasil/textures/{hash}
+```
+
+For site users, use wardrobe plus profile binding:
+
+```text
+GET    /api/v1/wardrobe/textures
+POST   /api/v1/wardrobe/textures/{skin|cape}
+PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
+```
+
+Yggdrasil protocol endpoints return the protocol response shape and do not use the project API envelope. `/api/v1/...` site and admin APIs continue to use the standard envelope.
 
 ## Upload Validation
 

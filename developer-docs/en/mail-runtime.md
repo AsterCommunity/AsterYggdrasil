@@ -1,6 +1,6 @@
 # Mail Runtime Extension
 
-The mail system is generic AsterYggdrasil runtime infrastructure, not a product workflow. It provides SMTP delivery, template rendering, a durable outbox, primary-only dispatch, administrator test mail, and audit integration. Downstream projects should reuse this path for registration activation, password reset, invitations, alerts, or notification mail.
+The mail system is part of AsterYggdrasil account and runtime infrastructure. It provides SMTP delivery, template rendering, a durable outbox, primary-only dispatch, administrator test mail, and audit integration. Registration activation, password reset, contact-change, external-auth email verification, and login-code messages should all use this path instead of sending SMTP directly on the request path.
 
 ## Code Layout
 
@@ -66,7 +66,7 @@ Template rendering must keep text and HTML values separate. User-controlled valu
 
 ## Outbox And Delivery
 
-Product flows should not send SMTP directly on the request path. Use:
+AsterYggdrasil flows should not send SMTP directly on the request path. Use:
 
 ```text
 mail_outbox_service::enqueue(...)
@@ -157,7 +157,7 @@ Useful commands:
 ```bash
 cargo test mail_template
 cargo test --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
-cargo test --features openapi generate_openapi
+cargo test --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run generate-api
