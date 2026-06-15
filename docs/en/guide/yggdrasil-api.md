@@ -71,9 +71,9 @@ GET  /api/yggdrasil/sessionserver/session/minecraft/profile/{uuid}
 
 `join` is called by the Minecraft client with access token, selected profile, and serverId.
 
-`hasJoined` is called by the Minecraft server with username, serverId, and optional ip. Successful responses include a signed textures property for server-side verification.
+`hasJoined` is called by the Minecraft server with username, serverId, and optional ip. Successful responses include signed profile properties for server-side verification.
 
-`profile/{uuid}` queries profile properties. When `unsigned=false`, the textures property is signed; the default unsigned behavior remains protocol compatible.
+`profile/{uuid}` queries profile properties. When `unsigned=false`, profile properties are signed; the default unsigned behavior remains protocol compatible.
 
 ## Profile Lookup
 

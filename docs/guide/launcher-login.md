@@ -28,7 +28,7 @@ POST /api/yggdrasil/authserver/authenticate
 
 ## clientToken
 
-`clientToken` 是启动器侧标识，不是认证密钥。客户端提供时，refresh、validate、invalidate 会校验它是否和 token 匹配。
+`clientToken` 是启动器侧标识，不是认证密钥。客户端提供时，refresh 和 validate 会校验它是否和 token 匹配；invalidate 按 Yggdrasil 规范只检查 `accessToken`，`clientToken` 不影响吊销结果。
 
 没有提供 `clientToken` 时，服务端会生成一个并在响应中返回。
 
@@ -65,7 +65,7 @@ Minecraft 服务端随后调用：
 GET /api/yggdrasil/sessionserver/session/minecraft/hasJoined
 ```
 
-`hasJoined` 成功响应包含 profile id、name 和 properties。textures property 会签名，服务端可用 metadata 里的公钥验证。
+`hasJoined` 成功响应包含 profile id、name 和 properties。返回的 profile properties 会带数字签名，服务端可用 metadata 里的公钥验证。
 
 ## Profile Name 登录
 

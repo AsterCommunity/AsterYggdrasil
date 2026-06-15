@@ -71,9 +71,9 @@ GET  /api/yggdrasil/sessionserver/session/minecraft/profile/{uuid}
 
 `join` 由 Minecraft 客户端调用，用 access token、selected profile 和 serverId 记录加入会话。
 
-`hasJoined` 由 Minecraft 服务端调用，用 username、serverId 和可选 ip 验证客户端是否完成 join。成功响应里的 textures property 会带数字签名，供服务端验证。
+`hasJoined` 由 Minecraft 服务端调用，用 username、serverId 和可选 ip 验证客户端是否完成 join。成功响应里的 profile properties 会带数字签名，供服务端验证。
 
-`profile/{uuid}` 查询 profile 属性。`unsigned=false` 时 textures property 会签名；默认 unsigned 行为保持协议兼容。
+`profile/{uuid}` 查询 profile 属性。`unsigned=false` 时 profile properties 会签名；默认 unsigned 行为保持协议兼容。
 
 ## Profile Lookup
 

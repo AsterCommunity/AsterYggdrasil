@@ -28,7 +28,7 @@ Successful responses include:
 
 ## clientToken
 
-`clientToken` identifies the launcher client. It is not an authentication secret. When supplied, refresh, validate, and invalidate verify that it matches the token.
+`clientToken` identifies the launcher client. It is not an authentication secret. When supplied, refresh and validate verify that it matches the token; invalidate follows the Yggdrasil spec and only checks `accessToken`, so `clientToken` does not affect revocation.
 
 If omitted, the server generates one and returns it.
 
@@ -65,7 +65,7 @@ The Minecraft server then calls:
 GET /api/yggdrasil/sessionserver/session/minecraft/hasJoined
 ```
 
-A successful `hasJoined` response includes profile id, name, and properties. The textures property is signed and can be verified with the public key from metadata.
+A successful `hasJoined` response includes profile id, name, and properties. Returned profile properties are signed and can be verified with the public key from metadata.
 
 ## Profile Name Login
 

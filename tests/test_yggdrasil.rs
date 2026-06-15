@@ -902,7 +902,11 @@ async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
     assert_eq!(joined_body["id"], profile_id);
     assert_eq!(joined_body["name"], "JoinUser");
     assert_eq!(joined_body["properties"][0]["name"], "uploadableTextures");
-    assert!(joined_body["properties"][0]["signature"].is_null());
+    assert!(
+        joined_body["properties"][0]["signature"]
+            .as_str()
+            .is_some_and(|signature| !signature.is_empty())
+    );
 
     let req = test::TestRequest::get()
         .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=JoinUser&serverId=server-hash&ip=127.0.0.1")
@@ -1090,14 +1094,17 @@ async fn yggdrasil_has_joined_signs_texture_properties_for_server_validation() {
     let signature = textures_property["signature"]
         .as_str()
         .expect("textures property should include signature");
-    verify_textures_signature(public_key_pem, value, signature);
+    verify_property_signature(public_key_pem, value, signature);
 
     let uploadable_property = properties
         .iter()
         .find(|property| property["name"] == "uploadableTextures")
         .expect("uploadableTextures property should exist");
     assert_eq!(uploadable_property["value"], "skin,cape");
-    assert!(uploadable_property["signature"].is_null());
+    let uploadable_signature = uploadable_property["signature"]
+        .as_str()
+        .expect("uploadableTextures property should include signature");
+    verify_property_signature(public_key_pem, "skin,cape", uploadable_signature);
 }
 
 #[actix_web::test]
@@ -1325,7 +1332,7 @@ async fn yggdrasil_profile_textures_are_signed_with_persistent_runtime_key() {
             .starts_with("https://skin.example.test/yggdrasil/textures/")
     );
 
-    verify_textures_signature(public_key_pem, value, signature);
+    verify_property_signature(public_key_pem, value, signature);
 }
 
 #[actix_web::test]
@@ -3749,7 +3756,7 @@ fn texture_hash_from_property<'a>(textures: &'a Value, key: &str) -> &'a str {
         .expect("texture url should end with hash")
 }
 
-fn verify_textures_signature(public_key_pem: &str, value: &str, signature: &str) {
+fn verify_property_signature(public_key_pem: &str, value: &str, signature: &str) {
     use rsa::pkcs8::DecodePublicKey;
     use rsa::signature::Verifier;
 
@@ -3763,7 +3770,7 @@ fn verify_textures_signature(public_key_pem: &str, value: &str, signature: &str)
         .expect("signature bytes should parse");
     verifying_key
         .verify(value.as_bytes(), &signature)
-        .expect("textures property signature should verify");
+        .expect("profile property signature should verify");
 }
 
 fn extend_ascii(target: &mut Vec<u8>, value: &str) {

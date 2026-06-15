@@ -52,13 +52,21 @@ where
         );
     }
     if !profile.uploadable_textures.trim().is_empty() {
+        let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+        let signature = if signed {
+            yggdrasil_signature::sign_texture_property(&policy, &profile.uploadable_textures)
+                .map_err(YggdrasilError::from)?
+        } else {
+            None
+        };
         properties.push(YggdrasilProfileProperty {
             name: "uploadableTextures".to_string(),
             value: profile.uploadable_textures.clone(),
-            signature: None,
+            signature,
         });
         tracing::debug!(
             profile_id = profile.id,
+            signed,
             uploadable_textures = %profile.uploadable_textures,
             "added yggdrasil uploadableTextures property"
         );
