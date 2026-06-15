@@ -326,13 +326,30 @@ jobs:
             echo '```'
           } > release_body.md
 
-      - name: Create Release
+      - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
           name: AsterYggdrasil ${{ github.ref_name }}
           body_path: release_body.md
           files: release/*
-          draft: false
+          draft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          args=(--draft=false)
+
+          case "${GITHUB_REF_NAME}" in
+            *alpha*|*beta*|*rc*)
+              args+=(--prerelease)
+              ;;
+            *)
+              args+=(--latest)
+              ;;
+          esac
+
+          gh release edit "${GITHUB_REF_NAME}" "${args[@]}"
