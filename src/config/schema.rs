@@ -328,7 +328,7 @@ impl Default for RateLimitConfig {
 
 impl RateLimitConfig {
     fn default_enabled() -> bool {
-        false
+        true
     }
     fn default_auth() -> RateLimitTier {
         RateLimitTier {
@@ -379,5 +379,16 @@ impl RateLimitTier {
     }
     fn default_burst() -> NonZeroU32 {
         NonZeroU32::new(60).expect("rate limit default must be non-zero")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, RateLimitConfig};
+
+    #[test]
+    fn rate_limit_defaults_to_enabled() {
+        assert!(RateLimitConfig::default().enabled);
+        assert!(Config::default().rate_limit.enabled);
     }
 }

@@ -784,6 +784,9 @@ pub async fn setup_with_memory_cache() -> AppState {
         texture_storage: base.texture_storage,
         mail_sender: aster_yggdrasil::services::mail_service::memory_sender(),
         metrics: aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        yggdrasil_rate_limiter: aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(
+            &base.config,
+        ),
         background_task_dispatch_wakeup:
             aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
     }
@@ -952,6 +955,10 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
             enabled: false,
             ..Default::default()
         },
+        rate_limit: aster_yggdrasil::config::RateLimitConfig {
+            enabled: false,
+            ..Default::default()
+        },
         ..Default::default()
     });
 
@@ -974,6 +981,8 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     )
     .await
     .expect("test db handles should initialize");
+    let yggdrasil_rate_limiter =
+        aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(&config);
 
     AppState {
         db_handles,
@@ -983,6 +992,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         texture_storage,
         mail_sender: aster_yggdrasil::services::mail_service::memory_sender(),
         metrics: aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        yggdrasil_rate_limiter,
         background_task_dispatch_wakeup:
             aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
     }

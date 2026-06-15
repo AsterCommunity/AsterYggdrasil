@@ -61,6 +61,7 @@ async fn test_state() -> AppState {
     let cache = crate::cache::create_cache(&config.cache).await;
     let texture_storage = crate::texture_storage::create_texture_storage(&config.texture_storage)
         .expect("texture storage should initialize");
+    let yggdrasil_rate_limiter = AppState::new_yggdrasil_rate_limiter(&config);
 
     AppState {
         db_handles: crate::db::DbHandles::single(db),
@@ -70,6 +71,7 @@ async fn test_state() -> AppState {
         texture_storage,
         mail_sender: crate::services::mail_service::memory_sender(),
         metrics: crate::metrics_core::NoopMetrics::arc(),
+        yggdrasil_rate_limiter,
         background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
     }
 }

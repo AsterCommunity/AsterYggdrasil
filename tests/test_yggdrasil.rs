@@ -4,12 +4,14 @@
 mod common;
 
 use actix_web::test;
+use aster_yggdrasil::api::middleware::yggdrasil_rate_limit::YggdrasilRateLimiter;
 use aster_yggdrasil::config::definitions::PUBLIC_SITE_URL_KEY;
 use aster_yggdrasil::config::yggdrasil::{
     YGGDRASIL_ALLOW_PROFILE_NAME_LOGIN_KEY, YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
     YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY, YGGDRASIL_PUBLIC_BASE_URL_KEY,
     YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY, YGGDRASIL_TOKEN_TTL_DAYS_KEY,
 };
+use aster_yggdrasil::config::{RateLimitConfig, RateLimitTier};
 use aster_yggdrasil::db::repository::system_config_repo;
 use aster_yggdrasil::entities::{
     audit_log, minecraft_profile_texture, minecraft_texture, yggdrasil_token,
@@ -19,11 +21,29 @@ use aster_yggdrasil::utils::hash::sha256_hex;
 use base64::Engine;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::Value;
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::Cursor,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+};
 
 async fn setup_yggdrasil() -> aster_yggdrasil::runtime::AppState {
     let state = common::setup().await;
     configure_yggdrasil_public_site_url(&state).await;
+    state
+}
+
+async fn setup_yggdrasil_with_strict_auth_rate_limit() -> aster_yggdrasil::runtime::AppState {
+    let mut state = setup_yggdrasil().await;
+    let config = RateLimitConfig {
+        enabled: true,
+        auth: RateLimitTier {
+            seconds_per_request: NonZeroU64::new(60).unwrap(),
+            burst_size: NonZeroU32::new(1).unwrap(),
+        },
+        ..Default::default()
+    };
+    state.yggdrasil_rate_limiter = YggdrasilRateLimiter::from_config(&config);
     state
 }
 
@@ -2915,6 +2935,170 @@ async fn yggdrasil_signout_revokes_all_tokens_and_records_audit() {
     assert_eq!(entry.entity_type, "user");
     let details: Value = serde_json::from_str(entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["identifier"], "admin@example.com");
+}
+
+#[actix_web::test]
+async fn yggdrasil_authenticate_rate_limit_uses_protocol_error_body() {
+    let state = setup_yggdrasil_with_strict_auth_rate_limit().await;
+    let app = create_test_app!(state);
+
+    let first_resp = ygg_authenticate_attempt(&app, "limited@example.com").await;
+    assert_yggdrasil_error(first_resp, 403, "ForbiddenOperationException").await;
+
+    let different_user_resp = ygg_authenticate_attempt(&app, "other@example.com").await;
+    assert_yggdrasil_error(different_user_resp, 403, "ForbiddenOperationException").await;
+
+    let limited_resp = ygg_authenticate_attempt(&app, " LIMITED@example.com ").await;
+    assert_yggdrasil_rate_limited(limited_resp).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_signout_rate_limit_uses_protocol_error_body() {
+    let state = setup_yggdrasil_with_strict_auth_rate_limit().await;
+    let app = create_test_app!(state);
+
+    let first_resp = ygg_signout_attempt(&app, "limited@example.com").await;
+    assert_yggdrasil_error(first_resp, 403, "ForbiddenOperationException").await;
+
+    let different_user_resp = ygg_signout_attempt(&app, "other@example.com").await;
+    assert_yggdrasil_error(different_user_resp, 403, "ForbiddenOperationException").await;
+
+    let limited_resp = ygg_signout_attempt(&app, " LIMITED@example.com ").await;
+    assert_yggdrasil_rate_limited(limited_resp).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_authenticate_and_signout_rate_limits_are_independent() {
+    let state = setup_yggdrasil_with_strict_auth_rate_limit().await;
+    let app = create_test_app!(state);
+
+    let authenticate_first = ygg_authenticate_attempt(&app, "shared@example.com").await;
+    assert_yggdrasil_error(authenticate_first, 403, "ForbiddenOperationException").await;
+
+    let signout_first = ygg_signout_attempt(&app, "shared@example.com").await;
+    assert_yggdrasil_error(signout_first, 403, "ForbiddenOperationException").await;
+
+    let authenticate_limited = ygg_authenticate_attempt(&app, "shared@example.com").await;
+    assert_yggdrasil_rate_limited(authenticate_limited).await;
+
+    let signout_limited = ygg_signout_attempt(&app, "shared@example.com").await;
+    assert_yggdrasil_rate_limited(signout_limited).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_rate_limit_can_be_disabled_without_changing_protocol_errors() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+
+    let first = ygg_authenticate_attempt(&app, "disabled@example.com").await;
+    assert_yggdrasil_error(first, 403, "ForbiddenOperationException").await;
+
+    let second = ygg_authenticate_attempt(&app, "disabled@example.com").await;
+    assert_yggdrasil_error(second, 403, "ForbiddenOperationException").await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_authenticate_validation_errors_count_toward_account_rate_limit() {
+    let state = setup_yggdrasil_with_strict_auth_rate_limit().await;
+    let app = create_test_app!(state);
+
+    let invalid_agent = test::TestRequest::post()
+        .uri("/api/yggdrasil/authserver/authenticate")
+        .set_json(serde_json::json!({
+            "username": "edge@example.com",
+            "password": "wrong-password",
+            "agent": { "name": "Minecraft", "version": 2 }
+        }))
+        .to_request();
+    let invalid_agent_resp = test::call_service(&app, invalid_agent).await;
+    assert_yggdrasil_error(invalid_agent_resp, 400, "IllegalArgumentException").await;
+
+    let limited = ygg_authenticate_attempt(&app, "edge@example.com").await;
+    assert_yggdrasil_rate_limited(limited).await;
+}
+
+async fn ygg_authenticate_attempt<S, B>(
+    app: &S,
+    username: &str,
+) -> actix_web::dev::ServiceResponse<B>
+where
+    S: actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse<B>,
+            Error = actix_web::Error,
+        >,
+    B: actix_web::body::MessageBody + 'static,
+{
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/authserver/authenticate")
+        .set_json(serde_json::json!({
+            "username": username,
+            "password": "wrong-password",
+            "agent": { "name": "Minecraft", "version": 1 }
+        }))
+        .to_request();
+    test::call_service(app, req).await
+}
+
+async fn ygg_signout_attempt<S, B>(app: &S, username: &str) -> actix_web::dev::ServiceResponse<B>
+where
+    S: actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse<B>,
+            Error = actix_web::Error,
+        >,
+    B: actix_web::body::MessageBody + 'static,
+{
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/authserver/signout")
+        .set_json(serde_json::json!({
+            "username": username,
+            "password": "wrong-password"
+        }))
+        .to_request();
+    test::call_service(app, req).await
+}
+
+async fn assert_yggdrasil_error<B>(
+    resp: actix_web::dev::ServiceResponse<B>,
+    status: u16,
+    error_name: &str,
+) where
+    B: actix_web::body::MessageBody + 'static,
+{
+    assert_eq!(resp.status(), status);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["error"], error_name);
+    assert!(body["errorMessage"].is_string());
+    assert!(body.get("code").is_none());
+    assert!(body.get("msg").is_none());
+    assert!(body.get("data").is_none());
+}
+
+async fn assert_yggdrasil_rate_limited<B>(resp: actix_web::dev::ServiceResponse<B>)
+where
+    B: actix_web::body::MessageBody + 'static,
+{
+    assert_eq!(resp.status(), 429);
+    let retry_after = resp
+        .headers()
+        .get("Retry-After")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("Retry-After should be a numeric number of seconds");
+    assert!(retry_after > 0);
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["error"], "TooManyRequestsException");
+    assert!(
+        body["errorMessage"]
+            .as_str()
+            .unwrap()
+            .contains("Too many requests")
+    );
+    assert!(body.get("code").is_none());
+    assert!(body.get("msg").is_none());
+    assert!(body.get("data").is_none());
 }
 
 #[actix_web::test]

@@ -12,6 +12,7 @@ pub struct PreparedPrimaryRuntime {
 
 pub async fn prepare_primary(config: Arc<Config>) -> Result<PreparedPrimaryRuntime> {
     let common = prepare_common(config).await?;
+    let yggdrasil_rate_limiter = AppState::new_yggdrasil_rate_limiter(&common.config);
     let state = AppState {
         db_handles: common.db_handles,
         config: common.config,
@@ -20,6 +21,7 @@ pub async fn prepare_primary(config: Arc<Config>) -> Result<PreparedPrimaryRunti
         cache: common.cache,
         texture_storage: common.texture_storage,
         metrics: common.metrics,
+        yggdrasil_rate_limiter,
         background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
     };
 

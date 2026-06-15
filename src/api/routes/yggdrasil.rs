@@ -87,6 +87,17 @@ pub async fn authenticate(
         request_user = body.request_user,
         "received yggdrasil authenticate request"
     );
+    if let Some(rejection) = state
+        .yggdrasil_rate_limiter()
+        .check_authenticate(&body.username)
+    {
+        tracing::warn!(
+            username_hash = %crate::utils::hash::sha256_hex(body.username.trim().to_ascii_lowercase().as_bytes()),
+            retry_after_seconds = rejection.retry_after_seconds(),
+            "yggdrasil authenticate request rate limited"
+        );
+        return rejection.into_response();
+    }
     if let Err(error) = validate_request(&body) {
         tracing::debug!(
             message = %error.message(),
@@ -268,6 +279,14 @@ pub async fn signout(
         username_len = body.username.len(),
         "received yggdrasil signout request"
     );
+    if let Some(rejection) = state.yggdrasil_rate_limiter().check_signout(&body.username) {
+        tracing::warn!(
+            username_hash = %crate::utils::hash::sha256_hex(body.username.trim().to_ascii_lowercase().as_bytes()),
+            retry_after_seconds = rejection.retry_after_seconds(),
+            "yggdrasil signout request rate limited"
+        );
+        return rejection.into_response();
+    }
     if let Err(error) = validate_request(&body) {
         tracing::debug!(
             message = %error.message(),

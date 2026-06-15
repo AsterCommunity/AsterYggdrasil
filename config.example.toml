@@ -51,7 +51,7 @@ max_backups = 5
 trusted_proxies = []
 
 [rate_limit]
-enabled = false
+enabled = true
 
 [rate_limit.auth]
 seconds_per_request = 2

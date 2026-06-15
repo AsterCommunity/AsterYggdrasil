@@ -6,6 +6,7 @@ pub mod shutdown;
 pub mod startup;
 pub mod tasks;
 
+use crate::api::middleware::yggdrasil_rate_limit::YggdrasilRateLimiter;
 use crate::cache::CacheBackend;
 use crate::config::{Config, RuntimeConfig};
 use crate::db::DbHandles;
@@ -25,12 +26,17 @@ pub struct AppState {
     pub texture_storage: Arc<dyn TextureStorage>,
     pub mail_sender: Arc<dyn MailSender>,
     pub metrics: SharedMetricsRecorder,
+    pub yggdrasil_rate_limiter: YggdrasilRateLimiter,
     pub background_task_dispatch_wakeup: Arc<Notify>,
 }
 
 impl AppState {
     pub fn new_background_task_dispatch_wakeup() -> Arc<Notify> {
         Arc::new(Notify::new())
+    }
+
+    pub fn new_yggdrasil_rate_limiter(config: &Config) -> YggdrasilRateLimiter {
+        YggdrasilRateLimiter::from_config(&config.rate_limit)
     }
 
     pub fn writer_db(&self) -> &DatabaseConnection {
@@ -63,6 +69,10 @@ impl AppState {
 
     pub fn metrics(&self) -> &SharedMetricsRecorder {
         &self.metrics
+    }
+
+    pub fn yggdrasil_rate_limiter(&self) -> &YggdrasilRateLimiter {
+        &self.yggdrasil_rate_limiter
     }
 
     pub fn background_task_dispatch_wakeup(&self) -> &Arc<Notify> {
