@@ -14,7 +14,8 @@ import { formatUnknownError } from "@/services/http";
 import { useAuthStore } from "@/stores/authStore";
 import type { AuthSessionInfo } from "@/types/api";
 
-const SESSION_PAGE_SIZE = 50;
+const SESSION_PAGE_SIZE_OPTIONS = [5, 10] as const;
+const DEFAULT_SESSION_PAGE_SIZE = 5;
 
 export function LoginDevicesSection() {
 	const { t } = useTranslation();
@@ -22,6 +23,7 @@ export function LoginDevicesSection() {
 	const [sessions, setSessions] = useState<AuthSessionInfo[]>([]);
 	const [sessionTotal, setSessionTotal] = useState(0);
 	const [offset, setOffset] = useState(0);
+	const [pageSize, setPageSize] = useState<number>(DEFAULT_SESSION_PAGE_SIZE);
 	const [loading, setLoading] = useState(true);
 	const [revokeBusyId, setRevokeBusyId] = useState<string | null>(null);
 	const [revokeOthersBusy, setRevokeOthersBusy] = useState(false);
@@ -31,7 +33,7 @@ export function LoginDevicesSection() {
 			setLoading(true);
 			try {
 				const next = await authService.sessionsPage({
-					limit: SESSION_PAGE_SIZE,
+					limit: pageSize,
 					offset: nextOffset,
 				});
 				setSessions(sortSessions(next.items));
@@ -42,7 +44,7 @@ export function LoginDevicesSection() {
 				setLoading(false);
 			}
 		},
-		[offset],
+		[offset, pageSize],
 	);
 
 	useEffect(() => {
@@ -97,6 +99,17 @@ export function LoginDevicesSection() {
 			setRevokeOthersBusy(false);
 		}
 	}, [loadSessions, t]);
+
+	function changePageSize(value: string | null) {
+		const parsed = Number(value);
+		const nextPageSize = SESSION_PAGE_SIZE_OPTIONS.includes(
+			parsed as (typeof SESSION_PAGE_SIZE_OPTIONS)[number],
+		)
+			? parsed
+			: DEFAULT_SESSION_PAGE_SIZE;
+		setPageSize(nextPageSize);
+		setOffset(0);
+	}
 
 	return (
 		<div className="rounded-lg border border-border/70 bg-background/55 p-4 dark:border-white/10 dark:bg-input/10">
@@ -211,28 +224,21 @@ export function LoginDevicesSection() {
 							/>
 						))}
 						<AdminOffsetPagination
-							currentPage={Math.floor(offset / SESSION_PAGE_SIZE) + 1}
-							nextDisabled={offset + SESSION_PAGE_SIZE >= sessionTotal}
-							onNext={() => setOffset((current) => current + SESSION_PAGE_SIZE)}
-							onPageSizeChange={() => {}}
+							currentPage={Math.floor(offset / pageSize) + 1}
+							nextDisabled={offset + pageSize >= sessionTotal}
+							onNext={() => setOffset((current) => current + pageSize)}
+							onPageSizeChange={changePageSize}
 							onPrevious={() =>
-								setOffset((current) => Math.max(0, current - SESSION_PAGE_SIZE))
+								setOffset((current) => Math.max(0, current - pageSize))
 							}
-							pageSize={String(SESSION_PAGE_SIZE)}
-							pageSizeOptions={[
-								{
-									label: t("admin.pagination.pageSizeOption", {
-										count: SESSION_PAGE_SIZE,
-									}),
-									value: String(SESSION_PAGE_SIZE),
-								},
-							]}
+							pageSize={String(pageSize)}
+							pageSizeOptions={SESSION_PAGE_SIZE_OPTIONS.map((size) => ({
+								label: t("admin.pagination.pageSizeOption", { count: size }),
+								value: String(size),
+							}))}
 							prevDisabled={offset === 0}
 							total={sessionTotal}
-							totalPages={Math.max(
-								1,
-								Math.ceil(sessionTotal / SESSION_PAGE_SIZE),
-							)}
+							totalPages={Math.max(1, Math.ceil(sessionTotal / pageSize))}
 						/>
 					</div>
 				)}

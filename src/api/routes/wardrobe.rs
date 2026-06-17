@@ -3,14 +3,29 @@
 use actix_multipart::Multipart;
 use actix_web::{HttpRequest, HttpResponse, web};
 use futures::StreamExt;
+use serde::Deserialize;
+use validator::Validate;
 
+use crate::api::dto::validate_request;
 use crate::api::error_code::AsterErrorCode;
 use crate::api::pagination::{LimitOffsetQuery, OffsetPage};
 use crate::api::response::ApiResponse;
+use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service};
 use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
+
+#[derive(Debug, Clone, Default, Deserialize, Validate)]
+#[cfg_attr(
+    all(debug_assertions, feature = "openapi"),
+    derive(utoipa::IntoParams, utoipa::ToSchema)
+)]
+pub struct WardrobeTextureListQuery {
+    #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
+    pub keyword: Option<String>,
+    pub texture_type: Option<MinecraftTextureType>,
+}
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -32,7 +47,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     path = "/api/v1/wardrobe/textures",
     tag = "profiles",
     operation_id = "list_current_user_wardrobe_textures",
-    params(LimitOffsetQuery),
+    params(LimitOffsetQuery, WardrobeTextureListQuery),
     responses(
         (status = 200, description = "Current user's wardrobe textures", body = inline(ApiResponse<OffsetPage<texture_service::MinecraftWardrobeTextureMetadata>>)),
         (status = 401, description = "Unauthorized"),
@@ -43,19 +58,38 @@ pub async fn list_wardrobe_textures(
     state: web::Data<AppState>,
     req: HttpRequest,
     page: web::Query<LimitOffsetQuery>,
+    query: web::Query<WardrobeTextureListQuery>,
 ) -> Result<HttpResponse> {
+    validate_request(&*query)?;
     let user = auth_service::current_user(state.get_ref(), &req).await?;
     let limit = page.limit_or(50, 100);
     let offset = page.offset();
+    let texture_type = query.texture_type;
+    let keyword = query
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
     tracing::debug!(
         user_id = user.id,
         limit,
         offset,
+        texture_type = ?texture_type,
+        has_keyword = keyword.is_some(),
         "listing current user wardrobe textures"
     );
-    let page =
-        texture_service::list_wardrobe_textures_paginated(state.get_ref(), user.id, limit, offset)
-            .await?;
+    let page = texture_service::list_wardrobe_textures_paginated(
+        state.get_ref(),
+        user.id,
+        limit,
+        offset,
+        WardrobeTextureListFilter {
+            texture_type,
+            keyword,
+        },
+    )
+    .await?;
     let textures = page
         .items
         .iter()

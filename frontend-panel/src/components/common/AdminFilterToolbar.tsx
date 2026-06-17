@@ -3,7 +3,9 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { ADMIN_CONTROL_HEIGHT_CLASS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { AnimatedCollapsible } from "./AnimatedCollapsible";
 
 export function AdminFilterToolbar({
 	activeFilterCount,
@@ -34,11 +36,12 @@ export function AdminFilterToolbar({
 					type="button"
 					variant={open || hasActiveFilters ? "default" : "outline"}
 					size="sm"
+					className={ADMIN_CONTROL_HEIGHT_CLASS}
 					aria-controls={panelId}
 					aria-expanded={open}
 					onClick={() => setOpen((value) => !value)}
 				>
-					<Icon name="MagnifyingGlassPlus" className="size-4" />
+					<Icon name="MagnifyingGlassPlus" className="mr-1 size-4" />
 					{open ? t("admin.hideFilters") : t("admin.showFilters")}
 					{hasActiveFilters ? (
 						<span className="ml-1 rounded-full bg-background/90 px-1.5 py-0.5 text-[11px] font-medium text-foreground shadow-xs">
@@ -56,24 +59,28 @@ export function AdminFilterToolbar({
 						type="button"
 						variant="ghost"
 						size="sm"
+						className={ADMIN_CONTROL_HEIGHT_CLASS}
 						onClick={onResetFilters}
 					>
 						{t("admin.clearFilters")}
 					</Button>
 				) : null}
 			</div>
-			{open ? (
+			<AnimatedCollapsible
+				open={open}
+				className={inline ? "basis-full" : undefined}
+				contentClassName="pt-1"
+			>
 				<div
 					id={panelId}
 					className={cn(
 						"flex w-full flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 p-2.5 dark:border-white/10 dark:bg-muted/10",
-						inline ? "basis-full" : undefined,
 						contentClassName,
 					)}
 				>
 					{children}
 				</div>
-			) : null}
+			</AnimatedCollapsible>
 		</div>
 	);
 }

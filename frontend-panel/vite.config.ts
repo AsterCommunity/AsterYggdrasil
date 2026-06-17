@@ -86,6 +86,8 @@ const STARTUP_FORBIDDEN_PRECACHE_GLOBS = [
 	"assets/**/*StaticSkinPreview*",
 	"assets/**/*TextureWardrobe*",
 	"assets/**/*vendor-3d*",
+	"assets/**/*vendor-skinview3d*",
+	"assets/**/*vendor-three*",
 	"assets/**/*vendor-devicons*",
 	"assets/**/*preview-data*",
 	"assets/**/*preview-xml*",
@@ -192,6 +194,8 @@ export default defineConfig(({ command }) => {
 			target: "esnext",
 			outDir: "dist",
 			emptyOutDir: true,
+			// skinview3d carries its Three.js renderer in a lazy preview-only chunk.
+			chunkSizeWarningLimit: 560,
 			rollupOptions: {
 				output: {
 					manualChunks(id) {
@@ -241,12 +245,12 @@ export default defineConfig(({ command }) => {
 							return "vendor-react-icons";
 						}
 
-						if (
-							packageName === "skinview3d" ||
-							packageName === "three" ||
-							packageName === "@types/three"
-						) {
-							return "vendor-3d";
+						if (packageName === "skinview3d") {
+							return "vendor-skinview3d";
+						}
+
+						if (packageName === "three" || packageName === "@types/three") {
+							return "vendor-three";
 						}
 
 						if (

@@ -1,5 +1,6 @@
 //! Minecraft texture validation, storage and lookup.
 
+mod default_skin;
 mod error;
 mod maintenance;
 mod processing;
@@ -9,6 +10,10 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub use default_skin::{
+    DefaultSkin as EmbeddedDefaultSkin, by_hash as embedded_default_skin_by_hash,
+    for_profile_uuid as default_skin_for_profile_uuid,
+};
 pub use error::{TextureError, TextureErrorKind};
 pub use maintenance::{
     OrphanTextureCleanupResult, TextureStorageConsistencyIssue, TextureStorageConsistencyIssueKind,
@@ -17,13 +22,14 @@ pub use maintenance::{
 };
 pub use processing::{TextureProcessingResult, process_texture_file, sanitize_png_texture};
 pub use query::{
-    download_texture, download_texture_blob, texture_blob_by_hash, texture_by_hash,
-    texture_metadata, texture_metadata_for_profile, textures_for_profile,
+    default_skin_metadata, download_texture, download_texture_blob, texture_blob_by_hash,
+    texture_by_hash, texture_metadata, texture_metadata_for_profile, textures_for_profile,
     wardrobe_texture_metadata,
 };
 pub use types::{
-    DeletedMinecraftTexture, MinecraftTextureMetadata, MinecraftWardrobeTextureMetadata,
-    StoredTexture, StoredWardrobeTexture, TextureBlob, TextureDownload, WardrobeRegistrationResult,
+    DeletedMinecraftTexture, MinecraftTextureMetadata, MinecraftTextureMetadataSource,
+    MinecraftWardrobeTextureMetadata, StoredTexture, StoredWardrobeTexture, TextureBlob,
+    TextureDownload, WardrobeRegistrationResult,
 };
 
 use crate::api::pagination::OffsetPage;
@@ -41,7 +47,7 @@ use tokio::io::AsyncWriteExt;
 use self::maintenance::cleanup_texture_blob_if_unreferenced;
 
 const PNG_CONTENT_TYPE: &str = "image/png";
-const TEXTURE_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
+pub(crate) const TEXTURE_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 pub fn parse_texture_type(value: &str) -> std::result::Result<MinecraftTextureType, TextureError> {
     MinecraftTextureType::parse_path(value)
@@ -557,13 +563,19 @@ pub async fn list_wardrobe_textures_paginated<S>(
     user_id: i64,
     limit: u64,
     offset: u64,
+    filter: minecraft_texture_repo::WardrobeTextureListFilter,
 ) -> Result<OffsetPage<minecraft_texture::Model>>
 where
     S: DatabaseRuntimeState,
 {
-    let page =
-        minecraft_texture_repo::list_by_user_paginated(state.reader_db(), user_id, limit, offset)
-            .await?;
+    let page = minecraft_texture_repo::list_by_user_paginated(
+        state.reader_db(),
+        user_id,
+        limit,
+        offset,
+        filter,
+    )
+    .await?;
     tracing::debug!(
         user_id,
         returned = page.items.len(),

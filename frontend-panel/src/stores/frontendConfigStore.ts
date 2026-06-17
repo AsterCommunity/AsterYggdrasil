@@ -5,6 +5,12 @@ import {
 	DEFAULT_BRANDING,
 	resolveBranding,
 } from "@/lib/branding";
+import {
+	readStorageItem,
+	removeStorageItem,
+	STORAGE_KEYS,
+	writeJsonStorageItem,
+} from "@/lib/storage";
 import { frontendConfigService } from "@/services/frontendConfigService";
 import type {
 	PublicBranding,
@@ -12,8 +18,6 @@ import type {
 	PublicYggdrasilConfig,
 } from "@/types/api";
 
-export const FRONTEND_CONFIG_CACHE_KEY =
-	"asteryggdrasil-cached-frontend-config:v1";
 const FRONTEND_CONFIG_REVALIDATE_INTERVAL_MS = 30_000;
 
 interface CachedFrontendConfigPayload {
@@ -73,6 +77,12 @@ function isPublicYggdrasilConfig(
 		typeof value.allow_cape_upload === "boolean" &&
 		typeof value.allow_profile_name_login === "boolean" &&
 		typeof value.allow_skin_upload === "boolean" &&
+		typeof value.max_texture_pixels === "number" &&
+		Number.isFinite(value.max_texture_pixels) &&
+		value.max_texture_pixels > 0 &&
+		typeof value.max_texture_upload_bytes === "number" &&
+		Number.isFinite(value.max_texture_upload_bytes) &&
+		value.max_texture_upload_bytes > 0 &&
 		isStringArray(value.public_base_urls) &&
 		typeof value.server_name === "string" &&
 		isStringArray(value.skin_domains)
@@ -90,15 +100,13 @@ function isFrontendConfig(value: unknown): value is PublicFrontendConfig {
 }
 
 function readCachedFrontendConfig(): CachedFrontendConfigPayload | null {
-	if (typeof window === "undefined") return null;
-
 	try {
-		const raw = localStorage.getItem(FRONTEND_CONFIG_CACHE_KEY);
+		const raw = readStorageItem("local", STORAGE_KEYS.cachedFrontendConfig);
 		if (!raw) return null;
 
 		const parsed = JSON.parse(raw) as CachedFrontendConfigPayload | null;
 		if (!isRecord(parsed) || !isFrontendConfig(parsed.config)) {
-			localStorage.removeItem(FRONTEND_CONFIG_CACHE_KEY);
+			removeStorageItem("local", STORAGE_KEYS.cachedFrontendConfig);
 			return null;
 		}
 
@@ -110,39 +118,20 @@ function readCachedFrontendConfig(): CachedFrontendConfigPayload | null {
 					: 0,
 		};
 	} catch {
-		try {
-			localStorage.removeItem(FRONTEND_CONFIG_CACHE_KEY);
-		} catch {
-			// ignore storage failures
-		}
+		removeStorageItem("local", STORAGE_KEYS.cachedFrontendConfig);
 		return null;
 	}
 }
 
 function writeCachedFrontendConfig(config: PublicFrontendConfig) {
-	if (typeof window === "undefined") return;
-
-	try {
-		localStorage.setItem(
-			FRONTEND_CONFIG_CACHE_KEY,
-			JSON.stringify({
-				config,
-				cachedAt: Date.now(),
-			} satisfies CachedFrontendConfigPayload),
-		);
-	} catch {
-		// ignore storage failures
-	}
+	writeJsonStorageItem("local", STORAGE_KEYS.cachedFrontendConfig, {
+		config,
+		cachedAt: Date.now(),
+	} satisfies CachedFrontendConfigPayload);
 }
 
 function clearCachedFrontendConfig() {
-	if (typeof window === "undefined") return;
-
-	try {
-		localStorage.removeItem(FRONTEND_CONFIG_CACHE_KEY);
-	} catch {
-		// ignore storage failures
-	}
+	removeStorageItem("local", STORAGE_KEYS.cachedFrontendConfig);
 }
 
 function applyFrontendConfig(config: PublicFrontendConfig) {

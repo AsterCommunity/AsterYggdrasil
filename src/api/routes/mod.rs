@@ -14,7 +14,8 @@ pub mod yggdrasil;
 use actix_web::web;
 
 pub fn configure_api(cfg: &mut web::ServiceConfig) {
-    cfg.configure(auth_external_auth::configure)
+    cfg.app_data(crate::api::common::project_query_config())
+        .configure(auth_external_auth::configure)
         .configure(auth::configure)
         .configure(account::configure)
         .configure(profiles::configure)

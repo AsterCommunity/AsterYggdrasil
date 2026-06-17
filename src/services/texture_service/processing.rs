@@ -286,6 +286,37 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_png_texture_enforces_texture_type_specific_dimensions() {
+        let mut output = Vec::new();
+        let skin_error = sanitize_png_texture(
+            Cursor::new(png(22, 17)),
+            Cursor::new(&mut output),
+            MinecraftTextureType::Skin,
+            crate::config::yggdrasil::DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS,
+        )
+        .unwrap_err();
+        assert!(
+            skin_error
+                .message()
+                .contains("invalid skin texture dimensions")
+        );
+
+        let mut output = Vec::new();
+        let cape_error = sanitize_png_texture(
+            Cursor::new(png(64, 64)),
+            Cursor::new(&mut output),
+            MinecraftTextureType::Cape,
+            crate::config::yggdrasil::DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS,
+        )
+        .unwrap_err();
+        assert!(
+            cape_error
+                .message()
+                .contains("invalid cape texture dimensions")
+        );
+    }
+
+    #[test]
     fn sanitize_png_texture_rejects_oversized_header_before_full_decode() {
         let mut output = Vec::new();
         let error = sanitize_png_texture(

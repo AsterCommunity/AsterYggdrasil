@@ -4,12 +4,16 @@
 mod common;
 
 use actix_web::{http::header, test};
-use aster_yggdrasil::config::definitions::{
-    AUTH_ALLOW_USER_REGISTRATION_KEY, BRANDING_DESCRIPTION_KEY, BRANDING_FAVICON_URL_KEY,
-    BRANDING_TITLE_KEY, BRANDING_WORDMARK_DARK_URL_KEY, PUBLIC_SITE_URL_KEY,
-    YGGDRASIL_ALLOW_CAPE_UPLOAD_KEY, YGGDRASIL_ALLOW_PROFILE_NAME_LOGIN_KEY,
-    YGGDRASIL_ALLOW_SKIN_UPLOAD_KEY, YGGDRASIL_PUBLIC_BASE_URL_KEY, YGGDRASIL_SERVER_NAME_KEY,
-    YGGDRASIL_SKIN_DOMAINS_KEY,
+use aster_yggdrasil::config::{
+    definitions::{
+        AUTH_ALLOW_USER_REGISTRATION_KEY, BRANDING_DESCRIPTION_KEY, BRANDING_FAVICON_URL_KEY,
+        BRANDING_TITLE_KEY, BRANDING_WORDMARK_DARK_URL_KEY, PUBLIC_SITE_URL_KEY,
+        YGGDRASIL_ALLOW_CAPE_UPLOAD_KEY, YGGDRASIL_ALLOW_PROFILE_NAME_LOGIN_KEY,
+        YGGDRASIL_ALLOW_SKIN_UPLOAD_KEY, YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
+        YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY, YGGDRASIL_PUBLIC_BASE_URL_KEY,
+        YGGDRASIL_SERVER_NAME_KEY, YGGDRASIL_SKIN_DOMAINS_KEY,
+    },
+    yggdrasil::{DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS, DEFAULT_YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES},
 };
 use serde_json::Value;
 
@@ -56,6 +60,14 @@ async fn public_frontend_config_returns_default_bootstrap_config() {
     assert_eq!(body["data"]["yggdrasil"]["allow_profile_name_login"], true);
     assert_eq!(body["data"]["yggdrasil"]["allow_skin_upload"], true);
     assert_eq!(body["data"]["yggdrasil"]["allow_cape_upload"], true);
+    assert_eq!(
+        body["data"]["yggdrasil"]["max_texture_upload_bytes"],
+        DEFAULT_YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES
+    );
+    assert_eq!(
+        body["data"]["yggdrasil"]["max_texture_pixels"],
+        DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS
+    );
 }
 
 #[actix_web::test]
@@ -109,6 +121,14 @@ async fn public_frontend_config_uses_runtime_overrides() {
         YGGDRASIL_ALLOW_CAPE_UPLOAD_KEY,
         "false",
     ));
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY,
+        "1234567",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
+        "4096",
+    ));
     let app = create_test_app!(state);
 
     let req = test::TestRequest::get()
@@ -148,4 +168,63 @@ async fn public_frontend_config_uses_runtime_overrides() {
     assert_eq!(body["data"]["yggdrasil"]["allow_profile_name_login"], false);
     assert_eq!(body["data"]["yggdrasil"]["allow_skin_upload"], false);
     assert_eq!(body["data"]["yggdrasil"]["allow_cape_upload"], false);
+    assert_eq!(
+        body["data"]["yggdrasil"]["max_texture_upload_bytes"],
+        1_234_567
+    );
+    assert_eq!(body["data"]["yggdrasil"]["max_texture_pixels"], 4096);
+}
+
+#[actix_web::test]
+async fn public_frontend_config_exposes_minimum_positive_texture_limits() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY,
+        "1",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
+        "1",
+    ));
+    let app = create_test_app!(state);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/public/frontend-config")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["yggdrasil"]["max_texture_upload_bytes"], 1);
+    assert_eq!(body["data"]["yggdrasil"]["max_texture_pixels"], 1);
+}
+
+#[actix_web::test]
+async fn public_frontend_config_falls_back_for_invalid_texture_limits() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY,
+        "0",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
+        "not-a-number",
+    ));
+    let app = create_test_app!(state);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/public/frontend-config")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["data"]["yggdrasil"]["max_texture_upload_bytes"],
+        DEFAULT_YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES
+    );
+    assert_eq!(
+        body["data"]["yggdrasil"]["max_texture_pixels"],
+        DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS
+    );
 }

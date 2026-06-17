@@ -1,5 +1,18 @@
 import { create } from "zustand";
+import {
+	readStorageItem,
+	removeStorageItem,
+	STORAGE_KEYS,
+	writeJsonStorageItem,
+	writeStorageItem,
+} from "@/lib/storage";
 import { authService } from "@/services/authService";
+import {
+	type ApiClientErrorCode,
+	ApiError,
+	formatUnknownError,
+	isApiConnectionError,
+} from "@/services/http";
 import type {
 	AdminUserInfo,
 	AuthTokenResponse,
@@ -8,12 +21,6 @@ import type {
 	UpdateProfileRequest,
 	UserProfileInfo,
 } from "@/types/api";
-
-const CACHED_USER_KEY = "asteryggdrasil-cached-user";
-const LEGACY_USER_KEY = "asteryggdrasil-user";
-const EXPIRES_AT_KEY = "asteryggdrasil-auth-expires-at";
-const LEGACY_ACCESS_TOKEN_KEY = "asteryggdrasil-access-token";
-const LEGACY_REFRESH_TOKEN_KEY = "asteryggdrasil-refresh-token";
 
 type CachedAuthUser = Pick<
 	AuthUserInfo,
@@ -24,6 +31,7 @@ type AuthState = {
 	user: AuthUserInfo | null;
 	checking: boolean;
 	error: string | null;
+	errorCode: ApiClientErrorCode | null;
 	expiresAt: number | null;
 	isAuthStale: boolean;
 	isAuthenticated: boolean;
@@ -99,19 +107,19 @@ function cachedUserToAuthUser(user: CachedAuthUser): AuthUserInfo {
 function readStoredUser(): AuthUserInfo | null {
 	try {
 		const raw =
-			localStorage.getItem(CACHED_USER_KEY) ??
-			localStorage.getItem(LEGACY_USER_KEY);
+			readStorageItem("local", STORAGE_KEYS.cachedUser) ??
+			readStorageItem("local", STORAGE_KEYS.legacyUser);
 		if (!raw) return null;
 
 		const cached = sanitizeCachedUser(JSON.parse(raw));
 		if (!cached) {
-			localStorage.removeItem(CACHED_USER_KEY);
-			localStorage.removeItem(LEGACY_USER_KEY);
+			removeStorageItem("local", STORAGE_KEYS.cachedUser);
+			removeStorageItem("local", STORAGE_KEYS.legacyUser);
 			return null;
 		}
 
-		localStorage.setItem(CACHED_USER_KEY, JSON.stringify(cached));
-		localStorage.removeItem(LEGACY_USER_KEY);
+		writeJsonStorageItem("local", STORAGE_KEYS.cachedUser, cached);
+		removeStorageItem("local", STORAGE_KEYS.legacyUser);
 		return cachedUserToAuthUser(cached);
 	} catch {
 		return null;
@@ -122,12 +130,12 @@ function persistUser(user: AuthUserInfo | null) {
 	try {
 		const cached = sanitizeCachedUser(user);
 		if (cached) {
-			localStorage.setItem(CACHED_USER_KEY, JSON.stringify(cached));
-			localStorage.removeItem(LEGACY_USER_KEY);
+			writeJsonStorageItem("local", STORAGE_KEYS.cachedUser, cached);
+			removeStorageItem("local", STORAGE_KEYS.legacyUser);
 			return;
 		}
-		localStorage.removeItem(CACHED_USER_KEY);
-		localStorage.removeItem(LEGACY_USER_KEY);
+		removeStorageItem("local", STORAGE_KEYS.cachedUser);
+		removeStorageItem("local", STORAGE_KEYS.legacyUser);
 	} catch {
 		// Storage can be unavailable in private contexts; auth still relies on cookies.
 	}
@@ -135,11 +143,11 @@ function persistUser(user: AuthUserInfo | null) {
 
 function readStoredExpiresAt(): number | null {
 	try {
-		const raw = sessionStorage.getItem(EXPIRES_AT_KEY);
+		const raw = readStorageItem("session", STORAGE_KEYS.authExpiresAt);
 		if (!raw) return null;
 		const expiresAt = Number(raw);
 		if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-			sessionStorage.removeItem(EXPIRES_AT_KEY);
+			removeStorageItem("session", STORAGE_KEYS.authExpiresAt);
 			return null;
 		}
 		return expiresAt;
@@ -151,10 +159,10 @@ function readStoredExpiresAt(): number | null {
 function persistExpiresAt(expiresAt: number | null) {
 	try {
 		if (expiresAt === null) {
-			sessionStorage.removeItem(EXPIRES_AT_KEY);
+			removeStorageItem("session", STORAGE_KEYS.authExpiresAt);
 			return;
 		}
-		sessionStorage.setItem(EXPIRES_AT_KEY, String(expiresAt));
+		writeStorageItem("session", STORAGE_KEYS.authExpiresAt, String(expiresAt));
 	} catch {
 		// Storage failures should not break cookie-backed auth.
 	}
@@ -200,6 +208,7 @@ function setAuthenticatedState(
 		...authStateFromUser(user),
 		checking: false,
 		error: null,
+		errorCode: null,
 		expiresAt,
 		isAuthStale: false,
 	});
@@ -251,8 +260,8 @@ function syncAdminUser(
 
 function clearLegacyTokenStorage() {
 	try {
-		localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
-		localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
+		removeStorageItem("local", STORAGE_KEYS.legacyAccessToken);
+		removeStorageItem("local", STORAGE_KEYS.legacyRefreshToken);
 	} catch {
 		// ignore storage failures
 	}
@@ -265,6 +274,10 @@ function deriveAuthFlags(user: AuthUserInfo | null) {
 	};
 }
 
+function apiErrorCode(error: unknown): ApiClientErrorCode | null {
+	return error instanceof ApiError ? error.code : null;
+}
+
 const initialUser = readStoredUser();
 const initialFlags = deriveAuthFlags(initialUser);
 const initialExpiresAt = readStoredExpiresAt();
@@ -274,6 +287,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	user: initialUser,
 	checking: true,
 	error: null,
+	errorCode: null,
 	expiresAt: initialExpiresAt,
 	isAuthStale: Boolean(initialUser),
 	isAuthenticated: initialFlags.isAuthenticated,
@@ -282,7 +296,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		if (inFlightHydrate) return inFlightHydrate;
 
 		inFlightHydrate = (async () => {
-			set({ checking: true, error: null });
+			set({ checking: true, error: null, errorCode: null });
 			try {
 				const user = await authService.me();
 				setAuthenticatedState(
@@ -291,12 +305,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 					get().expiresAt ?? readStoredExpiresAt(),
 				);
 			} catch (error) {
+				const errorCode = apiErrorCode(error);
+				if (isApiConnectionError(error)) {
+					const currentUser = get().user;
+					set({
+						...authStateFromUser(currentUser),
+						checking: false,
+						error: formatUnknownError(error),
+						errorCode,
+						expiresAt: get().expiresAt ?? readStoredExpiresAt(),
+						isAuthStale: true,
+					});
+					return;
+				}
+
 				clearPersistedAuth();
 				set({
 					...authStateFromUser(null),
 					checking: false,
-					error:
-						error instanceof Error ? error.message : "Session check failed",
+					error: formatUnknownError(error),
+					errorCode,
 					expiresAt: null,
 					isAuthStale: false,
 				});
@@ -368,6 +396,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		set({
 			...authStateFromUser(null),
 			error: null,
+			errorCode: null,
 			checking: false,
 			expiresAt: null,
 			isAuthStale: false,

@@ -3,17 +3,14 @@ import type {
 	MinecraftTextureMetadata,
 	MinecraftTextureModel,
 	MinecraftTextureType,
+	MinecraftTextureVisibility,
 	YggdrasilProfile,
 } from "@/types/api";
 
-export type PreviewMotion = "idle" | "walk";
-
 export type MinecraftProfilesPageState = {
-	accessToken: string;
 	file: File | null;
 	loading: boolean;
 	model: MinecraftTextureModel;
-	previewMotion: PreviewMotion;
 	profileName: string;
 	profileTotal: number;
 	profiles: YggdrasilProfile[];
@@ -22,14 +19,13 @@ export type MinecraftProfilesPageState = {
 	textures: MinecraftTextureMetadata[];
 	texturesLoading: boolean;
 	textureType: MinecraftTextureType;
+	visibility: MinecraftTextureVisibility;
 };
 
 export type MinecraftProfilesPageAction =
-	| { type: "accessToken"; value: string }
 	| { type: "file"; value: File | null }
 	| { type: "loading"; value: boolean }
 	| { type: "model"; value: MinecraftTextureModel }
-	| { type: "previewMotion"; value: PreviewMotion }
 	| { type: "profileName"; value: string }
 	| { type: "profilePage"; value: { items: YggdrasilProfile[]; total: number } }
 	| { type: "profiles"; value: YggdrasilProfile[] }
@@ -37,14 +33,13 @@ export type MinecraftProfilesPageAction =
 	| { type: "selectedUuid"; value: string }
 	| { type: "textures"; value: MinecraftTextureMetadata[] }
 	| { type: "texturesLoading"; value: boolean }
-	| { type: "textureType"; value: MinecraftTextureType };
+	| { type: "textureType"; value: MinecraftTextureType }
+	| { type: "visibility"; value: MinecraftTextureVisibility };
 
 const initialState: MinecraftProfilesPageState = {
-	accessToken: "",
 	file: null,
 	loading: false,
 	model: "default",
-	previewMotion: "idle",
 	profileName: "",
 	profileTotal: 0,
 	profiles: [],
@@ -53,6 +48,7 @@ const initialState: MinecraftProfilesPageState = {
 	textures: [],
 	texturesLoading: false,
 	textureType: "skin",
+	visibility: "private",
 };
 
 function reducer(
@@ -60,31 +56,38 @@ function reducer(
 	action: MinecraftProfilesPageAction,
 ): MinecraftProfilesPageState {
 	switch (action.type) {
-		case "accessToken":
 		case "file":
 		case "loading":
 		case "model":
-		case "previewMotion":
 		case "profileName":
 		case "query":
 		case "selectedUuid":
 		case "textures":
 		case "texturesLoading":
 		case "textureType":
+		case "visibility":
 			return { ...state, [action.type]: action.value };
 		case "profiles":
 			return {
 				...state,
 				profileTotal: action.value.length,
 				profiles: action.value,
-				selectedUuid: state.selectedUuid || action.value[0]?.id || "",
+				selectedUuid: action.value.some(
+					(profile) => profile.id === state.selectedUuid,
+				)
+					? state.selectedUuid
+					: action.value[0]?.id || "",
 			};
 		case "profilePage":
 			return {
 				...state,
 				profileTotal: action.value.total,
 				profiles: action.value.items,
-				selectedUuid: state.selectedUuid || action.value.items[0]?.id || "",
+				selectedUuid: action.value.items.some(
+					(profile) => profile.id === state.selectedUuid,
+				)
+					? state.selectedUuid
+					: action.value.items[0]?.id || "",
 			};
 	}
 }

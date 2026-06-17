@@ -1,4 +1,5 @@
 import {
+	type DragEvent,
 	type FormEvent,
 	lazy,
 	Suspense,
@@ -11,7 +12,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useMinecraftProfilesPageState } from "@/components/account/profiles-page/useMinecraftProfilesPageState";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
-import { NativeSelectField, TextField } from "@/components/common/FormControls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,25 +22,31 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LauncherSetupCard } from "@/components/yggdrasil/LauncherSetupCard";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { TextureUploadForm } from "@/components/yggdrasil/TextureUploadForm";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
 import { cn } from "@/lib/utils";
 import { formatUnknownError } from "@/services/http";
-import {
-	YggdrasilProtocolError,
-	yggdrasilService,
-} from "@/services/yggdrasilService";
+import { yggdrasilService } from "@/services/yggdrasilService";
+import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 import type {
 	MinecraftTextureMetadata,
-	MinecraftTextureModel,
 	MinecraftTextureType,
 } from "@/types/api";
 
-const PROFILE_PAGE_SIZE = 50;
+const PROFILE_PAGE_SIZE_OPTIONS = [5, 10] as const;
+const DEFAULT_PROFILE_PAGE_SIZE = 5;
+const PROFILE_SEARCH_DEBOUNCE_MS = 300;
 
 const MinecraftPreview = lazy(() =>
 	import("@/components/yggdrasil/MinecraftPreview").then((module) => ({
@@ -52,12 +58,15 @@ export default function MinecraftProfilesPage() {
 	const { t } = useTranslation();
 	const [state, dispatch] = useMinecraftProfilesPageState();
 	const [profileOffset, setProfileOffset] = useState(0);
+	const [profilePageSize, setProfilePageSize] = useState<number>(
+		DEFAULT_PROFILE_PAGE_SIZE,
+	);
+	const [debouncedQuery, setDebouncedQuery] = useState("");
+	const [profilesLoading, setProfilesLoading] = useState(false);
 	const {
-		accessToken,
 		file,
 		loading,
 		model,
-		previewMotion,
 		profileName,
 		profileTotal,
 		profiles,
@@ -66,19 +75,29 @@ export default function MinecraftProfilesPage() {
 		textures,
 		texturesLoading,
 		textureType,
+		visibility,
 	} = state;
 
 	usePageTitle(t("profiles.title"));
 
 	const loadProfiles = useCallback(
-		async (nextOffset = profileOffset) => {
-			const next = await yggdrasilService.listProfiles({
-				limit: PROFILE_PAGE_SIZE,
+		async (nextOffset = profileOffset, nextPageSize = profilePageSize) => {
+			const trimmedQuery = debouncedQuery.trim();
+			const params = {
+				limit: nextPageSize,
 				offset: nextOffset,
-			});
-			dispatch({ type: "profilePage", value: next });
+			};
+			setProfilesLoading(true);
+			try {
+				const next = await yggdrasilService.listProfiles(
+					trimmedQuery ? { ...params, query: trimmedQuery } : params,
+				);
+				dispatch({ type: "profilePage", value: next });
+			} finally {
+				setProfilesLoading(false);
+			}
 		},
-		[dispatch, profileOffset],
+		[debouncedQuery, dispatch, profileOffset, profilePageSize],
 	);
 
 	const loadTextures = useCallback(
@@ -110,32 +129,43 @@ export default function MinecraftProfilesPage() {
 	}, [loadProfiles]);
 
 	useEffect(() => {
+		const timeout = window.setTimeout(() => {
+			setProfileOffset(0);
+			setDebouncedQuery(query.trim());
+		}, PROFILE_SEARCH_DEBOUNCE_MS);
+		return () => window.clearTimeout(timeout);
+	}, [query]);
+
+	useEffect(() => {
 		void loadTextures(selectedUuid);
 	}, [selectedUuid, loadTextures]);
-
-	const filteredProfiles = useMemo(() => {
-		const trimmed = query.trim().toLowerCase();
-		if (!trimmed) return profiles;
-		return profiles.filter(
-			(profile) =>
-				profile.name.toLowerCase().includes(trimmed) ||
-				profile.id.toLowerCase().includes(trimmed),
-		);
-	}, [profiles, query]);
 
 	const selectedProfile = useMemo(
 		() => profiles.find((profile) => profile.id === selectedUuid) ?? null,
 		[profiles, selectedUuid],
 	);
+	const searchBusy =
+		query.trim() !== debouncedQuery.trim() ||
+		(profilesLoading && Boolean(debouncedQuery.trim()));
 	const skinTexture =
 		textures.find((texture) => texture.texture_type === "skin") ?? null;
 	const capeTexture =
 		textures.find((texture) => texture.texture_type === "cape") ?? null;
+	const activeTexture = textureType === "skin" ? skinTexture : capeTexture;
 
+	const [textureDialogOpen, setTextureDialogOpen] = useState(false);
+	const [textureManageDialogOpen, setTextureManageDialogOpen] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deleteProfileDialogOpen, setDeleteProfileDialogOpen] = useState(false);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+	const [uploadTextureType, setUploadTextureType] =
+		useState<MinecraftTextureType>("skin");
+	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
 	const [renameUuid, setRenameUuid] = useState("");
 	const [renameName, setRenameName] = useState("");
+	const [deletingProfile, setDeletingProfile] = useState(false);
 	const [renaming, setRenaming] = useState(false);
+	const [dragActive, setDragActive] = useState(false);
 
 	async function createProfile(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -146,7 +176,7 @@ export default function MinecraftProfilesPage() {
 			});
 			dispatch({ type: "profileName", value: "" });
 			setProfileOffset(0);
-			await loadProfiles(0);
+			await loadProfiles(0, profilePageSize);
 			dispatch({ type: "selectedUuid", value: created.id });
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
@@ -173,9 +203,9 @@ export default function MinecraftProfilesPage() {
 			setRenameUuid("");
 			setRenameName("");
 			setProfileOffset(0);
-			await loadProfiles(0);
+			await loadProfiles(0, profilePageSize);
 			dispatch({ type: "selectedUuid", value: renamed.id });
-			toast.success(t("profiles.renameSuccess"));
+			toast.success(t("profiles.renameToast"));
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
@@ -183,72 +213,192 @@ export default function MinecraftProfilesPage() {
 		}
 	}
 
+	async function deleteProfile() {
+		if (!selectedUuid || !selectedProfile) return;
+		setDeletingProfile(true);
+		try {
+			await yggdrasilService.deleteProfile(selectedUuid);
+			setDeleteProfileDialogOpen(false);
+			setProfileOffset(0);
+			dispatch({ type: "selectedUuid", value: "" });
+			await loadProfiles(0, profilePageSize);
+			toast.success(t("profiles.deleteProfileToast"));
+		} catch (nextError) {
+			toast.error(formatUnknownError(nextError));
+		} finally {
+			setDeletingProfile(false);
+		}
+	}
+
 	async function uploadTexture(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!file || !selectedUuid) return;
+		if (!(await validateTextureFile(file))) return;
 		dispatch({ type: "loading", value: true });
 		try {
-			await yggdrasilService.uploadTexture({
-				accessToken,
-				uuid: selectedUuid,
-				textureType,
+			const uploaded = await yggdrasilService.uploadWardrobeTexture({
+				textureType: uploadTextureType,
 				file,
 				model,
+				visibility,
 			});
+			await yggdrasilService.bindProfileTexture({
+				uuid: selectedUuid,
+				textureType: uploaded.texture_type,
+				textureId: uploaded.id,
+			});
+			setTextureDialogOpen(false);
 			dispatch({ type: "file", value: null });
-			toast.success(t("profiles.uploadSuccess"));
+			toast.success(t("profiles.uploadAndBindToast"));
 			await loadTextures(selectedUuid);
 		} catch (nextError) {
-			toast.error(formatProfileError(nextError, t));
+			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "loading", value: false });
 		}
+	}
+
+	async function validateTextureFile(nextFile: File) {
+		const validation = await validateMinecraftTextureFile(
+			nextFile,
+			uploadTextureType,
+			yggdrasilConfig,
+		);
+		if (validation.ok) return true;
+		toast.error(t(validation.key, validation.values));
+		return false;
+	}
+
+	async function selectTextureFile(nextFile: File | null) {
+		if (nextFile && !(await validateTextureFile(nextFile))) {
+			dispatch({ type: "file", value: null });
+			return;
+		}
+		dispatch({ type: "file", value: nextFile });
+	}
+
+	function dropTextureFile(event: DragEvent<HTMLLabelElement>) {
+		event.preventDefault();
+		setDragActive(false);
+		void selectTextureFile(event.dataTransfer.files.item(0));
+	}
+
+	function dragTextureFile(event: DragEvent<HTMLLabelElement>) {
+		event.preventDefault();
+		setDragActive(true);
+	}
+
+	function leaveTextureDropZone() {
+		setDragActive(false);
 	}
 
 	async function deleteTexture() {
 		if (!selectedUuid) return;
 		dispatch({ type: "loading", value: true });
 		try {
-			await yggdrasilService.deleteTexture({
-				accessToken,
+			await yggdrasilService.unbindProfileTexture({
 				uuid: selectedUuid,
 				textureType,
 			});
+			setDeleteDialogOpen(false);
 			toast.success(t("profiles.deleteSuccess"));
 			await loadTextures(selectedUuid);
 		} catch (nextError) {
-			toast.error(formatProfileError(nextError, t));
+			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "loading", value: false });
 		}
 	}
 
+	function openTextureDialog(nextTextureType: MinecraftTextureType) {
+		setUploadTextureType(nextTextureType);
+		dispatch({ type: "textureType", value: nextTextureType });
+		dispatch({
+			type: "model",
+			value:
+				nextTextureType === "skin"
+					? (skinTexture?.texture_model ?? model)
+					: model,
+		});
+		dispatch({ type: "file", value: null });
+		setDragActive(false);
+		setTextureDialogOpen(true);
+	}
+
+	function openDeleteTextureDialog(nextTextureType: MinecraftTextureType) {
+		dispatch({ type: "textureType", value: nextTextureType });
+		setDeleteDialogOpen(true);
+	}
+
+	function changeProfilePageSize(value: string | null) {
+		const parsed = Number(value);
+		const nextPageSize = PROFILE_PAGE_SIZE_OPTIONS.includes(
+			parsed as (typeof PROFILE_PAGE_SIZE_OPTIONS)[number],
+		)
+			? parsed
+			: DEFAULT_PROFILE_PAGE_SIZE;
+		setProfilePageSize(nextPageSize);
+		setProfileOffset(0);
+		void loadProfiles(0, nextPageSize).catch((nextError) =>
+			toast.error(formatUnknownError(nextError)),
+		);
+	}
+
 	return (
-		<div className="mx-auto grid w-full max-w-[92rem] gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.06fr)_minmax(400px,0.94fr)] lg:px-7">
-			<section className="grid min-w-0 content-start gap-4">
-				<div className="rounded-lg border border-border/70 bg-card/90 shadow-xs">
-					<div className="flex flex-col gap-4 border-b border-border/70 p-4 sm:flex-row sm:items-start sm:justify-between">
-						<div className="min-w-0">
-							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline" className="rounded-md">
-									{t("nav.profiles")}
-								</Badge>
-								<Badge variant="secondary" className="rounded-md">
-									{t("profiles.totalProfiles", {
-										count: profileTotal.toString(),
-									})}
-								</Badge>
+		<div className="mx-auto w-full max-w-[96rem] px-4 py-5 sm:px-6 lg:px-7">
+			<div className="mb-5 border-b border-border/70 pb-5 dark:border-white/10">
+				<h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
+					{t("profiles.title")}
+				</h1>
+				<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+					{t("profiles.description")}
+				</p>
+			</div>
+
+			<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+				<section className="min-w-0 self-start rounded-lg border border-border/70 bg-card/86 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/64 dark:shadow-none">
+					<div className="flex flex-col gap-4 border-b border-border/70 p-4 sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch xl:flex-row xl:items-center">
+						<div>
+							<div className="flex items-center gap-2 text-sm font-semibold">
+								<Icon name="User" className="size-4" />
+								{t("profiles.listTitle")}
 							</div>
-							<h1 className="mt-3 text-2xl font-semibold tracking-normal">
-								{t("profiles.title")}
-							</h1>
 						</div>
+						<div className="relative sm:w-72 lg:w-full xl:w-72">
+							<Icon
+								name={searchBusy ? "Spinner" : "MagnifyingGlass"}
+								aria-hidden="true"
+								data-testid={
+									searchBusy ? "profile-search-spinner" : "profile-search-icon"
+								}
+								className={cn(
+									"absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground",
+									searchBusy && "animate-spin text-emerald-500",
+								)}
+							/>
+							<Input
+								value={query}
+								placeholder={t("profiles.searchPlaceholder")}
+								className="pl-8"
+								onChange={(event) =>
+									dispatch({
+										type: "query",
+										value: event.currentTarget.value,
+									})
+								}
+							/>
+						</div>
+					</div>
+
+					<div className="grid gap-3 p-4">
 						<form
-							className="grid min-w-0 gap-2 sm:w-72"
+							className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
 							onSubmit={createProfile}
 						>
-							<Label htmlFor="profile-name">{t("profiles.profileName")}</Label>
-							<div className="flex gap-2">
+							<div className="grid gap-2">
+								<Label htmlFor="profile-name">
+									{t("profiles.profileName")}
+								</Label>
 								<Input
 									id="profile-name"
 									value={profileName}
@@ -261,73 +411,40 @@ export default function MinecraftProfilesPage() {
 										})
 									}
 								/>
-								<Button
-									type="submit"
-									size="icon"
-									disabled={loading || !profileName.trim()}
-									aria-label={t("common.create")}
-								>
-									<Icon
-										name={loading ? "Spinner" : "Plus"}
-										className="size-4"
-									/>
-								</Button>
 							</div>
+							<Button
+								type="submit"
+								disabled={loading || !profileName.trim()}
+								className="sm:min-w-28"
+							>
+								<Icon name={loading ? "Spinner" : "Plus"} className="size-4" />
+								{t("common.create")}
+							</Button>
 						</form>
-					</div>
 
-					<div className="grid gap-3 p-4">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div>
-								<div className="flex items-center gap-2 text-sm font-semibold">
-									<Icon name="User" className="size-4" />
-									{t("profiles.listTitle")}
-								</div>
-							</div>
-							<div className="relative sm:w-72">
-								<Icon
-									name="MagnifyingGlass"
-									className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-								/>
-								<Input
-									value={query}
-									placeholder={t("profiles.searchPlaceholder")}
-									className="pl-8"
-									onChange={(event) =>
-										dispatch({
-											type: "query",
-											value: event.currentTarget.value,
-										})
-									}
-								/>
-							</div>
-						</div>
-
-						{profiles.length === 0 ? (
+						{profiles.length === 0 && !query.trim() ? (
 							<div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-10 text-center">
 								<div className="font-medium">{t("profiles.noProfiles")}</div>
 								<p className="mt-2 text-sm text-muted-foreground">
 									{t("profiles.noProfilesDescription")}
 								</p>
 							</div>
-						) : filteredProfiles.length === 0 ? (
+						) : profiles.length === 0 ? (
 							<div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
 								{t("profiles.noSearchResults")}
 							</div>
 						) : (
 							<div className="overflow-hidden rounded-lg border border-border/70">
-								<div className="grid grid-cols-[minmax(0,1fr)_132px_88px_40px] border-b border-border/70 bg-muted/35 px-3 py-2 text-xs font-medium text-muted-foreground">
+								<div className="grid grid-cols-[minmax(0,1fr)_7.5rem] border-b border-border/70 bg-muted/35 px-3 py-2 text-xs font-medium text-muted-foreground">
 									<span>{t("profiles.profileName")}</span>
-									<span>{t("profiles.textures")}</span>
-									<span className="text-right">{t("profiles.properties")}</span>
-									<span className="sr-only">{t("common.actions")}</span>
+									<span>{t("common.actions")}</span>
 								</div>
 								<div className="divide-y divide-border/70">
-									{filteredProfiles.map((profile) => (
+									{profiles.map((profile) => (
 										<div
 											key={profile.id}
 											className={cn(
-												"grid grid-cols-[minmax(0,1fr)_132px_88px_40px] items-center gap-3 px-3 py-3 transition-colors hover:bg-accent/35",
+												"grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3 px-3 py-3 transition-colors hover:bg-accent/35",
 												profile.id === selectedUuid && "bg-accent/45",
 											)}
 										>
@@ -336,7 +453,7 @@ export default function MinecraftProfilesPage() {
 												onClick={() =>
 													dispatch({ type: "selectedUuid", value: profile.id })
 												}
-												className="min-w-0 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+												className="min-w-0 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
 											>
 												<div className="flex min-w-0 items-center gap-2">
 													<span className="truncate font-medium">
@@ -348,242 +465,256 @@ export default function MinecraftProfilesPage() {
 														</Badge>
 													) : null}
 												</div>
-												<div className="mt-1 truncate font-mono text-xs text-muted-foreground">
-													{profile.id}
-												</div>
 											</button>
-											<TextureSummary
-												active={profile.id === selectedUuid}
-												textures={profile.id === selectedUuid ? textures : []}
-												loading={profile.id === selectedUuid && texturesLoading}
-											/>
-											<div className="text-right">
-												<Badge variant="secondary" className="rounded-md">
-													{profile.properties?.length ?? 0}
-												</Badge>
-											</div>
-											<Button
-												type="button"
-												size="icon"
-												variant="ghost"
-												aria-label={t("profiles.renameAction", {
-													name: profile.name,
-												})}
-												onClick={() => openRenameDialog(profile)}
-											>
-												<Icon name="PencilSimple" className="size-4" />
-											</Button>
+											<TooltipProvider delay={0}>
+												<div className="flex justify-start gap-1">
+													<ProfileRowActionButton
+														ariaLabel={t("profiles.manageTexturesForProfile", {
+															name: profile.name,
+														})}
+														icon="FileImage"
+														label={t("profiles.manageTexturesAction")}
+														testId={`profile-textures-action-${profile.id}`}
+														onClick={() => {
+															dispatch({
+																type: "selectedUuid",
+																value: profile.id,
+															});
+															setTextureManageDialogOpen(true);
+														}}
+													/>
+													<ProfileRowActionButton
+														ariaLabel={t("profiles.renameAction", {
+															name: profile.name,
+														})}
+														icon="PencilSimple"
+														label={t("profiles.renameShortAction")}
+														testId={`profile-rename-action-${profile.id}`}
+														onClick={() => openRenameDialog(profile)}
+													/>
+													<ProfileRowActionButton
+														ariaLabel={t("profiles.deleteProfileActionFor", {
+															name: profile.name,
+														})}
+														destructive
+														disabled={deletingProfile}
+														icon="Trash"
+														label={t("profiles.deleteProfileAction")}
+														testId={`profile-delete-action-${profile.id}`}
+														onClick={() => {
+															dispatch({
+																type: "selectedUuid",
+																value: profile.id,
+															});
+															setDeleteProfileDialogOpen(true);
+														}}
+													/>
+												</div>
+											</TooltipProvider>
 										</div>
 									))}
 								</div>
 							</div>
 						)}
 						<AdminOffsetPagination
-							currentPage={Math.floor(profileOffset / PROFILE_PAGE_SIZE) + 1}
-							nextDisabled={profileOffset + PROFILE_PAGE_SIZE >= profileTotal}
+							currentPage={Math.floor(profileOffset / profilePageSize) + 1}
+							nextDisabled={profileOffset + profilePageSize >= profileTotal}
 							onNext={() =>
-								setProfileOffset((current) => current + PROFILE_PAGE_SIZE)
+								setProfileOffset((current) => current + profilePageSize)
 							}
-							onPageSizeChange={() => {}}
+							onPageSizeChange={changeProfilePageSize}
 							onPrevious={() =>
 								setProfileOffset((current) =>
-									Math.max(0, current - PROFILE_PAGE_SIZE),
+									Math.max(0, current - profilePageSize),
 								)
 							}
-							pageSize={String(PROFILE_PAGE_SIZE)}
-							pageSizeOptions={[
-								{
-									label: t("admin.pagination.pageSizeOption", {
-										count: PROFILE_PAGE_SIZE,
-									}),
-									value: String(PROFILE_PAGE_SIZE),
-								},
-							]}
+							pageSize={String(profilePageSize)}
+							pageSizeOptions={PROFILE_PAGE_SIZE_OPTIONS.map((pageSize) => ({
+								label: t("admin.pagination.pageSizeOption", {
+									count: pageSize,
+								}),
+								value: String(pageSize),
+							}))}
 							prevDisabled={profileOffset === 0}
 							total={profileTotal}
 							totalPages={Math.max(
 								1,
-								Math.ceil(profileTotal / PROFILE_PAGE_SIZE),
+								Math.ceil(profileTotal / profilePageSize),
 							)}
 						/>
 					</div>
-				</div>
+				</section>
 
-				<div className="rounded-lg border border-border/70 bg-card/90 shadow-xs">
-					<div className="border-b border-border/70 p-4">
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<div className="flex items-center gap-2 text-sm font-semibold">
-								<Icon name="Upload" className="size-4" />
-								{t("profiles.textureTitle")}
-							</div>
-							<span className="text-xs text-muted-foreground">
-								{t("profiles.textureDescription")}
-							</span>
-						</div>
-					</div>
-					<div className="p-4">
-						<form
-							className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_160px] md:items-end"
-							onSubmit={uploadTexture}
-						>
-							<TextField
-								label={t("profiles.launcherAccessToken")}
-								value={accessToken}
-								onChange={(value) => dispatch({ type: "accessToken", value })}
-								required
-								className="md:col-span-3"
-							/>
-							<NativeSelectField
-								label={t("profiles.textureType")}
-								value={textureType}
-								onChange={(next) =>
-									dispatch({
-										type: "textureType",
-										value: next as MinecraftTextureType,
-									})
-								}
-								options={[
-									{ label: t("home.textureTypeSkin"), value: "skin" },
-									{ label: t("home.textureTypeCape"), value: "cape" },
-								]}
-							/>
-							<NativeSelectField
-								label={t("profiles.model")}
-								value={model}
-								onChange={(next) =>
-									dispatch({
-										type: "model",
-										value: next as MinecraftTextureModel,
-									})
-								}
-								className={textureType === "skin" ? "" : "opacity-60"}
-								options={[
-									{ label: t("profiles.defaultModel"), value: "default" },
-									{ label: t("profiles.slimModel"), value: "slim" },
-								]}
-							/>
-							<div className="grid gap-1.5">
-								<Label htmlFor="texture-file">{t("profiles.file")}</Label>
-								<Input
-									id="texture-file"
-									type="file"
-									accept="image/png"
-									onChange={(event) =>
-										dispatch({
-											type: "file",
-											value: event.currentTarget.files?.[0] ?? null,
+				<aside className="min-w-0">
+					<Suspense fallback={<PreviewSkeleton />}>
+						<MinecraftPreview
+							label={t("profiles.previewPanelTitle")}
+							playerName={selectedProfile?.name}
+							skinUrl={skinTexture?.url ?? null}
+							capeUrl={capeTexture?.url ?? null}
+							model={skinTexture?.texture_model ?? model}
+							emptyTitle={t("profiles.previewEmptyTitle")}
+							emptyDescription={t("profiles.previewEmptyDescription")}
+							failedTitle={t("profiles.previewFailedTitle")}
+							failedDescription={t("profiles.previewFailedDescription")}
+							noSkinLabel={t("profiles.noSkinTexture")}
+							idleLabel={t("profiles.motionIdle")}
+							walkLabel={t("profiles.motionWalk")}
+							className="w-full"
+							frameClassName="lg:h-[42rem]"
+						/>
+					</Suspense>
+				</aside>
+
+				<Dialog
+					open={textureManageDialogOpen}
+					onOpenChange={setTextureManageDialogOpen}
+				>
+					<DialogContent keepMounted className="sm:max-w-2xl">
+						<DialogHeader>
+							<DialogTitle>{t("profiles.textureTitle")}</DialogTitle>
+							<DialogDescription>
+								{selectedProfile
+									? t("profiles.textureManageDialogDescription", {
+											name: selectedProfile.name,
 										})
-									}
+									: t("profiles.workbenchEmptyHint")}
+							</DialogDescription>
+						</DialogHeader>
+						<div className="overflow-hidden rounded-lg border border-border/70 bg-muted/12 dark:border-white/10 dark:bg-muted/8">
+							<div className="divide-y divide-border/70 dark:divide-white/10">
+								<TextureSlotCard
+									title={t("home.textureTypeSkin")}
+									typeLabel={t("wardrobe.type.skin")}
+									texture={skinTexture}
+									loading={texturesLoading}
+									disabled={!selectedProfile}
+									onUpload={() => openTextureDialog("skin")}
+									onDelete={() => openDeleteTextureDialog("skin")}
+								/>
+								<TextureSlotCard
+									title={t("home.textureTypeCape")}
+									typeLabel={t("wardrobe.type.cape")}
+									texture={capeTexture}
+									loading={texturesLoading}
+									disabled={!selectedProfile}
+									onUpload={() => openTextureDialog("cape")}
+									onDelete={() => openDeleteTextureDialog("cape")}
 								/>
 							</div>
-							<div className="flex flex-col gap-2 sm:flex-row md:col-span-3">
-								<Button
-									type="submit"
-									disabled={loading || !selectedUuid || !accessToken || !file}
-									className="sm:min-w-36"
-								>
-									<Icon
-										name={loading ? "Spinner" : "Upload"}
-										className="size-4"
-									/>
-									{t("common.upload")}
-								</Button>
-								<Button
-									type="button"
-									variant="destructive"
-									disabled={loading || !selectedUuid || !accessToken}
-									onClick={() => void deleteTexture()}
-									className="sm:min-w-36"
-								>
-									<Icon name="Trash" className="size-4" />
-									{t("common.delete")}
-								</Button>
-								<div className="min-w-0 flex-1 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-									{selectedProfile
-										? t("profiles.uploadTarget", { name: selectedProfile.name })
-										: t("profiles.stepChoose")}
-									{file ? (
-										<span className="ml-2 font-medium text-foreground">
-											{file.name}
-										</span>
-									) : null}
+						</div>
+						<DialogFooter>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setTextureManageDialogOpen(false)}
+							>
+								{t("common.close")}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog open={textureDialogOpen} onOpenChange={setTextureDialogOpen}>
+					<DialogContent keepMounted className="sm:max-w-lg">
+						<TextureUploadForm
+							description={
+								selectedProfile
+									? t("profiles.uploadDialogDescription", {
+											name: selectedProfile.name,
+											type: t(`wardrobe.type.${uploadTextureType}`),
+										})
+									: t("profiles.workbenchEmptyHint")
+							}
+							dragActive={dragActive}
+							file={file}
+							fileInputId="profile-texture-file"
+							model={model}
+							submitDisabled={loading || !selectedUuid || !file}
+							submitLabel={t("profiles.uploadAndBindAction")}
+							submitting={loading}
+							submittingLabel={t("profiles.uploadAndBindAction")}
+							textureType={uploadTextureType}
+							textureTypeLocked
+							title={t("profiles.uploadDialogTitle", {
+								type: t(`wardrobe.type.${uploadTextureType}`),
+							})}
+							visibility={visibility}
+							onCancel={() => setTextureDialogOpen(false)}
+							onDragEnter={dragTextureFile}
+							onDragLeave={leaveTextureDropZone}
+							onDrop={dropTextureFile}
+							onFileChange={selectTextureFile}
+							onModelChange={(nextModel) =>
+								dispatch({ type: "model", value: nextModel })
+							}
+							onSubmit={uploadTexture}
+							onTextureTypeChange={(nextType) => {
+								dispatch({ type: "textureType", value: nextType });
+								dispatch({ type: "file", value: null });
+								setDragActive(false);
+							}}
+							onVisibilityChange={(nextVisibility) =>
+								dispatch({ type: "visibility", value: nextVisibility })
+							}
+						/>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+					<DialogContent keepMounted className="sm:max-w-md">
+						<DialogHeader>
+							<DialogTitle>
+								{t("profiles.deleteDialogTitle", {
+									type: t(`wardrobe.type.${textureType}`),
+								})}
+							</DialogTitle>
+							<DialogDescription>
+								{selectedProfile
+									? t("profiles.deleteDialogDescription", {
+											name: selectedProfile.name,
+										})
+									: t("profiles.workbenchEmptyHint")}
+							</DialogDescription>
+						</DialogHeader>
+						{activeTexture ? (
+							<div className="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
+								<div className="flex flex-wrap items-center gap-2">
+									<Badge variant="secondary" className="rounded-md">
+										{t(`wardrobe.type.${activeTexture.texture_type}`)}
+									</Badge>
+									<Badge variant="outline" className="rounded-md">
+										{activeTexture.width}x{activeTexture.height}
+									</Badge>
+								</div>
+								<div className="truncate font-mono text-xs text-muted-foreground">
+									{activeTexture.hash}
 								</div>
 							</div>
-						</form>
-					</div>
-				</div>
-			</section>
+						) : null}
+						<DialogFooter>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={loading}
+								onClick={() => setDeleteDialogOpen(false)}
+							>
+								{t("common.cancel")}
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								disabled={loading || !selectedUuid || !activeTexture}
+								onClick={() => void deleteTexture()}
+							>
+								<Icon name={loading ? "Spinner" : "Trash"} className="size-4" />
+								{t("profiles.unbindTextureAction")}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</div>
 
-			<aside className="grid min-w-0 content-start gap-4">
-				<Suspense fallback={<PreviewSkeleton />}>
-					<MinecraftPreview
-						label={selectedProfile?.name || t("profiles.uuid")}
-						skinUrl={skinTexture?.url ?? null}
-						capeUrl={capeTexture?.url ?? null}
-						model={skinTexture?.texture_model ?? model}
-						motion={previewMotion}
-						className="lg:sticky lg:top-20"
-						emptyTitle={t("profiles.previewEmptyTitle")}
-						emptyDescription={t("profiles.previewEmptyDescription")}
-						failedTitle={t("profiles.previewFailedTitle")}
-						failedDescription={t("profiles.previewFailedDescription")}
-						noSkinLabel={t("profiles.noSkinTexture")}
-					/>
-				</Suspense>
-				<LauncherSetupCard profileName={selectedProfile?.name ?? null} />
-				<div className="rounded-lg border border-border/70 bg-card/90 p-4 shadow-xs">
-					<div className="flex flex-wrap items-start justify-between gap-3">
-						<div>
-							<div className="text-sm font-semibold">
-								{t("profiles.previewControls")}
-							</div>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{selectedProfile?.id ?? t("profiles.stepChoose")}
-							</p>
-						</div>
-						<div className="flex rounded-lg border border-border/70 bg-muted/30 p-1">
-							<Button
-								type="button"
-								size="sm"
-								variant={previewMotion === "idle" ? "default" : "ghost"}
-								onClick={() =>
-									dispatch({ type: "previewMotion", value: "idle" })
-								}
-							>
-								<Icon name="Pause" className="size-4" />
-								{t("profiles.motionIdle")}
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								variant={previewMotion === "walk" ? "default" : "ghost"}
-								onClick={() =>
-									dispatch({ type: "previewMotion", value: "walk" })
-								}
-							>
-								<Icon name="Play" className="size-4" />
-								{t("profiles.motionWalk")}
-							</Button>
-						</div>
-					</div>
-					<div className="mt-4 grid gap-2">
-						<TextureDetail
-							title={t("home.textureTypeSkin")}
-							texture={skinTexture}
-							loading={texturesLoading}
-							loadingLabel={t("profiles.textureMetadataLoading")}
-							emptyLabel={t("profiles.noTextureUploaded")}
-						/>
-						<TextureDetail
-							title={t("home.textureTypeCape")}
-							texture={capeTexture}
-							loading={texturesLoading}
-							loadingLabel={t("profiles.textureMetadataLoading")}
-							emptyLabel={t("profiles.noTextureUploaded")}
-						/>
-					</div>
-				</div>
-			</aside>
 			<Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
 				<DialogContent className="sm:max-w-md">
 					<form className="grid gap-4" onSubmit={renameProfile}>
@@ -626,13 +757,58 @@ export default function MinecraftProfilesPage() {
 					</form>
 				</DialogContent>
 			</Dialog>
+
+			<Dialog
+				open={deleteProfileDialogOpen}
+				onOpenChange={setDeleteProfileDialogOpen}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>{t("profiles.deleteProfileTitle")}</DialogTitle>
+						<DialogDescription>
+							{selectedProfile
+								? t("profiles.deleteProfileDescription", {
+										name: selectedProfile.name,
+									})
+								: t("profiles.workbenchEmptyHint")}
+						</DialogDescription>
+					</DialogHeader>
+					{selectedProfile ? (
+						<div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+							{t("profiles.deleteProfileImpact")}
+						</div>
+					) : null}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={deletingProfile}
+							onClick={() => setDeleteProfileDialogOpen(false)}
+						>
+							{t("common.cancel")}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={deletingProfile || !selectedProfile}
+							onClick={() => void deleteProfile()}
+						>
+							<Icon
+								name={deletingProfile ? "Spinner" : "Trash"}
+								className="size-4"
+							/>
+							{t("profiles.deleteProfileAction")}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
 
 function PreviewSkeleton() {
 	return (
-		<div className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs lg:sticky lg:top-20">
+		<div className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs">
 			<div className="flex min-h-12 items-center justify-between border-b border-border/70 px-4">
 				<div className="space-y-2">
 					<Skeleton className="h-4 w-32" />
@@ -645,75 +821,135 @@ function PreviewSkeleton() {
 	);
 }
 
-function TextureSummary({
-	active,
-	loading,
-	textures,
+function ProfileRowActionButton({
+	ariaLabel,
+	destructive = false,
+	disabled,
+	icon,
+	label,
+	onClick,
+	testId,
 }: {
-	active: boolean;
-	loading: boolean;
-	textures: MinecraftTextureMetadata[];
+	ariaLabel: string;
+	destructive?: boolean;
+	disabled?: boolean;
+	icon: IconName;
+	label: string;
+	onClick: () => void;
+	testId?: string;
 }) {
-	if (!active) {
-		return <span className="text-xs text-muted-foreground">-</span>;
-	}
-	if (loading) {
-		return <Icon name="Spinner" className="size-4 text-muted-foreground" />;
-	}
-	const hasSkin = textures.some((texture) => texture.texture_type === "skin");
-	const hasCape = textures.some((texture) => texture.texture_type === "cape");
 	return (
-		<div className="flex flex-wrap gap-1">
-			<Badge variant={hasSkin ? "default" : "outline"} className="rounded-md">
-				Skin
-			</Badge>
-			<Badge variant={hasCape ? "default" : "outline"} className="rounded-md">
-				Cape
-			</Badge>
-		</div>
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<Button
+						type="button"
+						size="icon"
+						variant="ghost"
+						aria-label={ariaLabel}
+						disabled={disabled}
+						data-testid={testId}
+						onClick={onClick}
+					/>
+				}
+			>
+				<Icon
+					name={icon}
+					className={cn("size-4", destructive && "text-destructive")}
+				/>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 }
 
-function TextureDetail({
-	emptyLabel,
+function TextureSlotCard({
+	disabled,
 	loading,
-	loadingLabel,
+	onDelete,
+	onUpload,
 	texture,
 	title,
+	typeLabel,
 }: {
-	emptyLabel: string;
+	disabled: boolean;
 	loading: boolean;
-	loadingLabel: string;
+	onDelete: () => void;
+	onUpload: () => void;
 	texture: MinecraftTextureMetadata | null;
 	title: string;
+	typeLabel: string;
 }) {
+	const { t } = useTranslation();
+	const isDefaultTexture = texture?.source === "default";
+	const hasBoundTexture = Boolean(texture && !isDefaultTexture);
+	const description = texture
+		? isDefaultTexture
+			? t("profiles.textureSlotDefault", { type: typeLabel })
+			: t("profiles.textureSlotReady", { type: typeLabel })
+		: t("profiles.textureSlotEmpty", { type: typeLabel });
+
 	if (loading) {
 		return (
-			<div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+			<div className="p-4 text-sm text-muted-foreground">
 				<Icon name="Spinner" className="mr-2 inline size-4" />
-				{loadingLabel}
+				{t("profiles.textureMetadataLoading")}
 			</div>
 		);
 	}
+
 	return (
-		<div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-			<div className="flex items-center justify-between gap-3">
-				<div className="text-sm font-medium">{title}</div>
-				<Badge variant={texture ? "default" : "outline"} className="rounded-md">
+		<div className="p-4">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<div className="flex min-w-0 items-center gap-2">
+						<Icon name="FileImage" className="size-4 shrink-0 text-primary" />
+						<div className="truncate text-sm font-semibold">{title}</div>
+					</div>
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				</div>
+				<Badge
+					variant={hasBoundTexture ? "default" : "outline"}
+					className="rounded-md"
+				>
 					{texture ? texture.texture_model : "empty"}
 				</Badge>
 			</div>
+
 			{texture ? (
-				<div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+				<div className="mt-3 grid gap-1 text-sm text-muted-foreground">
 					<div>
 						{texture.width} x {texture.height}px ·{" "}
 						{formatFileSize(texture.file_size)}
 					</div>
-					<div className="truncate font-mono">{texture.hash}</div>
+					<div className="truncate font-mono text-xs">{texture.hash}</div>
 				</div>
-			) : (
-				<div className="mt-2 text-xs text-muted-foreground">{emptyLabel}</div>
-			)}
+			) : null}
+
+			<div className="mt-3 flex flex-wrap gap-2">
+				<Button
+					type="button"
+					size="sm"
+					variant={hasBoundTexture ? "outline" : "default"}
+					disabled={disabled}
+					onClick={onUpload}
+				>
+					<Icon name="Upload" className="size-4" />
+					{hasBoundTexture
+						? t("profiles.replaceTextureAction")
+						: t("profiles.uploadTextureAction")}
+				</Button>
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					disabled={disabled || !texture || isDefaultTexture}
+					onClick={onDelete}
+				>
+					<Icon name="Trash" className="size-4" />
+					{t("profiles.unbindTextureAction")}
+				</Button>
+			</div>
 		</div>
 	);
 }
@@ -722,17 +958,4 @@ function formatFileSize(bytes: number) {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatProfileError(
-	error: unknown,
-	t: (key: string, values?: Record<string, string>) => string,
-) {
-	if (error instanceof YggdrasilProtocolError) {
-		return t("profiles.protocolError", {
-			error: error.error,
-			message: error.message,
-		});
-	}
-	return formatUnknownError(error);
 }

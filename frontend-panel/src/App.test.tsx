@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import {
 	createMemoryRouter,
 	MemoryRouter,
@@ -15,6 +21,7 @@ import PublicConnectPage from "@/pages/PublicConnectPage";
 import { RequireInitialized } from "@/router/InitStatusGate";
 import { LoginGuard } from "@/router/LoginGuard";
 import { ProtectedRoute } from "@/router/ProtectedRoute";
+import { ApiError } from "@/services/http";
 import { useAuthStore } from "@/stores/authStore";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 import { useInitStatusStore } from "@/stores/initStatusStore";
@@ -49,6 +56,52 @@ const yggdrasilServiceMock = vi.hoisted(() => ({
 	metadata: vi.fn(),
 	listProfiles: vi.fn(),
 }));
+
+const toastMock = vi.hoisted(() => ({
+	error: vi.fn(),
+	success: vi.fn(),
+}));
+
+const DESKTOP_SIDEBAR_STORAGE_KEY = "asteryggdrasil-desktop-sidebar-expanded";
+
+function matchMediaResult(query: string, matches: boolean) {
+	return {
+		matches,
+		media: query,
+		onchange: null,
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		addListener: vi.fn(),
+		removeListener: vi.fn(),
+		dispatchEvent: vi.fn(),
+	};
+}
+
+function mockXlViewport(matches: boolean) {
+	vi.mocked(window.matchMedia).mockImplementation((query: string) =>
+		matchMediaResult(query, query === "(min-width: 1280px)" && matches),
+	);
+}
+
+function setAuthenticatedAdmin() {
+	const user = {
+		id: 7,
+		username: "alex",
+		email: "alex@example.com",
+		role: "admin",
+		status: "active",
+	} as const;
+
+	useAuthStore.setState({
+		user,
+		checking: false,
+		error: null,
+		expiresAt: Date.now() + 60_000,
+		isAuthStale: false,
+		isAuthenticated: true,
+		isAdmin: true,
+	});
+}
 
 function sessionsPage(items: AuthSessionInfo[]): AuthSessionPage {
 	return {
@@ -85,8 +138,13 @@ vi.mock("@/services/yggdrasilService", async (importOriginal) => {
 	};
 });
 
+vi.mock("sonner", () => ({
+	toast: toastMock,
+}));
+
 describe("frontend entry routes", () => {
 	beforeEach(() => {
+		vi.clearAllMocks();
 		useAuthStore.getState().clear();
 		useFrontendConfigStore.getState().invalidate();
 		useInitStatusStore.getState().reset();
@@ -177,6 +235,8 @@ describe("frontend entry routes", () => {
 					allow_profile_name_login: true,
 					allow_skin_upload: true,
 					allow_cape_upload: true,
+					max_texture_pixels: 4096 * 4096,
+					max_texture_upload_bytes: 4 * 1024 * 1024,
 				},
 			},
 			isLoaded: true,
@@ -187,6 +247,8 @@ describe("frontend entry routes", () => {
 				allow_profile_name_login: true,
 				allow_skin_upload: true,
 				allow_cape_upload: true,
+				max_texture_pixels: 4096 * 4096,
+				max_texture_upload_bytes: 4 * 1024 * 1024,
 			},
 		});
 
@@ -466,6 +528,36 @@ describe("frontend entry routes", () => {
 		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
 	});
 
+	it("shows network error state for protected routes when auth hydration cannot reach the server", async () => {
+		authServiceMock.me.mockRejectedValue(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+		const router = createMemoryRouter(
+			[
+				{
+					element: <ProtectedRoute />,
+					children: [
+						{
+							path: "/account",
+							element: <Outlet />,
+						},
+					],
+				},
+				{ path: "/login", element: <div>login-route</div> },
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("Connection lost")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Retry connection" }),
+		).toBeInTheDocument();
+		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
+		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
+	});
+
 	it("shows already signed in state on guest-only routes", async () => {
 		const user = {
 			id: 7,
@@ -543,22 +635,8 @@ describe("frontend entry routes", () => {
 	});
 
 	it("renders account and admin sections in the shared app sidebar", async () => {
-		const user = {
-			id: 7,
-			username: "alex",
-			email: "alex@example.com",
-			role: "admin",
-			status: "active",
-		} as const;
-		useAuthStore.setState({
-			user,
-			checking: false,
-			error: null,
-			expiresAt: Date.now() + 60_000,
-			isAuthStale: false,
-			isAuthenticated: true,
-			isAdmin: true,
-		});
+		setAuthenticatedAdmin();
+		localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, "true");
 
 		const router = createMemoryRouter(
 			[
@@ -605,6 +683,241 @@ describe("frontend entry routes", () => {
 		expect(
 			within(sidebarNav as HTMLElement).getByText("Administration"),
 		).toBeVisible();
+	});
+
+	it("defaults the desktop sidebar to collapsed below xl and expanded at xl", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(false);
+		const compactRouter = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [{ path: "/account", element: <div>compact-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		const { unmount } = render(<RouterProvider router={compactRouter} />);
+
+		expect(await screen.findByText("compact-route")).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "collapsed");
+
+		unmount();
+		mockXlViewport(true);
+		const expandedRouter = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [{ path: "/account", element: <div>expanded-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={expandedRouter} />);
+
+		expect(await screen.findByText("expanded-route")).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "expanded");
+	});
+
+	it("toggles and persists the desktop sidebar preference", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(true);
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [{ path: "/account", element: <div>account-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		const sidebar = document.querySelector(
+			'[data-slot="shell-desktop-sidebar"]',
+		);
+		expect(sidebar).toHaveAttribute("data-state", "expanded");
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Collapse navigation" }),
+		);
+
+		expect(sidebar).toHaveAttribute("data-state", "collapsed");
+		expect(localStorage.getItem(DESKTOP_SIDEBAR_STORAGE_KEY)).toBe("false");
+		expect(
+			screen.getByRole("button", { name: "Expand navigation" }),
+		).toHaveAttribute("aria-pressed", "false");
+
+		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }));
+
+		expect(sidebar).toHaveAttribute("data-state", "expanded");
+		expect(localStorage.getItem(DESKTOP_SIDEBAR_STORAGE_KEY)).toBe("true");
+		expect(
+			screen.getByRole("button", { name: "Collapse navigation" }),
+		).toHaveAttribute("aria-pressed", "true");
+	});
+
+	it("keeps a collapsed desktop sidebar when navigating from account to admin", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(true);
+		localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, "false");
+		const router = createMemoryRouter(
+			[
+				{
+					path: "/account",
+					element: <AppLayout key="account" scope="account" />,
+					children: [{ index: true, element: <div>account-route</div> }],
+				},
+				{
+					path: "/admin/users",
+					element: <AppLayout key="admin" scope="admin" />,
+					children: [{ index: true, element: <div>admin-users-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		const accountSidebar = document.querySelector(
+			'[data-slot="shell-desktop-sidebar"]',
+		);
+		expect(accountSidebar).toHaveAttribute("data-state", "collapsed");
+
+		fireEvent.click(screen.getByRole("link", { name: "Users" }));
+
+		expect(await screen.findByText("admin-users-route")).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "collapsed");
+	});
+
+	it("loads a stored desktop sidebar preference across a remount", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(true);
+		localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, "false");
+		const collapsedRouter = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [
+						{ path: "/account", element: <div>stored-collapsed-route</div> },
+					],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		const { unmount } = render(<RouterProvider router={collapsedRouter} />);
+
+		expect(
+			await screen.findByText("stored-collapsed-route"),
+		).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "collapsed");
+
+		unmount();
+		localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, "true");
+		const expandedRouter = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [
+						{ path: "/account", element: <div>stored-expanded-route</div> },
+					],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={expandedRouter} />);
+
+		expect(
+			await screen.findByText("stored-expanded-route"),
+		).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "expanded");
+	});
+
+	it("falls back to the viewport default when the stored sidebar preference is invalid", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(true);
+		localStorage.setItem(DESKTOP_SIDEBAR_STORAGE_KEY, "maybe");
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [{ path: "/account", element: <div>account-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-slot="shell-desktop-sidebar"]'),
+		).toHaveAttribute("data-state", "expanded");
+	});
+
+	it("keeps the desktop sidebar usable when preference storage is unavailable", async () => {
+		setAuthenticatedAdmin();
+		mockXlViewport(false);
+		const getItemSpy = vi
+			.spyOn(Storage.prototype, "getItem")
+			.mockImplementation((key: string) => {
+				if (key === DESKTOP_SIDEBAR_STORAGE_KEY) {
+					throw new Error("storage unavailable");
+				}
+				return null;
+			});
+		const setItemSpy = vi
+			.spyOn(Storage.prototype, "setItem")
+			.mockImplementation((key: string) => {
+				if (key === DESKTOP_SIDEBAR_STORAGE_KEY) {
+					throw new Error("storage unavailable");
+				}
+			});
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AppLayout />,
+					children: [{ path: "/account", element: <div>account-route</div> }],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		const sidebar = document.querySelector(
+			'[data-slot="shell-desktop-sidebar"]',
+		);
+		expect(sidebar).toHaveAttribute("data-state", "collapsed");
+
+		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }));
+
+		expect(sidebar).toHaveAttribute("data-state", "expanded");
+		expect(setItemSpy).toHaveBeenCalledWith(
+			DESKTOP_SIDEBAR_STORAGE_KEY,
+			"true",
+		);
+
+		getItemSpy.mockRestore();
+		setItemSpy.mockRestore();
 	});
 
 	it("hides the account mobile topbar brand and removes the desktop search box", async () => {
@@ -871,6 +1184,57 @@ describe("frontend entry routes", () => {
 				name: "Personal settings",
 			}),
 		).not.toBeInTheDocument();
+	});
+
+	it("shows a success toast after logging out from the user menu", async () => {
+		const user = {
+			id: 7,
+			username: "alex",
+			email: "alex@example.com",
+			role: "user",
+			status: "active",
+		} as const;
+		useAuthStore.setState({
+			user,
+			checking: false,
+			error: null,
+			expiresAt: Date.now() + 60_000,
+			isAuthStale: false,
+			isAuthenticated: true,
+			isAdmin: false,
+		});
+
+		const router = createMemoryRouter(
+			[
+				{
+					path: "/",
+					element: <div>home-route</div>,
+				},
+				{
+					element: <AppLayout />,
+					children: [
+						{
+							path: "/account",
+							element: <div>account-route</div>,
+						},
+					],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "alex" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "Logout" }));
+
+		await waitFor(() => {
+			expect(authServiceMock.logout).toHaveBeenCalled();
+		});
+		expect(toastMock.success).toHaveBeenCalledWith("Logged out");
+		expect(await screen.findByText("home-route")).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/");
 	});
 
 	it("renders the personal settings page with account details and session entry", () => {

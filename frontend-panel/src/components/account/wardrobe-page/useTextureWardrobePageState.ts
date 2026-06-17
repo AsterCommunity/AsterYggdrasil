@@ -2,6 +2,7 @@ import { useReducer } from "react";
 import type {
 	MinecraftTextureModel,
 	MinecraftTextureType,
+	MinecraftTextureVisibility,
 	MinecraftWardrobeTextureMetadata,
 	YggdrasilProfile,
 } from "@/types/api";
@@ -22,6 +23,7 @@ export type TextureWardrobePageState = {
 	textureTotal: number;
 	textures: MinecraftWardrobeTextureMetadata[];
 	textureType: MinecraftTextureType;
+	visibility: MinecraftTextureVisibility;
 };
 
 export type TextureWardrobePageAction =
@@ -43,6 +45,7 @@ export type TextureWardrobePageAction =
 	| { type: "selectedProfileId"; value: string | ((current: string) => string) }
 	| { type: "submitting"; value: boolean }
 	| { type: "textureType"; value: MinecraftTextureType }
+	| { type: "visibility"; value: MinecraftTextureVisibility }
 	| { type: "prependTexture"; value: MinecraftWardrobeTextureMetadata }
 	| { type: "removeTexture"; id: number };
 
@@ -62,6 +65,7 @@ const initialState: TextureWardrobePageState = {
 	textureTotal: 0,
 	textures: [],
 	textureType: "skin",
+	visibility: "private",
 };
 
 function reducer(
@@ -80,6 +84,7 @@ function reducer(
 		case "query":
 		case "submitting":
 		case "textureType":
+		case "visibility":
 			return { ...state, [action.type]: action.value };
 		case "loadSuccess":
 			return {

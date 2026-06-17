@@ -1,5 +1,10 @@
-const REFRESH_LOCK_KEY = "aster-auth-refresh-lock";
-const REFRESH_EVENT_KEY = "aster-auth-refresh-event";
+import {
+	readJsonStorageItem,
+	removeStorageItem,
+	STORAGE_KEYS,
+	writeJsonStorageItem,
+} from "@/lib/storage";
+
 const REFRESH_CHANNEL_NAME = "aster-auth-refresh";
 // Keep this below the backend same-client stale-refresh grace window. If a tab
 // dies after the server rotates the refresh JTI but before it broadcasts the
@@ -133,7 +138,7 @@ function parseJson<T>(value: string | null): T | null {
 }
 
 function readLock(): RefreshLock | null {
-	const lock = parseJson<unknown>(localStorage.getItem(REFRESH_LOCK_KEY));
+	const lock = readJsonStorageItem<unknown>("local", STORAGE_KEYS.refreshLock);
 	return isRefreshLock(lock) ? lock : null;
 }
 
@@ -152,7 +157,7 @@ function lockIsLive(lock: RefreshLock | null, now = Date.now()) {
 }
 
 function writeLock(lock: RefreshLock) {
-	localStorage.setItem(REFRESH_LOCK_KEY, JSON.stringify(lock));
+	writeJsonStorageItem("local", STORAGE_KEYS.refreshLock, lock);
 }
 
 function tryAcquireLock(): RefreshLock | null {
@@ -178,7 +183,7 @@ function tryAcquireLock(): RefreshLock | null {
 		return storedLock;
 	}
 	if (storedLock === null) {
-		localStorage.removeItem(REFRESH_LOCK_KEY);
+		removeStorageItem("local", STORAGE_KEYS.refreshLock);
 	}
 	return null;
 }
@@ -186,7 +191,7 @@ function tryAcquireLock(): RefreshLock | null {
 function releaseLock(acquiredLock: RefreshLock) {
 	const lock = readLock();
 	if (lock?.ownerId === currentTabId && lock.lockId === acquiredLock.lockId) {
-		localStorage.removeItem(REFRESH_LOCK_KEY);
+		removeStorageItem("local", STORAGE_KEYS.refreshLock);
 	}
 }
 
@@ -217,7 +222,7 @@ function openRefreshChannel(): BroadcastChannel | null {
 }
 
 function broadcastRefreshEvent(event: RefreshEvent) {
-	localStorage.setItem(REFRESH_EVENT_KEY, JSON.stringify(event));
+	writeJsonStorageItem("local", STORAGE_KEYS.refreshEvent, event);
 	const channel = openRefreshChannel();
 	try {
 		channel?.postMessage(event);
@@ -275,8 +280,9 @@ function getStoredEventForLock(
 	peerLock: RefreshLock,
 	waitStartedAt: number,
 ): RefreshEvent | null {
-	const event = parseJson<RefreshEvent>(
-		localStorage.getItem(REFRESH_EVENT_KEY),
+	const event = readJsonStorageItem<unknown>(
+		"local",
+		STORAGE_KEYS.refreshEvent,
 	);
 	return isRefreshEvent(event) &&
 		(eventMatchesPeerLock(event, peerLock) ||
@@ -365,12 +371,12 @@ function waitForPeerRefresh(
 		};
 
 		function onStorage(event: StorageEvent) {
-			if (event.key === REFRESH_EVENT_KEY) {
+			if (event.key === STORAGE_KEYS.refreshEvent) {
 				const refreshEvent = parseJson<RefreshEvent>(event.newValue);
 				handleEvent(isRefreshEvent(refreshEvent) ? refreshEvent : null);
 				return;
 			}
-			if (event.key !== REFRESH_LOCK_KEY) {
+			if (event.key !== STORAGE_KEYS.refreshLock) {
 				return;
 			}
 

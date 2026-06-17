@@ -6,6 +6,7 @@ import type {
 	MinecraftTextureMetadata,
 	MinecraftTextureModel,
 	MinecraftTextureType,
+	MinecraftTextureVisibility,
 	MinecraftWardrobeTextureMetadata,
 	MinecraftWardrobeTexturePage,
 	MinecraftWardrobeTextureQuery,
@@ -96,6 +97,8 @@ export const yggdrasilService = {
 			YggdrasilProfile,
 			OperationRequestBody<"rename_current_user_minecraft_profile">
 		>(`/profiles/minecraft/${uuid}/name`, data),
+	deleteProfile: (uuid: YggdrasilProfileByUuidPath["uuid"]) =>
+		api.delete<void>(`/profiles/minecraft/${uuid}`),
 	listProfileTextures: (uuid: YggdrasilProfileByUuidPath["uuid"]) =>
 		api.get<MinecraftTextureMetadata[]>(`/profiles/minecraft/${uuid}/textures`),
 	listWardrobeTextures: (params: MinecraftWardrobeTextureQuery = {}) =>
@@ -111,11 +114,13 @@ export const yggdrasilService = {
 		textureType: MinecraftTextureType;
 		file: File;
 		model?: MinecraftTextureModel;
+		visibility?: MinecraftTextureVisibility;
 	}) {
 		const form = new FormData();
 		if (params.textureType === "skin") {
 			form.append("model", params.model === "slim" ? "slim" : "");
 		}
+		form.append("visibility", params.visibility ?? "private");
 		form.append("file", params.file);
 		return api.post<MinecraftWardrobeTextureMetadata, FormData>(
 			`/wardrobe/textures/${params.textureType}`,

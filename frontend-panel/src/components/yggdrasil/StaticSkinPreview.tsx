@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { type SkinLoadOptions, SkinViewer } from "skinview3d";
-import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { MinecraftTextureModel } from "@/types/api";
 
@@ -150,7 +149,7 @@ function StaticSkinCanvas({
 			/>
 			{failed ? (
 				<div className="absolute inset-0 grid place-items-center bg-background/78">
-					<Icon name="Warning" className="size-5 text-muted-foreground" />
+					<span className="text-sm font-semibold text-muted-foreground">!</span>
 				</div>
 			) : null}
 		</div>

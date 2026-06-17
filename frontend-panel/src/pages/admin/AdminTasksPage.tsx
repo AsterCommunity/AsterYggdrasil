@@ -508,7 +508,6 @@ export default function AdminTasksPage() {
 			<AdminPageHeader
 				title={t("admin.tasks.title")}
 				description={t("admin.tasks.description")}
-				icon="Queue"
 				actions={
 					<>
 						<Button

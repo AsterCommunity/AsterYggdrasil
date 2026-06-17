@@ -1,6 +1,6 @@
 import { create } from "zustand";
+import { readStorageItem, STORAGE_KEYS, writeStorageItem } from "@/lib/storage";
 
-const THEME_STORAGE_KEY = "asteryggdrasil-theme-mode";
 const FALLBACK_THEME_TRANSITION_CLASS = "theme-switching";
 const FALLBACK_THEME_TRANSITION_DURATION_MS = 220;
 const THEME_COLOR_LIGHT = "#f8faf8";
@@ -36,24 +36,14 @@ function prefersDarkMode() {
 }
 
 function readStoredThemeMode(): ThemeMode {
-	if (typeof window === "undefined") return THEME_MODES.light;
-
-	try {
-		const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-		if (isThemeMode(stored)) return stored;
-	} catch {
-		// Storage can be unavailable in restricted browser contexts.
-	}
+	const stored = readStorageItem("local", STORAGE_KEYS.themeMode);
+	if (isThemeMode(stored)) return stored;
 
 	return prefersDarkMode() ? THEME_MODES.dark : THEME_MODES.light;
 }
 
 function persistThemeMode(mode: ThemeMode) {
-	try {
-		window.localStorage.setItem(THEME_STORAGE_KEY, mode);
-	} catch {
-		// Theme still applies for the current tab when persistence is blocked.
-	}
+	writeStorageItem("local", STORAGE_KEYS.themeMode, mode);
 }
 
 function updateThemeColor(mode: ThemeMode) {

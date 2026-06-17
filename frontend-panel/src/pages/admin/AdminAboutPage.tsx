@@ -162,7 +162,6 @@ export default function AdminAboutPage() {
 	return (
 		<AdminPageShell>
 			<AdminPageHeader
-				icon="Info"
 				title={t("admin.aboutPage.title")}
 				description={t("admin.aboutPage.description")}
 			/>

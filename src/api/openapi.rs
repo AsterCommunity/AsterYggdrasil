@@ -192,6 +192,7 @@ use utoipa::{Modify, OpenApi};
             crate::api::dto::yggdrasil::MinecraftServicesPrivilegesResp,
             crate::api::dto::yggdrasil::MinecraftServicesProfanityFilterPreferences,
             crate::services::texture_service::MinecraftTextureMetadata,
+            crate::services::texture_service::MinecraftTextureMetadataSource,
             crate::services::texture_service::MinecraftWardrobeTextureMetadata,
             crate::services::yggdrasil_service::MinecraftProfileInfo,
 

@@ -1,8 +1,10 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @plugin "@tailwindcss/typography";
+@source ".";
+@source "../index.html";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -284,6 +286,45 @@
 	}
 	.public-mc-hero {
 		isolation: isolate;
+	}
+	.launcher-setup-card {
+		container-type: inline-size;
+	}
+}
+
+@container (min-width: 48rem) {
+	.launcher-setup-card__body {
+		grid-template-columns: minmax(0, 1fr) 19rem;
+	}
+
+	.launcher-setup-card__drag-panel {
+		border-top-width: 0;
+		border-left-width: 1px;
+	}
+
+	.launcher-setup-card__drag-button {
+		display: grid;
+		min-height: 11rem;
+		align-content: center;
+		gap: 0.75rem;
+		padding: 1rem;
+		font-size: 1rem;
+	}
+
+	.launcher-setup-card__drag-icon {
+		margin-inline: auto;
+		width: 2rem;
+		height: 2rem;
+	}
+
+	.launcher-setup-card__drag-hint {
+		display: block;
+	}
+}
+
+@container (max-width: 47.999rem) {
+	.launcher-setup-card__drag-hint {
+		display: none;
 	}
 }
 

@@ -74,7 +74,6 @@ export default function AdminUserDetailPage() {
 	return (
 		<AdminPageShell>
 			<AdminPageHeader
-				icon="User"
 				title={user?.username ?? t("admin.users.detailTitle")}
 				description={t("admin.users.detailPageDescription")}
 				actions={

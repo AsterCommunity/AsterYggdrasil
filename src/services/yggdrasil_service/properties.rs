@@ -5,7 +5,7 @@ use crate::db::repository::minecraft_profile_texture_repo;
 use crate::entities::minecraft_profile;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
-use crate::services::yggdrasil_signature;
+use crate::services::{texture_service, yggdrasil_signature};
 use chrono::Utc;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -30,29 +30,25 @@ where
         uploadable_textures_present = !profile.uploadable_textures.trim().is_empty(),
         "building yggdrasil profile properties"
     );
-    if !textures.is_empty() {
-        let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
-        let value =
-            texture_property_value(&policy, profile, &textures).map_err(YggdrasilError::from)?;
-        let signature = if signed {
-            yggdrasil_signature::sign_texture_property(&policy, &value)
-                .map_err(YggdrasilError::from)?
-        } else {
-            None
-        };
-        properties.push(YggdrasilProfileProperty {
-            name: "textures".to_string(),
-            value,
-            signature,
-        });
-        tracing::debug!(
-            profile_id = profile.id,
-            signed,
-            "added yggdrasil textures property"
-        );
-    }
+    let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+    let value =
+        texture_property_value(&policy, profile, &textures).map_err(YggdrasilError::from)?;
+    let signature = if signed {
+        yggdrasil_signature::sign_texture_property(&policy, &value).map_err(YggdrasilError::from)?
+    } else {
+        None
+    };
+    properties.push(YggdrasilProfileProperty {
+        name: "textures".to_string(),
+        value,
+        signature,
+    });
+    tracing::debug!(
+        profile_id = profile.id,
+        signed,
+        "added yggdrasil textures property"
+    );
     if !profile.uploadable_textures.trim().is_empty() {
-        let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
         let signature = if signed {
             yggdrasil_signature::sign_texture_property(&policy, &profile.uploadable_textures)
                 .map_err(YggdrasilError::from)?
@@ -121,6 +117,27 @@ fn texture_property_value(
                 )?,
                 metadata,
             },
+        );
+    }
+    if !entries.contains_key(crate::types::MinecraftTextureType::Skin.textures_property_key()) {
+        let skin = texture_service::default_skin_for_profile_uuid(&profile.uuid);
+        let metadata = skin
+            .model
+            .as_metadata_value()
+            .map(|model| TexturePropertyMetadata { model });
+        entries.insert(
+            crate::types::MinecraftTextureType::Skin.textures_property_key(),
+            TexturePropertyItem {
+                url: yggdrasil_signature::required_texture_public_url(policy, skin.hash)?,
+                metadata,
+            },
+        );
+        tracing::debug!(
+            profile_id = profile.id,
+            profile_uuid = %profile.uuid,
+            default_skin_hash = skin.hash,
+            default_skin_model = ?skin.model,
+            "added default yggdrasil skin texture property"
         );
     }
     tracing::debug!(

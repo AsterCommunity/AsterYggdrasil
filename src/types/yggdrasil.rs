@@ -15,6 +15,13 @@ pub enum MinecraftTextureModel {
 }
 
 impl MinecraftTextureModel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Slim => "slim",
+        }
+    }
+
     pub const fn as_metadata_value(self) -> Option<&'static str> {
         match self {
             Self::Default => None,

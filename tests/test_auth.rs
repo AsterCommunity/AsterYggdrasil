@@ -3,7 +3,7 @@
 #[macro_use]
 mod common;
 
-use actix_web::{body::MessageBody, cookie::SameSite, test};
+use actix_web::{body::MessageBody, cookie::SameSite, http::header, test};
 use aster_yggdrasil::api::error_code::AsterErrorCode;
 use aster_yggdrasil::config::avatar::AVATAR_DIR_KEY;
 use aster_yggdrasil::db::repository::{
@@ -1501,6 +1501,12 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
             .unwrap_or_default()
             .contains("immutable")
     );
+    let avatar_etag = resp
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .expect("avatar response should include etag")
+        .to_owned();
     let bytes = test::read_body(resp).await;
     let decoded = image::load_from_memory(&bytes)
         .expect("served avatar should decode")
@@ -1508,16 +1514,38 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
     assert_eq!(decoded.dimensions(), (512, 512));
 
     let req = test::TestRequest::get()
+        .uri("/api/v1/auth/profile/avatar/512")
+        .insert_header(common::bearer_header(&token))
+        .insert_header((header::IF_NONE_MATCH, avatar_etag))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 304);
+
+    let req = test::TestRequest::get()
         .uri("/api/v1/admin/users/1/avatar/1024")
         .insert_header(common::bearer_header(&token))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
+    let admin_avatar_etag = resp
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .expect("admin avatar response should include etag")
+        .to_owned();
     let bytes = test::read_body(resp).await;
     let decoded = image::load_from_memory(&bytes)
         .expect("admin avatar should decode")
         .to_rgba8();
     assert_eq!(decoded.dimensions(), (1024, 1024));
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/admin/users/1/avatar/1024")
+        .insert_header(common::bearer_header(&token))
+        .insert_header((header::IF_NONE_MATCH, admin_avatar_etag))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 304);
 
     let req = test::TestRequest::put()
         .uri("/api/v1/auth/profile/avatar/source")

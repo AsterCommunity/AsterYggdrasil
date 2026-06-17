@@ -1,5 +1,7 @@
 import {
 	type FormEvent,
+	lazy,
+	Suspense,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -30,11 +32,16 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MinecraftPreview } from "@/components/yggdrasil/MinecraftPreview";
 import { handleApiError } from "@/hooks/useApiError";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { adminPaths } from "@/routes/routePaths";
 import { adminMinecraftProfileService } from "@/services/adminService";
+
+const MinecraftPreview = lazy(() =>
+	import("@/components/yggdrasil/MinecraftPreview").then((module) => ({
+		default: module.MinecraftPreview,
+	})),
+);
 
 function parseUuid(value: string | undefined) {
 	if (!value) return null;
@@ -296,7 +303,6 @@ export default function AdminMinecraftProfilePage() {
 	return (
 		<AdminPageShell>
 			<AdminPageHeader
-				icon="User"
 				title={profile?.name ?? t("admin.minecraftProfilePage.title")}
 				description={t("admin.minecraftProfilePage.description")}
 				actions={headerActions}
@@ -318,13 +324,15 @@ export default function AdminMinecraftProfilePage() {
 
 				<div className="grid gap-4">
 					<AdminSurface padded={false} className="overflow-hidden">
-						<MinecraftPreview
-							label={t("admin.minecraftProfilePage.preview")}
-							skinUrl={previewSkinUrl}
-							capeUrl={previewCapeUrl}
-							model={profile?.texture_model ?? "default"}
-							className="rounded-none border-0 shadow-none"
-						/>
+						<Suspense fallback={<PreviewSkeleton />}>
+							<MinecraftPreview
+								label={t("admin.minecraftProfilePage.preview")}
+								skinUrl={previewSkinUrl}
+								capeUrl={previewCapeUrl}
+								model={profile?.texture_model ?? "default"}
+								className="rounded-none border-0 shadow-none"
+							/>
+						</Suspense>
 					</AdminSurface>
 
 					<AdminSurface className="grid gap-3">
@@ -431,5 +439,23 @@ export default function AdminMinecraftProfilePage() {
 				onConfirm={() => void handleDeleteTexture()}
 			/>
 		</AdminPageShell>
+	);
+}
+
+function PreviewSkeleton() {
+	return (
+		<div className="h-[29rem] rounded-none border-0 bg-card shadow-none">
+			<div className="flex min-h-12 items-center justify-between border-b border-border/70 px-4">
+				<div className="grid gap-2">
+					<div className="h-4 w-28 rounded bg-muted" />
+					<div className="h-3 w-20 rounded bg-muted" />
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="size-4 rounded bg-muted" />
+					<div className="size-4 rounded bg-muted" />
+				</div>
+			</div>
+			<div className="h-[26rem] bg-muted/30" />
+		</div>
 	);
 }

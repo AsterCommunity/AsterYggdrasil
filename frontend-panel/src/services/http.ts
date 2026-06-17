@@ -9,6 +9,9 @@ import { config } from "@/config/app";
 import type { ApiErrorInfo, ApiResponse, AsterErrorCode } from "@/types/api";
 import { CSRF_HEADER_NAME, getCsrfToken } from "./csrf";
 
+type FrontendTransportErrorCode = "network_error" | "request_timeout";
+export type ApiClientErrorCode = AsterErrorCode | FrontendTransportErrorCode;
+
 const client: AxiosInstance = axios.create({
 	baseURL: config.apiBaseUrl,
 	timeout: 15_000,
@@ -33,11 +36,11 @@ type RetriableRequestConfig = InternalAxiosRequestConfig & {
 };
 
 export class ApiError extends Error {
-	code: AsterErrorCode;
+	code: ApiClientErrorCode;
 	retryable?: boolean;
 
 	constructor(
-		code: AsterErrorCode,
+		code: ApiClientErrorCode,
 		message: string,
 		details: Pick<ApiErrorInfo, "retryable"> = {},
 	) {
@@ -63,6 +66,19 @@ function normalizeApiErrorInfo(
 function extractApiError(error: unknown): ApiError | null {
 	if (error instanceof ApiError) return error;
 	if (typeof error !== "object" || error === null) return null;
+	if (isRequestCanceled(error)) return null;
+
+	if (isRequestTimeout(error)) {
+		return new ApiError("request_timeout", "Request timed out", {
+			retryable: true,
+		});
+	}
+
+	if (isNetworkError(error)) {
+		return new ApiError("network_error", "Network error", {
+			retryable: true,
+		});
+	}
 
 	const response =
 		"response" in error && typeof error.response === "object"
@@ -78,6 +94,13 @@ function extractApiError(error: unknown): ApiError | null {
 		data.code as AsterErrorCode,
 		data.msg || "API request failed",
 		normalizeApiErrorInfo(data.error),
+	);
+}
+
+export function isApiConnectionError(error: unknown): boolean {
+	return (
+		error instanceof ApiError &&
+		(error.code === "network_error" || error.code === "request_timeout")
 	);
 }
 
@@ -98,6 +121,46 @@ function isRequestCanceled(error: unknown): boolean {
 	const code = "code" in error ? error.code : null;
 	const name = "name" in error ? error.name : null;
 	return code === "ERR_CANCELED" || name === "AbortError";
+}
+
+function getErrorCode(error: object): string | null {
+	const code = "code" in error ? error.code : null;
+	return typeof code === "string" ? code : null;
+}
+
+function getErrorMessage(error: object): string | null {
+	const message = "message" in error ? error.message : null;
+	return typeof message === "string" ? message : null;
+}
+
+function isRequestTimeout(error: object): boolean {
+	const code = getErrorCode(error);
+	const message = getErrorMessage(error)?.toLowerCase();
+	return (
+		code === "ECONNABORTED" ||
+		code === "ETIMEDOUT" ||
+		message?.includes("timeout") === true
+	);
+}
+
+function isNetworkError(error: object): boolean {
+	if (axios.isAxiosError(error) && !error.response) {
+		return true;
+	}
+
+	const code = getErrorCode(error);
+	if (code === "ERR_NETWORK") {
+		return true;
+	}
+
+	const message = getErrorMessage(error);
+	const normalizedMessage = message?.toLowerCase();
+	return (
+		message === "Network Error" ||
+		normalizedMessage === "network error" ||
+		message === "Failed to fetch" ||
+		message === "Load failed"
+	);
 }
 
 const SKIP_REFRESH_PATHS = [
@@ -287,9 +350,12 @@ client.interceptors.response.use(
 				await refreshPromise;
 				return client(original);
 			} catch (refreshError) {
-				const { useAuthStore } = await import("@/stores/authStore");
-				useAuthStore.getState().clear();
-				return Promise.reject(extractApiError(refreshError) ?? refreshError);
+				const apiRefreshError = extractApiError(refreshError) ?? refreshError;
+				if (!isApiConnectionError(apiRefreshError)) {
+					const { useAuthStore } = await import("@/stores/authStore");
+					useAuthStore.getState().clear();
+				}
+				return Promise.reject(apiRefreshError);
 			}
 		}
 

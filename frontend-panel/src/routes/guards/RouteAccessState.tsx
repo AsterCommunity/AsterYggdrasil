@@ -2,22 +2,24 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { buttonVariants } from "@/components/ui/buttonVariants";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 
 type RouteAccessStateProps = {
-	actionHref: string;
+	actionHref?: string;
 	actionLabelKey: string;
+	actionOnClick?: () => void;
 	descriptionKey: string;
-	icon: "Lock" | "Shield" | "Wrench";
+	icon: IconName;
 	titleKey: string;
 };
 
 export function RouteAccessState({
 	actionHref,
 	actionLabelKey,
+	actionOnClick,
 	descriptionKey,
 	icon,
 	titleKey,
@@ -47,12 +49,22 @@ export function RouteAccessState({
 							{t(descriptionKey)}
 						</p>
 					</div>
-					<Link
-						to={actionHref}
-						className={cn(buttonVariants({ size: "sm" }), "w-fit")}
-					>
-						{t(actionLabelKey)}
-					</Link>
+					{actionHref ? (
+						<Link
+							to={actionHref}
+							className={cn(buttonVariants({ size: "sm" }), "w-fit")}
+						>
+							{t(actionLabelKey)}
+						</Link>
+					) : (
+						<button
+							type="button"
+							onClick={actionOnClick}
+							className={cn(buttonVariants({ size: "sm" }), "w-fit")}
+						>
+							{t(actionLabelKey)}
+						</button>
+					)}
 				</section>
 			</main>
 		</PublicEntryShell>

@@ -44,6 +44,14 @@ vi.mock("@/pages/PublicConnectPage", () => ({
 	),
 }));
 
+vi.mock("@/pages/TermsPage", () => ({
+	default: () => <div data-testid="terms-page">terms route</div>,
+}));
+
+vi.mock("@/pages/PrivacyPage", () => ({
+	default: () => <div data-testid="privacy-page">privacy route</div>,
+}));
+
 const initializedPublicRouteObjects = [...publicRoutes, ...authRoutes];
 
 function renderPublicRoute(path: string) {
@@ -109,7 +117,11 @@ describe("fixed public routes", () => {
 	});
 
 	it("keeps the fixed public route paths explicit", () => {
-		expect(publicRoutes.map((route) => route.path)).toEqual([publicPaths.home]);
+		expect(publicRoutes.map((route) => route.path)).toEqual([
+			publicPaths.home,
+			publicPaths.tos,
+			publicPaths.privacy,
+		]);
 		expect(authRoutes.map((route) => route.path)).toEqual([
 			publicPaths.login,
 			publicPaths.register,
@@ -119,6 +131,8 @@ describe("fixed public routes", () => {
 
 	it.each([
 		[publicPaths.home, "public-connect-page"],
+		[publicPaths.tos, "terms-page"],
+		[publicPaths.privacy, "privacy-page"],
 		[publicPaths.login, "login-page"],
 		[publicPaths.register, "login-page"],
 	])("renders initialized public route %s", async (path, testId) => {
@@ -141,6 +155,8 @@ describe("fixed public routes", () => {
 
 	it.each([
 		publicPaths.home,
+		publicPaths.tos,
+		publicPaths.privacy,
 		publicPaths.login,
 		publicPaths.register,
 	])("blocks %s before initialization without redirecting", async (path) => {
@@ -154,6 +170,8 @@ describe("fixed public routes", () => {
 			publicPaths.init,
 		);
 		expect(screen.queryByTestId("public-connect-page")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("terms-page")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("privacy-page")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
 	});
 

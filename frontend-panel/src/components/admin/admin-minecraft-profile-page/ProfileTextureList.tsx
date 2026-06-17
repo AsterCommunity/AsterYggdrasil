@@ -38,58 +38,61 @@ export function ProfileTextureList({
 
 			<div className="grid gap-2">
 				{textures.length ? (
-					textures.map((texture) => (
-						<div
-							key={texture.id}
-							className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-3"
-						>
-							<div className="min-w-0">
-								<div className="flex flex-wrap items-center gap-2">
-									<span className="font-medium">
-										{texture.texture_type.toUpperCase()}
-									</span>
-									<Badge
-										variant="outline"
-										className="rounded-md font-mono text-xs"
-									>
-										{texture.texture_model}
-									</Badge>
-									<Badge
-										variant="outline"
-										className="rounded-md font-mono text-xs"
-									>
-										{texture.visibility}
-									</Badge>
+					textures.map((texture) => {
+						const isDefaultTexture = texture.source === "default";
+						return (
+							<div
+								key={`${texture.texture_type}-${texture.hash}`}
+								className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-3"
+							>
+								<div className="min-w-0">
+									<div className="flex flex-wrap items-center gap-2">
+										<span className="font-medium">
+											{texture.texture_type.toUpperCase()}
+										</span>
+										<Badge
+											variant="outline"
+											className="rounded-md font-mono text-xs"
+										>
+											{texture.texture_model}
+										</Badge>
+										<Badge
+											variant="outline"
+											className="rounded-md font-mono text-xs"
+										>
+											{isDefaultTexture ? texture.source : texture.visibility}
+										</Badge>
+									</div>
+									<p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+										{texture.hash}
+									</p>
 								</div>
-								<p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-									{texture.hash}
-								</p>
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										render={
+											<Link to={texture.url} target="_blank" rel="noreferrer" />
+										}
+									>
+										<Icon name="ArrowSquareOut" className="size-4" />
+										{t("admin.minecraftProfilePage.openTexture")}
+									</Button>
+									<Button
+										type="button"
+										variant="destructive"
+										size="sm"
+										disabled={deletingTexture || isDefaultTexture}
+										onClick={() => onSelectDelete(texture)}
+									>
+										<Icon name="Trash" className="size-4" />
+										{t("common.delete")}
+									</Button>
+								</div>
 							</div>
-							<div className="flex flex-wrap items-center gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									render={
-										<Link to={texture.url} target="_blank" rel="noreferrer" />
-									}
-								>
-									<Icon name="ArrowSquareOut" className="size-4" />
-									{t("admin.minecraftProfilePage.openTexture")}
-								</Button>
-								<Button
-									type="button"
-									variant="destructive"
-									size="sm"
-									disabled={deletingTexture}
-									onClick={() => onSelectDelete(texture)}
-								>
-									<Icon name="Trash" className="size-4" />
-									{t("common.delete")}
-								</Button>
-							</div>
-						</div>
-					))
+						);
+					})
 				) : (
 					<p className="text-sm text-muted-foreground">
 						{loading

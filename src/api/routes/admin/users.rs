@@ -1,5 +1,6 @@
 //! Administrator user management API routes.
 
+use crate::api::cache::conditional_bytes_response;
 use crate::api::dto::{
     AdminUserListQuery, CreateAdminUserReq, UpdateAdminUserReq, validate_request,
 };
@@ -293,6 +294,7 @@ pub async fn revoke_user_sessions(
 )]
 pub async fn get_user_avatar(
     state: web::Data<AppState>,
+    req: HttpRequest,
     path: web::Path<(i64, u32)>,
 ) -> Result<HttpResponse> {
     let (user_id, size) = path.into_inner();
@@ -304,5 +306,10 @@ pub async fn get_user_avatar(
         bytes = bytes.len(),
         "admin loaded user avatar"
     );
-    Ok(profile_service::avatar_image_response(bytes))
+    Ok(conditional_bytes_response(
+        &req,
+        bytes,
+        profile_service::AVATAR_CONTENT_TYPE,
+        profile_service::AVATAR_CACHE_CONTROL,
+    ))
 }

@@ -410,27 +410,97 @@ describe("admin services", () => {
 	it("passes config updates as generated request bodies", async () => {
 		const payload = { value: "Aster", visibility: "public" as const };
 		apiMock.put.mockResolvedValue({
-			category: "general",
-			description: "",
-			id: 1,
-			is_sensitive: false,
-			key: "site.name",
-			namespace: "system",
-			requires_restart: false,
-			source: "custom",
-			updated_at: "2026-06-15T00:00:00Z",
-			updated_by: null,
-			value: "Aster",
-			value_type: "string",
-			visibility: "public",
+			config: {
+				category: "general",
+				description: "",
+				id: 1,
+				is_sensitive: false,
+				key: "site.name",
+				namespace: "system",
+				requires_restart: false,
+				source: "custom",
+				updated_at: "2026-06-15T00:00:00Z",
+				updated_by: null,
+				value: "Aster",
+				value_type: "string",
+				visibility: "public",
+			},
+			warnings: [],
 		});
 		const { adminConfigService } = await import("./adminService");
 
-		await adminConfigService.set("site.name", payload);
+		await expect(adminConfigService.set("site.name", payload)).resolves.toEqual(
+			{
+				config: expect.objectContaining({
+					key: "site.name",
+					value: "Aster",
+				}),
+				warnings: [],
+			},
+		);
 
 		expect(apiMock.put).toHaveBeenCalledWith(
 			"/admin/config/site.name",
 			payload,
+		);
+	});
+
+	it("loads config template variables", async () => {
+		apiMock.get.mockResolvedValue([
+			{
+				category: "mail.template",
+				label_i18n_key: "settings_mail_template_group_password_reset",
+				template_code: "password_reset",
+				variables: [],
+			},
+		]);
+		const { adminConfigService } = await import("./adminService");
+
+		await adminConfigService.templateVariables();
+
+		expect(apiMock.get).toHaveBeenCalledWith(
+			"/admin/config/template-variables",
+		);
+	});
+
+	it("executes config actions through the generated action endpoint", async () => {
+		apiMock.post.mockResolvedValue({ message: "done", value: null });
+		const { adminConfigService } = await import("./adminService");
+
+		await adminConfigService.action("mail", {
+			action: "send_test_email",
+			target_email: "admin@example.com",
+		});
+
+		expect(apiMock.post).toHaveBeenCalledWith("/admin/config/mail/action", {
+			action: "send_test_email",
+			target_email: "admin@example.com",
+		});
+	});
+
+	it("sends test email actions and normalizes an empty target", async () => {
+		apiMock.post.mockResolvedValue({ message: "sent", value: null });
+		const { adminConfigService } = await import("./adminService");
+
+		await adminConfigService.sendTestEmail("   ");
+
+		expect(apiMock.post).toHaveBeenCalledWith("/admin/config/mail/action", {
+			action: "send_test_email",
+			target_email: null,
+		});
+	});
+
+	it("rotates the Yggdrasil signature key through a config action", async () => {
+		apiMock.post.mockResolvedValue({ message: "rotated", value: null });
+		const { adminConfigService } = await import("./adminService");
+
+		await adminConfigService.rotateYggdrasilSignatureKey();
+
+		expect(apiMock.post).toHaveBeenCalledWith(
+			"/admin/config/yggdrasil/action",
+			{
+				action: "rotate_yggdrasil_signature_key",
+			},
 		);
 	});
 
@@ -691,6 +761,19 @@ describe("yggdrasilService", () => {
 		);
 	});
 
+	it("deletes current-user Minecraft profiles through the project API", async () => {
+		apiMock.deleteRequest.mockResolvedValue(undefined);
+		const { yggdrasilService } = await import("./yggdrasilService");
+
+		await expect(
+			yggdrasilService.deleteProfile("profile-uuid"),
+		).resolves.toBeUndefined();
+
+		expect(apiMock.deleteRequest).toHaveBeenCalledWith(
+			"/profiles/minecraft/profile-uuid",
+		);
+	});
+
 	it("renames admin Minecraft profiles through the admin API", async () => {
 		apiMock.put.mockResolvedValue({
 			created_at: "2026-06-15T00:00:00Z",
@@ -737,6 +820,7 @@ describe("yggdrasilService", () => {
 			file,
 			model: "slim",
 			textureType: "skin",
+			visibility: "public",
 		});
 
 		expect(apiMock.post).toHaveBeenCalledWith(
@@ -745,6 +829,7 @@ describe("yggdrasilService", () => {
 		);
 		const form = apiMock.post.mock.calls[0]?.[1] as FormData;
 		expect(form.get("model")).toBe("slim");
+		expect(form.get("visibility")).toBe("public");
 		expect(form.get("file")).toBe(file);
 	});
 

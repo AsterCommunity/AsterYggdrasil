@@ -17,7 +17,9 @@
 		"audit": "审计",
 		"tasks": "任务",
 		"login": "登录",
-		"logout": "退出"
+		"logout": "退出",
+		"tos": "服务条款",
+		"privacy": "隐私政策"
 	},
 	"common": {
 		"loading": "加载中",
@@ -52,6 +54,9 @@
 	"shell": {
 		"themeAction": "切换主题",
 		"openNavigation": "打开导航",
+		"expandNavigation": "展开导航",
+		"collapseNavigation": "收起导航",
+		"logoutSuccess": "已退出登录",
 		"navigationTitle": "应用导航",
 		"sections": {
 			"account": "我的空间",
@@ -67,6 +72,9 @@
 			"loginRequiredTitle": "需要登录",
 			"loginRequiredDescription": "请先登录，再打开工作台、角色档案、衣柜或管理工具。",
 			"loginRequiredAction": "前往登录",
+			"networkErrorTitle": "网络已断开",
+			"networkErrorDescription": "无法连接到服务器，当前登录状态还没有完成校验。请检查后端服务或网络连接后重试。",
+			"networkErrorAction": "重试连接",
 			"alreadySignedInTitle": "已登录",
 			"alreadySignedInDescription": "你已经登录。打开工作台继续管理角色档案和材质。",
 			"alreadySignedInAction": "打开工作台",

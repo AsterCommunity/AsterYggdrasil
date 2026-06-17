@@ -39,6 +39,113 @@
 		"audienceCommunityTitle": "Community driven",
 		"audienceCommunityDescription": "Support shared communities with controlled account and profile workflows."
 	},
+	"legal": {
+		"common": {
+			"contents": "Page contents",
+			"lastUpdatedLabel": "Last updated",
+			"lastUpdatedValue": "2026-06-18"
+		},
+		"tos": {
+			"pageTitle": "Terms of Service",
+			"badge": "Site rules",
+			"heading": "Terms of Service",
+			"lead": "By using this site account, Minecraft profiles, texture hosting, or Yggdrasil authentication endpoints, you accept these baseline rules.",
+			"sections": {
+				"scope": {
+					"title": "Service scope",
+					"body": {
+						"0": "This site provides a self-hosted Minecraft skin site, player profile management, and authlib-injector compatible Yggdrasil authentication.",
+						"1": "This site is not an official Mojang, Microsoft, or Minecraft service. Minecraft-related trademarks, game clients, and official accounts remain owned by their respective rights holders."
+					}
+				},
+				"account": {
+					"title": "Accounts and profiles",
+					"body": {
+						"0": "You should use login credentials that you control, and you are responsible for profile, launcher session, and texture actions made through your account.",
+						"1": "Do not impersonate others, bypass access controls, abuse registration, or use automated requests in a way that harms authentication service stability."
+					}
+				},
+				"textures": {
+					"title": "Texture content",
+					"body": {
+						"0": "Skins, capes, or other textures you upload should be content you are allowed to use, and must not be illegal, infringing, harassing, hateful, or clearly harmful to the community experience.",
+						"1": "To let Minecraft clients and launchers read textures, texture URLs bound to public profiles may be publicly accessible and cached."
+					}
+				},
+				"launcher": {
+					"title": "Launcher and protocol access",
+					"body": {
+						"0": "The Yggdrasil endpoints are provided for compatible launchers, servers, and authlib-injector workflows. Do not share access tokens, client tokens, or session information with others.",
+						"1": "Protocol compatibility may change with Minecraft, authlib-injector, or this site. Administrators may limit, pause, or invalidate sessions for security and maintenance reasons."
+					}
+				},
+				"operations": {
+					"title": "Operations and administration",
+					"body": {
+						"0": "Administrators may review account status, remove textures, rename profiles, or freeze profiles for security, abuse handling, compliance, or service maintenance.",
+						"1": "The service may be temporarily unavailable during upgrades, incidents, migrations, or security events. Administrators should reduce impact where practical, but uninterrupted service is not guaranteed."
+					}
+				},
+				"changes": {
+					"title": "Policy changes",
+					"body": {
+						"0": "Administrators may update these terms as features, deployment environments, or community rules change. Important changes should be announced in the site or community channel.",
+						"1": "If you do not agree with updated terms, stop using the site and contact an administrator about your account, profiles, or texture data."
+					}
+				}
+			}
+		},
+		"privacy": {
+			"pageTitle": "Privacy Policy",
+			"badge": "Data notice",
+			"heading": "Privacy Policy",
+			"lead": "This page explains what data this site handles for account login, player profiles, texture hosting, and authentication protocol compatibility.",
+			"sections": {
+				"collected": {
+					"title": "Data we process",
+					"body": {
+						"0": "This site may store usernames, email addresses, password hashes, permission status, Minecraft profile names, UUIDs, texture files, texture hashes, login sessions, and security settings.",
+						"1": "The server may also record IP addresses, user agents, request times, admin actions, error logs, and audit events for security investigation and abuse handling."
+					}
+				},
+				"use": {
+					"title": "How data is used",
+					"body": {
+						"0": "This data is used for login verification, launcher authentication, profile binding, texture delivery, permission control, notifications, security audit, and troubleshooting.",
+						"1": "Administrators should not use data for purposes unrelated to site identity, texture, and authentication services unless you have consented or the law requires it."
+					}
+				},
+				"public": {
+					"title": "Publicly visible information",
+					"body": {
+						"0": "Profile names, UUIDs, and bound skins or capes may appear through Yggdrasil responses, texture URLs, or public read endpoints for launchers, Minecraft clients, and servers.",
+						"1": "Do not upload texture content that you do not want other players, servers, or cache nodes to see."
+					}
+				},
+				"security": {
+					"title": "Security protection",
+					"body": {
+						"0": "Passwords and sensitive tokens should be stored only as hashes or encrypted required values. Plain credentials should not be written to logs, audit records, or error messages.",
+						"1": "If you suspect your account, tokens, or email address have been compromised, change your password, sign out other sessions, and contact a site administrator."
+					}
+				},
+				"sharing": {
+					"title": "Data sharing",
+					"body": {
+						"0": "This site does not actively sell your personal data. Databases, object storage, cache services, mail services, or reverse proxies required to run the service may process necessary data.",
+						"1": "When required for law, abuse handling, security incidents, or community governance, administrators may inspect or export relevant logs and account records."
+					}
+				},
+				"retention": {
+					"title": "Retention and deletion",
+					"body": {
+						"0": "Accounts, profiles, textures, audit records, and logs are retained according to site configuration and administrator policy. Some security logs may remain for a period after account or profile deletion.",
+						"1": "You may contact an administrator to request export, correction, or deletion of data related to your account. The practical scope depends on site capabilities, security requirements, and applicable rules."
+					}
+				}
+			}
+		}
+	},
 	"errorPage": {
 		"notFoundTitle": "Sorry, page not found",
 		"genericTitle": "Page failed to load",
@@ -80,7 +187,6 @@
 		"serverCommand": "Server command example",
 		"secureProfileTitle": "Recommended for 1.19 and newer",
 		"secureProfileDescription": "authlib-injector v1.2.0 and newer should keep secure profile checks enabled. Keep these server.properties values, then use the same launch command.",
-		"secureProfileCommand": "Recommended 1.19+ launch command",
 		"connectionTitle": "Authentication server",
 		"connectionDescription": "Players only need this address when their launcher cannot import it by drag-and-drop.",
 		"domainsTitle": "Texture URLs",

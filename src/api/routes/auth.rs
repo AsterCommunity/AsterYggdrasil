@@ -2,6 +2,7 @@
 
 mod cookies;
 
+use crate::api::cache::conditional_bytes_response;
 use crate::api::dto::{
     CheckResp, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq, PasskeyLoginStartReq,
     PasskeyRegisterFinishReq, PasskeyRegisterStartReq, PatchPasskeyReq, RefreshReq, RegisterReq,
@@ -492,7 +493,12 @@ pub async fn get_self_avatar(
         bytes = bytes.len(),
         "auth self avatar request completed"
     );
-    Ok(profile_service::avatar_image_response(bytes))
+    Ok(conditional_bytes_response(
+        &req,
+        bytes,
+        profile_service::AVATAR_CONTENT_TYPE,
+        profile_service::AVATAR_CACHE_CONTROL,
+    ))
 }
 
 #[api_docs_macros::path(

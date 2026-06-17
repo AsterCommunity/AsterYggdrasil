@@ -12,7 +12,7 @@ import {
 import { accountPaths, adminPaths } from "@/routes/routePaths";
 import { accountService } from "@/services/accountService";
 import { useAuthStore } from "@/stores/authStore";
-import type { AccountOverview, AuditLogEntry } from "@/types/api";
+import type { AccountOverview, AuditLogEntry, AuthUserInfo } from "@/types/api";
 
 const actionItems = [
 	{
@@ -71,10 +71,11 @@ export default function AccountOverviewPage() {
 	const user = useAuthStore((state) => state.user);
 	const isAdmin = useAuthStore((state) => state.isAdmin);
 	const [overview, setOverview] = useState<AccountOverview | null>(null);
+	const accountName = displayNameForAccountUser(user);
 
 	usePageTitle(
 		t("account.title", {
-			username: user?.username ?? "Player",
+			username: accountName,
 		}),
 	);
 
@@ -94,7 +95,7 @@ export default function AccountOverviewPage() {
 		<div className="min-h-[calc(100dvh-4rem)]">
 			<div className="mx-auto grid w-full max-w-[96rem] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:px-7">
 				<div className="contents lg:block lg:min-w-0 lg:space-y-5">
-					<AccountHero username={user?.username ?? "Player"} />
+					<AccountHero username={accountName} />
 
 					<WorkflowPanel />
 
@@ -110,6 +111,12 @@ export default function AccountOverviewPage() {
 				</aside>
 			</div>
 		</div>
+	);
+}
+
+function displayNameForAccountUser(user: AuthUserInfo | null) {
+	return (
+		user?.profile?.display_name?.trim() || user?.username?.trim() || "Player"
 	);
 }
 

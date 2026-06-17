@@ -509,7 +509,6 @@ export default function AdminAuditPage() {
 			<AdminPageHeader
 				title={t("admin.auditPage.title")}
 				description={t("admin.auditPage.description")}
-				icon="ClipboardText"
 				actions={
 					<Button
 						type="button"

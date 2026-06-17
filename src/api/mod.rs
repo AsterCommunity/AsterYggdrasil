@@ -1,5 +1,6 @@
 //! API layer.
 
+pub(crate) mod cache;
 mod common;
 pub mod dto;
 pub mod error_code;

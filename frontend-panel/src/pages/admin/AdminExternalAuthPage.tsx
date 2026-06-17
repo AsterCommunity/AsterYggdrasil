@@ -500,7 +500,6 @@ export default function AdminExternalAuthPage() {
 	return (
 		<AdminPageShell>
 			<AdminPageHeader
-				icon="SignIn"
 				title={t("admin.externalAuth.title")}
 				description={t("admin.externalAuth.description")}
 				actions={

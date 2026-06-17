@@ -649,10 +649,7 @@ export default function AccountSettingsPage() {
 				<div className="mb-5 border-b border-border/70 pb-5 dark:border-white/10">
 					<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
 						<div className="min-w-0">
-							<Badge variant="outline" className="rounded-md">
-								{t("personalSettings.badge")}
-							</Badge>
-							<h1 className="mt-3 text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
+							<h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
 								{t("personalSettings.title")}
 							</h1>
 							<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">

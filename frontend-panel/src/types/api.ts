@@ -127,6 +127,7 @@ export type BackgroundTaskStatus =
 	components["schemas"]["BackgroundTaskStatus"];
 export type CheckResp = components["schemas"]["CheckResp"];
 export type ConfigSchemaItem = components["schemas"]["ConfigSchemaItem"];
+export type ConfigActionType = components["schemas"]["ConfigActionType"];
 export type ConfigListQuery = OperationQuery<"list_config">;
 export type CreateExternalAuthProviderRequest =
 	components["schemas"]["CreateExternalAuthProviderReq"];
@@ -172,6 +173,8 @@ export type MinecraftTextureMetadata =
 	components["schemas"]["MinecraftTextureMetadata"];
 export type MinecraftTextureType =
 	components["schemas"]["MinecraftTextureType"];
+export type MinecraftTextureVisibility =
+	components["schemas"]["MinecraftTextureVisibility"];
 export type MinecraftWardrobeTextureMetadata =
 	components["schemas"]["MinecraftWardrobeTextureMetadata"];
 export type MinecraftWardrobeTextureQuery =
@@ -187,6 +190,11 @@ export type RegisterRequest = components["schemas"]["RegisterReq"];
 export type RemovedCountResponse =
 	components["schemas"]["RemovedCountResponse"];
 export type SetConfigRequest = components["schemas"]["SetConfigReq"];
+export type SetConfigResponse = OperationData<"set_config">;
+export type ExecuteConfigActionRequest =
+	components["schemas"]["ExecuteConfigActionReq"];
+export type ExecuteConfigActionResponse =
+	components["schemas"]["ExecuteConfigActionResp"];
 export type SetupRequest = components["schemas"]["SetupReq"];
 export type SortOrder = components["schemas"]["SortOrder"];
 export type SystemConfig = components["schemas"]["SystemConfig"];
@@ -194,6 +202,10 @@ export type SystemConfigPage = components["schemas"]["OffsetPage_SystemConfig"];
 export type SystemConfigValue = components["schemas"]["SystemConfigValue"];
 export type SystemConfigVisibility =
 	components["schemas"]["SystemConfigVisibility"];
+export type TemplateVariableGroup =
+	components["schemas"]["TemplateVariableGroup"];
+export type TemplateVariableItem =
+	components["schemas"]["TemplateVariableItem"];
 export type TaskInfo = components["schemas"]["TaskInfo"];
 export type TaskCreatorSummary = components["schemas"]["TaskCreatorSummary"];
 export type TaskPresentation = components["schemas"]["TaskPresentation"];

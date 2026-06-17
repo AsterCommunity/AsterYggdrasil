@@ -5,6 +5,14 @@ use crate::db::repository::minecraft_profile_texture_repo;
 use crate::entities::{minecraft_profile, minecraft_texture};
 use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum MinecraftTextureMetadataSource {
+    Bound,
+    Default,
+}
+
 #[derive(Debug, Clone)]
 pub struct StoredTexture {
     pub texture: minecraft_profile_texture_repo::ProfileTexture,
@@ -33,6 +41,7 @@ pub struct MinecraftTextureMetadata {
     pub file_size: i64,
     pub mime_type: String,
     pub url: String,
+    pub source: MinecraftTextureMetadataSource,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]

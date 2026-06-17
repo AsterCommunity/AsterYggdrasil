@@ -8,6 +8,8 @@ import { useAuthStore } from "@/stores/authStore";
 export function AuthenticatedGate() {
 	const hydrate = useAuthStore((state) => state.hydrate);
 	const checking = useAuthStore((state) => state.checking);
+	const errorCode = useAuthStore((state) => state.errorCode);
+	const isAuthStale = useAuthStore((state) => state.isAuthStale);
 	const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
 	useEffect(() => {
@@ -16,6 +18,20 @@ export function AuthenticatedGate() {
 
 	if (checking) {
 		return <Loading />;
+	}
+	if (
+		isAuthStale &&
+		(errorCode === "network_error" || errorCode === "request_timeout")
+	) {
+		return (
+			<RouteAccessState
+				actionLabelKey="shell.routeState.networkErrorAction"
+				actionOnClick={() => void hydrate()}
+				descriptionKey="shell.routeState.networkErrorDescription"
+				icon="WifiX"
+				titleKey="shell.routeState.networkErrorTitle"
+			/>
+		);
 	}
 	if (!isAuthenticated) {
 		return (

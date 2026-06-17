@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +37,16 @@ pub struct YggdrasilProfile {
     #[validate(nested)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<Vec<YggdrasilProfileProperty>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[cfg_attr(
+    all(debug_assertions, feature = "openapi"),
+    derive(IntoParams, ToSchema)
+)]
+pub struct CurrentMinecraftProfileListQuery {
+    #[validate(length(max = 64, message = "query must not exceed 64 characters"))]
+    pub query: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -7,8 +7,8 @@ use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState};
 
 use super::{
-    MinecraftTextureMetadata, MinecraftWardrobeTextureMetadata, TEXTURE_CACHE_CONTROL, TextureBlob,
-    TextureDownload, is_valid_texture_hash,
+    MinecraftTextureMetadata, MinecraftTextureMetadataSource, MinecraftWardrobeTextureMetadata,
+    TEXTURE_CACHE_CONTROL, TextureBlob, TextureDownload, default_skin, is_valid_texture_hash,
 };
 
 pub async fn texture_by_hash<S: DatabaseRuntimeState>(
@@ -113,10 +113,17 @@ where
         count = textures.len(),
         "building texture metadata for profile"
     );
-    Ok(textures
+    let mut metadata = textures
         .iter()
         .map(|texture| texture_metadata(state, profile, texture))
-        .collect())
+        .collect::<Vec<_>>();
+    if !metadata
+        .iter()
+        .any(|texture| texture.texture_type == crate::types::MinecraftTextureType::Skin)
+    {
+        metadata.push(default_skin_metadata(state, profile)?);
+    }
+    Ok(metadata)
 }
 
 pub fn texture_metadata<S>(
@@ -142,9 +149,47 @@ where
         file_size: texture.texture.file_size,
         mime_type: texture.texture.mime_type.clone(),
         url: crate::services::yggdrasil_signature::texture_base_url(&policy, &texture.texture.hash),
+        source: MinecraftTextureMetadataSource::Bound,
         created_at: texture.binding.created_at,
         updated_at: texture.binding.updated_at,
     }
+}
+
+pub fn default_skin_metadata<S>(
+    state: &S,
+    profile: &minecraft_profile::Model,
+) -> Result<MinecraftTextureMetadata>
+where
+    S: RuntimeConfigRuntimeState,
+{
+    let skin = default_skin::for_profile_uuid(&profile.uuid);
+    let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+    let image = image::load_from_memory(skin.bytes).map_err(|error| {
+        crate::errors::AsterError::internal_error(format!(
+            "embedded default skin is not a valid PNG: {error}"
+        ))
+    })?;
+    let width = crate::utils::numbers::u32_to_i32(image.width(), "default skin width")?;
+    let height = crate::utils::numbers::u32_to_i32(image.height(), "default skin height")?;
+    let file_size = crate::utils::numbers::usize_to_i64(skin.bytes.len(), "default skin size")?;
+    Ok(MinecraftTextureMetadata {
+        id: 0,
+        profile_id: profile.id,
+        profile_uuid: profile.uuid.clone(),
+        profile_name: profile.name.clone(),
+        hash: skin.hash.to_string(),
+        texture_type: crate::types::MinecraftTextureType::Skin,
+        texture_model: skin.model,
+        visibility: crate::types::MinecraftTextureVisibility::Public,
+        width,
+        height,
+        file_size,
+        mime_type: "image/png".to_string(),
+        url: crate::services::yggdrasil_signature::texture_base_url(&policy, skin.hash),
+        source: MinecraftTextureMetadataSource::Default,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+    })
 }
 
 pub fn wardrobe_texture_metadata<S>(

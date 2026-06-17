@@ -5,7 +5,7 @@ import {
 	SkinViewer,
 	WalkingAnimation,
 } from "skinview3d";
-import { Icon } from "@/components/ui/icon";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MinecraftTextureModel } from "@/types/api";
 
@@ -18,12 +18,15 @@ type MinecraftPreviewProps = {
 	emptyTitle?: string;
 	failedDescription?: string;
 	failedTitle?: string;
+	frameClassName?: string;
+	idleLabel?: string;
+	initialMotion?: PreviewMotion;
 	label: string;
-	motion?: PreviewMotion;
 	model?: MinecraftTextureModel;
 	noSkinLabel?: string;
-	rendererLabel?: string;
+	playerName?: string | null;
 	skinUrl?: string | null;
+	walkLabel?: string;
 };
 
 export function MinecraftPreview({
@@ -33,19 +36,24 @@ export function MinecraftPreview({
 	emptyTitle = "Upload a skin to preview",
 	failedDescription = "The texture URL could not be loaded by the 3D viewer.",
 	failedTitle = "Preview failed",
+	frameClassName,
+	idleLabel = "Idle",
+	initialMotion = "idle",
 	label,
-	motion = "idle",
 	model = "default",
 	noSkinLabel = "No skin texture",
-	rendererLabel = "SkinView3D",
+	playerName,
 	skinUrl,
+	walkLabel = "Walk",
 }: MinecraftPreviewProps) {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
 	const frameRef = useRef<HTMLDivElement | null>(null);
 	const viewerRef = useRef<SkinViewer | null>(null);
 	const skinKey = skinUrl ? `${model}:${skinUrl}` : null;
 	const [failedSkinKey, setFailedSkinKey] = useState<string | null>(null);
+	const [motion, setMotion] = useState<PreviewMotion>(initialMotion);
 	const failed = skinKey !== null && failedSkinKey === skinKey;
+	const hasTexture = Boolean(skinUrl || capeUrl);
 
 	useEffect(() => {
 		if (!canvasRef.current || !frameRef.current) return;
@@ -143,38 +151,48 @@ export function MinecraftPreview({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs",
+				"w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs",
 				className,
 			)}
 		>
-			<div className="flex min-h-12 items-center justify-between border-b border-border/70 px-4">
+			<div className="flex min-h-12 flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 				<div className="min-w-0">
 					<div className="text-sm font-semibold">{label}</div>
 					<div className="text-xs text-muted-foreground">
-						{skinUrl ? rendererLabel : noSkinLabel}
+						{playerName || noSkinLabel}
 					</div>
 				</div>
-				<div className="flex items-center gap-1.5 text-muted-foreground">
-					<Icon
-						name={motion === "walk" ? "Play" : "Pause"}
-						className="size-4"
-					/>
-					<Icon name="ArrowsClockwise" className="size-4" />
+				<div className="flex w-fit rounded-lg border border-border/70 bg-muted/30 p-1">
+					<Button
+						type="button"
+						size="sm"
+						variant={motion === "idle" ? "default" : "ghost"}
+						onClick={() => setMotion("idle")}
+					>
+						{idleLabel}
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant={motion === "walk" ? "default" : "ghost"}
+						onClick={() => setMotion("walk")}
+					>
+						{walkLabel}
+					</Button>
 				</div>
 			</div>
 			<div
 				ref={frameRef}
-				className="relative h-[26rem] bg-[radial-gradient(circle_at_50%_18%,oklch(0.92_0.024_151_/_0.75),transparent_42%),linear-gradient(180deg,oklch(0.96_0.004_255),oklch(0.9_0.01_255))] dark:bg-[radial-gradient(circle_at_50%_18%,oklch(0.32_0.06_151_/_0.5),transparent_42%),linear-gradient(180deg,oklch(0.2_0.02_255),oklch(0.17_0.018_255))]"
+				className={cn(
+					"relative h-[26rem] bg-[radial-gradient(circle_at_50%_18%,oklch(0.92_0.024_151_/_0.75),transparent_42%),linear-gradient(180deg,oklch(0.96_0.004_255),oklch(0.9_0.01_255))] dark:bg-[radial-gradient(circle_at_50%_18%,oklch(0.32_0.06_151_/_0.5),transparent_42%),linear-gradient(180deg,oklch(0.2_0.02_255),oklch(0.17_0.018_255))]",
+					frameClassName,
+				)}
 			>
 				<canvas ref={canvasRef} className="block size-full" />
-				{skinUrl && !failed ? null : (
+				{hasTexture && !failed ? null : (
 					<div className="absolute inset-0 grid place-items-center p-6 text-center">
 						<div className="rounded-lg border border-border/70 bg-background/82 px-4 py-3 shadow-lg backdrop-blur">
-							<Icon
-								name={failed ? "Warning" : "FileImage"}
-								className="mx-auto size-6 text-muted-foreground"
-							/>
-							<div className="mt-2 text-sm font-semibold">
+							<div className="text-sm font-semibold">
 								{failed ? failedTitle : emptyTitle}
 							</div>
 							<p className="mt-1 max-w-52 text-xs leading-5 text-muted-foreground">

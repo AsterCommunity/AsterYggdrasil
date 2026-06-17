@@ -1,7 +1,6 @@
 //! User avatar service.
 
 use actix_multipart::Multipart;
-use actix_web::HttpResponse;
 use chrono::Utc;
 use sea_orm::Set;
 
@@ -23,7 +22,8 @@ use super::shared::{
     AVATAR_SIZE_LG, AVATAR_SIZE_SM, default_profile_active_model, stored_avatar_prefix,
 };
 
-const YEAR_SECS: u64 = 31_536_000;
+pub const AVATAR_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
+pub const AVATAR_CONTENT_TYPE: &str = "image/webp";
 
 async fn write_local_avatar(path: &std::path::Path, data: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
@@ -269,14 +269,4 @@ where
         "loaded user avatar bytes"
     );
     Ok(bytes)
-}
-
-pub fn avatar_image_response(bytes: Vec<u8>) -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("image/webp")
-        .insert_header((
-            "Cache-Control",
-            format!("public, max-age={YEAR_SECS}, immutable"),
-        ))
-        .body(bytes)
 }

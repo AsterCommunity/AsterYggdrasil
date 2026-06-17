@@ -47,7 +47,7 @@ export function LauncherSetupCard({
 	return (
 		<section
 			className={cn(
-				"overflow-hidden rounded-xl border border-emerald-900/10 bg-white/82 text-card-foreground shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/20",
+				"launcher-setup-card overflow-hidden rounded-xl border border-emerald-900/10 bg-white/82 text-card-foreground shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/20",
 				className,
 			)}
 		>
@@ -72,7 +72,7 @@ export function LauncherSetupCard({
 				</div>
 			</div>
 
-			<div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_19rem]">
+			<div className="launcher-setup-card__body grid gap-0">
 				<div className="min-w-0 p-5">
 					<div className="grid gap-4">
 						<div className="grid gap-3 border-b border-emerald-900/10 pb-4 dark:border-white/10">
@@ -96,24 +96,24 @@ export function LauncherSetupCard({
 					</div>
 				</div>
 
-				<div className="border-t border-emerald-900/10 p-5 dark:border-white/10 lg:border-t-0 lg:border-l">
+				<div className="launcher-setup-card__drag-panel border-t border-emerald-900/10 p-5 dark:border-white/10">
 					<button
 						type="button"
 						draggable
 						onDragStart={handleDragStart}
 						onClick={() => void copyAddServerUri()}
-						className="group grid min-h-44 w-full cursor-grab select-none content-center gap-3 rounded-lg border border-dashed border-emerald-400/70 bg-emerald-50/72 p-4 text-center text-emerald-950 transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-50 active:cursor-grabbing dark:border-emerald-300/30 dark:bg-emerald-400/10 dark:text-emerald-50 dark:hover:bg-emerald-400/14"
+						className="launcher-setup-card__drag-button group flex w-full cursor-grab select-none items-center justify-center gap-2 rounded-lg border border-dashed border-emerald-400/70 bg-emerald-50/72 p-3 text-center text-sm font-semibold text-emerald-950 transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-50 active:cursor-grabbing dark:border-emerald-300/30 dark:bg-emerald-400/10 dark:text-emerald-50 dark:hover:bg-emerald-400/14"
 					>
 						<Icon
 							name={copiedDragUri ? "Check" : "Monitor"}
-							className="mx-auto size-8 text-emerald-700 transition-transform group-hover:scale-105 dark:text-emerald-200"
+							className="launcher-setup-card__drag-icon size-5 shrink-0 text-emerald-700 transition-transform group-hover:scale-105 dark:text-emerald-200"
 						/>
 						<div className="font-semibold">
 							{copiedDragUri
 								? t("common.copied")
 								: t("launcher.dragToLauncher")}
 						</div>
-						<p className="mx-auto max-w-52 text-xs leading-5 text-emerald-900/70 dark:text-emerald-100/68">
+						<p className="launcher-setup-card__drag-hint mx-auto max-w-52 text-xs leading-5 text-emerald-900/70 dark:text-emerald-100/68">
 							{t("launcher.dragHint")}
 						</p>
 					</button>
@@ -183,12 +183,6 @@ export function LauncherSetupCard({
 										<pre className="overflow-x-auto rounded-md border border-input bg-background/70 px-3 py-2 font-mono text-[11px] leading-5 text-foreground">
 											{secureProfileProperties}
 										</pre>
-										<CopyField
-											label={t("launcher.secureProfileCommand")}
-											value={serverCommand}
-											compact
-											inputClassName="text-muted-foreground"
-										/>
 									</div>
 								</div>
 							</div>

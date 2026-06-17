@@ -12,15 +12,19 @@ import type { AuthUserInfo } from "@/types/api";
 
 export function ShellTopbar({
 	branding,
+	desktopSidebarExpanded,
 	isAdminScope,
 	mobileSidebarOpen,
+	onDesktopSidebarToggle,
 	onMobileSidebarToggle,
 	onLogout,
 	user,
 }: {
 	branding: AppliedBranding;
+	desktopSidebarExpanded: boolean;
 	isAdminScope: boolean;
 	mobileSidebarOpen: boolean;
+	onDesktopSidebarToggle: () => void;
 	onMobileSidebarToggle: () => void;
 	onLogout: () => void;
 	user: AuthUserInfo | null;
@@ -29,6 +33,9 @@ export function ShellTopbar({
 	const mobileSidebarLabel = mobileSidebarOpen
 		? t("common.close")
 		: t("shell.openNavigation");
+	const desktopSidebarLabel = desktopSidebarExpanded
+		? t("shell.collapseNavigation")
+		: t("shell.expandNavigation");
 
 	return (
 		<header
@@ -71,6 +78,38 @@ export function ShellTopbar({
 							)}
 						>
 							<Icon name="X" className="size-5" />
+						</span>
+					</span>
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="icon"
+					className="relative hidden size-10 shrink-0 overflow-hidden rounded-lg border-border/70 bg-card/70 shadow-xs lg:inline-flex"
+					aria-label={desktopSidebarLabel}
+					aria-pressed={desktopSidebarExpanded}
+					onClick={onDesktopSidebarToggle}
+				>
+					<span className="relative inline-flex size-5 items-center justify-center">
+						<span
+							className={cn(
+								"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none",
+								desktopSidebarExpanded
+									? "-rotate-90 scale-75 opacity-0"
+									: "rotate-0 scale-100 opacity-100",
+							)}
+						>
+							<Icon name="List" className="size-5" />
+						</span>
+						<span
+							className={cn(
+								"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out motion-reduce:transition-none",
+								desktopSidebarExpanded
+									? "rotate-0 scale-100 opacity-100"
+									: "rotate-90 scale-75 opacity-0",
+							)}
+						>
+							<Icon name="CaretLeft" className="size-5" />
 						</span>
 					</span>
 				</Button>

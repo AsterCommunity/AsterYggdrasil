@@ -5,7 +5,9 @@ use crate::api::dto::validate_request;
 use crate::api::dto::validation::validate_unsigned_uuid;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use crate::api::dto::yggdrasil::YggdrasilProfile;
-use crate::api::dto::yggdrasil::{CreateMinecraftProfileReq, RenameMinecraftProfileReq};
+use crate::api::dto::yggdrasil::{
+    CreateMinecraftProfileReq, CurrentMinecraftProfileListQuery, RenameMinecraftProfileReq,
+};
 use crate::api::error_code::AsterErrorCode;
 use crate::api::pagination::{LimitOffsetQuery, OffsetPage};
 use crate::api::response::ApiResponse;
@@ -245,7 +247,7 @@ pub async fn unbind_minecraft_profile_texture(
     path = "/api/v1/profiles/minecraft",
     tag = "profiles",
     operation_id = "list_current_user_minecraft_profiles",
-    params(LimitOffsetQuery),
+    params(LimitOffsetQuery, CurrentMinecraftProfileListQuery),
     responses(
         (status = 200, description = "Current user's Minecraft profiles", body = inline(ApiResponse<OffsetPage<YggdrasilProfile>>)),
         (status = 401, description = "Unauthorized"),
@@ -256,7 +258,9 @@ pub async fn list_minecraft_profiles(
     state: web::Data<AppState>,
     req: HttpRequest,
     page: web::Query<LimitOffsetQuery>,
+    query: web::Query<CurrentMinecraftProfileListQuery>,
 ) -> Result<HttpResponse> {
+    validate_request(&*query)?;
     let user = auth_service::current_user(state.get_ref(), &req).await?;
     let limit = page.limit_or(50, 100);
     let offset = page.offset();
@@ -264,12 +268,14 @@ pub async fn list_minecraft_profiles(
         user_id = user.id,
         limit,
         offset,
+        has_query = query.query.is_some(),
         "listing current user minecraft profiles"
     );
     let page = minecraft_profile_repo::list_paginated(
         state.get_ref().reader_db(),
         minecraft_profile_repo::MinecraftProfileFilters {
             user_id: Some(user.id),
+            query: query.query.clone(),
             ..Default::default()
         },
         limit,

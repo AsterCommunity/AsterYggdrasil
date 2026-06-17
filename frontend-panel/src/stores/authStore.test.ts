@@ -128,6 +128,160 @@ describe("authStore persistence", () => {
 		expect(raw).not.toContain("plain-refresh-token");
 	});
 
+	it("drops malformed cached users during startup", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: "not-a-number",
+				username: "steve",
+				role: "admin",
+				status: "active",
+			}),
+		);
+
+		const { useAuthStore } = await loadStore();
+
+		expect(useAuthStore.getState().user).toBeNull();
+		expect(localStorage.getItem("asteryggdrasil-cached-user")).toBeNull();
+	});
+
+	it("drops expired session expiry values during startup", async () => {
+		sessionStorage.setItem("asteryggdrasil-auth-expires-at", "1");
+
+		const { useAuthStore } = await loadStore();
+
+		expect(useAuthStore.getState().expiresAt).toBeNull();
+		expect(sessionStorage.getItem("asteryggdrasil-auth-expires-at")).toBeNull();
+	});
+
+	it("starts without cached auth when storage reads fail", async () => {
+		const getItemSpy = vi
+			.spyOn(Storage.prototype, "getItem")
+			.mockImplementation(() => {
+				throw new Error("storage reads blocked");
+			});
+
+		try {
+			const { useAuthStore } = await loadStore();
+
+			expect(useAuthStore.getState().user).toBeNull();
+			expect(useAuthStore.getState().expiresAt).toBeNull();
+		} finally {
+			getItemSpy.mockRestore();
+		}
+	});
+
+	it("keeps the in-memory session usable when storage writes fail", async () => {
+		const setItemSpy = vi
+			.spyOn(Storage.prototype, "setItem")
+			.mockImplementation(() => {
+				throw new Error("storage writes blocked");
+			});
+		const removeItemSpy = vi
+			.spyOn(Storage.prototype, "removeItem")
+			.mockImplementation(() => {
+				throw new Error("storage removes blocked");
+			});
+
+		try {
+			const { useAuthStore } = await loadStore();
+
+			await useAuthStore.getState().login("steve", "password");
+
+			expect(useAuthStore.getState().user).toEqual(fullUser);
+			expect(useAuthStore.getState().isAuthenticated).toBe(true);
+			expect(useAuthStore.getState().expiresAt).toEqual(expect.any(Number));
+		} finally {
+			setItemSpy.mockRestore();
+			removeItemSpy.mockRestore();
+		}
+	});
+
+	it("keeps cached auth stale when session hydration hits a network error", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: 7,
+				username: "steve",
+				role: "admin",
+				status: "active",
+				profile: fullUser.profile,
+			}),
+		);
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValue(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+
+		await useAuthStore.getState().hydrate();
+
+		expect(useAuthStore.getState()).toMatchObject({
+			checking: false,
+			error: "Network error",
+			errorCode: "network_error",
+			isAdmin: true,
+			isAuthenticated: true,
+			isAuthStale: true,
+			user: {
+				id: 7,
+				username: "steve",
+			},
+		});
+		expect(localStorage.getItem("asteryggdrasil-cached-user")).toContain(
+			"steve",
+		);
+	});
+
+	it("keeps network errors distinct from unauthenticated state without cached auth", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValue(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+
+		await useAuthStore.getState().hydrate();
+
+		expect(useAuthStore.getState()).toMatchObject({
+			checking: false,
+			error: "Network error",
+			errorCode: "network_error",
+			isAuthenticated: false,
+			isAuthStale: true,
+			user: null,
+		});
+	});
+
+	it("clears cached auth when session hydration returns a real auth failure", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: 7,
+				username: "steve",
+				role: "admin",
+				status: "active",
+				profile: fullUser.profile,
+			}),
+		);
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValue(
+			new ApiError("auth.token_invalid", "token invalid"),
+		);
+
+		await useAuthStore.getState().hydrate();
+
+		expect(useAuthStore.getState()).toMatchObject({
+			checking: false,
+			error: "token invalid",
+			errorCode: "auth.token_invalid",
+			isAuthenticated: false,
+			isAuthStale: false,
+			user: null,
+		});
+		expect(localStorage.getItem("asteryggdrasil-cached-user")).toBeNull();
+	});
+
 	it("clears cached user, expiry, and legacy token keys on logout", async () => {
 		localStorage.setItem("asteryggdrasil-access-token", "legacy-access");
 		localStorage.setItem("asteryggdrasil-refresh-token", "legacy-refresh");

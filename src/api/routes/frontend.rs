@@ -1,5 +1,6 @@
 //! API 路由：`frontend`。
 
+use crate::api::cache::conditional_bytes_response;
 use crate::config::{branding, yggdrasil::DEFAULT_YGGDRASIL_API_ROOT_ALI};
 use crate::runtime::AppState;
 use actix_web::{HttpRequest, HttpResponse, web};
@@ -130,10 +131,9 @@ impl FrontendService {
         let content_type = Self::get_content_type(path);
 
         match Self::load_file(&asset_path).await {
-            Some(data) => HttpResponse::Ok()
-                .insert_header(("Cache-Control", IMMUTABLE_ASSET_CACHE_CONTROL))
-                .content_type(content_type)
-                .body(data),
+            Some(data) => {
+                conditional_bytes_response(&req, data, content_type, IMMUTABLE_ASSET_CACHE_CONTROL)
+            }
             None => HttpResponse::NotFound().body(FILE_NOT_FOUND_MESSAGE),
         }
     }
@@ -144,20 +144,18 @@ impl FrontendService {
         let content_type = Self::get_content_type(path);
 
         match Self::load_file(&asset_path).await {
-            Some(data) => HttpResponse::Ok()
-                .insert_header(("Cache-Control", STATIC_ASSET_CACHE_CONTROL))
-                .content_type(content_type)
-                .body(data),
+            Some(data) => {
+                conditional_bytes_response(&req, data, content_type, STATIC_ASSET_CACHE_CONTROL)
+            }
             None => HttpResponse::NotFound().body(FILE_NOT_FOUND_MESSAGE),
         }
     }
 
-    pub async fn handle_favicon(_req: HttpRequest) -> HttpResponse {
+    pub async fn handle_favicon(req: HttpRequest) -> HttpResponse {
         match Self::load_file("favicon.svg").await {
-            Some(data) => HttpResponse::Ok()
-                .insert_header(("Cache-Control", STATIC_ASSET_CACHE_CONTROL))
-                .content_type("image/svg+xml")
-                .body(data),
+            Some(data) => {
+                conditional_bytes_response(&req, data, "image/svg+xml", STATIC_ASSET_CACHE_CONTROL)
+            }
             None => HttpResponse::Ok()
                 .insert_header(("Cache-Control", STATIC_ASSET_CACHE_CONTROL))
                 .content_type("image/svg+xml")
@@ -176,10 +174,7 @@ impl FrontendService {
         let filename = req.uri().path().trim_start_matches('/');
         let content_type = Self::get_content_type(filename);
         match Self::load_file(filename).await {
-            Some(data) => HttpResponse::Ok()
-                .insert_header(("Cache-Control", PWA_CACHE_CONTROL))
-                .content_type(content_type)
-                .body(data),
+            Some(data) => conditional_bytes_response(&req, data, content_type, PWA_CACHE_CONTROL),
             None => HttpResponse::NotFound().body(FILE_NOT_FOUND_MESSAGE),
         }
     }
@@ -312,6 +307,44 @@ mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("public, max-age=86400")
+        );
+    }
+
+    #[actix_web::test]
+    async fn static_image_requests_support_etag_revalidation() {
+        let asset = FrontendAssets::iter()
+            .find(|path| path.starts_with("static/") && path.ends_with(".png"))
+            .expect("frontend dist should include at least one static image");
+        let route = asset
+            .strip_prefix("static/")
+            .expect("asset path should have static prefix");
+        let app = test::init_service(App::new().service(routes())).await;
+        let req = test::TestRequest::get()
+            .uri(&format!("/static/{route}"))
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let etag = resp
+            .headers()
+            .get(header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .expect("static image response should include etag")
+            .to_owned();
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/static/{route}"))
+            .insert_header((header::IF_NONE_MATCH, etag))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
         assert_eq!(
             resp.headers()
                 .get(header::CACHE_CONTROL)

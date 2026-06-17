@@ -5,8 +5,8 @@ use crate::entities::minecraft_texture::{self, Entity as MinecraftTexture};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, ModelTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,12 @@ pub struct CreateMinecraftTexture<'a> {
     pub texture_model: MinecraftTextureModel,
     pub visibility: MinecraftTextureVisibility,
     pub is_wardrobe_item: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WardrobeTextureListFilter {
+    pub texture_type: Option<MinecraftTextureType>,
+    pub keyword: Option<String>,
 }
 
 pub async fn create<C: ConnectionTrait>(
@@ -82,11 +88,50 @@ pub async fn list_by_user_paginated<C: ConnectionTrait>(
     user_id: i64,
     limit: u64,
     offset: u64,
+    filter: WardrobeTextureListFilter,
 ) -> Result<OffsetPage<minecraft_texture::Model>> {
     load_offset_page(limit, offset, 100, |limit, offset| async move {
-        let query = MinecraftTexture::find()
+        let mut query = MinecraftTexture::find()
             .filter(minecraft_texture::Column::UserId.eq(user_id))
-            .filter(minecraft_texture::Column::IsWardrobeItem.eq(true))
+            .filter(minecraft_texture::Column::IsWardrobeItem.eq(true));
+
+        if let Some(texture_type) = filter.texture_type {
+            query = query.filter(minecraft_texture::Column::TextureType.eq(texture_type));
+        }
+
+        if let Some(keyword) = filter
+            .keyword
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            let normalized = keyword.to_ascii_lowercase();
+            let mut condition = Condition::any()
+                .add(minecraft_texture::Column::Hash.contains(keyword))
+                .add(minecraft_texture::Column::MimeType.contains(keyword));
+
+            if normalized == MinecraftTextureType::Skin.as_str() {
+                condition = condition
+                    .add(minecraft_texture::Column::TextureType.eq(MinecraftTextureType::Skin));
+            }
+            if normalized == MinecraftTextureType::Cape.as_str() {
+                condition = condition
+                    .add(minecraft_texture::Column::TextureType.eq(MinecraftTextureType::Cape));
+            }
+            if normalized == MinecraftTextureModel::Default.as_str() {
+                condition = condition.add(
+                    minecraft_texture::Column::TextureModel.eq(MinecraftTextureModel::Default),
+                );
+            }
+            if normalized == MinecraftTextureModel::Slim.as_str() {
+                condition = condition
+                    .add(minecraft_texture::Column::TextureModel.eq(MinecraftTextureModel::Slim));
+            }
+
+            query = query.filter(condition);
+        }
+
+        let query = query
             .order_by_desc(minecraft_texture::Column::UpdatedAt)
             .order_by_desc(minecraft_texture::Column::Id);
         let total = query

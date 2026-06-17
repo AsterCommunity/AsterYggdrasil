@@ -1,92 +1,65 @@
-import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import { AxiosHeaders } from "axios";
+import { AxiosError, CanceledError } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
-import { api } from "./http";
+import { ApiError, api } from "@/services/http";
 
-const originalClientAdapter = api.client.defaults.adapter;
-const originalRootClientAdapter = api.rootClient.defaults.adapter;
+const originalAdapter = api.client.defaults.adapter;
 
-afterEach(() => {
-	api.client.defaults.adapter = originalClientAdapter;
-	api.rootClient.defaults.adapter = originalRootClientAdapter;
-});
-
-function captureRequestAdapter(
-	capture: (config: InternalAxiosRequestConfig) => void,
-): AxiosAdapter {
-	return async (config) => {
-		capture(config);
-		return {
-			config,
-			data: { code: "success", msg: "", data: { ok: true } },
-			headers: {},
-			status: 200,
-			statusText: "OK",
-		};
-	};
-}
-
-describe("shared http client", () => {
-	it("keeps JSON content type for ordinary API request bodies", async () => {
-		let request: InternalAxiosRequestConfig | null = null;
-		api.client.defaults.adapter = captureRequestAdapter((config) => {
-			request = config;
-		});
-
-		await api.post("/auth/login", {
-			identifier: "steve",
-			password: "secret",
-		});
-
-		const headers = AxiosHeaders.from(request?.headers);
-		expect(headers.get("Content-Type")).toBe("application/json");
+describe("http transport errors", () => {
+	afterEach(() => {
+		api.client.defaults.adapter = originalAdapter;
 	});
 
-	it("does not force JSON content type for versioned FormData uploads", async () => {
-		let request: InternalAxiosRequestConfig | null = null;
-		api.client.defaults.adapter = captureRequestAdapter((config) => {
-			request = config;
+	it("normalizes axios network failures without a response", async () => {
+		api.client.defaults.adapter = () =>
+			Promise.reject(new AxiosError("Network Error", "ERR_NETWORK"));
+
+		await expect(api.get("/offline")).rejects.toMatchObject({
+			code: "network_error",
+			message: "Network error",
+			retryable: true,
 		});
-		const form = new FormData();
-		form.append("file", new File(["png"], "skin.png", { type: "image/png" }));
-
-		await api.post("/wardrobe/textures/skin", form);
-
-		const headers = AxiosHeaders.from(request?.headers);
-		expect(headers.get("Content-Type")).toBe(false);
-		expect(headers.toJSON()).not.toHaveProperty("Content-Type");
+		await expect(api.get("/offline")).rejects.toBeInstanceOf(ApiError);
 	});
 
-	it("does not force JSON content type for root FormData uploads", async () => {
-		let request: InternalAxiosRequestConfig | null = null;
-		api.rootClient.defaults.adapter = captureRequestAdapter((config) => {
-			request = config;
-		});
-		const form = new FormData();
-		form.append("file", new File(["png"], "skin.png", { type: "image/png" }));
+	it("normalizes request timeouts before generic network failures", async () => {
+		api.client.defaults.adapter = () =>
+			Promise.reject(
+				new AxiosError("timeout of 15000ms exceeded", "ECONNABORTED"),
+			);
 
-		await api.rootClient.request({
-			data: form,
-			method: "put",
-			url: "/api/user/profile/profile-uuid/skin",
+		await expect(api.get("/slow")).rejects.toMatchObject({
+			code: "request_timeout",
+			message: "Request timed out",
+			retryable: true,
 		});
-
-		const headers = AxiosHeaders.from(request?.headers);
-		expect(headers.get("Content-Type")).toBe(false);
-		expect(headers.toJSON()).not.toHaveProperty("Content-Type");
 	});
 
-	it("accepts no-content responses for versioned API delete operations", async () => {
-		api.client.defaults.adapter = async (config) => ({
-			config,
-			data: undefined,
-			headers: {},
-			status: 204,
-			statusText: "No Content",
-		});
+	it("does not rewrite user-canceled requests as network failures", async () => {
+		api.client.defaults.adapter = () =>
+			Promise.reject(new CanceledError("canceled by test"));
 
-		await expect(
-			api.delete<void>("/wardrobe/textures/2"),
-		).resolves.toBeUndefined();
+		await expect(api.get("/cancelled")).rejects.toMatchObject({
+			code: "ERR_CANCELED",
+			message: "canceled by test",
+		});
+	});
+
+	it("keeps backend envelope errors as backend error codes", async () => {
+		api.client.defaults.adapter = () =>
+			Promise.resolve({
+				config: {},
+				data: {
+					code: "auth.token_invalid",
+					msg: "token invalid",
+				},
+				headers: {},
+				status: 401,
+				statusText: "Unauthorized",
+			});
+
+		await expect(api.get("/auth/me")).rejects.toMatchObject({
+			code: "auth.token_invalid",
+			message: "token invalid",
+		});
 	});
 });

@@ -1935,6 +1935,7 @@ export interface components {
             profile_id: number;
             profile_name: string;
             profile_uuid: string;
+            source: components["schemas"]["MinecraftTextureMetadataSource"];
             texture_model: components["schemas"]["MinecraftTextureModel"];
             texture_type: components["schemas"]["MinecraftTextureType"];
             updated_at: string;
@@ -1943,6 +1944,8 @@ export interface components {
             /** Format: int32 */
             width: number;
         };
+        /** @enum {string} */
+        MinecraftTextureMetadataSource: "bound" | "default";
         /** @enum {string} */
         MinecraftTextureModel: "default" | "slim";
         MinecraftTextureModelEntity: {
@@ -2359,6 +2362,10 @@ export interface components {
             allow_cape_upload: boolean;
             allow_profile_name_login: boolean;
             allow_skin_upload: boolean;
+            /** Format: int64 */
+            max_texture_pixels: number;
+            /** Format: int64 */
+            max_texture_upload_bytes: number;
             public_base_urls: string[];
             server_name: string;
             skin_domains: string[];
@@ -4116,6 +4123,7 @@ export interface operations {
                             profile_id: number;
                             profile_name: string;
                             profile_uuid: string;
+                            source: components["schemas"]["MinecraftTextureMetadataSource"];
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
@@ -6258,6 +6266,7 @@ export interface operations {
             query?: {
                 limit?: number | null;
                 offset?: number | null;
+                query?: string | null;
             };
             header?: never;
             path?: never;
@@ -6480,6 +6489,7 @@ export interface operations {
                             profile_id: number;
                             profile_name: string;
                             profile_uuid: string;
+                            source: components["schemas"]["MinecraftTextureMetadataSource"];
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
@@ -6556,6 +6566,7 @@ export interface operations {
                             profile_id: number;
                             profile_name: string;
                             profile_uuid: string;
+                            source: components["schemas"]["MinecraftTextureMetadataSource"];
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
@@ -6685,6 +6696,8 @@ export interface operations {
             query?: {
                 limit?: number | null;
                 offset?: number | null;
+                keyword?: string | null;
+                texture_type?: null | components["schemas"]["MinecraftTextureType"];
             };
             header?: never;
             path?: never;

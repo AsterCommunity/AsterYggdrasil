@@ -55,12 +55,15 @@ function activeSessions() {
 	];
 }
 
-function sessionsPage(items: AuthSessionInfo[]): AuthSessionPage {
+function sessionsPage(
+	items: AuthSessionInfo[],
+	total = items.length,
+): AuthSessionPage {
 	return {
 		items,
-		limit: 50,
+		limit: 5,
 		offset: 0,
-		total: items.length,
+		total,
 	};
 }
 
@@ -92,6 +95,27 @@ describe("LoginDevicesSection", () => {
 			),
 		);
 		expect(toastMock.success).toHaveBeenCalledWith("Session revoked");
+	});
+
+	it("loads login devices with 5 sessions per page and exposes 5 or 10 page sizes", async () => {
+		authServiceMock.sessionsPage.mockResolvedValue(
+			sessionsPage(activeSessions(), 12),
+		);
+		render(<LoginDevicesSection />);
+
+		expect(await screen.findByText("OtherBrowser/1.0")).toBeInTheDocument();
+		expect(authServiceMock.sessionsPage).toHaveBeenCalledWith({
+			limit: 5,
+			offset: 0,
+		});
+
+		const pageSize = screen.getByRole("combobox", { name: "Page size" });
+		expect(pageSize).toHaveTextContent("5 / page");
+		fireEvent.click(pageSize);
+		expect(
+			await screen.findByRole("option", { name: "5 / page" }),
+		).toBeVisible();
+		expect(screen.getByRole("option", { name: "10 / page" })).toBeVisible();
 	});
 
 	it("shows a toast after revoking all other login sessions", async () => {

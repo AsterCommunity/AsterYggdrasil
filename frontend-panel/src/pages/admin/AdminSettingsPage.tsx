@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminNumberUnitInput } from "@/components/admin/AdminNumberUnitInput";
-import { EmptyState } from "@/components/common/EmptyState";
+import { AnimatedCollapsible } from "@/components/common/AnimatedCollapsible";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { AdminSurface } from "@/components/layout/AdminSurface";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Icon, type IconName } from "@/components/ui/icon";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -29,6 +36,8 @@ import type {
 	SetConfigRequest,
 	SystemConfig,
 	SystemConfigValue,
+	TemplateVariableGroup,
+	TemplateVariableItem,
 } from "@/types/api";
 
 type DraftValue = {
@@ -44,7 +53,6 @@ type DraftArrayRow = {
 
 type CategoryMeta = {
 	descriptionKey: string;
-	icon: IconName;
 	id: string;
 	labelKey: string;
 };
@@ -53,6 +61,13 @@ type ValidationIssue = {
 	key: string;
 	message: string;
 };
+
+type SaveBarPhase = "hidden" | "entering" | "visible" | "exiting";
+
+const SAVE_BAR_ENTER_DURATION_MS = 150;
+const SAVE_BAR_EXIT_DURATION_MS = 140;
+const SAVE_BAR_EXIT_UNMOUNT_GRACE_MS = 50;
+const SAVE_BAR_NEXT_FRAME_DELAY_MS = 16;
 
 const categoryOrder = [
 	"site",
@@ -70,49 +85,41 @@ const categoryMeta: Record<string, CategoryMeta> = {
 		id: "yggdrasil",
 		labelKey: "settings_category_yggdrasil",
 		descriptionKey: "settings_category_yggdrasil_desc",
-		icon: "Shield",
 	},
 	auth: {
 		id: "auth",
 		labelKey: "settings_category_auth",
 		descriptionKey: "settings_category_auth_desc",
-		icon: "Key",
 	},
 	external_auth: {
 		id: "external_auth",
 		labelKey: "settings_category_external_auth",
 		descriptionKey: "settings_category_external_auth_desc",
-		icon: "SignIn",
 	},
 	site: {
 		id: "site",
 		labelKey: "settings_category_site",
 		descriptionKey: "settings_category_site_desc",
-		icon: "Globe",
 	},
 	network: {
 		id: "network",
 		labelKey: "settings_category_network",
 		descriptionKey: "settings_category_network_desc",
-		icon: "WifiHigh",
 	},
 	mail: {
 		id: "mail",
 		labelKey: "settings_category_mail",
 		descriptionKey: "settings_category_mail_desc",
-		icon: "EnvelopeSimple",
 	},
 	runtime: {
 		id: "runtime",
 		labelKey: "settings_category_runtime",
 		descriptionKey: "settings_category_runtime_desc",
-		icon: "Gauge",
 	},
 	audit: {
 		id: "audit",
 		labelKey: "settings_category_audit",
 		descriptionKey: "settings_category_audit_desc",
-		icon: "ClipboardText",
 	},
 };
 
@@ -163,8 +170,20 @@ export default function AdminSettingsPage() {
 	usePageTitle(t("settings_title"));
 
 	const [schema, setSchema] = useState<ConfigSchemaItem[]>([]);
+	const [templateVariableGroups, setTemplateVariableGroups] = useState<
+		TemplateVariableGroup[]
+	>([]);
 	const [drafts, setDrafts] = useState<Record<string, DraftValue>>({});
 	const [activeCategory, setActiveCategory] = useState("site");
+	const [expandedTemplateGroups, setExpandedTemplateGroups] = useState<
+		Record<string, boolean>
+	>({});
+	const [activeTemplateVariableGroupCode, setActiveTemplateVariableGroupCode] =
+		useState<string | null>(null);
+	const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
+	const [testEmailTarget, setTestEmailTarget] = useState("");
+	const [sendingTestEmail, setSendingTestEmail] = useState(false);
+	const [rotatingYggdrasilKey, setRotatingYggdrasilKey] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
@@ -176,11 +195,13 @@ export default function AdminSettingsPage() {
 		Promise.all([
 			adminConfigService.list({ limit: 500 }),
 			adminConfigService.schema(),
+			adminConfigService.templateVariables(),
 		])
-			.then(([page, nextSchema]) => {
+			.then(([page, nextSchema, nextTemplateVariableGroups]) => {
 				if (cancelled) return;
 				setConfigs(sortConfigs(page.items));
 				setSchema(nextSchema);
+				setTemplateVariableGroups(nextTemplateVariableGroups);
 				setDrafts(
 					Object.fromEntries(
 						page.items.map((config) => [config.key, configToDraft(config)]),
@@ -253,6 +274,15 @@ export default function AdminSettingsPage() {
 		[changedConfigs, drafts, t],
 	);
 	const activeMeta = categoryMeta[active] ?? categoryMeta.site;
+	const activeTemplateVariableGroup = useMemo(
+		() =>
+			activeTemplateVariableGroupCode
+				? (templateVariableGroups.find(
+						(group) => group.template_code === activeTemplateVariableGroupCode,
+					) ?? null)
+				: null,
+		[activeTemplateVariableGroupCode, templateVariableGroups],
+	);
 
 	function updateDraft(key: string, draft: DraftValue) {
 		setDrafts((current) => ({ ...current, [key]: draft }));
@@ -275,7 +305,7 @@ export default function AdminSettingsPage() {
 		setSaving(true);
 		setSaveError(null);
 		try {
-			const updated = await Promise.all(
+			const results = await Promise.all(
 				changedConfigs.map((config) => {
 					const draft = drafts[config.key];
 					return adminConfigService.set(
@@ -287,6 +317,7 @@ export default function AdminSettingsPage() {
 					);
 				}),
 			);
+			const updated = results.map((result) => result.config);
 			setConfigs((current) =>
 				sortConfigs(
 					current.map((config) => {
@@ -302,6 +333,9 @@ export default function AdminSettingsPage() {
 				}
 				return next;
 			});
+			for (const warning of results.flatMap((result) => result.warnings)) {
+				if (warning.message) toast.warning(warning.message);
+			}
 			setSavedAt(new Date().toISOString());
 		} catch (nextError) {
 			setSaveError(formatError(nextError));
@@ -310,13 +344,50 @@ export default function AdminSettingsPage() {
 		}
 	}
 
+	async function reloadConfigs() {
+		const page = await adminConfigService.list({ limit: 500 });
+		setConfigs(sortConfigs(page.items));
+		setDrafts(
+			Object.fromEntries(
+				page.items.map((config) => [config.key, configToDraft(config)]),
+			),
+		);
+	}
+
+	async function sendTestEmail() {
+		setSendingTestEmail(true);
+		try {
+			const result = await adminConfigService.sendTestEmail(testEmailTarget);
+			toast.success(result.message || t("mail_test_email_sent_default"));
+			setTestEmailDialogOpen(false);
+		} catch (nextError) {
+			toast.error(formatError(nextError));
+		} finally {
+			setSendingTestEmail(false);
+		}
+	}
+
+	async function rotateYggdrasilSignatureKey() {
+		setRotatingYggdrasilKey(true);
+		try {
+			const result = await adminConfigService.rotateYggdrasilSignatureKey();
+			toast.success(
+				result.message || t("yggdrasil_rotate_signature_key_success"),
+			);
+			await reloadConfigs();
+			setSavedAt(new Date().toISOString());
+		} catch (nextError) {
+			toast.error(formatError(nextError));
+		} finally {
+			setRotatingYggdrasilKey(false);
+		}
+	}
+
 	return (
 		<AdminPageShell className="gap-5">
 			<AdminPageHeader
-				icon="Gear"
 				title={t("settings_title")}
 				description={t("settings_intro")}
-				badge={t("settings_badge")}
 				actions={
 					<SettingsActions
 						changedCount={changedConfigs.length}
@@ -363,18 +434,20 @@ export default function AdminSettingsPage() {
 						<SettingsSkeleton />
 					) : filteredConfigs.length === 0 ? (
 						<AdminSurface padded={false}>
-							<EmptyState
-								title={t("settings_empty_title")}
-								description={t("settings_empty_desc")}
-								icon={<Icon name="Gear" className="size-5" />}
-							/>
+							<div className="grid min-h-56 place-items-center px-4 py-10 text-center">
+								<div className="max-w-md">
+									<div className="text-sm font-semibold">
+										{t("settings_empty_title")}
+									</div>
+									<p className="mt-1 text-sm leading-6 text-muted-foreground">
+										{t("settings_empty_desc")}
+									</p>
+								</div>
+							</div>
 						</AdminSurface>
 					) : (
 						<div className="grid gap-4">
-							<AdminSurface className="flex items-start gap-3">
-								<div className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200">
-									<Icon name={activeMeta.icon} className="size-5" />
-								</div>
+							<AdminSurface>
 								<div className="min-w-0">
 									<h2 className="text-base font-semibold">
 										{t(activeMeta.labelKey)}
@@ -391,7 +464,20 @@ export default function AdminSettingsPage() {
 									configs={items}
 									drafts={drafts}
 									schemaMap={schemaMap}
+									expandedTemplateGroups={expandedTemplateGroups}
+									rotatingYggdrasilKey={rotatingYggdrasilKey}
 									onChange={updateDraft}
+									onOpenTemplateVariables={setActiveTemplateVariableGroupCode}
+									onOpenTestEmail={() => setTestEmailDialogOpen(true)}
+									onRotateYggdrasilSignatureKey={() =>
+										void rotateYggdrasilSignatureKey()
+									}
+									onToggleTemplateGroup={(groupKey, open) =>
+										setExpandedTemplateGroups((current) => ({
+											...current,
+											[groupKey]: open,
+										}))
+									}
 								/>
 							))}
 						</div>
@@ -407,6 +493,23 @@ export default function AdminSettingsPage() {
 				saving={saving}
 				onDiscard={discardChanges}
 				onSave={() => void saveChanges()}
+			/>
+			<MailTemplateVariablesDialog
+				activeGroup={activeTemplateVariableGroup}
+				activeGroupCode={activeTemplateVariableGroupCode}
+				onOpenChange={(open) =>
+					setActiveTemplateVariableGroupCode(
+						open ? activeTemplateVariableGroupCode : null,
+					)
+				}
+			/>
+			<TestEmailDialog
+				open={testEmailDialogOpen}
+				sending={sendingTestEmail}
+				target={testEmailTarget}
+				onOpenChange={setTestEmailDialogOpen}
+				onSend={() => void sendTestEmail()}
+				onTargetChange={setTestEmailTarget}
 			/>
 		</AdminPageShell>
 	);
@@ -443,7 +546,6 @@ function SettingsActions({
 				disabled={!changedCount || saving}
 				onClick={onDiscard}
 			>
-				<Icon name="Undo" className="size-4" />
 				{t("undo_changes")}
 			</Button>
 			<Button
@@ -451,11 +553,7 @@ function SettingsActions({
 				disabled={!changedCount || disabled || saving}
 				onClick={onSave}
 			>
-				<Icon
-					name={saving ? "Spinner" : "FloppyDisk"}
-					className={cn("size-4", saving && "animate-spin")}
-				/>
-				{t("save_changes")}
+				{saving ? t("settings_saving") : t("save_changes")}
 			</Button>
 		</div>
 	);
@@ -465,45 +563,363 @@ function SettingsGroup({
 	category,
 	configs,
 	drafts,
+	expandedTemplateGroups,
 	onChange,
+	onOpenTemplateVariables,
+	onOpenTestEmail,
+	onRotateYggdrasilSignatureKey,
+	onToggleTemplateGroup,
+	rotatingYggdrasilKey,
 	schemaMap,
 }: {
 	category: string;
 	configs: SystemConfig[];
 	drafts: Record<string, DraftValue>;
+	expandedTemplateGroups: Record<string, boolean>;
 	onChange: (key: string, draft: DraftValue) => void;
+	onOpenTemplateVariables: (templateCode: string) => void;
+	onOpenTestEmail: () => void;
+	onRotateYggdrasilSignatureKey: () => void;
+	onToggleTemplateGroup: (groupKey: string, open: boolean) => void;
+	rotatingYggdrasilKey: boolean;
 	schemaMap: Map<string, ConfigSchemaItem>;
 }) {
 	const { t } = useTranslation();
 	const root = rootCategory(category);
+	const isMailTemplateSection = category === "mail.template";
+	const action = getSettingsGroupAction({
+		category,
+		onOpenTestEmail,
+		onRotateYggdrasilSignatureKey,
+		rotatingYggdrasilKey,
+		t,
+	});
+	const templateGroups = isMailTemplateSection
+		? buildMailTemplateGroups(category, configs)
+		: [];
 
 	return (
 		<AdminSurface padded={false} className="overflow-hidden">
-			<div className="border-b border-border/70 px-4 py-3 dark:border-white/10">
-				<div className="flex flex-wrap items-center gap-2">
-					<h3 className="text-sm font-semibold">
-						{formatSubcategoryLabel(root, category, t)}
-					</h3>
-					<Badge variant="outline" className="rounded-md">
-						{configs.length}
-					</Badge>
+			<div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 dark:border-white/10 lg:flex-row lg:items-start lg:justify-between">
+				<div className="min-w-0">
+					<div className="flex flex-wrap items-center gap-2">
+						<h3 className="text-sm font-semibold">
+							{formatSubcategoryLabel(root, category, t)}
+						</h3>
+						<Badge variant="outline" className="rounded-md">
+							{configs.length}
+						</Badge>
+					</div>
+					<p className="mt-1 text-sm leading-6 text-muted-foreground">
+						{formatSubcategoryDescription(root, category, t)}
+					</p>
 				</div>
-				<p className="mt-1 text-sm leading-6 text-muted-foreground">
-					{formatSubcategoryDescription(root, category, t)}
+				{action}
+			</div>
+			{isMailTemplateSection ? (
+				<div className="grid gap-3 p-4">
+					{templateGroups.map((group) => (
+						<MailTemplateGroup
+							key={group.groupKey}
+							changedCount={
+								group.configs.filter((config) => {
+									const draft = drafts[config.key];
+									return draft ? !draftEqualsConfig(config, draft) : false;
+								}).length
+							}
+							drafts={drafts}
+							group={group}
+							open={expandedTemplateGroups[group.groupKey] ?? false}
+							schemaMap={schemaMap}
+							onChange={onChange}
+							onOpenTemplateVariables={onOpenTemplateVariables}
+							onToggle={(open) => onToggleTemplateGroup(group.groupKey, open)}
+						/>
+					))}
+				</div>
+			) : (
+				<div className="divide-y divide-border/70 dark:divide-white/10">
+					{configs.map((config) => (
+						<SettingRow
+							key={config.key}
+							config={config}
+							draft={drafts[config.key] ?? configToDraft(config)}
+							schema={schemaMap.get(config.key)}
+							onChange={(draft) => onChange(config.key, draft)}
+						/>
+					))}
+				</div>
+			)}
+		</AdminSurface>
+	);
+}
+
+function MailTemplateGroup({
+	changedCount,
+	drafts,
+	group,
+	onChange,
+	onOpenTemplateVariables,
+	onToggle,
+	open,
+	schemaMap,
+}: {
+	changedCount: number;
+	drafts: Record<string, DraftValue>;
+	group: MailTemplateGroupItem;
+	onChange: (key: string, draft: DraftValue) => void;
+	onOpenTemplateVariables: (templateCode: string) => void;
+	onToggle: (open: boolean) => void;
+	open: boolean;
+	schemaMap: Map<string, ConfigSchemaItem>;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<section className="overflow-hidden rounded-lg border border-border/60 bg-background">
+			<Button
+				type="button"
+				variant="ghost"
+				className="flex h-auto w-full items-center justify-between gap-3 rounded-none px-3 py-2.5 text-left"
+				aria-expanded={open}
+				onClick={() => onToggle(!open)}
+			>
+				<span className="min-w-0">
+					<span className="block text-sm font-medium">
+						{formatMailTemplateGroupLabel(group.templateCode, t)}
+					</span>
+					{changedCount > 0 ? (
+						<span className="mt-0.5 block text-xs font-medium text-primary">
+							{t("settings_save_notice", { count: changedCount })}
+						</span>
+					) : null}
+				</span>
+				<span className="shrink-0 text-xs text-muted-foreground">
+					{open ? t("settings_section_collapse") : t("settings_section_expand")}
+				</span>
+			</Button>
+			<AnimatedCollapsible
+				open={open}
+				contentClassName={cn(
+					"px-3 transition-colors duration-[180ms] ease-out motion-reduce:transition-none",
+					open ? "border-t border-border/40" : "border-t border-transparent",
+				)}
+			>
+				<div className="divide-y divide-border/40">
+					{group.configs.map((config) => (
+						<SettingRow
+							key={config.key}
+							config={config}
+							draft={drafts[config.key] ?? configToDraft(config)}
+							schema={schemaMap.get(config.key)}
+							templateVariableAction={
+								config.key.endsWith("_html")
+									? {
+											disabled: false,
+											onClick: () =>
+												onOpenTemplateVariables(group.templateCode),
+										}
+									: undefined
+							}
+							onChange={(draft) => onChange(config.key, draft)}
+						/>
+					))}
+				</div>
+			</AnimatedCollapsible>
+		</section>
+	);
+}
+
+function getSettingsGroupAction({
+	category,
+	onOpenTestEmail,
+	onRotateYggdrasilSignatureKey,
+	rotatingYggdrasilKey,
+	t,
+}: {
+	category: string;
+	onOpenTestEmail: () => void;
+	onRotateYggdrasilSignatureKey: () => void;
+	rotatingYggdrasilKey: boolean;
+	t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+	if (category === "mail.config") {
+		return (
+			<div className="flex flex-col items-start gap-2 lg:items-end">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onOpenTestEmail}
+				>
+					{t("mail_send_test_email")}
+				</Button>
+				<p className="max-w-xs text-xs text-muted-foreground lg:text-right">
+					{t("mail_send_test_email_hint")}
 				</p>
 			</div>
-			<div className="divide-y divide-border/70 dark:divide-white/10">
-				{configs.map((config) => (
-					<SettingRow
-						key={config.key}
-						config={config}
-						draft={drafts[config.key] ?? configToDraft(config)}
-						schema={schemaMap.get(config.key)}
-						onChange={(draft) => onChange(config.key, draft)}
-					/>
-				))}
+		);
+	}
+
+	if (category === "yggdrasil") {
+		return (
+			<div className="flex flex-col items-start gap-2 lg:items-end">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={rotatingYggdrasilKey}
+					onClick={onRotateYggdrasilSignatureKey}
+				>
+					{rotatingYggdrasilKey
+						? t("yggdrasil_rotate_signature_key_running")
+						: t("yggdrasil_rotate_signature_key")}
+				</Button>
+				<p className="max-w-xs text-xs text-muted-foreground lg:text-right">
+					{t("yggdrasil_rotate_signature_key_hint")}
+				</p>
 			</div>
-		</AdminSurface>
+		);
+	}
+
+	return null;
+}
+
+function MailTemplateVariablesDialog({
+	activeGroup,
+	activeGroupCode,
+	onOpenChange,
+}: {
+	activeGroup: TemplateVariableGroup | null;
+	activeGroupCode: string | null;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<Dialog open={activeGroupCode !== null} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-[min(56rem,calc(100vw-2rem))]">
+				<DialogHeader>
+					<DialogTitle>
+						{t("mail_template_variables_dialog_title", {
+							name: activeGroup
+								? formatTemplateVariableGroupLabel(activeGroup, t)
+								: formatMailTemplateGroupLabel(activeGroupCode ?? "", t),
+						})}
+					</DialogTitle>
+					<DialogDescription>
+						{t("mail_template_variables_dialog_desc")}
+					</DialogDescription>
+				</DialogHeader>
+				<div className="max-h-[min(70vh,38rem)] overflow-y-auto py-2 pr-1">
+					{activeGroup && activeGroup.variables.length > 0 ? (
+						<div className="grid gap-3 sm:grid-cols-2">
+							{activeGroup.variables.map((variable) => (
+								<TemplateVariableCard
+									key={`${activeGroup.template_code}:${variable.token}`}
+									variable={variable}
+								/>
+							))}
+						</div>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							{t("mail_template_variables_dialog_empty")}
+						</p>
+					)}
+				</div>
+				<DialogFooter>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+					>
+						{t("cancel")}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function TemplateVariableCard({
+	variable,
+}: {
+	variable: TemplateVariableItem;
+}) {
+	const { t } = useTranslation();
+	const label = translateOrFallback(t, variable.label_i18n_key, variable.token);
+	const description = translateOrFallback(t, variable.description_i18n_key, "");
+
+	return (
+		<div className="rounded-lg border border-border/60 bg-card/40 p-3">
+			<div className="flex flex-wrap items-center gap-2">
+				<code className="break-all rounded bg-muted px-2 py-1 font-mono text-xs">
+					{variable.token}
+				</code>
+				<span className="text-sm font-medium">{label}</span>
+			</div>
+			{description ? (
+				<p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
+					{description}
+				</p>
+			) : null}
+		</div>
+	);
+}
+
+function TestEmailDialog({
+	open,
+	sending,
+	target,
+	onOpenChange,
+	onSend,
+	onTargetChange,
+}: {
+	open: boolean;
+	sending: boolean;
+	target: string;
+	onOpenChange: (open: boolean) => void;
+	onSend: () => void;
+	onTargetChange: (value: string) => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-md">
+				<DialogHeader>
+					<DialogTitle>{t("mail_test_email_dialog_title")}</DialogTitle>
+					<DialogDescription>
+						{t("mail_test_email_dialog_desc")}
+					</DialogDescription>
+				</DialogHeader>
+				<div className="space-y-2 py-2">
+					<Label htmlFor="settings-test-email-target">
+						{t("mail_test_email_recipient_label")}
+					</Label>
+					<Input
+						id="settings-test-email-target"
+						type="email"
+						value={target}
+						onChange={(event) => onTargetChange(event.currentTarget.value)}
+						placeholder={t("mail_test_email_recipient_placeholder")}
+					/>
+				</div>
+				<DialogFooter>
+					<Button
+						type="button"
+						variant="outline"
+						disabled={sending}
+						onClick={() => onOpenChange(false)}
+					>
+						{t("cancel")}
+					</Button>
+					<Button type="button" disabled={sending} onClick={onSend}>
+						{sending ? t("mail_test_email_sending") : t("mail_send_test_email")}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -512,11 +928,16 @@ function SettingRow({
 	draft,
 	onChange,
 	schema,
+	templateVariableAction,
 }: {
 	config: SystemConfig;
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
 	schema?: ConfigSchemaItem;
+	templateVariableAction?: {
+		disabled: boolean;
+		onClick: () => void;
+	};
 }) {
 	const { t } = useTranslation();
 	const label = translateOrFallback(
@@ -541,21 +962,31 @@ function SettingRow({
 						label={t("settings_config_description_help", { label })}
 					/>
 					{changed ? (
-						<Badge variant="secondary" className="rounded-md">
+						<span className="text-xs font-medium text-primary">
 							{t("settings_status_unsaved")}
-						</Badge>
+						</span>
 					) : null}
 					{config.is_sensitive ? (
-						<Badge variant="outline" className="rounded-md">
+						<span className="text-xs text-muted-foreground">
 							{t("settings_status_sensitive")}
-						</Badge>
+						</span>
 					) : null}
 					{config.requires_restart ? (
-						<Badge variant="outline" className="rounded-md">
+						<span className="text-xs text-muted-foreground">
 							{t("requires_restart")}
-						</Badge>
+						</span>
 					) : null}
 				</div>
+				{templateVariableAction ? (
+					<button
+						type="button"
+						disabled={templateVariableAction.disabled}
+						className="mt-2 w-fit text-sm text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline disabled:pointer-events-none disabled:text-muted-foreground"
+						onClick={templateVariableAction.onClick}
+					>
+						{t("mail_template_variable_link")}
+					</button>
+				) : null}
 			</div>
 			<div className="min-w-0">
 				<SettingControl
@@ -584,9 +1015,9 @@ function SettingDescriptionHelp({
 				<TooltipTrigger
 					type="button"
 					aria-label={label}
-					className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/35"
+					className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/35"
 				>
-					<Icon name="Info" className="size-4" aria-hidden="true" />
+					<span aria-hidden="true">?</span>
 				</TooltipTrigger>
 				<TooltipContent
 					side="top"
@@ -888,7 +1319,7 @@ function StringArrayControl({
 						}
 						aria-label={t("settings_string_array_remove_item")}
 					>
-						<Icon name="X" className="size-4" />
+						<span aria-hidden="true">x</span>
 					</Button>
 				</div>
 			))}
@@ -906,7 +1337,6 @@ function StringArrayControl({
 					});
 				}}
 			>
-				<Icon name="Plus" className="size-4" />
 				{t("settings_string_array_add_item")}
 			</Button>
 		</div>
@@ -933,8 +1363,7 @@ function CodeTextControl({
 	return (
 		<div className="overflow-hidden rounded-lg border border-border/70 bg-background dark:border-white/10">
 			<div className="flex items-center justify-between border-b border-border/70 bg-muted/35 px-3 py-2 dark:border-white/10">
-				<div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-					<Icon name="FileCode" className="size-4" />
+				<div className="text-xs font-semibold text-muted-foreground">
 					{language.toUpperCase()}
 				</div>
 				{config.is_sensitive ? (
@@ -981,7 +1410,6 @@ function CategoryButton({
 	const { t } = useTranslation();
 	const meta = categoryMeta[category] ?? {
 		descriptionKey: "settings_category_other_desc",
-		icon: "Grid" as IconName,
 		id: category,
 		labelKey: "settings_category_other",
 	};
@@ -997,7 +1425,6 @@ function CategoryButton({
 					: "text-muted-foreground",
 			)}
 		>
-			<Icon name={meta.icon} className="mt-0.5 size-4 shrink-0" />
 			<span className="min-w-0 flex-1">
 				<span className="block truncate text-sm font-semibold">
 					{t(meta.labelKey)}
@@ -1031,36 +1458,84 @@ function SettingsSaveBar({
 	saving: boolean;
 }) {
 	const { t } = useTranslation();
-	if (!hasUnsavedChanges && !error) return null;
+	const active = hasUnsavedChanges || Boolean(error);
+	const { phase, transitionDurationMs } = useSettingsSaveBarPhase(active);
+	const latestVisibleStateRef = useRef({
+		changedCount,
+		disabled,
+		error,
+		hasUnsavedChanges,
+		saving,
+	});
 
-	const actionsDisabled = saving || !hasUnsavedChanges;
+	if (phase === "hidden") return null;
+
+	if (active) {
+		latestVisibleStateRef.current = {
+			changedCount,
+			disabled,
+			error,
+			hasUnsavedChanges,
+			saving,
+		};
+	}
+
+	const displayState =
+		phase === "exiting"
+			? latestVisibleStateRef.current
+			: {
+					changedCount,
+					disabled,
+					error,
+					hasUnsavedChanges,
+					saving,
+				};
+	const actionsDisabled =
+		phase === "exiting" ||
+		displayState.saving ||
+		!displayState.hasUnsavedChanges;
 
 	return (
-		<div className="pointer-events-none sticky bottom-4 z-20">
-			<div className="pointer-events-auto mx-auto w-full max-w-4xl origin-bottom animate-in fade-in-0 slide-in-from-bottom-2 duration-150 motion-reduce:animate-none">
+		<div
+			aria-hidden={!active || phase === "exiting"}
+			data-testid="settings-save-bar"
+			data-phase={phase}
+			className="pointer-events-none sticky bottom-4 z-20"
+		>
+			<div
+				className={cn(
+					"mx-auto w-full max-w-4xl origin-bottom transition-[opacity,transform] will-change-transform motion-reduce:transition-none",
+					phase === "entering"
+						? "pointer-events-none translate-y-2 opacity-0 ease-out"
+						: phase === "visible"
+							? "pointer-events-auto translate-y-0 opacity-100 ease-out"
+							: "pointer-events-none translate-y-0 opacity-0 ease-out",
+				)}
+				style={{ transitionDuration: `${transitionDurationMs}ms` }}
+			>
 				<AdminSurface
 					className={cn(
 						"flex flex-col gap-3 bg-background/95 shadow-2xl shadow-black/10 ring-1 backdrop-blur-xl dark:bg-card/95 dark:shadow-none sm:flex-row sm:items-center sm:justify-between",
-						error
+						displayState.error
 							? "border-destructive/40 ring-destructive/10"
 							: "border-emerald-500/35 ring-border/50",
 					)}
 				>
 					<div className="min-w-0">
 						<div className="text-sm font-semibold">
-							{error
+							{displayState.error
 								? t("settings_save_failed")
 								: t("settings_save_notice", {
-										count: changedCount,
+										count: displayState.changedCount,
 									})}
 						</div>
 						<p
 							className={cn(
 								"mt-1 text-xs text-muted-foreground",
-								error && "text-destructive",
+								displayState.error && "text-destructive",
 							)}
 						>
-							{error ?? t("settings_save_hint")}
+							{displayState.error ?? t("settings_save_hint")}
 						</p>
 					</div>
 					<div className="flex shrink-0 flex-wrap gap-2">
@@ -1074,20 +1549,108 @@ function SettingsSaveBar({
 						</Button>
 						<Button
 							type="button"
-							disabled={actionsDisabled || disabled}
+							disabled={actionsDisabled || displayState.disabled}
 							onClick={onSave}
 						>
-							<Icon
-								name={saving ? "Spinner" : "FloppyDisk"}
-								className={cn("size-4", saving && "animate-spin")}
-							/>
-							{t("save_changes")}
+							{displayState.saving ? t("settings_saving") : t("save_changes")}
 						</Button>
 					</div>
 				</AdminSurface>
 			</div>
 		</div>
 	);
+}
+
+function useSettingsSaveBarPhase(active: boolean) {
+	const timerRef = useRef<number | null>(null);
+	const phaseRef = useRef<SaveBarPhase>("hidden");
+	const [phase, setPhase] = useState<SaveBarPhase>("hidden");
+
+	useEffect(() => {
+		phaseRef.current = phase;
+	}, [phase]);
+
+	useEffect(() => {
+		const clearTimer = () => {
+			if (timerRef.current !== null) {
+				window.clearTimeout(timerRef.current);
+				timerRef.current = null;
+			}
+		};
+		const setPhaseState = (nextPhase: SaveBarPhase) => {
+			phaseRef.current = nextPhase;
+			setPhase(nextPhase);
+		};
+		const scheduleHidden = () => {
+			timerRef.current = window.setTimeout(() => {
+				setPhaseState("hidden");
+				timerRef.current = null;
+			}, SAVE_BAR_EXIT_DURATION_MS + SAVE_BAR_EXIT_UNMOUNT_GRACE_MS);
+		};
+		const scheduleExit = (delayMs = 0) => {
+			if (delayMs === 0) {
+				setPhaseState("exiting");
+				scheduleHidden();
+				return;
+			}
+
+			timerRef.current = window.setTimeout(() => {
+				timerRef.current = null;
+				setPhaseState("exiting");
+				scheduleHidden();
+			}, delayMs);
+		};
+
+		clearTimer();
+
+		if (active) {
+			if (phaseRef.current === "visible") return;
+
+			if (phaseRef.current !== "entering") {
+				setPhaseState("entering");
+			}
+
+			timerRef.current = window.setTimeout(() => {
+				setPhaseState("visible");
+				timerRef.current = null;
+			}, 0);
+			return;
+		}
+
+		if (phaseRef.current === "hidden" || phaseRef.current === "exiting") {
+			return;
+		}
+
+		if (phaseRef.current === "entering") {
+			timerRef.current = window.setTimeout(() => {
+				timerRef.current = null;
+				setPhaseState("visible");
+				scheduleExit(SAVE_BAR_NEXT_FRAME_DELAY_MS);
+			}, SAVE_BAR_NEXT_FRAME_DELAY_MS);
+			return;
+		}
+
+		scheduleExit();
+
+		return clearTimer;
+	}, [active]);
+
+	useEffect(() => {
+		const timerState = timerRef;
+		return () => {
+			if (timerState.current !== null) {
+				window.clearTimeout(timerState.current);
+			}
+		};
+	}, []);
+
+	return {
+		phase,
+		transitionDurationMs:
+			phase === "exiting"
+				? SAVE_BAR_EXIT_DURATION_MS
+				: SAVE_BAR_ENTER_DURATION_MS,
+	};
 }
 
 function SettingsSkeleton() {
@@ -1126,6 +1689,88 @@ function sortConfigs(configs: SystemConfig[]) {
 			left.key.localeCompare(right.key)
 		);
 	});
+}
+
+type MailTemplateGroupItem = {
+	configs: SystemConfig[];
+	groupKey: string;
+	templateCode: string;
+};
+
+function buildMailTemplateGroups(category: string, configs: SystemConfig[]) {
+	const groups = configs.reduce((map, config) => {
+		const templateCode = getMailTemplateCode(config.key);
+		const existing = map.get(templateCode);
+		if (existing) {
+			existing.push(config);
+		} else {
+			map.set(templateCode, [config]);
+		}
+		return map;
+	}, new Map<string, SystemConfig[]>());
+
+	return Array.from(groups, ([templateCode, items]) => ({
+		configs: items.toSorted(
+			(left, right) =>
+				getMailTemplateFieldOrder(left.key) -
+					getMailTemplateFieldOrder(right.key) ||
+				left.key.localeCompare(right.key),
+		),
+		groupKey: `${category}:${templateCode}`,
+		templateCode,
+	})).toSorted(
+		(left, right) =>
+			getMailTemplateGroupOrderIndex(left.templateCode) -
+				getMailTemplateGroupOrderIndex(right.templateCode) ||
+			left.templateCode.localeCompare(right.templateCode),
+	);
+}
+
+const mailTemplateOrder = [
+	"register_activation",
+	"contact_change_confirmation",
+	"password_reset",
+	"password_reset_notice",
+	"contact_change_notice",
+	"external_auth_email_verification",
+	"login_email_code",
+];
+
+function getMailTemplateGroupOrderIndex(templateCode: string) {
+	const index = mailTemplateOrder.indexOf(templateCode);
+	return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function getMailTemplateFieldOrder(key: string) {
+	if (key.endsWith("_subject")) return 0;
+	if (key.endsWith("_html")) return 1;
+	return 2;
+}
+
+function getMailTemplateCode(key: string) {
+	return key.replace(/^mail_template_/, "").replace(/_(subject|html)$/, "");
+}
+
+function formatMailTemplateGroupLabel(
+	templateCode: string,
+	t: (key: string, options?: Record<string, unknown>) => string,
+) {
+	return translateOrFallback(
+		t,
+		`settings_mail_template_group_${templateCode}`,
+		humanizeKey(templateCode),
+	);
+}
+
+function formatTemplateVariableGroupLabel(
+	group: TemplateVariableGroup,
+	t: (key: string, options?: Record<string, unknown>) => string,
+) {
+	return translateOrFallback(
+		t,
+		group.label_i18n_key,
+		formatMailTemplateGroupLabel(group.template_code, t),
+	);
 }
 
 function rootCategory(category: string) {

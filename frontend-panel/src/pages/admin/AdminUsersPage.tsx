@@ -297,7 +297,6 @@ export default function AdminUsersPage() {
 	return (
 		<AdminPageShell>
 			<AdminPageHeader
-				icon="User"
 				title={t("admin.users.title")}
 				description={t("admin.users.description")}
 				actions={

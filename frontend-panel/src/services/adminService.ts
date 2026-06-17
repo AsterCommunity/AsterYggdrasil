@@ -16,6 +16,8 @@ import type {
 	ConfigSchemaItem,
 	CreateAdminUserRequest,
 	CreateExternalAuthProviderRequest,
+	ExecuteConfigActionRequest,
+	ExecuteConfigActionResponse,
 	ExternalAuthProviderKindInfo,
 	ExternalAuthProviderTestParamsRequest,
 	ExternalAuthProviderTestResult,
@@ -26,9 +28,11 @@ import type {
 	RemovedCountResponse,
 	RenameMinecraftProfileRequest,
 	SetConfigRequest,
+	SetConfigResponse,
 	SystemConfig,
 	SystemConfigPage,
 	SystemInfoResponse,
+	TemplateVariableGroup,
 	UpdateAdminUserRequest,
 	UpdateExternalAuthProviderRequest,
 	YggdrasilProfilePage,
@@ -75,10 +79,32 @@ export const adminConfigService = {
 	get: (key: AdminConfigPath["key"]) =>
 		api.get<SystemConfig>(`/admin/config/${encodeURIComponent(key)}`),
 	set: (key: AdminConfigPath["key"], data: SetConfigRequest) =>
-		api.put<SystemConfig, OperationRequestBody<"set_config">>(
+		api.put<SetConfigResponse, OperationRequestBody<"set_config">>(
 			`/admin/config/${encodeURIComponent(key)}`,
 			data,
 		),
+	templateVariables: () =>
+		api.get<TemplateVariableGroup[]>("/admin/config/template-variables"),
+	action: (key: AdminConfigPath["key"], data: ExecuteConfigActionRequest) =>
+		api.post<
+			ExecuteConfigActionResponse,
+			OperationRequestBody<"execute_config_action">
+		>(`/admin/config/${encodeURIComponent(key)}/action`, data),
+	sendTestEmail: (targetEmail?: string) =>
+		api.post<
+			ExecuteConfigActionResponse,
+			OperationRequestBody<"execute_config_action">
+		>("/admin/config/mail/action", {
+			action: "send_test_email",
+			target_email: targetEmail?.trim() || null,
+		}),
+	rotateYggdrasilSignatureKey: () =>
+		api.post<
+			ExecuteConfigActionResponse,
+			OperationRequestBody<"execute_config_action">
+		>("/admin/config/yggdrasil/action", {
+			action: "rotate_yggdrasil_signature_key",
+		}),
 	delete: (key: AdminConfigPath["key"]) =>
 		api.delete<void>(`/admin/config/${encodeURIComponent(key)}`),
 };

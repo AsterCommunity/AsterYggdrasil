@@ -17,7 +17,9 @@
 		"audit": "Audit",
 		"tasks": "Tasks",
 		"login": "Login",
-		"logout": "Logout"
+		"logout": "Logout",
+		"tos": "Terms of Service",
+		"privacy": "Privacy Policy"
 	},
 	"common": {
 		"loading": "Loading",
@@ -52,6 +54,9 @@
 	"shell": {
 		"themeAction": "Toggle theme",
 		"openNavigation": "Open navigation",
+		"expandNavigation": "Expand navigation",
+		"collapseNavigation": "Collapse navigation",
+		"logoutSuccess": "Logged out",
 		"navigationTitle": "App navigation",
 		"sections": {
 			"account": "My space",
@@ -67,6 +72,9 @@
 			"loginRequiredTitle": "Login required",
 			"loginRequiredDescription": "Sign in before opening your workbench, profiles, wardrobe, or admin tools.",
 			"loginRequiredAction": "Go to login",
+			"networkErrorTitle": "Connection lost",
+			"networkErrorDescription": "The server could not be reached, so your login state has not been verified. Check the backend service or network connection and try again.",
+			"networkErrorAction": "Retry connection",
 			"alreadySignedInTitle": "Already signed in",
 			"alreadySignedInDescription": "You are already signed in. Open the workbench to continue managing profiles and textures.",
 			"alreadySignedInAction": "Open workbench",

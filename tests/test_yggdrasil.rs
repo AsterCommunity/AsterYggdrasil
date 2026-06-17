@@ -14,11 +14,12 @@ use aster_yggdrasil::config::yggdrasil::{
     YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY, YGGDRASIL_TOKEN_TTL_DAYS_KEY,
 };
 use aster_yggdrasil::config::{RateLimitConfig, RateLimitTier};
-use aster_yggdrasil::db::repository::system_config_repo;
+use aster_yggdrasil::db::repository::{minecraft_profile_repo, system_config_repo, user_repo};
 use aster_yggdrasil::entities::{
     audit_log, minecraft_profile_texture, minecraft_texture, yggdrasil_token,
 };
 use aster_yggdrasil::services::audit_service;
+use aster_yggdrasil::types::MinecraftTextureModel;
 use aster_yggdrasil::utils::hash::sha256_hex;
 use base64::Engine;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
@@ -28,6 +29,11 @@ use std::{
     num::{NonZeroU32, NonZeroU64},
     sync::Arc,
 };
+
+const DEFAULT_STEVE_SKIN_HASH: &str =
+    "082fdbe1403d09fcf030464bf754439ee79e9287bb15efbe2f54d02f60108133";
+const DEFAULT_ALEX_SKIN_HASH: &str =
+    "394b483392052fb28d6271c736ba0df0394223c93b6348f1f1d135fdb7412daa";
 
 async fn setup_yggdrasil() -> aster_yggdrasil::runtime::AppState {
     let state = common::setup().await;
@@ -187,6 +193,16 @@ macro_rules! upload_wardrobe_texture_req {
             .insert_header(common::bearer_header($access_token))
             .insert_header(("Content-Type", content_type))
             .set_payload(body)
+            .to_request();
+        test::call_service(&$app, req).await
+    }};
+}
+
+macro_rules! list_wardrobe_textures_req {
+    ($app:expr, $access_token:expr, $uri:expr) => {{
+        let req = test::TestRequest::get()
+            .uri($uri)
+            .insert_header(common::bearer_header($access_token))
             .to_request();
         test::call_service(&$app, req).await
     }};
@@ -1129,6 +1145,50 @@ async fn minecraft_profile_management_validates_names_and_lists_profiles() {
     assert_eq!(page_items[0]["id"], max_profile);
 
     let req = test::TestRequest::get()
+        .uri("/api/v1/profiles/minecraft?query=b1")
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 1);
+    let search_items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(search_items.len(), 1);
+    assert_eq!(search_items[0]["id"], min_profile);
+    assert_eq!(search_items[0]["name"], "Ab1");
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/profiles/minecraft?query=mnop")
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 1);
+    let search_items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(search_items[0]["id"], max_profile);
+
+    let uuid_fragment = &min_profile[..12];
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/profiles/minecraft?query={uuid_fragment}"))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 1);
+    let search_items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(search_items[0]["id"], min_profile);
+
+    let long_query = "a".repeat(65);
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/profiles/minecraft?query={long_query}"))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+
+    let req = test::TestRequest::get()
         .uri("/api/v1/auth/me")
         .insert_header(common::bearer_header(&access))
         .to_request();
@@ -1481,6 +1541,19 @@ async fn minecraft_profile_delete_unbinds_textures_keeps_wardrobe_revokes_tokens
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
+    let etag = resp
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .expect("texture response should include etag")
+        .to_owned();
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/yggdrasil/textures/{texture_hash}"))
+        .insert_header((header::IF_NONE_MATCH, etag))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 304);
 
     let req = test::TestRequest::get()
         .uri("/api/v1/wardrobe/textures")
@@ -1589,9 +1662,16 @@ async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
     let joined_body: Value = test::read_body_json(resp).await;
     assert_eq!(joined_body["id"], profile_id);
     assert_eq!(joined_body["name"], "JoinUser");
-    assert_eq!(joined_body["properties"][0]["name"], "uploadableTextures");
+    let joined_textures = decode_textures_property(&joined_body);
+    assert_default_skin_textures(&joined_textures, &profile_id, "JoinUser");
+    let uploadable_property = joined_body["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|property| property["name"] == "uploadableTextures")
+        .expect("uploadableTextures property should exist");
     assert!(
-        joined_body["properties"][0]["signature"]
+        uploadable_property["signature"]
             .as_str()
             .is_some_and(|signature| !signature.is_empty())
     );
@@ -1623,6 +1703,9 @@ async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
     assert_eq!(resp.status(), 200);
     let profile_body: Value = test::read_body_json(resp).await;
     assert_eq!(profile_body["id"], profile_id);
+    let default_textures = decode_textures_property(&profile_body);
+    let default_skin_hash =
+        assert_default_skin_textures(&default_textures, &profile_id, "JoinUser");
     assert!(
         profile_body["properties"]
             .as_array()
@@ -1630,6 +1713,17 @@ async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
             .iter()
             .any(|property| property["name"] == "uploadableTextures"
                 && property["value"] == "skin,cape")
+    );
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/yggdrasil/textures/{default_skin_hash}"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("image/png")
     );
 }
 
@@ -1883,13 +1977,8 @@ async fn yggdrasil_texture_upload_public_read_profile_property_and_delete_flow()
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     let profile_body: Value = test::read_body_json(resp).await;
-    assert!(
-        profile_body["properties"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|property| property["name"] != "textures")
-    );
+    let textures = decode_textures_property(&profile_body);
+    assert_default_skin_textures(&textures, &profile_id, "SkinUser");
 
     audit_service::flush_global_audit_log_manager().await;
     let upload_entry =
@@ -2231,6 +2320,42 @@ async fn yggdrasil_texture_upload_rejects_invalid_png_dimensions() {
         "invalid skin texture dimensions",
     )
     .await;
+
+    let (content_type, body) = texture_multipart_body(None, &png_texture(22, 17));
+    let req = test::TestRequest::put()
+        .uri(&format!(
+            "/api/yggdrasil/api/user/profile/{profile_id}/skin"
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", login.access_token)))
+        .insert_header(("Content-Type", content_type))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_ygg_error(
+        resp,
+        400,
+        "IllegalArgumentException",
+        "invalid skin texture dimensions",
+    )
+    .await;
+
+    let (content_type, body) = texture_multipart_body(None, &png_texture(64, 64));
+    let req = test::TestRequest::put()
+        .uri(&format!(
+            "/api/yggdrasil/api/user/profile/{profile_id}/cape"
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", login.access_token)))
+        .insert_header(("Content-Type", content_type))
+        .set_payload(body)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_ygg_error(
+        resp,
+        400,
+        "IllegalArgumentException",
+        "invalid cape texture dimensions",
+    )
+    .await;
 }
 
 #[actix_web::test]
@@ -2432,6 +2557,231 @@ async fn yggdrasil_texture_upload_rejects_auth_profile_and_multipart_edges() {
         400,
         "IllegalArgumentException",
         "uuid must be a 32-character unsigned hexadecimal UUID",
+    )
+    .await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_profile_without_skin_gets_embedded_default_skin_property() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state.clone());
+    let access = setup_admin!(app);
+    let admin = user_repo::find_by_email(state.reader_db(), "admin@example.com")
+        .await
+        .expect("admin lookup should succeed")
+        .expect("admin should exist");
+    let steve_profile = minecraft_profile_repo::create(
+        state.writer_db(),
+        admin.id,
+        "00000000000000000000000000000000",
+        "DefaultSteve",
+        MinecraftTextureModel::Default,
+        "skin,cape",
+    )
+    .await
+    .expect("fixed Steve profile should create");
+    let alex_profile = minecraft_profile_repo::create(
+        state.writer_db(),
+        admin.id,
+        "00000000000000000000000000000001",
+        "DefaultAlex",
+        MinecraftTextureModel::Default,
+        "skin,cape",
+    )
+    .await
+    .expect("fixed Alex profile should create");
+
+    for (profile, expected_name, expected_hash) in [
+        (&steve_profile, "DefaultSteve", DEFAULT_STEVE_SKIN_HASH),
+        (&alex_profile, "DefaultAlex", DEFAULT_ALEX_SKIN_HASH),
+    ] {
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/api/yggdrasil/sessionserver/session/minecraft/profile/{}",
+                profile.uuid
+            ))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let profile_body: Value = test::read_body_json(resp).await;
+        let textures = decode_textures_property(&profile_body);
+        let actual_hash = assert_default_skin_textures(&textures, &profile.uuid, expected_name);
+        assert_eq!(actual_hash, expected_hash);
+        assert!(textures["textures"].get("CAPE").is_none());
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/api/v1/profiles/minecraft/{}/textures",
+                profile.uuid
+            ))
+            .insert_header(common::bearer_header(&access))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let body: Value = test::read_body_json(resp).await;
+        let items = body["data"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_default_skin_metadata(&items[0], &profile.uuid, expected_name, expected_hash);
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/api/v1/admin/minecraft-profiles/{}/textures",
+                profile.uuid
+            ))
+            .insert_header(common::bearer_header(&access))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let body: Value = test::read_body_json(resp).await;
+        let items = body["data"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_default_skin_metadata(&items[0], &profile.uuid, expected_name, expected_hash);
+    }
+}
+
+#[actix_web::test]
+async fn yggdrasil_existing_skin_is_not_overwritten_by_default_skin() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(&app, &access, "CustomSkin");
+    let login = ygg_login!(&app, "admin@example.com", "custom-skin-client");
+
+    let skin = png_texture_with_color(64, 64, image::Rgba([9, 18, 27, 255]));
+    let resp = upload_texture_req!(app, &login.access_token, &profile_id, "skin", None, &skin);
+    assert_eq!(resp.status(), 204);
+    let textures = profile_textures!(app, &profile_id);
+    let skin_hash = texture_hash_from_property(&textures, "SKIN");
+
+    assert_ne!(skin_hash, DEFAULT_STEVE_SKIN_HASH);
+    assert_ne!(skin_hash, DEFAULT_ALEX_SKIN_HASH);
+    assert_eq!(textures["textures"].as_object().unwrap().len(), 1);
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/profiles/minecraft/{profile_id}/textures"))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["hash"], skin_hash);
+    assert_eq!(items[0]["source"], "bound");
+}
+
+#[actix_web::test]
+async fn yggdrasil_cape_only_profile_keeps_cape_and_adds_default_skin() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(&app, &access, "CapeOnly");
+    let login = ygg_login!(&app, "admin@example.com", "cape-only-client");
+
+    let cape = png_texture_with_color(64, 32, image::Rgba([44, 55, 66, 255]));
+    let resp = upload_texture_req!(app, &login.access_token, &profile_id, "cape", None, &cape);
+    assert_eq!(resp.status(), 204);
+    let textures = profile_textures!(app, &profile_id);
+    let cape_hash = texture_hash_from_property(&textures, "CAPE");
+    let default_hash = assert_default_skin_textures(&textures, &profile_id, "CapeOnly");
+
+    assert_ne!(cape_hash, default_hash);
+    assert!(textures["textures"]["CAPE"]["url"].as_str().is_some());
+    assert_eq!(textures["textures"].as_object().unwrap().len(), 2);
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/profiles/minecraft/{profile_id}/textures"))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    let skin = items
+        .iter()
+        .find(|item| item["texture_type"] == "skin")
+        .expect("default skin metadata should be listed");
+    assert_default_skin_metadata(skin, &profile_id, "CapeOnly", default_hash);
+    let cape = items
+        .iter()
+        .find(|item| item["texture_type"] == "cape")
+        .expect("cape metadata should be listed");
+    assert_eq!(cape["hash"], cape_hash);
+    assert_eq!(cape["source"], "bound");
+}
+
+#[actix_web::test]
+async fn yggdrasil_embedded_default_skin_downloads_and_unknown_hashes_stay_404() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+
+    for hash in [DEFAULT_STEVE_SKIN_HASH, DEFAULT_ALEX_SKIN_HASH] {
+        let req = test::TestRequest::get()
+            .uri(&format!("/api/yggdrasil/textures/{hash}"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        assert_eq!(
+            resp.headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok()),
+            Some("image/png")
+        );
+        assert_eq!(
+            resp.headers()
+                .get("cache-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("public, max-age=31536000, immutable")
+        );
+        let etag = resp
+            .headers()
+            .get(header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .expect("embedded default skin response should include etag")
+            .to_owned();
+        let body = test::read_body(resp).await;
+        assert_eq!(sha256_hex(&body), hash);
+        image::load_from_memory(&body).expect("embedded default skin should decode");
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/api/yggdrasil/textures/{hash}"))
+            .insert_header((header::IF_NONE_MATCH, etag))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 304);
+    }
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/textures/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/textures/not-a-valid-hash")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn yggdrasil_default_skin_property_requires_public_texture_url_configuration() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(&app, &access, "NoUrlDefault");
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/yggdrasil/sessionserver/session/minecraft/profile/{profile_id}"
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_ygg_error(
+        resp,
+        500,
+        "InternalServerError",
+        "public_site_url or yggdrasil_public_base_url must be configured",
     )
     .await;
 }
@@ -2859,13 +3209,8 @@ async fn yggdrasil_launcher_upload_registers_and_deduplicates_wardrobe_textures(
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     let body: Value = test::read_body_json(resp).await;
-    assert!(
-        body["properties"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|property| property["name"] != "textures")
-    );
+    let textures = decode_textures_property(&body);
+    assert_default_skin_textures(&textures, &second_profile, "LauncherWardTwo");
 }
 
 #[actix_web::test]
@@ -2960,6 +3305,180 @@ async fn launcher_upload_wardrobe_dedupe_keeps_model_and_user_boundaries() {
         .await
         .unwrap();
     assert_eq!(all_wardrobe_rows, 3);
+}
+
+#[actix_web::test]
+async fn wardrobe_texture_list_filters_by_type_keyword_pagination_and_user_scope() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+    let admin_access = setup_admin!(app);
+    let user_access = register_user!(
+        app,
+        "wardrobe-filter-user",
+        "wardrobe-filter-user@example.com",
+        "password1234"
+    );
+
+    let default_skin = png_texture_with_color(64, 64, image::Rgba([201, 40, 51, 255]));
+    let slim_skin = png_texture_with_color(64, 64, image::Rgba([52, 151, 88, 255]));
+    let cape = png_texture_with_color(22, 17, image::Rgba([42, 82, 212, 255]));
+    let other_user_skin = png_texture_with_color(64, 64, image::Rgba([11, 12, 13, 255]));
+
+    let resp =
+        upload_wardrobe_texture_req!(app, &admin_access, "skin", Some("default"), &default_skin);
+    assert_eq!(resp.status(), 200);
+    let default_body: Value = test::read_body_json(resp).await;
+    let default_id = default_body["data"]["id"].as_i64().unwrap();
+    let default_hash = default_body["data"]["hash"].as_str().unwrap().to_string();
+
+    let resp = upload_wardrobe_texture_req!(app, &admin_access, "skin", Some("slim"), &slim_skin);
+    assert_eq!(resp.status(), 200);
+    let slim_body: Value = test::read_body_json(resp).await;
+    let slim_id = slim_body["data"]["id"].as_i64().unwrap();
+    let slim_hash = slim_body["data"]["hash"].as_str().unwrap().to_string();
+
+    let resp = upload_wardrobe_texture_req!(app, &admin_access, "cape", Some("slim"), &cape);
+    assert_eq!(resp.status(), 200);
+    let cape_body: Value = test::read_body_json(resp).await;
+    let cape_id = cape_body["data"]["id"].as_i64().unwrap();
+    let cape_hash = cape_body["data"]["hash"].as_str().unwrap().to_string();
+    assert_eq!(cape_body["data"]["texture_model"], "default");
+
+    let resp =
+        upload_wardrobe_texture_req!(app, &user_access, "skin", Some("default"), &other_user_skin);
+    assert_eq!(resp.status(), 200);
+
+    let resp =
+        list_wardrobe_textures_req!(app, &admin_access, "/api/v1/wardrobe/textures?limit=100");
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 3);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 3);
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &admin_access,
+        "/api/v1/wardrobe/textures?texture_type=skin"
+    );
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 2);
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().all(|item| item["texture_type"] == "skin"));
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &admin_access,
+        "/api/v1/wardrobe/textures?texture_type=cape"
+    );
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 1);
+    assert_eq!(items[0]["id"], cape_id);
+    assert_eq!(items[0]["hash"], cape_hash);
+
+    let hash_query = format!("/api/v1/wardrobe/textures?keyword={}", &default_hash[..16]);
+    let resp = list_wardrobe_textures_req!(app, &admin_access, &hash_query);
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 1);
+    assert_eq!(items[0]["id"], default_id);
+
+    let resp =
+        list_wardrobe_textures_req!(app, &admin_access, "/api/v1/wardrobe/textures?keyword=slim");
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 1);
+    assert_eq!(items[0]["id"], slim_id);
+    assert_eq!(items[0]["hash"], slim_hash);
+    assert_eq!(items[0]["texture_model"], "slim");
+
+    let resp =
+        list_wardrobe_textures_req!(app, &admin_access, "/api/v1/wardrobe/textures?keyword=skin");
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 2);
+    assert!(items.iter().all(|item| item["texture_type"] == "skin"));
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &admin_access,
+        "/api/v1/wardrobe/textures?texture_type=skin&keyword=default"
+    );
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 1);
+    assert_eq!(items[0]["id"], default_id);
+    assert_eq!(items[0]["texture_model"], "default");
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &admin_access,
+        "/api/v1/wardrobe/textures?texture_type=skin&keyword=%20%20"
+    );
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 2);
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &admin_access,
+        "/api/v1/wardrobe/textures?texture_type=skin&limit=1&offset=1"
+    );
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["limit"], 1);
+    assert_eq!(body["data"]["offset"], 1);
+    assert_eq!(body["data"]["total"], 2);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["texture_type"], "skin");
+
+    let resp =
+        list_wardrobe_textures_req!(app, &user_access, "/api/v1/wardrobe/textures?keyword=skin");
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["data"]["items"].as_array().unwrap();
+    assert_eq!(body["data"]["total"], 1);
+    assert_ne!(items[0]["id"], default_id);
+    assert_ne!(items[0]["id"], slim_id);
+    assert_ne!(items[0]["id"], cape_id);
+}
+
+#[actix_web::test]
+async fn wardrobe_texture_list_filter_rejects_invalid_query_edges() {
+    let state = setup_yggdrasil().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+
+    let resp = list_wardrobe_textures_req!(
+        app,
+        &access,
+        "/api/v1/wardrobe/textures?texture_type=elytra"
+    );
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "request.malformed");
+    assert!(body["msg"].as_str().unwrap().contains("elytra"));
+
+    let long_keyword = "a".repeat(97);
+    let uri = format!("/api/v1/wardrobe/textures?keyword={long_keyword}");
+    let resp = list_wardrobe_textures_req!(app, &access, &uri);
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "bad_request");
+    assert!(
+        body["msg"]
+            .as_str()
+            .unwrap()
+            .contains("keyword must not exceed 96 characters")
+    );
 }
 
 #[actix_web::test]
@@ -4183,13 +4702,8 @@ async fn wardrobe_upload_can_be_bound_and_unbound_from_profile_later() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     let profile_body: Value = test::read_body_json(resp).await;
-    assert!(
-        profile_body["properties"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|property| property["name"] != "textures")
-    );
+    let textures = decode_textures_property(&profile_body);
+    assert_default_skin_textures(&textures, &profile_id, "WardrobeUser");
 
     let req = test::TestRequest::put()
         .uri(&format!(
@@ -4270,13 +4784,8 @@ async fn wardrobe_upload_can_be_bound_and_unbound_from_profile_later() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     let profile_body: Value = test::read_body_json(resp).await;
-    assert!(
-        profile_body["properties"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|property| property["name"] != "textures")
-    );
+    let textures = decode_textures_property(&profile_body);
+    assert_default_skin_textures(&textures, &profile_id, "WardrobeUser");
 
     let req = test::TestRequest::get()
         .uri(&format!("/api/yggdrasil/textures/{wardrobe_hash}"))
@@ -4718,6 +5227,67 @@ fn decode_textures_property(profile_body: &Value) -> Value {
         .decode(textures_property["value"].as_str().unwrap())
         .expect("textures property should be valid base64");
     serde_json::from_slice(&decoded).expect("textures property should be valid json")
+}
+
+fn assert_default_skin_textures(
+    textures: &Value,
+    profile_id: &str,
+    profile_name: &str,
+) -> &'static str {
+    assert_eq!(textures["profileId"], profile_id);
+    assert_eq!(textures["profileName"], profile_name);
+    let skin = &textures["textures"]["SKIN"];
+    let texture_url = skin["url"].as_str().expect("default skin should have url");
+    assert!(texture_url.starts_with("http://localhost/api/yggdrasil/textures/"));
+    let hash = texture_url
+        .rsplit('/')
+        .next()
+        .expect("default skin texture url should end with hash");
+    let expected_hash = expected_default_skin_hash(profile_id);
+    assert_eq!(hash, expected_hash);
+    if expected_hash == DEFAULT_ALEX_SKIN_HASH {
+        assert_eq!(skin["metadata"]["model"], "slim");
+    } else {
+        assert!(skin.get("metadata").is_none() || skin["metadata"].is_null());
+    }
+    expected_hash
+}
+
+fn assert_default_skin_metadata(
+    texture: &Value,
+    profile_id: &str,
+    profile_name: &str,
+    expected_hash: &str,
+) {
+    assert_eq!(texture["id"], 0);
+    assert_eq!(texture["profile_uuid"], profile_id);
+    assert_eq!(texture["profile_name"], profile_name);
+    assert_eq!(texture["hash"], expected_hash);
+    assert_eq!(texture["texture_type"], "skin");
+    assert_eq!(texture["visibility"], "public");
+    assert_eq!(texture["mime_type"], "image/png");
+    assert_eq!(texture["source"], "default");
+    assert!(texture["file_size"].as_i64().unwrap() > 0);
+    assert!(texture["width"].as_i64().unwrap() > 0);
+    assert!(texture["height"].as_i64().unwrap() > 0);
+    assert_eq!(
+        texture["url"],
+        format!("http://localhost/api/yggdrasil/textures/{expected_hash}")
+    );
+    if expected_hash == DEFAULT_ALEX_SKIN_HASH {
+        assert_eq!(texture["texture_model"], "slim");
+    } else {
+        assert_eq!(texture["texture_model"], "default");
+    }
+}
+
+fn expected_default_skin_hash(profile_id: &str) -> &'static str {
+    let uuid = uuid::Uuid::parse_str(profile_id).expect("profile id should parse as UUID");
+    if uuid.as_u128() & 1 == 1 {
+        DEFAULT_ALEX_SKIN_HASH
+    } else {
+        DEFAULT_STEVE_SKIN_HASH
+    }
 }
 
 fn texture_hash_from_property<'a>(textures: &'a Value, key: &str) -> &'a str {

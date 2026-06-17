@@ -2,6 +2,7 @@ use actix_multipart::Multipart;
 use actix_web::{HttpRequest, HttpResponse, ResponseError, web};
 use futures::StreamExt;
 
+use crate::api::cache::{not_modified_response, request_etag_matches, weak_etag_for_sha256_hash};
 use crate::runtime::AppState;
 use crate::services::yggdrasil_service::{YggdrasilError, YggdrasilErrorKind};
 use crate::services::{audit_service, texture_service};
@@ -264,16 +265,46 @@ pub async fn delete_texture(
         (status = 404, description = "Texture not found"),
     ),
 )]
-pub async fn texture_by_hash(state: web::Data<AppState>, path: web::Path<String>) -> HttpResponse {
+pub async fn texture_by_hash(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> HttpResponse {
     let hash = path.into_inner();
     tracing::debug!(hash, "received yggdrasil texture by hash request");
+    let etag = weak_etag_for_sha256_hash(&hash);
     let Some(texture) = (match texture_service::texture_blob_by_hash(state.get_ref(), &hash).await {
         Ok(texture) => texture,
         Err(error) => return error.error_response(),
     }) else {
+        if let Some(default_skin) = texture_service::embedded_default_skin_by_hash(&hash) {
+            if request_etag_matches(&req, &etag) {
+                return not_modified_response(etag, texture_service::TEXTURE_CACHE_CONTROL);
+            }
+            tracing::debug!(
+                hash,
+                size = default_skin.bytes.len(),
+                "serving embedded default yggdrasil skin"
+            );
+            return HttpResponse::Ok()
+                .content_type("image/png")
+                .insert_header((
+                    actix_web::http::header::CACHE_CONTROL,
+                    texture_service::TEXTURE_CACHE_CONTROL,
+                ))
+                .insert_header((actix_web::http::header::ETAG, etag))
+                .insert_header((
+                    actix_web::http::header::CONTENT_LENGTH,
+                    default_skin.bytes.len().to_string(),
+                ))
+                .body(default_skin.bytes);
+        }
         tracing::debug!(hash, "yggdrasil texture by hash not found");
         return HttpResponse::NotFound().finish();
     };
+    if request_etag_matches(&req, &etag) {
+        return not_modified_response(etag, texture_service::TEXTURE_CACHE_CONTROL);
+    }
     let download = match texture_service::download_texture_blob(state.get_ref(), &texture).await {
         Ok(download) => download,
         Err(error) => return error.error_response(),
@@ -290,6 +321,7 @@ pub async fn texture_by_hash(state: web::Data<AppState>, path: web::Path<String>
             actix_web::http::header::CACHE_CONTROL,
             download.cache_control,
         ))
+        .insert_header((actix_web::http::header::ETAG, etag))
         .insert_header((
             actix_web::http::header::CONTENT_LENGTH,
             download.size.to_string(),

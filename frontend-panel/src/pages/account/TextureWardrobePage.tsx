@@ -1,5 +1,8 @@
 import {
+	type DragEvent,
 	type FormEvent,
+	lazy,
+	Suspense,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -8,8 +11,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useTextureWardrobePageState } from "@/components/account/wardrobe-page/useTextureWardrobePageState";
-import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
-import { Field, NativeSelectField } from "@/components/common/FormControls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,23 +25,40 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StaticSkinPreview } from "@/components/yggdrasil/StaticSkinPreview";
+import { TextureUploadForm } from "@/components/yggdrasil/TextureUploadForm";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
 import { cn } from "@/lib/utils";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
+import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 import type {
-	MinecraftTextureModel,
 	MinecraftTextureType,
 	MinecraftWardrobeTextureMetadata,
 } from "@/types/api";
 
-const WARDROBE_PAGE_SIZE = 50;
+const WARDROBE_PAGE_SIZE_OPTIONS = [10, 20] as const;
+const DEFAULT_WARDROBE_PAGE_SIZE = 10;
+const WARDROBE_SEARCH_DEBOUNCE_MS = 300;
+
+const MinecraftPreview = lazy(() =>
+	import("@/components/yggdrasil/MinecraftPreview").then((module) => ({
+		default: module.MinecraftPreview,
+	})),
+);
 
 export default function TextureWardrobePage() {
 	const { t, i18n } = useTranslation();
 	const [state, dispatch] = useTextureWardrobePageState();
 	const [textureOffset, setTextureOffset] = useState(0);
+	const [texturePageSize, setTexturePageSize] = useState<number>(
+		DEFAULT_WARDROBE_PAGE_SIZE,
+	);
+	const [activeTab, setActiveTab] = useState<MinecraftTextureType>("skin");
+	const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+	const [dragActive, setDragActive] = useState(false);
+	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
+	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const {
 		activeTexture,
 		deleteDialogOpen,
@@ -57,19 +75,30 @@ export default function TextureWardrobePage() {
 		textureTotal,
 		textures,
 		textureType,
+		visibility,
 	} = state;
 
 	usePageTitle(t("wardrobe.title"));
 
+	const libraryTextureType: MinecraftTextureType =
+		activeTab === "cape" ? "cape" : "skin";
+
 	const loadData = useCallback(
-		async (nextOffset = textureOffset) => {
+		async (
+			nextOffset = textureOffset,
+			nextType = libraryTextureType,
+			nextQuery = debouncedQuery,
+		) => {
 			dispatch({ type: "loading", value: true });
+			const keyword = nextQuery.trim();
 			try {
 				const [nextProfiles, nextTextures] = await Promise.all([
 					yggdrasilService.listProfiles(),
 					yggdrasilService.listWardrobeTextures({
-						limit: WARDROBE_PAGE_SIZE,
+						limit: texturePageSize,
 						offset: nextOffset,
+						texture_type: nextType,
+						keyword: keyword || undefined,
 					}),
 				]);
 				dispatch({
@@ -79,30 +108,47 @@ export default function TextureWardrobePage() {
 					textures: nextTextures.items,
 				});
 			} catch (nextError) {
-				const errorMessage = formatUnknownError(nextError);
-				toast.error(errorMessage);
+				toast.error(formatUnknownError(nextError));
 				dispatch({ type: "loading", value: false });
 			} finally {
 				dispatch({ type: "loading", value: false });
 			}
 		},
-		[dispatch, textureOffset],
+		[
+			debouncedQuery,
+			dispatch,
+			libraryTextureType,
+			textureOffset,
+			texturePageSize,
+		],
 	);
+
+	useEffect(() => {
+		const timer = window.setTimeout(() => {
+			setTextureOffset(0);
+			setDebouncedQuery(query.trim());
+		}, WARDROBE_SEARCH_DEBOUNCE_MS);
+		return () => window.clearTimeout(timer);
+	}, [query]);
 
 	useEffect(() => {
 		void loadData();
 	}, [loadData]);
 
-	const filteredTextures = useMemo(() => {
-		const trimmed = query.trim().toLowerCase();
-		if (!trimmed) return textures;
-		return textures.filter(
-			(texture) =>
-				texture.hash.toLowerCase().includes(trimmed) ||
-				texture.texture_type.includes(trimmed) ||
-				texture.texture_model.includes(trimmed),
-		);
-	}, [textures, query]);
+	const visibleTextures = textures;
+	const searchBusy =
+		query.trim() !== debouncedQuery.trim() ||
+		(loading && Boolean(debouncedQuery.trim()));
+
+	const previewTexture = useMemo(() => {
+		if (
+			activeTexture &&
+			textures.some((texture) => texture.id === activeTexture.id)
+		) {
+			return activeTexture;
+		}
+		return visibleTextures[0] ?? textures[0] ?? null;
+	}, [activeTexture, textures, visibleTextures]);
 
 	const filteredProfiles = useMemo(() => {
 		const trimmed = profileQuery.trim().toLowerCase();
@@ -114,27 +160,78 @@ export default function TextureWardrobePage() {
 		);
 	}, [profiles, profileQuery]);
 
+	const formatter = useMemo(
+		() => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }),
+		[i18n.language],
+	);
+
 	async function uploadTexture(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!file) return;
+		if (!(await validateTextureFile(file))) return;
 		dispatch({ type: "submitting", value: true });
 		try {
 			const uploaded = await yggdrasilService.uploadWardrobeTexture({
 				textureType,
 				model,
 				file,
+				visibility,
 			});
 			setTextureOffset(0);
 			dispatch({ type: "prependTexture", value: uploaded });
+			dispatch({ type: "activeTexture", value: uploaded });
 			dispatch({ type: "file", value: null });
+			setActiveTab(uploaded.texture_type);
+			setUploadDialogOpen(false);
+			setDragActive(false);
 			toast.success(t("wardrobe.uploadSuccess"));
-			await loadData(0);
+			await loadData(0, uploaded.texture_type, debouncedQuery);
 		} catch (nextError) {
-			const errorMessage = formatUnknownError(nextError);
-			toast.error(errorMessage);
+			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}
+	}
+
+	async function validateTextureFile(nextFile: File) {
+		const validation = await validateMinecraftTextureFile(
+			nextFile,
+			textureType,
+			yggdrasilConfig,
+		);
+		if (validation.ok) return true;
+		toast.error(t(validation.key, validation.values));
+		return false;
+	}
+
+	async function selectTextureFile(nextFile: File | null) {
+		if (nextFile && !(await validateTextureFile(nextFile))) {
+			dispatch({ type: "file", value: null });
+			return;
+		}
+		dispatch({ type: "file", value: nextFile });
+	}
+
+	function openUploadDialog(nextType = libraryTextureType) {
+		dispatch({ type: "textureType", value: nextType });
+		dispatch({ type: "file", value: null });
+		setDragActive(false);
+		setUploadDialogOpen(true);
+	}
+
+	function dropTextureFile(event: DragEvent<HTMLLabelElement>) {
+		event.preventDefault();
+		setDragActive(false);
+		void selectTextureFile(event.dataTransfer.files.item(0));
+	}
+
+	function dragTextureFile(event: DragEvent<HTMLLabelElement>) {
+		event.preventDefault();
+		setDragActive(true);
+	}
+
+	function leaveTextureDropZone() {
+		setDragActive(false);
 	}
 
 	function openBindDialog(texture: MinecraftWardrobeTextureMetadata) {
@@ -163,8 +260,7 @@ export default function TextureWardrobePage() {
 			);
 			dispatch({ type: "dialogOpen", value: false });
 		} catch (nextError) {
-			const errorMessage = formatUnknownError(nextError);
-			toast.error(errorMessage);
+			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}
@@ -181,141 +277,73 @@ export default function TextureWardrobePage() {
 		try {
 			await yggdrasilService.deleteWardrobeTexture(deleteTexture.id);
 			dispatch({ type: "removeTexture", id: deleteTexture.id });
+			if (activeTexture?.id === deleteTexture.id) {
+				dispatch({ type: "activeTexture", value: null });
+			}
 			toast.success(t("wardrobe.deleteSuccess"));
 			dispatch({ type: "deleteDialogOpen", value: false });
 			await loadData();
 		} catch (nextError) {
-			const errorMessage = formatUnknownError(nextError);
-			toast.error(errorMessage);
+			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}
 	}
 
-	const formatter = useMemo(
-		() => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }),
-		[i18n.language],
-	);
+	function selectTab(tab: MinecraftTextureType) {
+		setActiveTab(tab);
+		setTextureOffset(0);
+		dispatch({ type: "textureType", value: tab });
+		dispatch({ type: "activeTexture", value: null });
+	}
 
 	return (
-		<div className="mx-auto grid w-full max-w-[92rem] gap-4 px-4 py-5 sm:px-6 lg:px-7">
-			<section className="rounded-lg border border-border/70 bg-card/90 shadow-xs">
-				<div className="flex flex-col gap-4 border-b border-border/70 p-4 lg:flex-row lg:items-start lg:justify-between">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="outline" className="rounded-md">
-								{t("nav.wardrobe")}
-							</Badge>
-							<Badge variant="secondary" className="rounded-md">
-								{t("wardrobe.totalTextures", {
-									count: textureTotal.toString(),
-								})}
-							</Badge>
-						</div>
-						<h1 className="mt-3 text-2xl font-semibold tracking-normal">
-							{t("wardrobe.title")}
-						</h1>
-						<p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-							{t("wardrobe.description")}
-						</p>
-					</div>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={() => void loadData()}
-						disabled={loading || submitting}
-					>
-						<Icon
-							name={loading ? "Spinner" : "ArrowClockwise"}
-							className="size-4"
-						/>
-						{t("common.refresh")}
-					</Button>
+		<div className="mx-auto grid w-full max-w-[96rem] gap-4 px-4 py-5 sm:px-6 lg:px-7">
+			<header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+				<div className="min-w-0">
+					<h1 className="text-3xl font-semibold tracking-normal">
+						{t("wardrobe.title")}
+					</h1>
+					<p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+						{t("wardrobe.description")}
+					</p>
 				</div>
+				<p className="text-sm font-medium text-muted-foreground sm:pt-2">
+					{t("wardrobe.heroAside")}
+				</p>
+			</header>
 
-				<div className="grid gap-4 p-4 lg:grid-cols-[minmax(320px,0.34fr)_minmax(0,0.66fr)]">
-					<form
-						className="grid content-start gap-4 rounded-lg border border-border/70 bg-muted/20 p-4"
-						onSubmit={uploadTexture}
-					>
-						<div>
-							<div className="flex items-center gap-2 text-sm font-semibold">
-								<Icon name="Upload" className="size-4" />
-								{t("wardrobe.uploadTitle")}
-							</div>
-							<p className="mt-1 text-sm text-muted-foreground">
-								{t("wardrobe.uploadDescription")}
-							</p>
+			<div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.48fr)]">
+				<section className="min-w-0 self-start overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs">
+					<div className="flex flex-col gap-3 border-b border-border/70 bg-muted/35 p-3 lg:flex-row lg:items-center lg:justify-between">
+						<div className="flex min-w-0 flex-wrap items-center gap-1">
+							<WardrobeTabButton
+								active={activeTab === "skin"}
+								onClick={() => selectTab("skin")}
+							>
+								{t("wardrobe.type.skin")}
+							</WardrobeTabButton>
+							<WardrobeTabButton
+								active={activeTab === "cape"}
+								onClick={() => selectTab("cape")}
+							>
+								{t("wardrobe.type.cape")}
+							</WardrobeTabButton>
 						</div>
-						<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-							<NativeSelectField
-								label={t("profiles.textureType")}
-								value={textureType}
-								onChange={(next) =>
-									dispatch({
-										type: "textureType",
-										value: next as MinecraftTextureType,
-									})
-								}
-								options={[
-									{ label: t("home.textureTypeSkin"), value: "skin" },
-									{ label: t("home.textureTypeCape"), value: "cape" },
-								]}
-							/>
-							<NativeSelectField
-								label={t("profiles.model")}
-								value={model}
-								onChange={(next) =>
-									dispatch({
-										type: "model",
-										value: next as MinecraftTextureModel,
-									})
-								}
-								className={textureType === "skin" ? "" : "opacity-60"}
-								options={[
-									{ label: t("profiles.defaultModel"), value: "default" },
-									{ label: t("profiles.slimModel"), value: "slim" },
-								]}
-							/>
-						</div>
-						<Field label={t("profiles.file")} htmlFor="wardrobe-texture-file">
-							<Input
-								id="wardrobe-texture-file"
-								type="file"
-								accept="image/png"
-								onChange={(event) =>
-									dispatch({
-										type: "file",
-										value: event.currentTarget.files?.[0] ?? null,
-									})
-								}
-							/>
-						</Field>
-						<Button type="submit" disabled={!file || submitting}>
-							<Icon
-								name={submitting ? "Spinner" : "Upload"}
-								className="size-4"
-							/>
-							{t("common.upload")}
-						</Button>
-					</form>
-
-					<div className="grid min-w-0 content-start gap-4">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div>
-								<div className="flex items-center gap-2 text-sm font-semibold">
-									<Icon name="FileImage" className="size-4" />
-									{t("wardrobe.libraryTitle")}
-								</div>
-								<p className="mt-1 text-sm text-muted-foreground">
-									{t("wardrobe.libraryDescription")}
-								</p>
-							</div>
+						<div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
 							<div className="relative sm:w-72">
 								<Icon
-									name="MagnifyingGlass"
-									className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+									name={searchBusy ? "Spinner" : "MagnifyingGlass"}
+									aria-hidden="true"
+									data-testid={
+										searchBusy
+											? "wardrobe-search-spinner"
+											: "wardrobe-search-icon"
+									}
+									className={cn(
+										"absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground",
+										searchBusy && "animate-spin text-emerald-500",
+									)}
 								/>
 								<Input
 									value={query}
@@ -329,72 +357,138 @@ export default function TextureWardrobePage() {
 									}
 								/>
 							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => void loadData()}
+								disabled={loading || submitting}
+							>
+								{loading ? t("common.loading") : t("common.refresh")}
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								onClick={() => openUploadDialog()}
+								disabled={submitting}
+							>
+								{t("wardrobe.uploadTab")}
+							</Button>
 						</div>
+					</div>
 
+					<div className="max-h-[min(42rem,calc(100dvh-18rem))] min-h-[24rem] overflow-y-auto p-3">
 						{loading ? (
-							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-								{Array.from({ length: 6 }, (_, index) => index + 1).map(
-									(item) => (
-										<Skeleton
-											key={`wardrobe-skeleton-${item}`}
-											className="h-64 rounded-lg"
-										/>
-									),
-								)}
+							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+								{Array.from(
+									{ length: 6 },
+									(_, index) => `wardrobe-skeleton-${index}`,
+								).map((key) => (
+									<Skeleton key={key} className="h-52 rounded-lg" />
+								))}
 							</div>
-						) : filteredTextures.length === 0 ? (
-							<div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-12 text-center">
-								<div className="font-medium">{t("wardrobe.emptyTitle")}</div>
-								<p className="mt-2 text-sm text-muted-foreground">
-									{textures.length === 0
+						) : visibleTextures.length === 0 ? (
+							<WardrobeEmptyState
+								title={t("wardrobe.emptyTitle")}
+								description={
+									textures.length === 0
 										? t("wardrobe.emptyDescription")
-										: t("wardrobe.noSearchResults")}
-								</p>
-							</div>
+										: t("wardrobe.noSearchResults")
+								}
+								action={
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => openUploadDialog()}
+									>
+										{t("wardrobe.uploadTab")}
+									</Button>
+								}
+							/>
 						) : (
-							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-								{filteredTextures.map((texture) => (
+							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+								{visibleTextures.map((texture) => (
 									<TextureCard
 										key={texture.id}
+										active={previewTexture?.id === texture.id}
 										texture={texture}
 										date={formatter.format(new Date(texture.created_at))}
-										onBind={() => openBindDialog(texture)}
-										onDelete={() => openDeleteDialog(texture)}
+										onSelect={() =>
+											dispatch({ type: "activeTexture", value: texture })
+										}
 									/>
 								))}
 							</div>
 						)}
-						<AdminOffsetPagination
-							currentPage={Math.floor(textureOffset / WARDROBE_PAGE_SIZE) + 1}
-							nextDisabled={textureOffset + WARDROBE_PAGE_SIZE >= textureTotal}
-							onNext={() =>
-								setTextureOffset((current) => current + WARDROBE_PAGE_SIZE)
-							}
-							onPageSizeChange={() => {}}
-							onPrevious={() =>
-								setTextureOffset((current) =>
-									Math.max(0, current - WARDROBE_PAGE_SIZE),
-								)
-							}
-							pageSize={String(WARDROBE_PAGE_SIZE)}
-							pageSizeOptions={[
-								{
-									label: t("admin.pagination.pageSizeOption", {
-										count: WARDROBE_PAGE_SIZE,
-									}),
-									value: String(WARDROBE_PAGE_SIZE),
-								},
-							]}
-							prevDisabled={textureOffset === 0}
-							total={textureTotal}
-							totalPages={Math.max(
-								1,
-								Math.ceil(textureTotal / WARDROBE_PAGE_SIZE),
-							)}
-						/>
 					</div>
-				</div>
-			</section>
+					<WardrobePagination
+						currentPage={Math.floor(textureOffset / texturePageSize) + 1}
+						nextDisabled={textureOffset + texturePageSize >= textureTotal}
+						prevDisabled={textureOffset === 0}
+						pageSize={texturePageSize}
+						total={textureTotal}
+						totalPages={Math.max(1, Math.ceil(textureTotal / texturePageSize))}
+						onNext={() =>
+							setTextureOffset((current) => current + texturePageSize)
+						}
+						onPageSizeChange={(nextPageSize) => {
+							setTexturePageSize(nextPageSize);
+							setTextureOffset(0);
+						}}
+						onPrevious={() =>
+							setTextureOffset((current) =>
+								Math.max(0, current - texturePageSize),
+							)
+						}
+					/>
+				</section>
+
+				<PreviewPanel
+					texture={previewTexture}
+					total={textureTotal}
+					onBind={() => {
+						if (previewTexture) openBindDialog(previewTexture);
+					}}
+					onDelete={() => {
+						if (previewTexture) openDeleteDialog(previewTexture);
+					}}
+				/>
+			</div>
+
+			<Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+				<DialogContent keepMounted className="sm:max-w-lg">
+					<TextureUploadForm
+						description={t("wardrobe.uploadDescription")}
+						dragActive={dragActive}
+						file={file}
+						fileInputId="wardrobe-texture-file"
+						model={model}
+						submitLabel={t("common.upload")}
+						submittingLabel={t("wardrobe.uploading")}
+						submitting={submitting}
+						textureType={textureType}
+						title={t("wardrobe.uploadTitle")}
+						visibility={visibility}
+						onCancel={() => setUploadDialogOpen(false)}
+						onDragEnter={dragTextureFile}
+						onDragLeave={leaveTextureDropZone}
+						onDrop={dropTextureFile}
+						onFileChange={selectTextureFile}
+						onModelChange={(nextModel) =>
+							dispatch({ type: "model", value: nextModel })
+						}
+						onSubmit={uploadTexture}
+						onTextureTypeChange={(nextType) => {
+							dispatch({ type: "textureType", value: nextType });
+							dispatch({ type: "file", value: null });
+							setDragActive(false);
+						}}
+						onVisibilityChange={(nextVisibility) =>
+							dispatch({ type: "visibility", value: nextVisibility })
+						}
+					/>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog
 				open={dialogOpen}
@@ -413,23 +507,16 @@ export default function TextureWardrobePage() {
 					</DialogHeader>
 
 					<div className="grid gap-3">
-						<div className="relative">
-							<Icon
-								name="MagnifyingGlass"
-								className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								value={profileQuery}
-								placeholder={t("wardrobe.profileSearchPlaceholder")}
-								className="pl-8"
-								onChange={(event) =>
-									dispatch({
-										type: "profileQuery",
-										value: event.currentTarget.value,
-									})
-								}
-							/>
-						</div>
+						<Input
+							value={profileQuery}
+							placeholder={t("wardrobe.profileSearchPlaceholder")}
+							onChange={(event) =>
+								dispatch({
+									type: "profileQuery",
+									value: event.currentTarget.value,
+								})
+							}
+						/>
 
 						<div className="max-h-72 overflow-y-auto rounded-lg border border-border/70">
 							{filteredProfiles.length === 0 ? (
@@ -465,9 +552,6 @@ export default function TextureWardrobePage() {
 													</Badge>
 												) : null}
 											</span>
-											<span className="truncate font-mono text-xs text-muted-foreground">
-												{profile.id}
-											</span>
 										</button>
 									))}
 								</div>
@@ -488,11 +572,7 @@ export default function TextureWardrobePage() {
 							disabled={!activeTexture || !selectedProfileId || submitting}
 							onClick={() => void bindTexture()}
 						>
-							<Icon
-								name={submitting ? "Spinner" : "LinkSimple"}
-								className="size-4"
-							/>
-							{t("wardrobe.bindAction")}
+							{submitting ? t("wardrobe.saving") : t("wardrobe.bindAction")}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -516,21 +596,7 @@ export default function TextureWardrobePage() {
 						</DialogDescription>
 					</DialogHeader>
 
-					{deleteTexture ? (
-						<div className="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
-							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="secondary" className="rounded-md">
-									{t(`wardrobe.type.${deleteTexture.texture_type}`)}
-								</Badge>
-								<Badge variant="outline" className="rounded-md">
-									{deleteTexture.width}x{deleteTexture.height}
-								</Badge>
-							</div>
-							<div className="truncate font-mono text-xs text-muted-foreground">
-								{deleteTexture.hash}
-							</div>
-						</div>
-					) : null}
+					{deleteTexture ? <TextureSummary texture={deleteTexture} /> : null}
 
 					<DialogFooter>
 						<DialogClose
@@ -546,11 +612,7 @@ export default function TextureWardrobePage() {
 							disabled={!deleteTexture || submitting}
 							onClick={() => void deleteWardrobeTexture()}
 						>
-							<Icon
-								name={submitting ? "Spinner" : "Trash"}
-								className="size-4"
-							/>
-							{t("wardrobe.deleteAction")}
+							{submitting ? t("wardrobe.saving") : t("wardrobe.deleteAction")}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -559,105 +621,292 @@ export default function TextureWardrobePage() {
 	);
 }
 
+function WardrobeTabButton({
+	active,
+	children,
+	onClick,
+}: {
+	active: boolean;
+	children: React.ReactNode;
+	onClick: () => void;
+}) {
+	return (
+		<Button
+			type="button"
+			variant={active ? "default" : "ghost"}
+			className={cn(
+				"rounded-md px-4",
+				active ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+			)}
+			onClick={onClick}
+		>
+			{children}
+		</Button>
+	);
+}
+
 function TextureCard({
-	texture,
+	active,
 	date,
+	onSelect,
+	texture,
+}: {
+	active: boolean;
+	date: string;
+	onSelect: () => void;
+	texture: MinecraftWardrobeTextureMetadata;
+}) {
+	const { t } = useTranslation();
+	const label = textureLabel(texture);
+
+	return (
+		<button
+			type="button"
+			className={cn(
+				"group grid overflow-hidden rounded-md border bg-background text-left shadow-xs transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/35",
+				active
+					? "border-primary/70 ring-2 ring-primary/20"
+					: "border-border/70",
+			)}
+			onClick={onSelect}
+		>
+			<TexturePreview texture={texture} compact />
+			<div className="grid gap-1.5 border-t border-border/70 bg-muted/30 p-2.5">
+				<div className="flex min-w-0 items-center justify-between gap-2">
+					<div className="truncate text-xs font-semibold">{label}</div>
+					<span className="rounded-md bg-background/80 px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+						{t(`wardrobe.type.${texture.texture_type}`)}
+					</span>
+				</div>
+				<div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.6875rem] text-muted-foreground">
+					<span>
+						{texture.width}x{texture.height}
+					</span>
+					<span>{formatBytes(texture.file_size)}</span>
+					<span>{date}</span>
+				</div>
+			</div>
+		</button>
+	);
+}
+
+function PreviewPanel({
 	onBind,
 	onDelete,
+	texture,
+	total,
 }: {
-	texture: MinecraftWardrobeTextureMetadata;
-	date: string;
 	onBind: () => void;
 	onDelete: () => void;
+	texture: MinecraftWardrobeTextureMetadata | null;
+	total: number;
+}) {
+	const { t } = useTranslation();
+	const skinUrl = texture?.texture_type === "skin" ? texture.url : null;
+	const capeUrl = texture?.texture_type === "cape" ? texture.url : null;
+
+	return (
+		<aside className="grid min-w-0 gap-3 xl:sticky xl:top-20 xl:self-start">
+			<Suspense fallback={<Skeleton className="h-[38rem] rounded-lg" />}>
+				<MinecraftPreview
+					label={t("wardrobe.previewTitle")}
+					playerName={
+						texture ? t(`wardrobe.type.${texture.texture_type}`) : null
+					}
+					skinUrl={skinUrl}
+					capeUrl={capeUrl}
+					model={texture?.texture_model ?? "default"}
+					emptyTitle={t("wardrobe.previewEmptyTitle")}
+					emptyDescription={t("wardrobe.previewEmptyDescription")}
+					failedTitle={t("profiles.previewFailedTitle")}
+					failedDescription={t("profiles.previewFailedDescription")}
+					noSkinLabel={t("wardrobe.totalTextures", {
+						count: total.toString(),
+					})}
+					idleLabel={t("profiles.motionIdle")}
+					walkLabel={t("profiles.motionWalk")}
+					frameClassName="h-[34rem]"
+				/>
+			</Suspense>
+			<div className="grid gap-3 rounded-lg border border-border/70 bg-card/95 p-4 shadow-xs">
+				{texture ? <TextureSummary texture={texture} /> : null}
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div className="flex flex-wrap gap-2">
+						<Button type="button" disabled={!texture} onClick={onBind}>
+							{t("wardrobe.bindToProfile")}
+						</Button>
+					</div>
+					<Button
+						type="button"
+						variant="destructive"
+						disabled={!texture}
+						onClick={onDelete}
+					>
+						{t("wardrobe.deleteAction")}
+					</Button>
+				</div>
+			</div>
+		</aside>
+	);
+}
+
+function TexturePreview({
+	compact,
+	texture,
+}: {
+	compact?: boolean;
+	texture: MinecraftWardrobeTextureMetadata;
+}) {
+	const { t } = useTranslation();
+	const alt = t("wardrobe.texturePreviewAlt", {
+		type: t(`wardrobe.type.${texture.texture_type}`),
+	});
+
+	return (
+		<div
+			className={cn(
+				"grid place-items-center bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0] p-4",
+				compact ? "aspect-[4/3]" : "aspect-[4/5]",
+			)}
+		>
+			<img
+				src={texture.url}
+				alt={alt}
+				className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
+			/>
+		</div>
+	);
+}
+
+function TextureSummary({
+	texture,
+}: {
+	texture: MinecraftWardrobeTextureMetadata;
 }) {
 	const { t } = useTranslation();
 
 	return (
-		<article className="grid overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs">
-			{texture.texture_type === "skin" ? (
-				<StaticSkinPreview
-					skinUrl={texture.url}
-					model={texture.texture_model}
-					alt={t("wardrobe.texturePreviewAlt", {
-						type: t(`wardrobe.type.${texture.texture_type}`),
-					})}
-				/>
-			) : (
-				<div className="grid aspect-[5/4] place-items-center border-b border-border/70 bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0] p-4">
-					<img
-						src={texture.url}
-						alt={t("wardrobe.texturePreviewAlt", {
-							type: t(`wardrobe.type.${texture.texture_type}`),
-						})}
-						className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
-					/>
-				</div>
-			)}
-			<div className="grid gap-3 p-3">
-				<div className="flex min-w-0 items-start justify-between gap-3">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="secondary" className="rounded-md">
-								{t(`wardrobe.type.${texture.texture_type}`)}
-							</Badge>
-							{texture.texture_type === "skin" ? (
-								<Badge variant="outline" className="rounded-md">
-									{texture.texture_model}
-								</Badge>
-							) : null}
-						</div>
-						<div className="mt-2 truncate font-mono text-xs text-muted-foreground">
-							{texture.hash}
-						</div>
-					</div>
-					<div className="flex shrink-0 items-center gap-1">
-						<Button
-							type="button"
-							size="icon-sm"
-							variant="outline"
-							onClick={onBind}
-						>
-							<Icon name="LinkSimple" className="size-4" />
-							<span className="sr-only">{t("wardrobe.bindAction")}</span>
-						</Button>
-						<Button
-							type="button"
-							size="icon-sm"
-							variant="destructive"
-							onClick={onDelete}
-						>
-							<Icon name="Trash" className="size-4" />
-							<span className="sr-only">{t("wardrobe.deleteAction")}</span>
-						</Button>
-					</div>
-				</div>
-				<div className="grid grid-cols-3 gap-2 text-xs">
-					<TextureFact
-						label={t("wardrobe.dimensions")}
-						value={`${texture.width}x${texture.height}`}
-					/>
-					<TextureFact
-						label={t("wardrobe.size")}
-						value={formatBytes(texture.file_size)}
-					/>
-					<TextureFact label={t("wardrobe.created")} value={date} />
-				</div>
-				<Button type="button" size="sm" onClick={onBind}>
-					<Icon name="LinkSimple" className="size-4" />
-					{t("wardrobe.bindToProfile")}
-				</Button>
+		<div className="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge variant="secondary" className="rounded-md">
+					{t(`wardrobe.type.${texture.texture_type}`)}
+				</Badge>
+				{texture.texture_type === "skin" ? (
+					<Badge variant="outline" className="rounded-md">
+						{texture.texture_model}
+					</Badge>
+				) : null}
+				<Badge variant="outline" className="rounded-md">
+					{texture.width}x{texture.height}
+				</Badge>
+				<Badge variant="outline" className="rounded-md">
+					{formatBytes(texture.file_size)}
+				</Badge>
 			</div>
-		</article>
+		</div>
 	);
 }
 
-function TextureFact({ label, value }: { label: string; value: string }) {
+function WardrobePagination({
+	currentPage,
+	nextDisabled,
+	onNext,
+	onPageSizeChange,
+	onPrevious,
+	pageSize,
+	prevDisabled,
+	total,
+	totalPages,
+}: {
+	currentPage: number;
+	nextDisabled: boolean;
+	onNext: () => void;
+	onPageSizeChange: (pageSize: number) => void;
+	onPrevious: () => void;
+	pageSize: number;
+	prevDisabled: boolean;
+	total: number;
+	totalPages: number;
+}) {
+	const { t } = useTranslation();
+	if (total <= 0) return null;
+
 	return (
-		<div className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5">
-			<div className="truncate text-[11px] text-muted-foreground">{label}</div>
-			<div className="mt-0.5 truncate font-medium">{value}</div>
+		<div className="flex flex-col gap-3 border-t border-border/70 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+			<div className="text-sm text-muted-foreground">
+				{t("admin.pagination.entriesPage", {
+					current: currentPage,
+					pages: totalPages,
+					total,
+				})}
+			</div>
+			<div className="flex flex-wrap items-center gap-2">
+				<select
+					aria-label={t("admin.pagination.pageSize")}
+					className="h-8 rounded-lg border border-input/80 bg-card/70 px-2.5 text-sm shadow-xs outline-none transition-[background-color,border-color,box-shadow] focus-visible:border-ring focus-visible:bg-background focus-visible:ring-3 focus-visible:ring-ring/30 dark:bg-input/25 dark:shadow-none"
+					value={String(pageSize)}
+					onChange={(event) =>
+						onPageSizeChange(Number(event.currentTarget.value))
+					}
+				>
+					{WARDROBE_PAGE_SIZE_OPTIONS.map((option) => (
+						<option key={option} value={option}>
+							{t("admin.pagination.pageSizeOption", { count: option })}
+						</option>
+					))}
+				</select>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={prevDisabled}
+					onClick={onPrevious}
+				>
+					{t("admin.pagination.previous")}
+				</Button>
+				<span className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground">
+					{currentPage}
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={nextDisabled}
+					onClick={onNext}
+				>
+					{t("admin.pagination.next")}
+				</Button>
+			</div>
 		</div>
 	);
+}
+
+function WardrobeEmptyState({
+	action,
+	description,
+	title,
+}: {
+	action?: React.ReactNode;
+	description: string;
+	title: string;
+}) {
+	return (
+		<div className="grid min-h-72 place-items-center px-4 py-12 text-center">
+			<div className="max-w-sm">
+				<div className="text-sm font-semibold">{title}</div>
+				<p className="mt-2 text-sm leading-6 text-muted-foreground">
+					{description}
+				</p>
+				{action ? (
+					<div className="mt-4 flex justify-center">{action}</div>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
+function textureLabel(texture: MinecraftWardrobeTextureMetadata) {
+	return texture.hash.slice(0, 16);
 }
 
 function formatBytes(value: number) {

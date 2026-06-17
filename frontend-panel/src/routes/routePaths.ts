@@ -3,6 +3,8 @@ export const publicPaths = {
 	login: "/login",
 	register: "/register",
 	init: "/init",
+	tos: "/tos",
+	privacy: "/privacy",
 } as const;
 
 export const accountPaths = {
