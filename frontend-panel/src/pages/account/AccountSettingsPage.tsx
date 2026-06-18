@@ -1,13 +1,17 @@
 import {
 	type ChangeEvent,
+	type FormEvent,
 	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
+	useReducer,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
 import { UserAvatarImage } from "@/components/common/UserAvatarImage";
@@ -21,8 +25,15 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { handleApiError } from "@/hooks/useApiError";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import {
+	clearContactVerificationRedirectSearch,
+	getContactVerificationRedirectState,
+} from "@/lib/contactVerificationRedirect";
 import { externalAuthKindIconPath } from "@/lib/externalAuthProviders";
 import { cn } from "@/lib/utils";
+import { emailSchema } from "@/lib/validation";
+import { accountPaths } from "@/routes/routePaths";
+import { authService } from "@/services/authService";
 import { externalAuthService } from "@/services/externalAuthService";
 import { formatUnknownError } from "@/services/http";
 import { useAuthStore } from "@/stores/authStore";
@@ -42,6 +53,37 @@ type SectionDefinition = {
 	label: string;
 	description: string;
 };
+type ActiveSettingsSectionStore = {
+	getSnapshot: () => SettingsSectionId;
+	set: (next: SettingsSectionId) => void;
+	subscribe: (listener: () => void) => () => void;
+};
+type ExternalAuthLinksState = {
+	busyId: number | null;
+	links: ExternalAuthLinkInfo[];
+	linkTotal: number;
+	loading: boolean;
+	offset: number;
+};
+type ExternalAuthLinksAction =
+	| { type: "loaded"; links: ExternalAuthLinkInfo[]; total: number }
+	| { type: "set_busy_id"; value: number | null }
+	| { type: "set_loading"; value: boolean }
+	| { type: "set_offset"; value: number };
+type ProfileSectionState = {
+	cropOpen: boolean;
+	displayName: string;
+	savingAvatar: boolean;
+	savingProfile: boolean;
+	selectedFile: File | null;
+};
+type ProfileSectionAction =
+	| { type: "avatar_file_selected"; file: File }
+	| { type: "close_crop" }
+	| { type: "set_crop_open"; value: boolean }
+	| { type: "set_display_name"; value: string }
+	| { type: "set_saving_avatar"; value: boolean }
+	| { type: "set_saving_profile"; value: boolean };
 
 const SECTION_IDS: SettingsSectionId[] = [
 	"profile",
@@ -49,6 +91,14 @@ const SECTION_IDS: SettingsSectionId[] = [
 	"passkeys",
 	"external-auth",
 ];
+
+const externalAuthLinksInitialState: ExternalAuthLinksState = {
+	busyId: null,
+	links: [],
+	linkTotal: 0,
+	loading: false,
+	offset: 0,
+};
 
 function displayNameForUser(user: AuthUserInfo) {
 	return user.profile?.display_name?.trim() || user.username;
@@ -66,15 +116,49 @@ function scrollToSettingsSection(id: SettingsSectionId) {
 }
 
 function initialActiveSettingsSection(): SettingsSectionId {
+	if (typeof window === "undefined") {
+		return "profile";
+	}
+	if (window.location.pathname === accountPaths.settingsSecurityCompat) {
+		return "security";
+	}
 	const hash = window.location.hash.replace("#", "");
 	return SECTION_IDS.includes(hash as SettingsSectionId)
 		? (hash as SettingsSectionId)
 		: "profile";
 }
 
+function createActiveSettingsSectionStore(
+	initialValue: SettingsSectionId,
+): ActiveSettingsSectionStore {
+	let snapshot = initialValue;
+	const listeners = new Set<() => void>();
+	return {
+		getSnapshot: () => snapshot,
+		set: (next) => {
+			if (next === snapshot) return;
+			snapshot = next;
+			for (const listener of listeners) listener();
+		},
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+}
+
 function useActiveSettingsSection() {
-	const [activeSection, setActiveSection] = useState<SettingsSectionId>(
-		initialActiveSettingsSection,
+	const storeRef = useRef<ActiveSettingsSectionStore | null>(null);
+	if (storeRef.current === null) {
+		storeRef.current = createActiveSettingsSectionStore(
+			initialActiveSettingsSection(),
+		);
+	}
+	const store = storeRef.current;
+	const activeSection = useSyncExternalStore(
+		store.subscribe,
+		store.getSnapshot,
+		(): SettingsSectionId => "profile",
 	);
 
 	useEffect(() => {
@@ -97,13 +181,20 @@ function useActiveSettingsSection() {
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				const visible = entries
-					.filter((entry) => entry.isIntersecting)
-					.sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+				const visible = entries.reduce<IntersectionObserverEntry | null>(
+					(best, entry) => {
+						if (!entry.isIntersecting) return best;
+						if (!best || entry.intersectionRatio > best.intersectionRatio) {
+							return entry;
+						}
+						return best;
+					},
+					null,
+				);
 				const id = visible?.target.getAttribute(
 					"data-settings-section",
 				) as SettingsSectionId | null;
-				if (id) setActiveSection(id);
+				if (id) store.set(id);
 			},
 			{
 				root: null,
@@ -114,7 +205,7 @@ function useActiveSettingsSection() {
 
 		for (const element of elements) observer.observe(element);
 		return () => observer.disconnect();
-	}, []);
+	}, [store]);
 
 	return activeSection;
 }
@@ -210,28 +301,51 @@ function SectionNav({
 	);
 }
 
+function externalAuthLinksReducer(
+	state: ExternalAuthLinksState,
+	action: ExternalAuthLinksAction,
+): ExternalAuthLinksState {
+	switch (action.type) {
+		case "loaded":
+			return {
+				...state,
+				links: action.links,
+				linkTotal: action.total,
+			};
+		case "set_busy_id":
+			return { ...state, busyId: action.value };
+		case "set_loading":
+			return { ...state, loading: action.value };
+		case "set_offset":
+			return { ...state, offset: action.value };
+	}
+}
+
 function ExternalAuthLinksSection() {
 	const { t } = useTranslation();
-	const [links, setLinks] = useState<ExternalAuthLinkInfo[]>([]);
-	const [linkTotal, setLinkTotal] = useState(0);
-	const [offset, setOffset] = useState(0);
-	const [loading, setLoading] = useState(false);
-	const [busyId, setBusyId] = useState<number | null>(null);
+	const [state, dispatch] = useReducer(
+		externalAuthLinksReducer,
+		externalAuthLinksInitialState,
+	);
+	const { busyId, links, linkTotal, loading, offset } = state;
 
 	const reload = useCallback(
 		async (nextOffset = offset) => {
-			setLoading(true);
+			dispatch({ type: "set_loading", value: true });
 			try {
 				const page = await externalAuthService.listLinksPage({
 					limit: EXTERNAL_AUTH_LINK_PAGE_SIZE,
 					offset: nextOffset,
 				});
-				setLinks(page.items);
-				setLinkTotal(page.total);
+				dispatch({
+					type: "loaded",
+					links: page.items,
+					total: page.total,
+				});
 			} catch (error) {
 				toast.error(formatUnknownError(error));
 			} finally {
-				setLoading(false);
+				dispatch({ type: "set_loading", value: false });
 			}
 		},
 		[offset],
@@ -242,7 +356,7 @@ function ExternalAuthLinksSection() {
 	}, [reload]);
 
 	async function unlink(link: ExternalAuthLinkInfo) {
-		setBusyId(link.id);
+		dispatch({ type: "set_busy_id", value: link.id });
 		try {
 			await externalAuthService.deleteLink(link.id);
 			await reload();
@@ -250,7 +364,7 @@ function ExternalAuthLinksSection() {
 		} catch (error) {
 			toast.error(formatUnknownError(error));
 		} finally {
-			setBusyId(null);
+			dispatch({ type: "set_busy_id", value: null });
 		}
 	}
 
@@ -345,13 +459,17 @@ function ExternalAuthLinksSection() {
 				currentPage={Math.floor(offset / EXTERNAL_AUTH_LINK_PAGE_SIZE) + 1}
 				nextDisabled={offset + EXTERNAL_AUTH_LINK_PAGE_SIZE >= linkTotal}
 				onNext={() =>
-					setOffset((current) => current + EXTERNAL_AUTH_LINK_PAGE_SIZE)
+					dispatch({
+						type: "set_offset",
+						value: offset + EXTERNAL_AUTH_LINK_PAGE_SIZE,
+					})
 				}
 				onPageSizeChange={() => {}}
 				onPrevious={() =>
-					setOffset((current) =>
-						Math.max(0, current - EXTERNAL_AUTH_LINK_PAGE_SIZE),
-					)
+					dispatch({
+						type: "set_offset",
+						value: Math.max(0, offset - EXTERNAL_AUTH_LINK_PAGE_SIZE),
+					})
 				}
 				pageSize={String(EXTERNAL_AUTH_LINK_PAGE_SIZE)}
 				pageSizeOptions={[
@@ -373,19 +491,41 @@ function ExternalAuthLinksSection() {
 	);
 }
 
+function profileSectionReducer(
+	state: ProfileSectionState,
+	action: ProfileSectionAction,
+): ProfileSectionState {
+	switch (action.type) {
+		case "avatar_file_selected":
+			return { ...state, cropOpen: true, selectedFile: action.file };
+		case "close_crop":
+			return { ...state, cropOpen: false, selectedFile: null };
+		case "set_crop_open":
+			return { ...state, cropOpen: action.value };
+		case "set_display_name":
+			return { ...state, displayName: action.value };
+		case "set_saving_avatar":
+			return { ...state, savingAvatar: action.value };
+		case "set_saving_profile":
+			return { ...state, savingProfile: action.value };
+	}
+}
+
 function ProfileSection({ user }: { user: AuthUserInfo }) {
 	const { t } = useTranslation();
 	const updateProfile = useAuthStore((state) => state.updateProfile);
 	const updateAvatarSource = useAuthStore((state) => state.setAvatarSource);
 	const updateAvatarFile = useAuthStore((state) => state.uploadAvatar);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	const [displayName, setDisplayName] = useState(
-		user.profile?.display_name ?? "",
-	);
-	const [selectedFile, setSelectedFile] = useState<File | null>(null);
-	const [cropOpen, setCropOpen] = useState(false);
-	const [savingProfile, setSavingProfile] = useState(false);
-	const [savingAvatar, setSavingAvatar] = useState(false);
+	const [state, dispatch] = useReducer(profileSectionReducer, {
+		cropOpen: false,
+		displayName: user.profile?.display_name ?? "",
+		savingAvatar: false,
+		savingProfile: false,
+		selectedFile: null,
+	} satisfies ProfileSectionState);
+	const { cropOpen, displayName, savingAvatar, savingProfile, selectedFile } =
+		state;
 	const profileName = displayNameForUser(user);
 	const avatarSource = user.profile?.avatar.source ?? "none";
 	const profileDirty = displayName !== (user.profile?.display_name ?? "");
@@ -395,12 +535,11 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 		const file = event.currentTarget.files?.[0] ?? null;
 		event.currentTarget.value = "";
 		if (!file) return;
-		setSelectedFile(file);
-		setCropOpen(true);
+		dispatch({ type: "avatar_file_selected", file });
 	};
 
 	const saveProfile = async () => {
-		setSavingProfile(true);
+		dispatch({ type: "set_saving_profile", value: true });
 		try {
 			await updateProfile({
 				display_name: displayName.trim() || null,
@@ -409,12 +548,12 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 		} catch (error) {
 			handleApiError(error);
 		} finally {
-			setSavingProfile(false);
+			dispatch({ type: "set_saving_profile", value: false });
 		}
 	};
 
 	const uploadAvatar = async (file: File) => {
-		setSavingAvatar(true);
+		dispatch({ type: "set_saving_avatar", value: true });
 		try {
 			await updateAvatarFile(file);
 			toast.success(t("personalSettings.avatarUpdated"));
@@ -423,19 +562,19 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 			handleApiError(error);
 			return false;
 		} finally {
-			setSavingAvatar(false);
+			dispatch({ type: "set_saving_avatar", value: false });
 		}
 	};
 
 	const setAvatarSource = async (source: Exclude<AvatarSource, "upload">) => {
-		setSavingAvatar(true);
+		dispatch({ type: "set_saving_avatar", value: true });
 		try {
 			await updateAvatarSource({ source });
 			toast.success(t("personalSettings.avatarSourceUpdated"));
 		} catch (error) {
 			handleApiError(error);
 		} finally {
-			setSavingAvatar(false);
+			dispatch({ type: "set_saving_avatar", value: false });
 		}
 	};
 
@@ -461,6 +600,7 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 									ref={fileInputRef}
 									type="file"
 									accept="image/png,image/jpeg,image/webp"
+									aria-label={t("personalSettings.avatarUpload")}
 									className="sr-only"
 									onChange={handleAvatarFileChange}
 								/>
@@ -527,7 +667,12 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 							maxLength={64}
 							placeholder={t("personalSettings.displayNamePlaceholder")}
 							disabled={actionBusy}
-							onChange={(event) => setDisplayName(event.currentTarget.value)}
+							onChange={(event) =>
+								dispatch({
+									type: "set_display_name",
+									value: event.currentTarget.value,
+								})
+							}
 							className="h-10 rounded-lg"
 						/>
 						<Button
@@ -552,8 +697,11 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 				file={selectedFile}
 				busy={savingAvatar}
 				onOpenChange={(open) => {
-					setCropOpen(open);
-					if (!open) setSelectedFile(null);
+					dispatch(
+						open
+							? { type: "set_crop_open", value: true }
+							: { type: "close_crop" },
+					);
 				}}
 				onConfirm={uploadAvatar}
 			/>
@@ -561,12 +709,202 @@ function ProfileSection({ user }: { user: AuthUserInfo }) {
 	);
 }
 
+function EmailChangeSection({ user }: { user: AuthUserInfo }) {
+	const { t } = useTranslation();
+	const refreshUser = useAuthStore((state) => state.refreshUser);
+	const [newEmail, setNewEmail] = useState(user.pending_email ?? "");
+	const [error, setError] = useState<string | null>(null);
+	const [submitting, setSubmitting] = useState(false);
+	const [resending, setResending] = useState(false);
+	const pendingEmail = user.pending_email?.trim() || null;
+	const normalizedCurrent = user.email.trim().toLowerCase();
+	const normalizedPending = pendingEmail?.toLowerCase() ?? null;
+	const normalizedNext = newEmail.trim().toLowerCase();
+	const validation = emailSchema.safeParse(newEmail);
+	const canSubmit =
+		validation.success &&
+		normalizedNext.length > 0 &&
+		normalizedNext !== normalizedCurrent &&
+		normalizedNext !== normalizedPending;
+
+	async function submit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const result = emailSchema.safeParse(newEmail);
+		if (!result.success) {
+			setError(result.error.issues[0]?.message ?? "");
+			return;
+		}
+
+		setError(null);
+		setSubmitting(true);
+		try {
+			await authService.requestEmailChange({ new_email: result.data });
+			await refreshUser();
+			toast.success(t("personalSettings.emailChangeRequested"));
+		} catch (nextError) {
+			handleApiError(nextError);
+		} finally {
+			setSubmitting(false);
+		}
+	}
+
+	async function resend() {
+		setResending(true);
+		try {
+			await authService.resendEmailChange();
+			toast.success(t("personalSettings.emailChangeResent"));
+		} catch (nextError) {
+			handleApiError(nextError);
+		} finally {
+			setResending(false);
+		}
+	}
+
+	return (
+		<div className="rounded-lg border border-border/70 bg-background/55 dark:border-white/10 dark:bg-input/10">
+			<div className="flex flex-col gap-3 border-b border-border/70 px-4 py-4 sm:flex-row sm:items-start sm:justify-between dark:border-white/10">
+				<div className="min-w-0">
+					<h3 className="text-sm font-semibold">
+						{t("personalSettings.emailSecurityTitle")}
+					</h3>
+					<p className="mt-1 text-xs leading-5 text-muted-foreground">
+						{t("personalSettings.emailSecurityDescription")}
+					</p>
+				</div>
+				<Badge variant="outline" className="w-fit rounded-md">
+					{user.email_verified
+						? t("personalSettings.emailVerified")
+						: t("personalSettings.emailUnverified")}
+				</Badge>
+			</div>
+			<div className="grid gap-4 px-4 py-4">
+				<div className="grid gap-3 sm:grid-cols-2">
+					<DetailRow
+						label={t("personalSettings.currentEmail")}
+						value={<span className="truncate">{user.email}</span>}
+					/>
+					<DetailRow
+						label={t("personalSettings.pendingEmail")}
+						value={
+							pendingEmail ? (
+								<span className="truncate">{pendingEmail}</span>
+							) : (
+								<span className="text-muted-foreground">
+									{t("personalSettings.emptyValue")}
+								</span>
+							)
+						}
+					/>
+				</div>
+				<form className="grid gap-3" onSubmit={submit}>
+					<div className="grid gap-2">
+						<label
+							htmlFor="new-email"
+							className="text-xs font-medium text-muted-foreground"
+						>
+							{t("personalSettings.newEmail")}
+						</label>
+						<div className="flex flex-col gap-2 sm:flex-row">
+							<Input
+								id="new-email"
+								type="email"
+								value={newEmail}
+								onChange={(event) => {
+									const value = event.currentTarget.value;
+									setNewEmail(value);
+									if (error) {
+										const next = emailSchema.safeParse(value);
+										setError(
+											next.success
+												? null
+												: (next.error.issues[0]?.message ?? ""),
+										);
+									}
+								}}
+								autoComplete="email"
+								placeholder={t("personalSettings.newEmailPlaceholder")}
+								aria-invalid={Boolean(error)}
+								aria-describedby={error ? "new-email-error" : undefined}
+							/>
+							<Button type="submit" disabled={submitting || !canSubmit}>
+								<Icon
+									name={submitting ? "Spinner" : "EnvelopeSimple"}
+									className={cn("mr-2 size-4", submitting && "animate-spin")}
+								/>
+								{t("personalSettings.emailChangeSubmit")}
+							</Button>
+						</div>
+						{error ? (
+							<p
+								id="new-email-error"
+								className="text-xs leading-5 text-destructive"
+							>
+								{t(error)}
+							</p>
+						) : null}
+					</div>
+				</form>
+				{pendingEmail ? (
+					<div className="flex flex-col gap-2 rounded-md border border-border/60 bg-muted/18 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-muted/10">
+						<div className="text-sm leading-6 text-muted-foreground">
+							{t("personalSettings.emailChangePendingHint", {
+								email: pendingEmail,
+							})}
+						</div>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={resending}
+							onClick={() => void resend()}
+						>
+							<Icon
+								name={resending ? "Spinner" : "ArrowClockwise"}
+								className={cn("mr-2 size-4", resending && "animate-spin")}
+							/>
+							{t("personalSettings.emailChangeResend")}
+						</Button>
+					</div>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
 export default function AccountSettingsPage() {
 	const { t } = useTranslation();
 	const user = useAuthStore((state) => state.user);
+	const refreshUser = useAuthStore((state) => state.refreshUser);
+	const location = useLocation();
+	const navigate = useNavigate();
+	const locationSearch = location.search;
 	const activeSection = useActiveSettingsSection();
 
 	usePageTitle(t("personalSettings.title"));
+
+	useEffect(() => {
+		const redirect = getContactVerificationRedirectState(locationSearch);
+		if (!redirect) return;
+		if (redirect.status === "email-changed") {
+			toast.success(
+				redirect.email
+					? t("personalSettings.emailChangeConfirmedWithEmail", {
+							email: redirect.email,
+						})
+					: t("personalSettings.emailChangeConfirmed"),
+			);
+			void refreshUser();
+		}
+
+		navigate(
+			{
+				pathname: accountPaths.settings,
+				search: clearContactVerificationRedirectSearch(locationSearch),
+				hash: "security",
+			},
+			{ replace: true },
+		);
+	}, [locationSearch, navigate, refreshUser, t]);
 
 	const sections = useMemo<SectionDefinition[]>(
 		() => [
@@ -725,6 +1063,9 @@ export default function AccountSettingsPage() {
 								<div className="text-sm leading-6 text-muted-foreground">
 									{t("personalSettings.securityDescription")}
 								</div>
+							</div>
+							<div className="mt-4">
+								<EmailChangeSection user={user} />
 							</div>
 							<div className="mt-4">
 								<LoginDevicesSection />

@@ -14,14 +14,17 @@ pub mod yggdrasil;
 pub use account::{AccountAuditLogFilterQuery, AccountOverviewResp};
 pub use admin::{
     AdminMinecraftProfileListQuery, AdminTaskCleanupReq, AdminTaskListQuery, AdminUserListQuery,
-    CreateAdminUserReq, CreateExternalAuthProviderReq, ExecuteConfigActionReq,
-    ExecuteConfigActionResp, ExternalAuthProviderTestParamsReq, RemovedCountResponse, SetConfigReq,
-    UpdateAdminUserReq, UpdateExternalAuthProviderReq,
+    CreateAdminUserReq, CreateExternalAuthProviderReq, CreateUserInvitationReq,
+    ExecuteConfigActionReq, ExecuteConfigActionResp, ExternalAuthProviderTestParamsReq,
+    RemovedCountResponse, SetConfigReq, UpdateAdminUserReq, UpdateExternalAuthProviderReq,
 };
 pub use auth::{
-    CheckResp, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq, PasskeyLoginStartReq,
-    PasskeyRegisterFinishReq, PasskeyRegisterStartReq, PatchPasskeyReq, RefreshReq, RegisterReq,
-    SetupReq, UpdateAvatarSourceReq, UpdateProfileReq,
+    AcceptUserInvitationReq, ActionMessageResp, ChangePasswordReq, CheckResp,
+    ContactVerificationConfirmQuery, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq,
+    PasskeyLoginStartReq, PasskeyRegisterFinishReq, PasskeyRegisterStartReq,
+    PasswordResetConfirmReq, PasswordResetRequestReq, PatchPasskeyReq, RefreshReq, RegisterReq,
+    RequestEmailChangeReq, ResendRegisterActivationReq, SetupReq, UpdateAvatarSourceReq,
+    UpdateProfileReq,
 };
 pub use external_auth::{ExternalAuthCallbackQuery, StartExternalAuthReq};
 pub use textures::BindMinecraftTextureReq;

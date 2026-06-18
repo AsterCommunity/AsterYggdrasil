@@ -7,10 +7,13 @@ import { authRoutes } from "@/routes/authRoutes";
 import { AuthenticatedGate } from "@/routes/guards/AuthenticatedGate";
 import { InitializedGate, UninitializedGate } from "@/routes/guards/InitGate";
 import { publicRoutes } from "@/routes/publicRoutes";
-import { publicPaths } from "@/routes/routePaths";
-import { publicElement } from "@/routes/routeSuspense";
+import { accountPaths, publicPaths } from "@/routes/routePaths";
+import { authElement, publicElement } from "@/routes/routeSuspense";
 
 const InitPage = lazyWithPreload(() => import("@/pages/InitPage"));
+const ForcePasswordChangePage = lazyWithPreload(
+	() => import("@/pages/ForcePasswordChangePage"),
+);
 
 export const router = createBrowserRouter([
 	{
@@ -27,7 +30,14 @@ export const router = createBrowserRouter([
 			...authRoutes,
 			{
 				element: <AuthenticatedGate />,
-				children: [...accountRoutes, ...adminRoutes],
+				children: [
+					{
+						path: accountPaths.forcePasswordChange,
+						element: authElement(<ForcePasswordChangePage />),
+					},
+					...accountRoutes,
+					...adminRoutes,
+				],
 			},
 		],
 	},

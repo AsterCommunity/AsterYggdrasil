@@ -74,11 +74,8 @@ mod tests {
             TaskRetryClass::Auto
         );
         assert_eq!(
-            default_retry_class(&AsterError::public_error_with_retryable(
-                actix_web::http::StatusCode::SERVICE_UNAVAILABLE,
-                crate::api::error_code::AsterErrorCode::RuntimeUnavailable,
-                "runtime unavailable",
-                Some(true)
+            default_retry_class(&AsterError::runtime_unavailable_retryable(
+                "runtime unavailable"
             )),
             TaskRetryClass::Auto
         );
@@ -88,8 +85,7 @@ mod tests {
             AsterError::config_error("config failed"),
             AsterError::external_auth_error("provider failed"),
             AsterError::internal_error("internal failed"),
-            AsterError::public_error(
-                actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AsterError::internal_error_code(
                 crate::api::error_code::AsterErrorCode::InternalServerError,
                 "internal failed",
             ),
@@ -105,11 +101,7 @@ mod tests {
             AsterError::auth_forbidden("forbidden"),
             AsterError::record_not_found("missing"),
             AsterError::mail_not_configured("smtp missing"),
-            AsterError::public_error(
-                actix_web::http::StatusCode::BAD_REQUEST,
-                crate::api::error_code::AsterErrorCode::ValidationFailed,
-                "bad input",
-            ),
+            AsterError::validation_failed("bad input"),
         ] {
             assert_eq!(default_retry_class(&error), TaskRetryClass::Never);
         }

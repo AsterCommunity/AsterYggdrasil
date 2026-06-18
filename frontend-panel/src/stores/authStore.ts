@@ -17,6 +17,7 @@ import type {
 	AdminUserInfo,
 	AuthTokenResponse,
 	AuthUserInfo,
+	RegisterResponse,
 	UpdateAvatarSourceRequest,
 	UpdateProfileRequest,
 	UserProfileInfo,
@@ -24,7 +25,15 @@ import type {
 
 type CachedAuthUser = Pick<
 	AuthUserInfo,
-	"id" | "profile" | "role" | "status" | "username"
+	| "email"
+	| "email_verified"
+	| "id"
+	| "must_change_password"
+	| "pending_email"
+	| "profile"
+	| "role"
+	| "status"
+	| "username"
 >;
 
 type AuthState = {
@@ -47,8 +56,17 @@ type AuthState = {
 		username: string,
 		email: string,
 		password: string,
-	) => Promise<void>;
+	) => Promise<RegisterResponse>;
 	login: (identifier: string, password: string) => Promise<void>;
+	changePassword: (
+		currentPassword: string,
+		newPassword: string,
+	) => Promise<void>;
+	acceptInvitation: (
+		token: string,
+		username: string,
+		password: string,
+	) => Promise<AuthUserInfo>;
 	loginWithPasskey: (flowId: string, credential: unknown) => Promise<void>;
 	refreshUser: () => Promise<void>;
 	updateProfile: (data: UpdateProfileRequest) => Promise<UserProfileInfo>;
@@ -88,7 +106,18 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 		return null;
 	}
 	return {
+		email: typeof source.email === "string" ? source.email : "",
+		email_verified:
+			typeof source.email_verified === "boolean"
+				? source.email_verified
+				: false,
 		id: source.id,
+		must_change_password:
+			typeof source.must_change_password === "boolean"
+				? source.must_change_password
+				: false,
+		pending_email:
+			typeof source.pending_email === "string" ? source.pending_email : null,
 		profile: source.profile ?? defaultUserProfile(),
 		username: source.username,
 		role: source.role,
@@ -99,7 +128,6 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 function cachedUserToAuthUser(user: CachedAuthUser): AuthUserInfo {
 	return {
 		...user,
-		email: "",
 		profile: user.profile ?? defaultUserProfile(),
 	};
 }
@@ -168,7 +196,9 @@ function persistExpiresAt(expiresAt: number | null) {
 	}
 }
 
-function expiresAtFromToken(response: AuthTokenResponse): number | null {
+function expiresAtFromToken(
+	response: Pick<AuthTokenResponse, "expires_in">,
+): number | null {
 	const expiresIn = Number(response.expires_in);
 	if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
 		return null;
@@ -176,7 +206,9 @@ function expiresAtFromToken(response: AuthTokenResponse): number | null {
 	return Date.now() + expiresIn * 1000;
 }
 
-function persistSession(response: AuthTokenResponse): number | null {
+function persistSession(
+	response: Pick<AuthTokenResponse, "expires_in">,
+): number | null {
 	const expiresAt = expiresAtFromToken(response);
 	persistExpiresAt(expiresAt);
 	return expiresAt;
@@ -216,7 +248,7 @@ function setAuthenticatedState(
 
 async function syncUserAfterTokenResponse(
 	set: (state: Partial<AuthState>) => void,
-	response: AuthTokenResponse,
+	response: Pick<AuthTokenResponse, "expires_in">,
 ) {
 	const expiresAt = persistSession(response);
 	const user = await authService.me();
@@ -249,7 +281,10 @@ function syncAdminUser(
 		{
 			...currentUser,
 			email: adminUser.email,
+			email_verified: Boolean(adminUser.email_verified_at),
+			pending_email: adminUser.pending_email,
 			profile: adminUser.profile,
+			must_change_password: adminUser.must_change_password,
 			role: adminUser.role,
 			status: adminUser.status,
 			username: adminUser.username,
@@ -346,11 +381,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	},
 	async register(username, email, password) {
 		const response = await authService.register({ username, email, password });
+		if (response.requires_activation) {
+			clearPersistedAuth();
+			set({
+				...authStateFromUser(null),
+				checking: false,
+				error: null,
+				errorCode: null,
+				expiresAt: null,
+				isAuthStale: false,
+			});
+			return response;
+		}
 		await syncUserAfterTokenResponse(set, response);
+		return response;
 	},
 	async login(identifier, password) {
 		const response = await authService.login({ identifier, password });
 		await syncUserAfterTokenResponse(set, response);
+	},
+	async changePassword(currentPassword, newPassword) {
+		const response = await authService.changePassword({
+			current_password: currentPassword,
+			new_password: newPassword,
+		});
+		await syncUserAfterTokenResponse(set, response);
+	},
+	async acceptInvitation(token, username, password) {
+		return await authService.acceptInvitation(token, {
+			username,
+			password,
+		});
 	},
 	async loginWithPasskey(flowId, credential) {
 		const response = await authService.finishPasskeyLogin(flowId, credential);

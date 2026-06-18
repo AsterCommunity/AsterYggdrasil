@@ -71,6 +71,17 @@ pub async fn find_by_email<C: ConnectionTrait>(db: &C, email: &str) -> Result<Op
         .map_aster_err(AsterError::database_operation)
 }
 
+pub async fn find_by_pending_email<C: ConnectionTrait>(
+    db: &C,
+    email: &str,
+) -> Result<Option<user::Model>> {
+    User::find()
+        .filter(user::Column::PendingEmail.eq(email))
+        .one(db)
+        .await
+        .map_aster_err(AsterError::database_operation)
+}
+
 pub async fn find_by_username<C: ConnectionTrait>(
     db: &C,
     username: &str,
@@ -228,6 +239,7 @@ pub struct AdminUpdateUserInput {
     pub password_hash: Option<String>,
     pub role: Option<UserRole>,
     pub status: Option<UserStatus>,
+    pub must_change_password: Option<bool>,
     pub bump_session_version: bool,
 }
 
@@ -238,6 +250,27 @@ pub async fn create<C: ConnectionTrait>(
     password_hash: &str,
     role: UserRole,
 ) -> Result<user::Model> {
+    create_with_options(
+        db,
+        username,
+        email,
+        password_hash,
+        role,
+        UserStatus::Active,
+        false,
+    )
+    .await
+}
+
+pub async fn create_with_options<C: ConnectionTrait>(
+    db: &C,
+    username: &str,
+    email: &str,
+    password_hash: &str,
+    role: UserRole,
+    status: UserStatus,
+    must_change_password: bool,
+) -> Result<user::Model> {
     let now = chrono::Utc::now();
     let public_uuid = unique_public_uuid(db).await?;
     user::ActiveModel {
@@ -246,9 +279,11 @@ pub async fn create<C: ConnectionTrait>(
         email: Set(email.to_string()),
         password_hash: Set(password_hash.to_string()),
         role: Set(role),
-        status: Set(UserStatus::Active),
+        status: Set(status),
+        must_change_password: Set(must_change_password),
         session_version: Set(1),
         email_verified_at: Set(Some(now)),
+        pending_email: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -292,6 +327,9 @@ pub async fn update_admin<C: ConnectionTrait>(
     }
     if let Some(status) = input.status {
         active.status = Set(status);
+    }
+    if let Some(must_change_password) = input.must_change_password {
+        active.must_change_password = Set(must_change_password);
     }
     if input.bump_session_version {
         active.session_version = Set(active.session_version.unwrap() + 1);

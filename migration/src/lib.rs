@@ -9,6 +9,8 @@ mod m20260615_000001_yggdrasil_profiles;
 mod m20260615_000002_minecraft_textures;
 mod m20260615_000003_passkeys;
 mod m20260616_000001_yggdrasil_token_temporary_invalidation;
+mod m20260618_000001_auth_email_registration_and_invitations;
+mod m20260618_000002_add_user_must_change_password;
 mod time;
 
 pub struct Migrator;
@@ -31,6 +33,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260615_000002_minecraft_textures::Migration),
             Box::new(m20260615_000003_passkeys::Migration),
             Box::new(m20260616_000001_yggdrasil_token_temporary_invalidation::Migration),
+            Box::new(m20260618_000001_auth_email_registration_and_invitations::Migration),
+            Box::new(m20260618_000002_add_user_must_change_password::Migration),
         ]
     }
 }

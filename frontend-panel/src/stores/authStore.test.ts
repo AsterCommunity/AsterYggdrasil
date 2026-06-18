@@ -21,6 +21,9 @@ const fullUser = {
 	id: 7,
 	username: "steve",
 	email: "steve@example.com",
+	email_verified: false,
+	must_change_password: false,
+	pending_email: null,
 	role: "admin",
 	status: "active",
 	profile: {
@@ -73,7 +76,11 @@ describe("authStore persistence", () => {
 		const raw = localStorage.getItem("asteryggdrasil-cached-user");
 		expect(raw).not.toBeNull();
 		expect(JSON.parse(raw ?? "{}")).toEqual({
+			email: "steve@example.com",
+			email_verified: false,
 			id: 7,
+			must_change_password: false,
+			pending_email: null,
 			username: "steve",
 			role: "admin",
 			status: "active",
@@ -111,7 +118,9 @@ describe("authStore persistence", () => {
 			username: "steve",
 			role: "admin",
 			status: "active",
-			email: "",
+			email: "steve@example.com",
+			must_change_password: false,
+			pending_email: null,
 			profile: {
 				display_name: null,
 				avatar: {

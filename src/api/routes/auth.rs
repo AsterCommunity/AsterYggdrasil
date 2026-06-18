@@ -4,10 +4,14 @@ mod cookies;
 
 use crate::api::cache::conditional_bytes_response;
 use crate::api::dto::{
-    CheckResp, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq, PasskeyLoginStartReq,
-    PasskeyRegisterFinishReq, PasskeyRegisterStartReq, PatchPasskeyReq, RefreshReq, RegisterReq,
-    RemovedCountResponse, SetupReq, UpdateAvatarSourceReq, UpdateProfileReq, validate_request,
+    AcceptUserInvitationReq, ActionMessageResp, ChangePasswordReq, CheckResp,
+    ContactVerificationConfirmQuery, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq,
+    PasskeyLoginStartReq, PasskeyRegisterFinishReq, PasskeyRegisterStartReq,
+    PasswordResetConfirmReq, PasswordResetRequestReq, PatchPasskeyReq, RefreshReq, RegisterReq,
+    RemovedCountResponse, RequestEmailChangeReq, ResendRegisterActivationReq, SetupReq,
+    UpdateAvatarSourceReq, UpdateProfileReq, validate_request,
 };
+use crate::api::error_code::AsterErrorCode;
 use crate::api::middleware::csrf::{self, RequestSourceMode};
 use crate::api::pagination::LimitOffsetQuery;
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -17,7 +21,10 @@ use crate::api::response::ApiResponse;
 use crate::config::auth_runtime::RuntimeAuthPolicy;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, passkey_service, profile_service};
+use crate::services::{
+    audit_service, auth_service, passkey_service, profile_service, user_invitation_service,
+};
+use crate::types::VerificationPurpose;
 use crate::utils::numbers::u64_to_i64;
 use actix_multipart::Multipart;
 use actix_web::http::header;
@@ -35,10 +42,37 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/check", web::get().to(check))
             .route("/setup", web::post().to(setup))
             .route("/register", web::post().to(register))
+            .route(
+                "/register/resend",
+                web::post().to(resend_register_activation),
+            )
+            .route(
+                "/contact-verification/confirm",
+                web::get().to(confirm_contact_verification),
+            )
+            .service(
+                web::scope("/password/reset")
+                    .route("/request", web::post().to(request_password_reset))
+                    .route("/confirm", web::post().to(confirm_password_reset)),
+            )
+            .route("/password", web::put().to(change_password))
+            .route(
+                "/invitations/{token}",
+                web::get().to(verify_user_invitation),
+            )
+            .route(
+                "/invitations/{token}/accept",
+                web::post().to(accept_user_invitation),
+            )
             .route("/login", web::post().to(login))
             .route("/refresh", web::post().to(refresh))
             .route("/logout", web::post().to(logout))
             .route("/me", web::get().to(me))
+            .service(
+                web::scope("/email/change")
+                    .route("", web::post().to(request_email_change))
+                    .route("/resend", web::post().to(resend_email_change)),
+            )
             .route("/profile", web::patch().to(patch_profile))
             .route("/profile/avatar/upload", web::post().to(upload_avatar))
             .route("/profile/avatar/source", web::put().to(put_avatar_source))
@@ -218,7 +252,7 @@ pub async fn setup(
     operation_id = "register",
     request_body = RegisterReq,
     responses(
-        (status = 200, description = "User account created and session cookies issued", body = inline(ApiResponse<auth_service::AuthTokenResponse>)),
+        (status = 200, description = "User account created; session cookies are issued when activation is not required", body = inline(ApiResponse<auth_service::RegisterResponse>)),
         (status = 400, description = "Input is invalid"),
         (status = 403, description = "Registration is disabled"),
     ),
@@ -241,8 +275,366 @@ pub async fn register(
         &req,
     )
     .await?;
-    tracing::debug!(user_id = data.user.id, "auth register request completed");
-    authenticated_response(state.get_ref(), data)
+    match data {
+        auth_service::RegisterOutcome::Authenticated(session) => {
+            tracing::debug!(user_id = session.user.id, "auth register request completed");
+            let body = auth_service::RegisterResponse {
+                expires_in: session.expires_in,
+                requires_activation: false,
+            };
+            authenticated_response_with_body(state.get_ref(), session, body)
+        }
+        auth_service::RegisterOutcome::PendingActivation(user) => {
+            tracing::debug!(
+                user_id = user.id,
+                "auth register request completed pending activation"
+            );
+            Ok(HttpResponse::Ok().json(ApiResponse::ok(
+                auth_service::RegisterOutcome::PendingActivation(user).response(),
+            )))
+        }
+    }
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/register/resend",
+    tag = "auth",
+    operation_id = "resend_register_activation",
+    request_body = ResendRegisterActivationReq,
+    responses(
+        (status = 200, description = "Activation resend request accepted", body = inline(ApiResponse<ActionMessageResp>)),
+    ),
+)]
+pub async fn resend_register_activation(
+    state: web::Data<AppState>,
+    body: web::Json<ResendRegisterActivationReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    auth_service::resend_register_activation(state.get_ref(), &body.identifier).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(ActionMessageResp {
+        message: "If the account can be reactivated, an activation email will be sent".to_string(),
+    })))
+}
+
+#[derive(Clone, Copy)]
+enum ContactVerificationRedirectStatus {
+    EmailChanged,
+    Expired,
+    Invalid,
+    Missing,
+    RegisterActivated,
+}
+
+impl ContactVerificationRedirectStatus {
+    fn as_query_value(self) -> &'static str {
+        match self {
+            Self::EmailChanged => "email-changed",
+            Self::Expired => "expired",
+            Self::Invalid => "invalid",
+            Self::Missing => "missing",
+            Self::RegisterActivated => "register-activated",
+        }
+    }
+}
+
+async fn request_has_active_access_session(state: &AppState, req: &HttpRequest) -> bool {
+    auth_service::current_user(state, req).await.is_ok()
+}
+
+fn contact_verification_redirect_url(
+    path: &str,
+    status: ContactVerificationRedirectStatus,
+    email: Option<&str>,
+) -> String {
+    let mut location = format!("{path}?contact_verification={}", status.as_query_value());
+    if let Some(email) = email {
+        location.push_str("&email=");
+        location.push_str(&urlencoding::encode(email));
+    }
+    location
+}
+
+fn contact_verification_redirect_response(
+    path: &str,
+    status: ContactVerificationRedirectStatus,
+    email: Option<&str>,
+) -> HttpResponse {
+    HttpResponse::Found()
+        .append_header((
+            header::LOCATION,
+            contact_verification_redirect_url(path, status, email),
+        ))
+        .finish()
+}
+
+#[api_docs_macros::path(
+    get,
+    path = "/api/v1/auth/contact-verification/confirm",
+    tag = "auth",
+    operation_id = "confirm_contact_verification",
+    params(ContactVerificationConfirmQuery),
+    responses((status = 302, description = "Verification consumed and browser redirected")),
+)]
+pub async fn confirm_contact_verification(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<ContactVerificationConfirmQuery>,
+) -> Result<HttpResponse> {
+    let has_active_session = request_has_active_access_session(state.get_ref(), &req).await;
+    let fallback_path = if has_active_session {
+        "/settings/security"
+    } else {
+        "/login"
+    };
+    let Some(token) = query
+        .token
+        .as_deref()
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+    else {
+        return Ok(contact_verification_redirect_response(
+            fallback_path,
+            ContactVerificationRedirectStatus::Missing,
+            None,
+        ));
+    };
+
+    let result = match auth_service::confirm_contact_verification(state.get_ref(), token).await {
+        Ok(result) => result,
+        Err(error) if error.api_error_code() == AsterErrorCode::ContactVerificationInvalid => {
+            return Ok(contact_verification_redirect_response(
+                fallback_path,
+                ContactVerificationRedirectStatus::Invalid,
+                None,
+            ));
+        }
+        Err(error) if error.api_error_code() == AsterErrorCode::ContactVerificationExpired => {
+            return Ok(contact_verification_redirect_response(
+                fallback_path,
+                ContactVerificationRedirectStatus::Expired,
+                None,
+            ));
+        }
+        Err(error) => return Err(error),
+    };
+
+    let audit_ctx = audit_service::AuditContext::from_request(&req, result.user_id);
+    let action = match result.purpose {
+        VerificationPurpose::RegisterActivation => {
+            audit_service::AuditAction::UserConfirmRegistration
+        }
+        VerificationPurpose::ContactChange => audit_service::AuditAction::UserConfirmEmailChange,
+        VerificationPurpose::PasswordReset => audit_service::AuditAction::UserConfirmPasswordReset,
+    };
+    audit_service::log(
+        state.get_ref(),
+        &audit_ctx,
+        action,
+        audit_service::AuditEntityType::User,
+        Some(result.user_id),
+        None,
+        None,
+    )
+    .await;
+
+    let (path, status, email) = match result.purpose {
+        VerificationPurpose::RegisterActivation if has_active_session => (
+            "/settings/security",
+            ContactVerificationRedirectStatus::RegisterActivated,
+            None,
+        ),
+        VerificationPurpose::RegisterActivation => (
+            "/login",
+            ContactVerificationRedirectStatus::RegisterActivated,
+            None,
+        ),
+        VerificationPurpose::ContactChange if has_active_session => (
+            "/settings/security",
+            ContactVerificationRedirectStatus::EmailChanged,
+            Some(result.target.as_str()),
+        ),
+        VerificationPurpose::ContactChange => (
+            "/login",
+            ContactVerificationRedirectStatus::EmailChanged,
+            Some(result.target.as_str()),
+        ),
+        VerificationPurpose::PasswordReset => (
+            fallback_path,
+            ContactVerificationRedirectStatus::Invalid,
+            None,
+        ),
+    };
+
+    Ok(contact_verification_redirect_response(path, status, email))
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/password/reset/request",
+    tag = "auth",
+    operation_id = "request_password_reset",
+    request_body = PasswordResetRequestReq,
+    responses(
+        (status = 200, description = "Password reset request accepted", body = inline(ApiResponse<ActionMessageResp>)),
+        (status = 400, description = "Invalid email input"),
+    ),
+)]
+pub async fn request_password_reset(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    body: web::Json<PasswordResetRequestReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let result = auth_service::request_password_reset(state.get_ref(), &body.email).await?;
+    if let Some(user) = result.user {
+        let audit_ctx = audit_service::AuditContext::from_request(&req, user.id);
+        audit_service::log(
+            state.get_ref(),
+            &audit_ctx,
+            audit_service::AuditAction::UserRequestPasswordReset,
+            audit_service::AuditEntityType::User,
+            Some(user.id),
+            Some(&user.username),
+            None,
+        )
+        .await;
+    }
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(ActionMessageResp {
+        message: "If the account is eligible, a password reset email will be sent".to_string(),
+    })))
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/password/reset/confirm",
+    tag = "auth",
+    operation_id = "confirm_password_reset",
+    request_body = PasswordResetConfirmReq,
+    responses(
+        (status = 200, description = "Password reset successful", body = inline(ApiResponse<ActionMessageResp>)),
+        (status = 400, description = "Invalid token or password"),
+        (status = 410, description = "Reset token expired"),
+    ),
+)]
+pub async fn confirm_password_reset(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    body: web::Json<PasswordResetConfirmReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let user =
+        auth_service::confirm_password_reset(state.get_ref(), &body.token, &body.new_password)
+            .await?;
+    let audit_ctx = audit_service::AuditContext::from_request(&req, user.id);
+    audit_service::log(
+        state.get_ref(),
+        &audit_ctx,
+        audit_service::AuditAction::UserConfirmPasswordReset,
+        audit_service::AuditEntityType::User,
+        Some(user.id),
+        Some(&user.username),
+        None,
+    )
+    .await;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(ActionMessageResp {
+        message: "Password reset successful".to_string(),
+    })))
+}
+
+#[api_docs_macros::path(
+    put,
+    path = "/api/v1/auth/password",
+    tag = "auth",
+    operation_id = "change_password",
+    request_body = ChangePasswordReq,
+    responses(
+        (status = 200, description = "Password updated and fresh session cookies issued", body = inline(ApiResponse<auth_service::AuthTokenResponse>)),
+        (status = 400, description = "Invalid new password"),
+        (status = 401, description = "Current password is invalid"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn change_password(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    body: web::Json<ChangePasswordReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    if access_cookie_token(&req).is_some() {
+        ensure_cookie_write_allowed(state.get_ref(), &req)?;
+    }
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let updated = auth_service::change_password_with_audit(
+        state.get_ref(),
+        &req,
+        user.id,
+        &body.current_password,
+        &body.new_password,
+    )
+    .await?;
+    let session = auth_service::issue_tokens_for_user_id(state.get_ref(), updated.id, &req).await?;
+    authenticated_response(state.get_ref(), session)
+}
+
+#[api_docs_macros::path(
+    get,
+    path = "/api/v1/auth/invitations/{token}",
+    tag = "auth",
+    operation_id = "verify_user_invitation",
+    params(("token" = String, Path, description = "Invitation token")),
+    responses(
+        (status = 200, description = "Invitation is valid", body = inline(ApiResponse<crate::services::user_invitation_service::PublicUserInvitationInfo>)),
+        (status = 400, description = "Invalid invitation"),
+    ),
+)]
+pub async fn verify_user_invitation(
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse> {
+    let info = user_invitation_service::verify_public_invitation(state.get_ref(), &path).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/invitations/{token}/accept",
+    tag = "auth",
+    operation_id = "accept_user_invitation",
+    params(("token" = String, Path, description = "Invitation token")),
+    request_body = AcceptUserInvitationReq,
+    responses(
+        (status = 201, description = "Invitation accepted", body = inline(ApiResponse<auth_service::AuthUserInfo>)),
+        (status = 400, description = "Invalid invitation or validation error"),
+    ),
+)]
+pub async fn accept_user_invitation(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AcceptUserInvitationReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let user = user_invitation_service::accept_invitation(
+        state.get_ref(),
+        &path,
+        &body.username,
+        &body.password,
+    )
+    .await?;
+    let audit_ctx = audit_service::AuditContext::from_request(&req, user.id);
+    audit_service::log(
+        state.get_ref(),
+        &audit_ctx,
+        audit_service::AuditAction::UserRegister,
+        audit_service::AuditEntityType::User,
+        Some(user.id),
+        Some(&user.username),
+        None,
+    )
+    .await;
+    let user_info = auth_service::auth_user_info(state.get_ref(), user).await?;
+    Ok(HttpResponse::Created().json(ApiResponse::ok(user_info)))
 }
 
 #[api_docs_macros::path(
@@ -369,6 +761,85 @@ pub async fn me(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResp
     let info = auth_service::auth_user_info(state.get_ref(), user).await?;
     tracing::debug!(user_id = info.id, "auth me request completed");
     Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/email/change",
+    tag = "auth",
+    operation_id = "request_email_change",
+    request_body = RequestEmailChangeReq,
+    responses(
+        (status = 200, description = "Email change requested", body = inline(ApiResponse<auth_service::AuthUserInfo>)),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Missing or invalid access token"),
+        (status = 403, description = "Account pending activation"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn request_email_change(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    body: web::Json<RequestEmailChangeReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    if access_cookie_token(&req).is_some() {
+        ensure_cookie_write_allowed(state.get_ref(), &req)?;
+    }
+    let info =
+        auth_service::request_email_change(state.get_ref(), user.id, &body.new_email).await?;
+    let audit_ctx = audit_service::AuditContext::from_request(&req, user.id);
+    audit_service::log(
+        state.get_ref(),
+        &audit_ctx,
+        audit_service::AuditAction::UserRequestEmailChange,
+        audit_service::AuditEntityType::User,
+        Some(user.id),
+        Some(&user.username),
+        None,
+    )
+    .await;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/email/change/resend",
+    tag = "auth",
+    operation_id = "resend_email_change",
+    responses(
+        (status = 200, description = "Email change confirmation resend request accepted", body = inline(ApiResponse<ActionMessageResp>)),
+        (status = 400, description = "No pending email change"),
+        (status = 401, description = "Missing or invalid access token"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn resend_email_change(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+) -> Result<HttpResponse> {
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    if access_cookie_token(&req).is_some() {
+        ensure_cookie_write_allowed(state.get_ref(), &req)?;
+    }
+    let result = auth_service::resend_email_change(state.get_ref(), user.id).await?;
+    if let Some(info) = result {
+        let audit_ctx = audit_service::AuditContext::from_request(&req, info.id);
+        audit_service::log(
+            state.get_ref(),
+            &audit_ctx,
+            audit_service::AuditAction::UserResendEmailChange,
+            audit_service::AuditEntityType::User,
+            Some(info.id),
+            Some(&info.username),
+            None,
+        )
+        .await;
+    }
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(ActionMessageResp {
+        message: "If an email change is pending, a confirmation email will be sent".to_string(),
+    })))
 }
 
 #[api_docs_macros::path(

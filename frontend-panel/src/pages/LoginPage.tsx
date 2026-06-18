@@ -2,18 +2,37 @@ import { type FormEvent, useEffect, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { z } from "zod/v4";
 import { LoginEntryFooter } from "@/components/auth/LoginEntryFooter";
-import { LoginFormCard } from "@/components/auth/LoginFormCard";
+import {
+	LoginFormCard,
+	type LoginFormCardProps,
+} from "@/components/auth/LoginFormCard";
 import { LoginHero } from "@/components/auth/LoginHero";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import {
+	clearContactVerificationRedirectSearch,
+	getContactVerificationRedirectState,
+} from "@/lib/contactVerificationRedirect";
+import {
+	clearPasswordResetRedirectSearch,
+	getPasswordResetRedirectState,
+} from "@/lib/passwordResetRedirect";
+import {
+	confirmPasswordRequiredSchema,
+	emailSchema,
+	existingPasswordSchema,
+	passwordSchema,
+	usernameSchema,
+} from "@/lib/validation";
 import {
 	getPasskeyCredential,
 	isWebAuthnSupported,
 	WebAuthnCancelledError,
 	WebAuthnUnsupportedError,
 } from "@/lib/webauthn";
-import { accountPaths } from "@/routes/routePaths";
+import { accountPaths, publicPaths } from "@/routes/routePaths";
 import { authService } from "@/services/authService";
 import { externalAuthService } from "@/services/externalAuthService";
 import { formatUnknownError } from "@/services/http";
@@ -38,6 +57,7 @@ type LoginFormState = {
 	email: string;
 	password: string;
 	confirmPassword: string;
+	errors: LoginFormErrors;
 	showPassword: boolean;
 	acceptedTerms: boolean;
 	providers: ExternalAuthPublicProvider[];
@@ -45,6 +65,16 @@ type LoginFormState = {
 	loading: boolean;
 	passkeySubmitting: boolean;
 };
+
+type LoginFormField =
+	| "identifier"
+	| "username"
+	| "email"
+	| "password"
+	| "confirmPassword"
+	| "acceptedTerms";
+
+type LoginFormErrors = Partial<Record<LoginFormField, string>>;
 
 type LoginFormAction =
 	| {
@@ -59,6 +89,8 @@ type LoginFormAction =
 	  }
 	| { type: "togglePassword" }
 	| { type: "acceptedTerms"; value: boolean }
+	| { type: "errors"; value: LoginFormErrors }
+	| { type: "fieldError"; field: LoginFormField; message: string | null }
 	| { type: "providers"; value: ExternalAuthPublicProvider[] }
 	| { type: "externalLoadingKey"; value: string | null }
 	| { type: "loading"; value: boolean }
@@ -71,11 +103,31 @@ function loginFormReducer(
 ): LoginFormState {
 	switch (action.type) {
 		case "field":
-			return { ...state, [action.name]: action.value };
+			return {
+				...state,
+				[action.name]: action.value,
+				errors: omitFormError(state.errors, action.name),
+			};
 		case "togglePassword":
 			return { ...state, showPassword: !state.showPassword };
 		case "acceptedTerms":
-			return { ...state, acceptedTerms: action.value };
+			return {
+				...state,
+				acceptedTerms: action.value,
+				errors: action.value
+					? omitFormError(state.errors, "acceptedTerms")
+					: state.errors,
+			};
+		case "errors":
+			return { ...state, errors: action.value };
+		case "fieldError":
+			return {
+				...state,
+				errors:
+					action.message === null
+						? omitFormError(state.errors, action.field)
+						: { ...state.errors, [action.field]: action.message },
+			};
 		case "providers":
 			return { ...state, providers: action.value };
 		case "externalLoadingKey":
@@ -85,7 +137,12 @@ function loginFormReducer(
 		case "passkeySubmitting":
 			return { ...state, passkeySubmitting: action.value };
 		case "resetAccountOptions":
-			return { ...state, confirmPassword: "", acceptedTerms: false };
+			return {
+				...state,
+				confirmPassword: "",
+				acceptedTerms: false,
+				errors: {},
+			};
 	}
 }
 
@@ -95,6 +152,7 @@ const initialLoginFormState: LoginFormState = {
 	email: "",
 	password: "",
 	confirmPassword: "",
+	errors: {},
 	showPassword: false,
 	acceptedTerms: false,
 	providers: [],
@@ -103,9 +161,65 @@ const initialLoginFormState: LoginFormState = {
 	passkeySubmitting: false,
 };
 
-export default function LoginPage() {
+const loginFormSchema = z.object({
+	identifier: z.string().trim().min(1, "login.validationIdentifierRequired"),
+	password: z.string().min(1, "login.validationPasswordRequired"),
+});
+
+const loginIdentifierSchema = loginFormSchema.shape.identifier;
+
+const registerFormSchema = z
+	.object({
+		username: usernameSchema,
+		email: emailSchema,
+		password: passwordSchema,
+		confirmPassword: confirmPasswordRequiredSchema,
+		acceptedTerms: z.literal(true, {
+			error: "login.validationAcceptTerms",
+		}),
+	})
+	.refine((value) => value.password === value.confirmPassword, {
+		path: ["confirmPassword"],
+		message: "login.passwordMismatch",
+	});
+
+function omitFormError(
+	errors: LoginFormErrors,
+	field: LoginFormField,
+): LoginFormErrors {
+	if (!errors[field]) return errors;
+	const nextErrors = { ...errors };
+	delete nextErrors[field];
+	return nextErrors;
+}
+
+function zodErrorToFormErrors(error: z.ZodError): LoginFormErrors {
+	const nextErrors: LoginFormErrors = {};
+	for (const issue of error.issues) {
+		const field = issue.path[0];
+		if (
+			field === "identifier" ||
+			field === "username" ||
+			field === "email" ||
+			field === "password" ||
+			field === "confirmPassword" ||
+			field === "acceptedTerms"
+		) {
+			nextErrors[field] = issue.message;
+		}
+	}
+	return nextErrors;
+}
+
+function firstZodIssueMessage(result: z.ZodSafeParseResult<unknown>) {
+	return result.success ? null : (result.error.issues[0]?.message ?? "");
+}
+
+function useLoginPageController() {
 	const { t } = useTranslation();
 	const location = useLocation();
+	const locationSearch = location.search;
+	const locationPathname = location.pathname;
 	const [form, dispatch] = useReducer(loginFormReducer, initialLoginFormState);
 	const {
 		identifier,
@@ -113,6 +227,7 @@ export default function LoginPage() {
 		email,
 		password,
 		confirmPassword,
+		errors,
 		showPassword,
 		acceptedTerms,
 		providers,
@@ -150,21 +265,170 @@ export default function LoginPage() {
 		return () => controller.abort();
 	}, []);
 
+	useEffect(() => {
+		const contactVerification =
+			getContactVerificationRedirectState(locationSearch);
+		const passwordReset = getPasswordResetRedirectState(locationSearch);
+		if (!contactVerification && !passwordReset) return;
+
+		if (contactVerification?.status === "register-activated") {
+			toast.success(t("login.activationSuccess"));
+		} else if (contactVerification?.status === "invalid") {
+			toast.error(t("login.contactVerificationInvalid"));
+		} else if (contactVerification?.status === "expired") {
+			toast.error(t("login.contactVerificationExpired"));
+		} else if (contactVerification?.status === "missing") {
+			toast.error(t("login.contactVerificationMissing"));
+		}
+
+		if (passwordReset?.status === "success") {
+			toast.success(t("login.passwordResetSuccess"));
+		}
+
+		const nextContactSearch =
+			clearContactVerificationRedirectSearch(locationSearch);
+		const nextSearch = clearPasswordResetRedirectSearch(nextContactSearch);
+		navigate(
+			{
+				pathname: locationPathname,
+				search: nextSearch,
+			},
+			{ replace: true },
+		);
+	}, [locationPathname, locationSearch, navigate, t]);
+
+	function setFieldError(field: LoginFormField, message: string | null) {
+		dispatch({ type: "fieldError", field, message });
+	}
+
+	function validateSingle(
+		field: LoginFormField,
+		value: unknown,
+		schema: z.ZodType,
+	) {
+		setFieldError(field, firstZodIssueMessage(schema.safeParse(value)));
+	}
+
+	function validateConfirmPassword(
+		nextConfirmPassword: string,
+		nextPassword: string,
+	) {
+		const requiredResult =
+			confirmPasswordRequiredSchema.safeParse(nextConfirmPassword);
+		if (!requiredResult.success) {
+			setFieldError(
+				"confirmPassword",
+				requiredResult.error.issues[0]?.message ?? "",
+			);
+			return;
+		}
+		setFieldError(
+			"confirmPassword",
+			nextConfirmPassword === nextPassword ? null : "login.passwordMismatch",
+		);
+	}
+
+	function changeIdentifier(value: string) {
+		dispatch({ type: "field", name: "identifier", value });
+		if (value.trim() || errors.identifier) {
+			validateSingle("identifier", value, loginIdentifierSchema);
+		}
+	}
+
+	function changeUsername(value: string) {
+		dispatch({ type: "field", name: "username", value });
+		validateSingle("username", value, usernameSchema);
+	}
+
+	function changeEmail(value: string) {
+		dispatch({ type: "field", name: "email", value });
+		validateSingle("email", value, emailSchema);
+	}
+
+	function changePassword(value: string) {
+		dispatch({ type: "field", name: "password", value });
+		if (isRegister) {
+			validateSingle("password", value, passwordSchema);
+			if (confirmPassword || errors.confirmPassword) {
+				validateConfirmPassword(confirmPassword, value);
+			}
+			return;
+		}
+		if (errors.password) {
+			validateSingle("password", value, existingPasswordSchema);
+		}
+	}
+
+	function changeConfirmPassword(value: string) {
+		dispatch({ type: "field", name: "confirmPassword", value });
+		validateConfirmPassword(value, password);
+	}
+
+	function changeAcceptedTerms(value: boolean) {
+		dispatch({ type: "acceptedTerms", value });
+		setFieldError(
+			"acceptedTerms",
+			value ? null : "login.validationAcceptTerms",
+		);
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		dispatch({ type: "loading", value: true });
-		try {
-			if (usesAccountCreationForm && password !== confirmPassword) {
-				toast.error(t("login.passwordMismatch"));
+		if (isRegister) {
+			const validation = registerFormSchema.safeParse({
+				username,
+				email,
+				password,
+				confirmPassword,
+				acceptedTerms,
+			});
+			if (!validation.success) {
+				dispatch({
+					type: "errors",
+					value: zodErrorToFormErrors(validation.error),
+				});
+				toast.error(t("login.validationFailed"));
 				return;
 			}
-			if (isRegister) {
-				await register(username, email, password);
+
+			dispatch({ type: "errors", value: {} });
+			dispatch({ type: "loading", value: true });
+			try {
+				const response = await register(
+					validation.data.username,
+					validation.data.email,
+					validation.data.password,
+				);
+				if (response.requires_activation) {
+					toast.success(t("login.registerActivationSent"));
+					navigate(publicPaths.login);
+					return;
+				}
 				toast.success(t("login.registerSuccess"));
-			} else {
-				await login(identifier, password);
-				toast.success(t("login.loginSuccess"));
+				navigate(accountPaths.home);
+			} catch (nextError) {
+				toast.error(formatUnknownError(nextError));
+			} finally {
+				dispatch({ type: "loading", value: false });
 			}
+			return;
+		}
+
+		const validation = loginFormSchema.safeParse({ identifier, password });
+		if (!validation.success) {
+			dispatch({
+				type: "errors",
+				value: zodErrorToFormErrors(validation.error),
+			});
+			toast.error(t("login.validationFailed"));
+			return;
+		}
+
+		dispatch({ type: "errors", value: {} });
+		dispatch({ type: "loading", value: true });
+		try {
+			await login(validation.data.identifier, validation.data.password);
+			toast.success(t("login.loginSuccess"));
 			navigate(accountPaths.home);
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
@@ -219,7 +483,7 @@ export default function LoginPage() {
 		}
 	}
 
-	const isRegister = location.pathname === "/register";
+	const isRegister = locationPathname === publicPaths.register;
 	const usesAccountCreationForm = isRegister;
 	const passwordScore = getPasswordScore(password);
 	const passwordStrengthKey =
@@ -239,27 +503,86 @@ export default function LoginPage() {
 		? t("login.registerDescription")
 		: t("login.cardDescription");
 	const submitLabel = isRegister ? t("login.registerNow") : t("nav.login");
-	const submitDisabled =
-		loading ||
-		(usesAccountCreationForm
-			? !username.trim() ||
-				!email.trim() ||
-				!password ||
-				!confirmPassword ||
-				password !== confirmPassword ||
-				(isRegister && !acceptedTerms)
-			: !identifier.trim() || !password);
+	const canSubmit = isRegister
+		? registerFormSchema.safeParse({
+				username,
+				email,
+				password,
+				confirmPassword,
+				acceptedTerms,
+			}).success
+		: loginFormSchema.safeParse({ identifier, password }).success;
+	const submitDisabled = loading || !canSubmit;
 	const brandTitle = branding.title || t("brand.name");
 	const visibleProviders = providers.slice(0, 3);
 	const showPasskeyLogin = !usesAccountCreationForm && passkeyLoginEnabled;
 
 	usePageTitle(cardTitle);
 
+	const formCardProps: LoginFormCardProps = {
+		isRegister,
+		usesAccountCreationForm,
+		cardTitle,
+		cardDescription,
+		identifier,
+		username,
+		email,
+		password,
+		confirmPassword,
+		errors,
+		showPassword,
+		acceptedTerms,
+		visibleProviders,
+		externalLoadingKey,
+		loading,
+		passkeySubmitting,
+		passkeySupported,
+		showPasskeyLogin,
+		submitDisabled,
+		submitLabel,
+		passwordScore,
+		passwordStrengthLabel: t(passwordStrengthKey),
+		allowUserRegistration,
+		onSubmit: submit,
+		onIdentifierChange: changeIdentifier,
+		onUsernameChange: changeUsername,
+		onEmailChange: changeEmail,
+		onPasswordChange: changePassword,
+		onConfirmPasswordChange: changeConfirmPassword,
+		onToggleShowPassword: () => dispatch({ type: "togglePassword" }),
+		onAcceptedTermsChange: changeAcceptedTerms,
+		onPasskeyLogin: () => void startPasskeyLogin(),
+		onExternalLogin: (provider) => void startExternalLogin(provider),
+		onResetAccountOptions: () => dispatch({ type: "resetAccountOptions" }),
+	};
+
+	return {
+		branding,
+		brandTitle,
+		description,
+		formCardProps,
+		headline,
+		isRegister,
+		tagline: t("brand.tagline"),
+	};
+}
+
+export default function LoginPage() {
+	const {
+		branding,
+		brandTitle,
+		description,
+		formCardProps,
+		headline,
+		isRegister,
+		tagline,
+	} = useLoginPageController();
+
 	return (
 		<PublicEntryShell
 			branding={branding}
 			title={brandTitle}
-			tagline={t("brand.tagline")}
+			tagline={tagline}
 			variant="auth"
 		>
 			<main className="app-route-transition mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-8 sm:px-8 lg:px-12 xl:grid-cols-[minmax(560px,1fr)_minmax(430px,520px)]">
@@ -268,55 +591,7 @@ export default function LoginPage() {
 					headline={headline}
 					description={description}
 				/>
-				<LoginFormCard
-					isRegister={isRegister}
-					usesAccountCreationForm={usesAccountCreationForm}
-					cardTitle={cardTitle}
-					cardDescription={cardDescription}
-					identifier={identifier}
-					username={username}
-					email={email}
-					password={password}
-					confirmPassword={confirmPassword}
-					showPassword={showPassword}
-					acceptedTerms={acceptedTerms}
-					visibleProviders={visibleProviders}
-					externalLoadingKey={externalLoadingKey}
-					loading={loading}
-					passkeySubmitting={passkeySubmitting}
-					passkeySupported={passkeySupported}
-					showPasskeyLogin={showPasskeyLogin}
-					submitDisabled={submitDisabled}
-					submitLabel={submitLabel}
-					passwordScore={passwordScore}
-					passwordStrengthLabel={t(passwordStrengthKey)}
-					allowUserRegistration={allowUserRegistration}
-					onSubmit={submit}
-					onIdentifierChange={(value) =>
-						dispatch({ type: "field", name: "identifier", value })
-					}
-					onUsernameChange={(value) =>
-						dispatch({ type: "field", name: "username", value })
-					}
-					onEmailChange={(value) =>
-						dispatch({ type: "field", name: "email", value })
-					}
-					onPasswordChange={(value) =>
-						dispatch({ type: "field", name: "password", value })
-					}
-					onConfirmPasswordChange={(value) =>
-						dispatch({ type: "field", name: "confirmPassword", value })
-					}
-					onToggleShowPassword={() => dispatch({ type: "togglePassword" })}
-					onAcceptedTermsChange={(value) =>
-						dispatch({ type: "acceptedTerms", value })
-					}
-					onPasskeyLogin={() => void startPasskeyLogin()}
-					onExternalLogin={(provider) => void startExternalLogin(provider)}
-					onResetAccountOptions={() =>
-						dispatch({ type: "resetAccountOptions" })
-					}
-				/>
+				<LoginFormCard {...formCardProps} />
 			</main>
 
 			<LoginEntryFooter brandTitle={brandTitle} />

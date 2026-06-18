@@ -1,28 +1,47 @@
 //! Local authentication and session service.
 
+mod password_change;
+mod token_scope;
+
 use crate::api::error_code::AsterErrorCode;
 use crate::api::pagination::{AdminUserSortBy, OffsetPage, SortOrder};
 use crate::config::site_url::{PUBLIC_SITE_URL_KEY, normalize_public_site_url_config_value};
-use crate::db::repository::{auth_session_repo, system_config_repo, user_repo};
-use crate::entities::{auth_session, user};
+use crate::db::repository::{
+    auth_session_repo, contact_verification_token_repo, system_config_repo, user_repo,
+};
+use crate::entities::{auth_session, contact_verification_token, user};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
-use crate::services::audit_service;
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
-use crate::types::{AvatarSource, TokenType, UserRole, UserStatus};
+use crate::services::{
+    audit_service, mail_outbox_service, mail_service, mail_template::MailTemplatePayload,
+};
+use crate::types::{
+    AvatarSource, TokenType, UserRole, UserStatus, VerificationChannel, VerificationPurpose,
+};
 use crate::utils::email::normalize_email;
-use crate::utils::hash::{hash_password, verify_password};
+use crate::utils::hash::{self, hash_password, verify_password};
 use crate::utils::numbers::{i64_to_u64, u64_to_i64, u64_to_usize};
 use actix_web::HttpRequest;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use sea_orm::{ActiveValue::Set, ConnectionTrait};
+use rand::RngExt;
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, IntoActiveModel};
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 const SUPER_ADMIN_USER_ID: i64 = 1;
+const GENERATED_PASSWORD_LENGTH: usize = 24;
+const GENERATED_PASSWORD_UPPERCASE: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
+const GENERATED_PASSWORD_LOWERCASE: &[u8] = b"abcdefghijkmnopqrstuvwxyz";
+const GENERATED_PASSWORD_DIGITS: &[u8] = b"23456789";
+const GENERATED_PASSWORD_SYMBOLS: &[u8] = b"!@#$%^&*-_+=";
+const GENERATED_PASSWORD_CHARSET: &[u8] =
+    b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*-_+=";
+
+pub use password_change::{change_password, change_password_with_audit};
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -30,8 +49,11 @@ pub struct AuthUserInfo {
     pub id: i64,
     pub username: String,
     pub email: String,
+    pub email_verified: bool,
+    pub pending_email: Option<String>,
     pub role: UserRole,
     pub status: UserStatus,
+    pub must_change_password: bool,
     pub profile: UserProfileInfo,
 }
 
@@ -41,8 +63,10 @@ pub struct AdminUserInfo {
     pub id: i64,
     pub username: String,
     pub email: String,
+    pub pending_email: Option<String>,
     pub role: UserRole,
     pub status: UserStatus,
+    pub must_change_password: bool,
     pub session_version: i64,
     pub profile_count: u64,
     pub active_session_count: u64,
@@ -55,11 +79,52 @@ pub struct AdminUserInfo {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct CreateAdminUserOutput {
+    pub user: AdminUserInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_password: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdminUpdateUserInput {
+    pub username: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub role: Option<UserRole>,
+    pub status: Option<UserStatus>,
+    pub must_change_password: Option<bool>,
+}
+
 #[derive(Debug, Clone)]
 pub struct AdminUserListFilters {
     pub keyword: Option<String>,
     pub role: Option<UserRole>,
     pub status: Option<UserStatus>,
+}
+
+fn generate_temporary_password() -> String {
+    let mut rng = rand::rng();
+    let mut bytes = Vec::with_capacity(GENERATED_PASSWORD_LENGTH);
+    for charset in [
+        GENERATED_PASSWORD_UPPERCASE,
+        GENERATED_PASSWORD_LOWERCASE,
+        GENERATED_PASSWORD_DIGITS,
+        GENERATED_PASSWORD_SYMBOLS,
+    ] {
+        let index = rng.random_range(0..charset.len());
+        bytes.push(charset[index]);
+    }
+    while bytes.len() < GENERATED_PASSWORD_LENGTH {
+        let index = rng.random_range(0..GENERATED_PASSWORD_CHARSET.len());
+        bytes.push(GENERATED_PASSWORD_CHARSET[index]);
+    }
+    for index in (1..bytes.len()).rev() {
+        let swap_index = rng.random_range(0..=index);
+        bytes.swap(index, swap_index);
+    }
+    bytes.into_iter().map(char::from).collect()
 }
 
 impl From<user::Model> for AuthUserInfo {
@@ -68,8 +133,11 @@ impl From<user::Model> for AuthUserInfo {
             id: value.id,
             username: value.username,
             email: value.email,
+            email_verified: value.email_verified_at.is_some(),
+            pending_email: value.pending_email,
             role: value.role,
             status: value.status,
+            must_change_password: value.must_change_password,
             profile: default_user_profile_info(),
         }
     }
@@ -96,16 +164,28 @@ where
         id: user.id,
         username: user.username,
         email: user.email,
+        email_verified: user.email_verified_at.is_some(),
+        pending_email: user.pending_email,
         role: user.role,
         status: user.status,
+        must_change_password: user.must_change_password,
         profile,
     })
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum AuthTokenStatus {
+    Authenticated,
+    PasswordChangeRequired,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct AuthTokenResponse {
     pub expires_in: u64,
+    pub status: AuthTokenStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +193,44 @@ pub struct AuthTokenBundle {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: u64,
+    pub status: AuthTokenStatus,
     pub user: AuthUserInfo,
+}
+
+#[derive(Debug, Clone)]
+pub enum RegisterOutcome {
+    Authenticated(AuthTokenBundle),
+    PendingActivation(AuthUserInfo),
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct RegisterResponse {
+    pub expires_in: u64,
+    pub requires_activation: bool,
+}
+
+impl RegisterOutcome {
+    pub fn response(&self) -> RegisterResponse {
+        match self {
+            Self::Authenticated(bundle) => RegisterResponse {
+                expires_in: bundle.expires_in,
+                requires_activation: false,
+            },
+            Self::PendingActivation(_) => RegisterResponse {
+                expires_in: 0,
+                requires_activation: true,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct ContactVerificationConfirmResult {
+    pub purpose: VerificationPurpose,
+    pub user_id: i64,
+    pub target: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -168,6 +285,7 @@ impl AuthTokenBundle {
     pub fn response(&self) -> AuthTokenResponse {
         AuthTokenResponse {
             expires_in: self.expires_in,
+            status: self.status,
         }
     }
 }
@@ -179,6 +297,8 @@ pub struct AccessClaims {
     pub user_id: i64,
     pub session_version: i64,
     pub jti: Option<String>,
+    #[serde(default)]
+    pub password_change: bool,
     pub token_type: TokenType,
     pub exp: usize,
 }
@@ -263,7 +383,7 @@ pub async fn register<S>(
     email: &str,
     password: &str,
     req: &HttpRequest,
-) -> Result<AuthTokenBundle>
+) -> Result<RegisterOutcome>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
 {
@@ -285,14 +405,56 @@ where
     )
     .check(email)?;
 
-    let role = if user_repo::count_all(state.writer_db()).await? == 0 {
+    let is_first_user = user_repo::count_all(state.writer_db()).await? == 0;
+    let role = if is_first_user {
         UserRole::Admin
     } else {
         UserRole::User
     };
     tracing::debug!(username, role = ?role, "creating local user");
-    let user = create_user(state.writer_db(), username, email, password, role).await?;
-    let response = issue_tokens(state, user.clone(), req).await?;
+    let activation_required = auth_policy.register_activation_enabled && !is_first_user;
+    let user = if activation_required {
+        let policy =
+            crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+                state.runtime_config(),
+            );
+        let site_name = crate::config::branding::title_or_default(state.runtime_config());
+        crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+            let user = shared::create_user_with_role(
+                txn,
+                state,
+                shared::CreateUserWithRoleInput {
+                    username,
+                    email,
+                    password,
+                    role,
+                    status: UserStatus::Active,
+                    must_change_password: false,
+                    email_verified_at: None,
+                },
+            )
+            .await?;
+            let token = issue_contact_verification_token(
+                txn,
+                user.id,
+                VerificationPurpose::RegisterActivation,
+                &user.email,
+                policy.register_activation_ttl_secs,
+            )
+            .await?;
+            mail_outbox_service::enqueue(
+                txn,
+                &user.email,
+                Some(&user.username),
+                MailTemplatePayload::register_activation(&user.username, &token, &site_name),
+            )
+            .await?;
+            Ok(user)
+        })
+        .await?
+    } else {
+        create_user(state.writer_db(), username, email, password, role).await?
+    };
     let audit_ctx = audit_service::AuditContext::from_request(req, user.id);
     audit_service::log(
         state,
@@ -305,7 +467,12 @@ where
     )
     .await;
     tracing::debug!(user_id = user.id, role = ?user.role, "local user registration completed");
-    Ok(response)
+    if activation_required {
+        Ok(RegisterOutcome::PendingActivation(AuthUserInfo::from(user)))
+    } else {
+        let response = issue_tokens(state, user, req).await?;
+        Ok(RegisterOutcome::Authenticated(response))
+    }
 }
 
 pub async fn login<S>(
@@ -339,6 +506,15 @@ where
         return Err(AsterError::auth_forbidden_code(
             AsterErrorCode::AuthUserDisabled,
             "user is disabled",
+        ));
+    }
+    if !is_email_verified(&user) {
+        tracing::debug!(
+            user_id = user.id,
+            "local login rejected because email activation is pending"
+        );
+        return Err(AsterError::auth_pending_activation(
+            "account email activation is pending",
         ));
     }
     if !verify_password(password, &user.password_hash)? {
@@ -436,6 +612,13 @@ where
             "local refresh rejected because session version is stale"
         );
         return Err(AsterError::auth_token_invalid("session is stale"));
+    }
+
+    if user.must_change_password || claims.password_change {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthPasswordChangeRequired,
+            "password change required",
+        ));
     }
 
     let response = rotate_tokens(state, user.clone(), &session, req).await?;
@@ -645,10 +828,29 @@ where
 {
     let token = crate::api::request_auth::access_token(req)
         .ok_or_else(|| AsterError::auth_token_invalid("missing access token"))?;
-    current_user_from_token(state, &token).await
+    let (user, claims) = current_user_and_claims_from_token(state, &token).await?;
+    if claims.password_change && !token_scope::password_change_request_allowed(req) {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthPasswordChangeRequired,
+            "password change required",
+        ));
+    }
+    Ok(user)
 }
 
 pub async fn current_user_from_token<S>(state: &S, token: &str) -> Result<user::Model>
+where
+    S: DatabaseRuntimeState + AppConfigRuntimeState,
+{
+    current_user_and_claims_from_token(state, token)
+        .await
+        .map(|(user, _claims)| user)
+}
+
+async fn current_user_and_claims_from_token<S>(
+    state: &S,
+    token: &str,
+) -> Result<(user::Model, AccessClaims)>
 where
     S: DatabaseRuntimeState + AppConfigRuntimeState,
 {
@@ -675,8 +877,16 @@ where
         );
         return Err(AsterError::auth_token_invalid("session is stale"));
     }
+    if user.must_change_password && !claims.password_change {
+        return Err(AsterError::auth_token_invalid("password change required"));
+    }
+    if !user.must_change_password && claims.password_change {
+        return Err(AsterError::auth_token_invalid(
+            "password change session is no longer valid",
+        ));
+    }
     tracing::debug!(user_id = user.id, "current user resolved");
-    Ok(user)
+    Ok((user, claims))
 }
 
 pub async fn list_sessions<S>(
@@ -795,10 +1005,11 @@ pub async fn create_admin_user<S>(
     state: &S,
     username: &str,
     email: &str,
-    password: &str,
+    password: Option<&str>,
     role: UserRole,
     status: UserStatus,
-) -> Result<AdminUserInfo>
+    must_change_password: Option<bool>,
+) -> Result<CreateAdminUserOutput>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
@@ -808,39 +1019,54 @@ where
         status = ?status,
         "creating admin user"
     );
-    let mut user = create_user(state.writer_db(), username, email, password, role).await?;
-    if status != UserStatus::Active {
-        user = user_repo::update_admin(
-            state.writer_db(),
-            user.id,
-            user_repo::AdminUpdateUserInput {
-                status: Some(status),
-                bump_session_version: true,
-                ..Default::default()
-            },
-        )
-        .await?;
-    }
+    let explicit_password = password.map(str::trim).filter(|value| !value.is_empty());
+    let generated_password = explicit_password
+        .is_none()
+        .then(generate_temporary_password);
+    let password = generated_password
+        .as_deref()
+        .or(explicit_password)
+        .ok_or_else(|| AsterError::internal_error("temporary password generation failed"))?;
+    validate_password(password)?;
+    let must_change_password =
+        generated_password.is_some() || must_change_password.unwrap_or(false);
+    let user = create_user_with_options(
+        state.writer_db(),
+        username,
+        email,
+        password,
+        role,
+        status,
+        must_change_password,
+    )
+    .await?;
     let users = hydrate_admin_users(state, vec![user]).await?;
     tracing::debug!(username, "admin user created");
-    users
-        .into_iter()
-        .next()
-        .ok_or_else(|| AsterError::internal_error("created admin user hydration returned no item"))
+    let user = users.into_iter().next().ok_or_else(|| {
+        AsterError::internal_error("created admin user hydration returned no item")
+    })?;
+    Ok(CreateAdminUserOutput {
+        user,
+        generated_password,
+    })
 }
 
 pub async fn update_admin_user<S>(
     state: &S,
     id: i64,
-    username: Option<String>,
-    email: Option<String>,
-    password: Option<String>,
-    role: Option<UserRole>,
-    status: Option<UserStatus>,
+    input: AdminUpdateUserInput,
 ) -> Result<AdminUserInfo>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
+    let AdminUpdateUserInput {
+        username,
+        email,
+        password,
+        role,
+        status,
+        must_change_password,
+    } = input;
     tracing::debug!(
         user_id = id,
         username_changed = username.is_some(),
@@ -848,6 +1074,7 @@ where
         password_changed = password.is_some(),
         role_changed = role.is_some(),
         status_changed = status.is_some(),
+        must_change_password_changed = must_change_password.is_some(),
         "updating admin user"
     );
     if id == SUPER_ADMIN_USER_ID && (role.is_some() || status.is_some()) {
@@ -874,7 +1101,9 @@ where
             hash_password(&password)
         })
         .transpose()?;
-    let bump_session_version = password_hash.is_some() || status == Some(UserStatus::Disabled);
+    let bump_session_version = password_hash.is_some()
+        || status == Some(UserStatus::Disabled)
+        || must_change_password.is_some();
     let user = user_repo::update_admin(
         state.writer_db(),
         id,
@@ -884,6 +1113,7 @@ where
             password_hash,
             role,
             status,
+            must_change_password,
             bump_session_version,
         },
     )
@@ -925,8 +1155,10 @@ where
             id: user.id,
             username: user.username,
             email: user.email,
+            pending_email: user.pending_email,
             role: user.role,
             status: user.status,
+            must_change_password: user.must_change_password,
             session_version: user.session_version,
             profile_count: profile_counts.get(&user.id).copied().unwrap_or(0),
             active_session_count: active_session_counts.get(&user.id).copied().unwrap_or(0),
@@ -948,18 +1180,62 @@ async fn create_user<C: ConnectionTrait>(
     password: &str,
     role: UserRole,
 ) -> Result<user::Model> {
+    create_user_with_options(
+        db,
+        username,
+        email,
+        password,
+        role,
+        UserStatus::Active,
+        false,
+    )
+    .await
+}
+
+async fn create_user_with_options<C: ConnectionTrait>(
+    db: &C,
+    username: &str,
+    email: &str,
+    password: &str,
+    role: UserRole,
+    status: UserStatus,
+    must_change_password: bool,
+) -> Result<user::Model> {
     tracing::debug!(username, role = ?role, "creating user record");
     let email = validate_identity_input(username, email, password)?;
     let password_hash = hash_password(password)?;
-    let user = user_repo::create(db, username, &email, &password_hash, role).await?;
+    let user = user_repo::create_with_options(
+        db,
+        username,
+        &email,
+        &password_hash,
+        role,
+        status,
+        must_change_password,
+    )
+    .await?;
     tracing::debug!(user_id = user.id, username, role = ?user.role, "user record created");
     Ok(user)
 }
 
 pub fn validate_username(username: &str) -> Result<()> {
-    if username.trim().len() < 4 {
+    let username = username.trim();
+    if username.len() < 4 {
         return Err(AsterError::validation_error(
-            "username must contain at least 4 characters",
+            "username must be 4-16 characters",
+        ));
+    }
+    if username.len() > 16 {
+        return Err(AsterError::validation_error(
+            "username must be 4-16 characters",
+        ));
+    }
+    if !username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(AsterError::validation_error(
+            "username may only contain letters, numbers, underscores and hyphens",
         ));
     }
     Ok(())
@@ -973,7 +1249,13 @@ pub fn validate_password(password: &str) -> Result<()> {
     if password.len() < 8 {
         return Err(AsterError::validation_error_code(
             AsterErrorCode::AuthPasswordPolicyFailed,
-            "password must contain at least 8 characters",
+            "password must be 8-128 characters",
+        ));
+    }
+    if password.len() > 128 {
+        return Err(AsterError::validation_error_code(
+            AsterErrorCode::AuthPasswordPolicyFailed,
+            "password must be 8-128 characters",
         ));
     }
     Ok(())
@@ -981,6 +1263,565 @@ pub fn validate_password(password: &str) -> Result<()> {
 
 pub fn is_email_verified(user: &user::Model) -> bool {
     user.email_verified_at.is_some()
+}
+
+async fn ensure_email_available<C: ConnectionTrait>(
+    db: &C,
+    email: &str,
+    exclude_user_id: Option<i64>,
+) -> Result<()> {
+    if let Some(existing) = user_repo::find_by_email(db, email).await?
+        && Some(existing.id) != exclude_user_id
+    {
+        return Err(AsterError::validation_error_code(
+            AsterErrorCode::AuthEmailExists,
+            "email already exists",
+        ));
+    }
+    if let Some(existing) = user_repo::find_by_pending_email(db, email).await?
+        && Some(existing.id) != exclude_user_id
+    {
+        return Err(AsterError::validation_error_code(
+            AsterErrorCode::AuthEmailExists,
+            "email already exists",
+        ));
+    }
+    Ok(())
+}
+
+async fn update_password_in_connection<C: ConnectionTrait>(
+    db: &C,
+    user: user::Model,
+    new_password: &str,
+) -> Result<user::Model> {
+    validate_password(new_password)?;
+    let mut active = user.into_active_model();
+    active.password_hash = Set(hash_password(new_password)?);
+    active.must_change_password = Set(false);
+    active.session_version = Set(active.session_version.unwrap().saturating_add(1));
+    active.updated_at = Set(Utc::now());
+    active
+        .update(db)
+        .await
+        .map_aster_err(AsterError::database_operation)
+}
+
+async fn password_reset_request_allowed<S, C>(state: &S, db: &C, user_id: i64) -> Result<bool>
+where
+    S: RuntimeConfigRuntimeState,
+    C: ConnectionTrait,
+{
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let Some(latest) = contact_verification_token_repo::find_latest_active_for_user(
+        db,
+        user_id,
+        VerificationChannel::Email,
+        VerificationPurpose::PasswordReset,
+    )
+    .await?
+    else {
+        return Ok(true);
+    };
+    let cooldown = Duration::seconds(u64_to_i64(
+        policy.password_reset_request_cooldown_secs,
+        "password reset request cooldown",
+    )?);
+    Ok(latest.created_at + cooldown <= Utc::now())
+}
+
+#[derive(Debug, Clone)]
+pub struct PasswordResetRequestResult {
+    pub user: Option<AuthUserInfo>,
+}
+
+pub async fn request_email_change<S>(
+    state: &S,
+    user_id: i64,
+    new_email: &str,
+) -> Result<AuthUserInfo>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let normalized_email = normalize_email(new_email)?;
+    let existing = user_repo::find_by_id(state.writer_db(), user_id).await?;
+    if !existing.status.is_active() {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthUserDisabled,
+            "user is disabled",
+        ));
+    }
+    if !is_email_verified(&existing) {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthPendingActivation,
+            "account must be activated before changing email",
+        ));
+    }
+    if existing.email == normalized_email {
+        return Err(AsterError::validation_error(
+            "new email must be different from current email",
+        ));
+    }
+    crate::config::local_email_policy::LocalEmailPolicy::from_runtime_config(
+        state.runtime_config(),
+    )
+    .check(&normalized_email)?;
+    ensure_email_available(state.writer_db(), &normalized_email, Some(existing.id)).await?;
+    if existing.pending_email.as_deref() == Some(normalized_email.as_str())
+        && !register_activation_resend_allowed(state, state.writer_db(), existing.id).await?
+    {
+        return Err(AsterError::rate_limited(
+            "please wait before resending verification email",
+        ));
+    }
+
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let site_name = crate::config::branding::title_or_default(state.runtime_config());
+    let user = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let mut active: user::ActiveModel = existing.into();
+        active.pending_email = Set(Some(normalized_email.clone()));
+        active.updated_at = Set(Utc::now());
+        let updated = active
+            .update(txn)
+            .await
+            .map_aster_err(AsterError::database_operation)?;
+        let token = issue_contact_verification_token(
+            txn,
+            updated.id,
+            VerificationPurpose::ContactChange,
+            &normalized_email,
+            policy.contact_change_ttl_secs,
+        )
+        .await?;
+        mail_outbox_service::enqueue(
+            txn,
+            &normalized_email,
+            Some(&updated.username),
+            MailTemplatePayload::contact_change_confirmation(&updated.username, &token, &site_name),
+        )
+        .await?;
+        Ok(updated)
+    })
+    .await?;
+    auth_user_info(state, user).await
+}
+
+pub async fn resend_email_change<S>(state: &S, user_id: i64) -> Result<Option<AuthUserInfo>>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let user = user_repo::find_by_id(state.writer_db(), user_id).await?;
+    let pending_email = user
+        .pending_email
+        .clone()
+        .ok_or_else(|| AsterError::validation_error("no pending email change request"))?;
+    if !user.status.is_active() {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthUserDisabled,
+            "user is disabled",
+        ));
+    }
+    if !is_email_verified(&user) {
+        return Err(AsterError::auth_forbidden_code(
+            AsterErrorCode::AuthPendingActivation,
+            "account must be activated before changing email",
+        ));
+    }
+    crate::config::local_email_policy::LocalEmailPolicy::from_runtime_config(
+        state.runtime_config(),
+    )
+    .check_not_blocked(&pending_email)?;
+    ensure_email_available(state.writer_db(), &pending_email, Some(user.id)).await?;
+    if !register_activation_resend_allowed(state, state.writer_db(), user.id).await? {
+        return Ok(None);
+    }
+
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let site_name = crate::config::branding::title_or_default(state.runtime_config());
+    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let token = issue_contact_verification_token(
+            txn,
+            user.id,
+            VerificationPurpose::ContactChange,
+            &pending_email,
+            policy.contact_change_ttl_secs,
+        )
+        .await?;
+        mail_outbox_service::enqueue(
+            txn,
+            &pending_email,
+            Some(&user.username),
+            MailTemplatePayload::contact_change_confirmation(&user.username, &token, &site_name),
+        )
+        .await?;
+        Ok(())
+    })
+    .await?;
+    auth_user_info(state, user).await.map(Some)
+}
+
+pub async fn request_password_reset<S>(state: &S, email: &str) -> Result<PasswordResetRequestResult>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let normalized_email = normalize_email(email)?;
+    let Some(user) = user_repo::find_by_email(state.writer_db(), &normalized_email).await? else {
+        return Ok(PasswordResetRequestResult { user: None });
+    };
+    if !user.status.is_active() || !is_email_verified(&user) {
+        return Ok(PasswordResetRequestResult { user: None });
+    }
+    if !password_reset_request_allowed(state, state.writer_db(), user.id).await? {
+        return Ok(PasswordResetRequestResult {
+            user: Some(auth_user_info(state, user).await?),
+        });
+    }
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let site_name = crate::config::branding::title_or_default(state.runtime_config());
+    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let token = issue_contact_verification_token(
+            txn,
+            user.id,
+            VerificationPurpose::PasswordReset,
+            &user.email,
+            policy.password_reset_ttl_secs,
+        )
+        .await?;
+        mail_outbox_service::enqueue(
+            txn,
+            &user.email,
+            Some(&user.username),
+            MailTemplatePayload::password_reset(&user.username, &token, &site_name),
+        )
+        .await?;
+        Ok(())
+    })
+    .await?;
+    Ok(PasswordResetRequestResult {
+        user: Some(auth_user_info(state, user).await?),
+    })
+}
+
+pub async fn confirm_password_reset<S>(
+    state: &S,
+    token: &str,
+    new_password: &str,
+) -> Result<AuthUserInfo>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    validate_password(new_password)?;
+    let token_hash = hash::sha256_hex(token.as_bytes());
+    let record =
+        contact_verification_token_repo::find_by_token_hash(state.writer_db(), &token_hash)
+            .await?
+            .ok_or_else(|| {
+                AsterError::contact_verification_invalid("password reset link is invalid")
+            })?;
+    if record.purpose != VerificationPurpose::PasswordReset {
+        return Err(AsterError::contact_verification_invalid(
+            "password reset link is invalid",
+        ));
+    }
+    if record.consumed_at.is_some() {
+        return Err(AsterError::contact_verification_invalid(
+            "password reset link has already been used",
+        ));
+    }
+    if record.expires_at <= Utc::now() {
+        return Err(AsterError::contact_verification_expired(
+            "password reset link has expired",
+        ));
+    }
+
+    let site_name = crate::config::branding::title_or_default(state.runtime_config());
+    let updated = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let existing_user = user_repo::find_by_id(txn, record.user_id).await?;
+        if !existing_user.status.is_active() {
+            return Err(AsterError::auth_forbidden_code(
+                AsterErrorCode::AuthUserDisabled,
+                "user is disabled",
+            ));
+        }
+        if !is_email_verified(&existing_user) || existing_user.email != record.target {
+            return Err(AsterError::contact_verification_invalid(
+                "password reset request no longer exists",
+            ));
+        }
+        if !contact_verification_token_repo::mark_consumed_if_unused(txn, record.id).await? {
+            return Err(AsterError::contact_verification_invalid(
+                "password reset link has already been used",
+            ));
+        }
+        let updated = update_password_in_connection(txn, existing_user, new_password).await?;
+        mail_outbox_service::enqueue(
+            txn,
+            &updated.email,
+            Some(&updated.username),
+            MailTemplatePayload::password_reset_notice(&updated.username, &site_name),
+        )
+        .await?;
+        Ok(updated)
+    })
+    .await?;
+    auth_user_info(state, updated).await
+}
+
+#[derive(Debug, Clone)]
+pub enum RegisterActivationResendOutcome {
+    Sent(AuthUserInfo),
+    EmailNotFound,
+    AlreadyActive,
+    AccountDisabled,
+    Cooldown,
+    EmailPolicyRejected,
+}
+
+pub async fn resend_register_activation<S>(
+    state: &S,
+    identifier: &str,
+) -> Result<RegisterActivationResendOutcome>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let Some(user) = user_repo::find_by_identifier(state.writer_db(), identifier).await? else {
+        return Ok(RegisterActivationResendOutcome::EmailNotFound);
+    };
+
+    if !user.status.is_active() {
+        return Ok(RegisterActivationResendOutcome::AccountDisabled);
+    }
+    if is_email_verified(&user) {
+        return Ok(RegisterActivationResendOutcome::AlreadyActive);
+    }
+    if crate::config::local_email_policy::LocalEmailPolicy::from_runtime_config(
+        state.runtime_config(),
+    )
+    .check(&user.email)
+    .is_err()
+    {
+        return Ok(RegisterActivationResendOutcome::EmailPolicyRejected);
+    }
+    if !register_activation_resend_allowed(state, state.writer_db(), user.id).await? {
+        return Ok(RegisterActivationResendOutcome::Cooldown);
+    }
+
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let site_name = crate::config::branding::title_or_default(state.runtime_config());
+    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let token = issue_contact_verification_token(
+            txn,
+            user.id,
+            VerificationPurpose::RegisterActivation,
+            &user.email,
+            policy.register_activation_ttl_secs,
+        )
+        .await?;
+        mail_outbox_service::enqueue(
+            txn,
+            &user.email,
+            Some(&user.username),
+            MailTemplatePayload::register_activation(&user.username, &token, &site_name),
+        )
+        .await?;
+        Ok(())
+    })
+    .await?;
+    Ok(RegisterActivationResendOutcome::Sent(AuthUserInfo::from(
+        user,
+    )))
+}
+
+pub async fn confirm_contact_verification<S>(
+    state: &S,
+    token: &str,
+) -> Result<ContactVerificationConfirmResult>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let token_hash = hash::sha256_hex(token.as_bytes());
+    let record =
+        contact_verification_token_repo::find_by_token_hash(state.writer_db(), &token_hash)
+            .await?
+            .ok_or_else(|| {
+                AsterError::contact_verification_invalid("contact verification link is invalid")
+            })?;
+    if record.consumed_at.is_some() {
+        return Err(AsterError::contact_verification_invalid(
+            "contact verification link has already been used",
+        ));
+    }
+    if record.expires_at <= Utc::now() {
+        return Err(AsterError::contact_verification_expired(
+            "contact verification link has expired",
+        ));
+    }
+    let target = record.target.clone();
+    let purpose = record.purpose;
+    let user_id = record.user_id;
+    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let user = user_repo::find_by_id(txn, user_id).await?;
+        if !user.status.is_active() {
+            return Err(AsterError::auth_forbidden_code(
+                AsterErrorCode::AuthUserDisabled,
+                "user is disabled",
+            ));
+        }
+        if purpose == VerificationPurpose::PasswordReset {
+            return Err(AsterError::contact_verification_invalid(
+                "password reset token cannot be confirmed from this endpoint",
+            ));
+        }
+        if !contact_verification_token_repo::mark_consumed_if_unused(txn, record.id).await? {
+            return Err(AsterError::contact_verification_invalid(
+                "contact verification link has already been used",
+            ));
+        }
+        let now = Utc::now();
+        match purpose {
+            VerificationPurpose::RegisterActivation => {
+                if user.email != target {
+                    return Err(AsterError::contact_verification_invalid(
+                        "contact verification target mismatch",
+                    ));
+                }
+                if user.email_verified_at.is_none() {
+                    let mut active: user::ActiveModel = user.into();
+                    active.email_verified_at = Set(Some(now));
+                    active.updated_at = Set(now);
+                    active
+                        .update(txn)
+                        .await
+                        .map_aster_err(AsterError::database_operation)?;
+                }
+            }
+            VerificationPurpose::ContactChange => {
+                if user.email != target && user.pending_email.as_deref() != Some(target.as_str()) {
+                    return Err(AsterError::contact_verification_invalid(
+                        "contact change request no longer exists",
+                    ));
+                }
+                ensure_email_available(txn, &target, Some(user.id)).await?;
+                if user.email != target {
+                    let previous_email = user.email.clone();
+                    let username = user.username.clone();
+                    let site_name =
+                        crate::config::branding::title_or_default(state.runtime_config());
+                    let mut active: user::ActiveModel = user.into();
+                    active.email = Set(target.clone());
+                    active.pending_email = Set(None);
+                    active.email_verified_at = Set(Some(now));
+                    active.updated_at = Set(now);
+                    active
+                        .update(txn)
+                        .await
+                        .map_aster_err(AsterError::database_operation)?;
+                    mail_outbox_service::enqueue(
+                        txn,
+                        &previous_email,
+                        Some(&username),
+                        MailTemplatePayload::contact_change_notice(
+                            &username,
+                            &previous_email,
+                            &target,
+                            &site_name,
+                        ),
+                    )
+                    .await?;
+                }
+            }
+            VerificationPurpose::PasswordReset => {
+                return Err(AsterError::contact_verification_invalid(
+                    "password reset token cannot be confirmed from this endpoint",
+                ));
+            }
+        }
+        Ok(())
+    })
+    .await?;
+
+    Ok(ContactVerificationConfirmResult {
+        purpose,
+        user_id,
+        target,
+    })
+}
+
+pub async fn cleanup_expired_contact_verification_tokens<S: DatabaseRuntimeState>(
+    state: &S,
+) -> Result<u64> {
+    contact_verification_token_repo::delete_expired(state.writer_db()).await
+}
+
+async fn register_activation_resend_allowed<S, C>(state: &S, db: &C, user_id: i64) -> Result<bool>
+where
+    S: RuntimeConfigRuntimeState,
+    C: ConnectionTrait,
+{
+    let policy = crate::config::auth_runtime::RuntimeContactVerificationPolicy::from_runtime_config(
+        state.runtime_config(),
+    );
+    let Some(latest) = contact_verification_token_repo::find_latest_active_for_user(
+        db,
+        user_id,
+        VerificationChannel::Email,
+        VerificationPurpose::RegisterActivation,
+    )
+    .await?
+    else {
+        return Ok(true);
+    };
+    let cooldown = Duration::seconds(u64_to_i64(
+        policy.resend_cooldown_secs,
+        "contact verification resend cooldown",
+    )?);
+    Ok(latest.created_at + cooldown <= Utc::now())
+}
+
+async fn issue_contact_verification_token<C: ConnectionTrait>(
+    db: &C,
+    user_id: i64,
+    purpose: VerificationPurpose,
+    target: &str,
+    ttl_secs: u64,
+) -> Result<String> {
+    let now = Utc::now();
+    let token = mail_service::build_verification_token();
+    let token_hash = hash::sha256_hex(token.as_bytes());
+    contact_verification_token_repo::delete_active_for_user(
+        db,
+        user_id,
+        VerificationChannel::Email,
+        purpose,
+    )
+    .await?;
+    contact_verification_token_repo::create(
+        db,
+        contact_verification_token::ActiveModel {
+            user_id: Set(user_id),
+            channel: Set(VerificationChannel::Email),
+            purpose: Set(purpose),
+            target: Set(target.to_string()),
+            token_hash: Set(token_hash),
+            expires_at: Set(
+                now + Duration::seconds(u64_to_i64(ttl_secs, "contact verification ttl")?)
+            ),
+            consumed_at: Set(None),
+            created_at: Set(now),
+            ..Default::default()
+        },
+    )
+    .await?;
+    Ok(token)
 }
 
 pub mod shared {
@@ -1037,7 +1878,11 @@ pub mod shared {
                 "username already exists",
             ));
         }
-        if user_repo::find_by_email(db, &email).await?.is_some() {
+        if user_repo::find_by_email(db, &email).await?.is_some()
+            || user_repo::find_by_pending_email(db, &email)
+                .await?
+                .is_some()
+        {
             return Err(AsterError::validation_error_code(
                 AsterErrorCode::AuthEmailExists,
                 "email already exists",
@@ -1046,7 +1891,6 @@ pub mod shared {
 
         let now = Utc::now();
         let public_uuid = user_repo::unique_public_uuid(db).await?;
-        let _must_change_password = input.must_change_password;
         user::ActiveModel {
             public_uuid: Set(public_uuid),
             username: Set(input.username.to_string()),
@@ -1054,8 +1898,10 @@ pub mod shared {
             password_hash: Set(hash_password(input.password)?),
             role: Set(input.role),
             status: Set(input.status),
+            must_change_password: Set(input.must_change_password),
             session_version: Set(1),
             email_verified_at: Set(input.email_verified_at),
+            pending_email: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -1077,7 +1923,14 @@ async fn issue_tokens<S>(state: &S, user: user::Model, req: &HttpRequest) -> Res
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
 {
-    let tokens = create_token_pair(state, user.id, user.session_version, None)?;
+    let password_change_required = user.must_change_password;
+    let tokens = create_token_pair(
+        state,
+        user.id,
+        user.session_version,
+        None,
+        password_change_required,
+    )?;
     persist_auth_session(state.writer_db(), user.id, &tokens, req).await?;
     tracing::debug!(
         user_id = user.id,
@@ -1090,6 +1943,11 @@ where
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
+        status: if password_change_required {
+            AuthTokenStatus::PasswordChangeRequired
+        } else {
+            AuthTokenStatus::Authenticated
+        },
         user: AuthUserInfo::from(user),
     })
 }
@@ -1116,6 +1974,18 @@ where
     issue_tokens(state, user, req).await
 }
 
+pub async fn issue_tokens_for_user_id<S>(
+    state: &S,
+    user_id: i64,
+    req: &HttpRequest,
+) -> Result<AuthTokenBundle>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+{
+    let user = user_repo::find_by_id(state.reader_db(), user_id).await?;
+    issue_tokens(state, user, req).await
+}
+
 async fn rotate_tokens<S>(
     state: &S,
     user: user::Model,
@@ -1125,7 +1995,13 @@ async fn rotate_tokens<S>(
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
 {
-    let tokens = create_token_pair(state, user.id, user.session_version, Some(&session.id))?;
+    let tokens = create_token_pair(
+        state,
+        user.id,
+        user.session_version,
+        Some(&session.id),
+        false,
+    )?;
     let next_ip = peer_ip(req).or_else(|| session.ip_address.clone());
     let next_user_agent = user_agent(req).or_else(|| session.user_agent.clone());
     if !auth_session_repo::rotate_refresh(
@@ -1157,6 +2033,7 @@ where
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_in: tokens.access_expires_in,
+        status: AuthTokenStatus::Authenticated,
         user: AuthUserInfo::from(user),
     })
 }
@@ -1175,6 +2052,7 @@ fn create_token_pair<S>(
     user_id: i64,
     session_version: i64,
     session_id: Option<&str>,
+    password_change: bool,
 ) -> Result<IssuedTokens>
 where
     S: RuntimeConfigRuntimeState + AppConfigRuntimeState,
@@ -1182,25 +2060,27 @@ where
     let now = Utc::now();
     let auth_policy =
         crate::config::auth_runtime::RuntimeAuthPolicy::from_runtime_config(state.runtime_config());
-    let access = create_token(
+    let access = create_token(CreateTokenInput {
         user_id,
         session_version,
-        TokenType::Access,
-        auth_policy.access_token_ttl_secs,
-        &state.config().auth.jwt_secret,
-        None,
+        token_type: TokenType::Access,
+        ttl_secs: auth_policy.access_token_ttl_secs,
+        secret: &state.config().auth.jwt_secret,
+        jti: None,
+        password_change,
         now,
-    )?;
+    })?;
     let refresh_jti = Uuid::new_v4().to_string();
-    let refresh = create_token(
+    let refresh = create_token(CreateTokenInput {
         user_id,
         session_version,
-        TokenType::Refresh,
-        auth_policy.refresh_token_ttl_secs,
-        &state.config().auth.jwt_secret,
-        Some(refresh_jti.clone()),
+        token_type: TokenType::Refresh,
+        ttl_secs: auth_policy.refresh_token_ttl_secs,
+        secret: &state.config().auth.jwt_secret,
+        jti: Some(refresh_jti.clone()),
+        password_change,
         now,
-    )?;
+    })?;
 
     Ok(IssuedTokens {
         access_token: access.token,
@@ -1219,15 +2099,28 @@ struct CreatedToken {
     expires_at: chrono::DateTime<Utc>,
 }
 
-fn create_token(
+struct CreateTokenInput<'a> {
     user_id: i64,
     session_version: i64,
     token_type: TokenType,
     ttl_secs: u64,
-    secret: &str,
+    secret: &'a str,
     jti: Option<String>,
+    password_change: bool,
     now: chrono::DateTime<Utc>,
-) -> Result<CreatedToken> {
+}
+
+fn create_token(input: CreateTokenInput<'_>) -> Result<CreatedToken> {
+    let CreateTokenInput {
+        user_id,
+        session_version,
+        token_type,
+        ttl_secs,
+        secret,
+        jti,
+        password_change,
+        now,
+    } = input;
     let now_secs = i64_to_u64(now.timestamp(), "jwt issued-at unix timestamp")?;
     let exp_secs = now_secs.checked_add(ttl_secs).ok_or_else(|| {
         AsterError::internal_error(format!("jwt exp overflow: {now_secs} + {ttl_secs}"))
@@ -1240,6 +2133,7 @@ fn create_token(
         user_id,
         session_version,
         jti,
+        password_change,
         token_type,
         exp: u64_to_usize(exp_secs, "jwt exp")?,
     };

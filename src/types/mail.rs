@@ -22,6 +22,8 @@ pub enum MailTemplateCode {
     ExternalAuthEmailVerification,
     #[sea_orm(string_value = "login_email_code")]
     LoginEmailCode,
+    #[sea_orm(string_value = "user_invitation")]
+    UserInvitation,
 }
 
 impl MailTemplateCode {
@@ -34,6 +36,7 @@ impl MailTemplateCode {
             Self::ContactChangeNotice => "contact_change_notice",
             Self::ExternalAuthEmailVerification => "external_auth_email_verification",
             Self::LoginEmailCode => "login_email_code",
+            Self::UserInvitation => "user_invitation",
         }
     }
 }

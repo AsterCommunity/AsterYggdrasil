@@ -388,6 +388,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_list_user_invitations"];
+        put?: never;
+        post: operations["admin_create_user_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_revoke_user_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users/{id}": {
         parameters: {
             query?: never;
@@ -462,6 +494,54 @@ export interface paths {
         get: operations["check_auth_state"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/contact-verification/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["confirm_contact_verification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["request_email_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email/change/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resend_email_change"];
         delete?: never;
         options?: never;
         head?: never;
@@ -612,6 +692,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["verify_user_invitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["accept_user_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -756,6 +868,54 @@ export interface paths {
         patch: operations["rename_passkey"];
         trace?: never;
     };
+    "/api/v1/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["change_password"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirm_password_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["request_password_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/profile": {
         parameters: {
             query?: never;
@@ -846,6 +1006,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resend_register_activation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1368,9 +1544,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptUserInvitationReq: {
+            password: string;
+            username: string;
+        };
         AccessClaims: {
             exp: number;
             jti?: string | null;
+            password_change?: boolean;
             /** Format: int64 */
             session_version: number;
             sub: string;
@@ -1390,6 +1571,9 @@ export interface components {
             /** Format: int64 */
             profile_count: number;
             recent_activity: components["schemas"]["AuditLogEntry"][];
+        };
+        ActionMessageResp: {
+            message: string;
         };
         AdminExternalAuthProviderInfo: {
             allowed_domains: string[];
@@ -1452,6 +1636,8 @@ export interface components {
             email_verified_at?: string | null;
             /** Format: int64 */
             id: number;
+            must_change_password: boolean;
+            pending_email?: string | null;
             profile: components["schemas"]["UserProfileInfo"];
             /** Format: int64 */
             profile_count: number;
@@ -1461,6 +1647,23 @@ export interface components {
             status: components["schemas"]["UserStatus"];
             updated_at: string;
             username: string;
+        };
+        AdminUserInvitationInfo: {
+            accepted_at?: string | null;
+            /** Format: int64 */
+            accepted_user_id?: number | null;
+            created_at: string;
+            email: string;
+            expires_at: string;
+            /** Format: int64 */
+            id: number;
+            invitation_url?: string | null;
+            /** Format: int64 */
+            invited_by: number;
+            mail_queued: boolean;
+            revoked_at?: string | null;
+            status: components["schemas"]["UserInvitationStatus"];
+            updated_at: string;
         };
         AdminUserListQuery: {
             keyword?: string | null;
@@ -1476,11 +1679,11 @@ export interface components {
             retryable?: boolean | null;
         };
         /** @enum {string} */
-        AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.user_disabled" | "auth.pending_activation" | "auth.passkey_login_disabled" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
+        AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
         /** @enum {string} */
-        AuditAction: "system_setup" | "server_start" | "server_shutdown" | "config_update" | "config_delete" | "config_action_execute" | "user_register" | "user_login" | "user_logout" | "user_refresh_token" | "user_revoke_session" | "user_revoke_other_sessions" | "user_change_password" | "user_update_profile" | "user_passkey_register" | "user_passkey_rename" | "user_passkey_delete" | "user_passkey_login" | "admin_create_user" | "admin_update_user" | "admin_disable_user" | "admin_revoke_user_sessions" | "admin_delete_config" | "admin_cleanup_tasks" | "task_retry" | "admin_create_external_auth_provider" | "admin_update_external_auth_provider" | "admin_delete_external_auth_provider" | "admin_test_external_auth_provider" | "mail_send" | "mail_delivery_failed" | "external_auth_provider_create" | "external_auth_provider_update" | "external_auth_provider_delete" | "user_external_auth_login" | "user_external_auth_link" | "user_external_auth_unlink" | "minecraft_profile_create" | "minecraft_profile_rename" | "minecraft_profile_delete" | "minecraft_texture_upload" | "minecraft_texture_bind" | "minecraft_texture_delete" | "yggdrasil_authenticate" | "yggdrasil_refresh_token" | "yggdrasil_invalidate_token" | "yggdrasil_signout" | "yggdrasil_join_server";
+        AuditAction: "system_setup" | "server_start" | "server_shutdown" | "config_update" | "config_delete" | "config_action_execute" | "user_register" | "user_login" | "user_logout" | "user_refresh_token" | "user_revoke_session" | "user_revoke_other_sessions" | "user_change_password" | "user_confirm_registration" | "user_request_email_change" | "user_resend_email_change" | "user_confirm_email_change" | "user_request_password_reset" | "user_confirm_password_reset" | "user_update_profile" | "user_passkey_register" | "user_passkey_rename" | "user_passkey_delete" | "user_passkey_login" | "admin_create_user" | "admin_update_user" | "admin_disable_user" | "admin_create_invitation" | "admin_revoke_invitation" | "admin_revoke_user_sessions" | "admin_delete_config" | "admin_cleanup_tasks" | "task_retry" | "admin_create_external_auth_provider" | "admin_update_external_auth_provider" | "admin_delete_external_auth_provider" | "admin_test_external_auth_provider" | "mail_send" | "mail_delivery_failed" | "external_auth_provider_create" | "external_auth_provider_update" | "external_auth_provider_delete" | "user_external_auth_login" | "user_external_auth_link" | "user_external_auth_unlink" | "minecraft_profile_create" | "minecraft_profile_rename" | "minecraft_profile_delete" | "minecraft_texture_upload" | "minecraft_texture_bind" | "minecraft_texture_delete" | "yggdrasil_authenticate" | "yggdrasil_refresh_token" | "yggdrasil_invalidate_token" | "yggdrasil_signout" | "yggdrasil_join_server";
         /** @enum {string} */
-        AuditEntityType: "system" | "system_config" | "user" | "auth_session" | "passkey" | "external_auth_provider" | "external_auth_identity" | "api_token" | "mail" | "task" | "minecraft_profile" | "minecraft_texture" | "yggdrasil_token" | "yggdrasil_session";
+        AuditEntityType: "system" | "system_config" | "user" | "invitation" | "auth_session" | "passkey" | "external_auth_provider" | "external_auth_identity" | "api_token" | "mail" | "task" | "minecraft_profile" | "minecraft_texture" | "yggdrasil_token" | "yggdrasil_session";
         AuditLogEntry: {
             action: components["schemas"]["AuditAction"];
             created_at: string;
@@ -1574,11 +1777,17 @@ export interface components {
         AuthTokenResponse: {
             /** Format: int64 */
             expires_in: number;
+            status: components["schemas"]["AuthTokenStatus"];
         };
+        /** @enum {string} */
+        AuthTokenStatus: "authenticated" | "password_change_required";
         AuthUserInfo: {
             email: string;
+            email_verified: boolean;
             /** Format: int64 */
             id: number;
+            must_change_password: boolean;
+            pending_email?: string | null;
             profile: components["schemas"]["UserProfileInfo"];
             role: components["schemas"]["UserRole"];
             status: components["schemas"]["UserStatus"];
@@ -1636,6 +1845,10 @@ export interface components {
             /** Format: int64 */
             texture_id: number;
         };
+        ChangePasswordReq: {
+            current_password: string;
+            new_password: string;
+        };
         CheckResp: {
             initialized: boolean;
         };
@@ -1659,7 +1872,8 @@ export interface components {
         };
         CreateAdminUserReq: {
             email: string;
-            password: string;
+            must_change_password?: boolean | null;
+            password?: string | null;
             role?: null | components["schemas"]["UserRole"];
             status?: null | components["schemas"]["UserStatus"];
             username: string;
@@ -1692,6 +1906,9 @@ export interface components {
         };
         CreateMinecraftProfileReq: {
             name: string;
+        };
+        CreateUserInvitationReq: {
+            email: string;
         };
         ExecuteConfigActionReq: {
             action: components["schemas"]["ConfigActionType"];
@@ -1803,7 +2020,7 @@ export interface components {
         /** @enum {string} */
         MailOutboxStatus: "pending" | "processing" | "retry" | "sent" | "failed";
         /** @enum {string} */
-        MailTemplateCode: "register_activation" | "contact_change_confirmation" | "password_reset" | "password_reset_notice" | "contact_change_notice" | "external_auth_email_verification" | "login_email_code";
+        MailTemplateCode: "register_activation" | "contact_change_confirmation" | "password_reset" | "password_reset_notice" | "contact_change_notice" | "external_auth_email_verification" | "login_email_code" | "user_invitation";
         MicrosoftExternalAuthProviderOptions: {
             tenant: string;
         };
@@ -2057,6 +2274,8 @@ export interface components {
                 email_verified_at?: string | null;
                 /** Format: int64 */
                 id: number;
+                must_change_password: boolean;
+                pending_email?: string | null;
                 profile: components["schemas"]["UserProfileInfo"];
                 /** Format: int64 */
                 profile_count: number;
@@ -2339,6 +2558,13 @@ export interface components {
             flow_id: string;
             public_key: unknown;
         };
+        PasswordResetConfirmReq: {
+            new_password: string;
+            token: string;
+        };
+        PasswordResetRequestReq: {
+            email: string;
+        };
         PatchPasskeyReq: {
             name: string;
         };
@@ -2357,6 +2583,10 @@ export interface components {
             /** Format: int32 */
             version: number;
             yggdrasil: components["schemas"]["PublicYggdrasilConfig"];
+        };
+        PublicUserInvitationInfo: {
+            email: string;
+            expires_at: string;
         };
         PublicYggdrasilConfig: {
             allow_cape_upload: boolean;
@@ -2378,12 +2608,23 @@ export interface components {
             password: string;
             username: string;
         };
+        RegisterResponse: {
+            /** Format: int64 */
+            expires_in: number;
+            requires_activation: boolean;
+        };
         RemovedCountResponse: {
             /** Format: int64 */
             removed: number;
         };
         RenameMinecraftProfileReq: {
             name: string;
+        };
+        RequestEmailChangeReq: {
+            new_email: string;
+        };
+        ResendRegisterActivationReq: {
+            identifier: string;
         };
         RuntimeSystemHealthComponent: {
             message: string;
@@ -2562,6 +2803,7 @@ export interface components {
         TokenType: "access" | "refresh";
         UpdateAdminUserReq: {
             email?: string | null;
+            must_change_password?: boolean | null;
             password?: string | null;
             role?: null | components["schemas"]["UserRole"];
             status?: null | components["schemas"]["UserStatus"];
@@ -2598,12 +2840,16 @@ export interface components {
         UpdateProfileReq: {
             display_name?: string | null;
         };
+        /** @enum {string} */
+        UserInvitationStatus: "pending" | "accepted" | "expired" | "revoked";
         UserModel: {
             created_at: string;
             email: string;
             email_verified_at?: string | null;
             /** Format: int64 */
             id: number;
+            must_change_password: boolean;
+            pending_email?: string | null;
             public_uuid: string;
             role: components["schemas"]["UserRole"];
             /** Format: int64 */
@@ -4556,6 +4802,8 @@ export interface operations {
                                 email_verified_at?: string | null;
                                 /** Format: int64 */
                                 id: number;
+                                must_change_password: boolean;
+                                pending_email?: string | null;
                                 profile: components["schemas"]["UserProfileInfo"];
                                 /** Format: int64 */
                                 profile_count: number;
@@ -4616,22 +4864,8 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
-                            /** Format: int64 */
-                            active_session_count: number;
-                            created_at: string;
-                            email: string;
-                            email_verified_at?: string | null;
-                            /** Format: int64 */
-                            id: number;
-                            profile: components["schemas"]["UserProfileInfo"];
-                            /** Format: int64 */
-                            profile_count: number;
-                            role: components["schemas"]["UserRole"];
-                            /** Format: int64 */
-                            session_version: number;
-                            status: components["schemas"]["UserStatus"];
-                            updated_at: string;
-                            username: string;
+                            generated_password?: string | null;
+                            user: components["schemas"]["AdminUserInfo"];
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;
@@ -4654,6 +4888,210 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_list_user_invitations: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User invitations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            items: {
+                                accepted_at?: string | null;
+                                /** Format: int64 */
+                                accepted_user_id?: number | null;
+                                created_at: string;
+                                email: string;
+                                expires_at: string;
+                                /** Format: int64 */
+                                id: number;
+                                invitation_url?: string | null;
+                                /** Format: int64 */
+                                invited_by: number;
+                                mail_queued: boolean;
+                                revoked_at?: string | null;
+                                status: components["schemas"]["UserInvitationStatus"];
+                                updated_at: string;
+                            }[];
+                            /** Format: int64 */
+                            limit: number;
+                            /** Format: int64 */
+                            offset: number;
+                            /** Format: int64 */
+                            total: number;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_user_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserInvitationReq"];
+            };
+        };
+        responses: {
+            /** @description User invitation created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            accepted_at?: string | null;
+                            /** Format: int64 */
+                            accepted_user_id?: number | null;
+                            created_at: string;
+                            email: string;
+                            expires_at: string;
+                            /** Format: int64 */
+                            id: number;
+                            invitation_url?: string | null;
+                            /** Format: int64 */
+                            invited_by: number;
+                            mail_queued: boolean;
+                            revoked_at?: string | null;
+                            status: components["schemas"]["UserInvitationStatus"];
+                            updated_at: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_revoke_user_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User invitation revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            accepted_at?: string | null;
+                            /** Format: int64 */
+                            accepted_user_id?: number | null;
+                            created_at: string;
+                            email: string;
+                            expires_at: string;
+                            /** Format: int64 */
+                            id: number;
+                            invitation_url?: string | null;
+                            /** Format: int64 */
+                            invited_by: number;
+                            mail_queued: boolean;
+                            revoked_at?: string | null;
+                            status: components["schemas"]["UserInvitationStatus"];
+                            updated_at: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invitation cannot be revoked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invitation not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4689,6 +5127,8 @@ export interface operations {
                             email_verified_at?: string | null;
                             /** Format: int64 */
                             id: number;
+                            must_change_password: boolean;
+                            pending_email?: string | null;
                             profile: components["schemas"]["UserProfileInfo"];
                             /** Format: int64 */
                             profile_count: number;
@@ -4759,6 +5199,8 @@ export interface operations {
                             email_verified_at?: string | null;
                             /** Format: int64 */
                             id: number;
+                            must_change_password: boolean;
+                            pending_email?: string | null;
                             profile: components["schemas"]["UserProfileInfo"];
                             /** Format: int64 */
                             profile_count: number;
@@ -4988,6 +5430,128 @@ export interface operations {
                         msg: string;
                     };
                 };
+            };
+        };
+    };
+    confirm_contact_verification: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verification consumed and browser redirected */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    request_email_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestEmailChangeReq"];
+            };
+        };
+        responses: {
+            /** @description Email change requested */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            email: string;
+                            email_verified: boolean;
+                            /** Format: int64 */
+                            id: number;
+                            must_change_password: boolean;
+                            pending_email?: string | null;
+                            profile: components["schemas"]["UserProfileInfo"];
+                            role: components["schemas"]["UserRole"];
+                            status: components["schemas"]["UserStatus"];
+                            username: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Account pending activation */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resend_email_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Email change confirmation resend request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            message: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description No pending email change */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5369,6 +5933,94 @@ export interface operations {
             };
         };
     };
+    verify_user_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invitation is valid */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            email: string;
+                            expires_at: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid invitation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    accept_user_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptUserInvitationReq"];
+            };
+        };
+        responses: {
+            /** @description Invitation accepted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            email: string;
+                            email_verified: boolean;
+                            /** Format: int64 */
+                            id: number;
+                            must_change_password: boolean;
+                            pending_email?: string | null;
+                            profile: components["schemas"]["UserProfileInfo"];
+                            role: components["schemas"]["UserRole"];
+                            status: components["schemas"]["UserStatus"];
+                            username: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid invitation or validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -5393,6 +6045,7 @@ export interface operations {
                         data?: {
                             /** Format: int64 */
                             expires_in: number;
+                            status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;
@@ -5465,8 +6118,11 @@ export interface operations {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
                             email: string;
+                            email_verified: boolean;
                             /** Format: int64 */
                             id: number;
+                            must_change_password: boolean;
+                            pending_email?: string | null;
                             profile: components["schemas"]["UserProfileInfo"];
                             role: components["schemas"]["UserRole"];
                             status: components["schemas"]["UserStatus"];
@@ -5572,6 +6228,7 @@ export interface operations {
                         data?: {
                             /** Format: int64 */
                             expires_in: number;
+                            status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;
@@ -5820,6 +6477,136 @@ export interface operations {
             };
         };
     };
+    change_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordReq"];
+            };
+        };
+        responses: {
+            /** @description Password updated and fresh session cookies issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            /** Format: int64 */
+                            expires_in: number;
+                            status: components["schemas"]["AuthTokenStatus"];
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid new password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Current password is invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirm_password_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmReq"];
+            };
+        };
+        responses: {
+            /** @description Password reset successful */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            message: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid token or password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Reset token expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    request_password_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequestReq"];
+            };
+        };
+        responses: {
+            /** @description Password reset request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            message: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid email input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     update_profile: {
         parameters: {
             query?: never;
@@ -6018,6 +6805,7 @@ export interface operations {
                         data?: {
                             /** Format: int64 */
                             expires_in: number;
+                            status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;
@@ -6046,7 +6834,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description User account created and session cookies issued */
+            /** @description User account created; session cookies are issued when activation is not required */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6057,6 +6845,7 @@ export interface operations {
                         data?: {
                             /** Format: int64 */
                             expires_in: number;
+                            requires_activation: boolean;
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;
@@ -6076,6 +6865,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    resend_register_activation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendRegisterActivationReq"];
+            };
+        };
+        responses: {
+            /** @description Activation resend request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            message: string;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
             };
         };
     };
@@ -6246,6 +7066,7 @@ export interface operations {
                         data?: {
                             /** Format: int64 */
                             expires_in: number;
+                            status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: null | components["schemas"]["ApiErrorInfo"];
                         msg: string;

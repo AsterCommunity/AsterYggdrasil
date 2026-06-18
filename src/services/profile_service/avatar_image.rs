@@ -3,7 +3,6 @@
 use std::io::Cursor;
 
 use actix_multipart::Multipart;
-use actix_web::http::StatusCode;
 use futures::StreamExt;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader, Limits};
@@ -68,11 +67,9 @@ pub(super) async fn read_avatar_upload(payload: &mut Multipart) -> Result<Avatar
                     max_bytes = AVATAR_MAX_UPLOAD_SIZE,
                     "avatar upload rejected because payload is too large"
                 );
-                return Err(AsterError::public_error(
-                    StatusCode::PAYLOAD_TOO_LARGE,
-                    AsterErrorCode::RequestPayloadTooLarge,
-                    format!("avatar upload exceeds {AVATAR_MAX_UPLOAD_SIZE} bytes"),
-                ));
+                return Err(AsterError::request_payload_too_large(format!(
+                    "avatar upload exceeds {AVATAR_MAX_UPLOAD_SIZE} bytes"
+                )));
             }
             bytes.extend_from_slice(&chunk);
         }
@@ -164,10 +161,7 @@ fn encode_webp(image: &DynamicImage) -> Result<Vec<u8>> {
     image
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::WebP)
         .map_err(|error| {
-            AsterError::internal_error_code(
-                AsterErrorCode::AvatarRenderFailed,
-                format!("failed to encode avatar webp: {error}"),
-            )
+            AsterError::avatar_render_failed(format!("failed to encode avatar webp: {error}"))
         })?;
     validate_webp(&bytes)?;
     tracing::debug!(bytes = bytes.len(), "encoded avatar webp variant");

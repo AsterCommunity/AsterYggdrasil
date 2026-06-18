@@ -49,3 +49,24 @@ pub enum AvatarSource {
     #[sea_orm(string_value = "upload")]
     Upload,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
+#[serde(rename_all = "snake_case")]
+pub enum UserInvitationStatus {
+    #[sea_orm(string_value = "pending")]
+    Pending,
+    #[sea_orm(string_value = "accepted")]
+    Accepted,
+    #[sea_orm(string_value = "expired")]
+    Expired,
+    #[sea_orm(string_value = "revoked")]
+    Revoked,
+}
+
+impl UserInvitationStatus {
+    pub const fn is_pending(self) -> bool {
+        matches!(self, Self::Pending)
+    }
+}

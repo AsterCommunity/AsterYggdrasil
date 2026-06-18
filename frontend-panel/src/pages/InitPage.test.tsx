@@ -102,6 +102,87 @@ describe("InitPage", () => {
 		expect(authServiceMock.setup).not.toHaveBeenCalled();
 	});
 
+	it("disables setup submit until identity fields are valid", async () => {
+		renderInitPage();
+
+		fireEvent.change(screen.getByLabelText("login.username"), {
+			target: { value: "admin.name" },
+		});
+		fireEvent.change(screen.getByLabelText("login.email"), {
+			target: { value: "not-an-email" },
+		});
+		fireEvent.change(screen.getByLabelText("login.password"), {
+			target: { value: "short" },
+		});
+		fireEvent.change(screen.getByLabelText("login.confirmPassword"), {
+			target: { value: "different" },
+		});
+
+		const submitButton = screen.getByRole("button", {
+			name: "init.createAdmin",
+		});
+		expect(submitButton).toBeDisabled();
+		expect(authServiceMock.setup).not.toHaveBeenCalled();
+		expect(
+			screen.getByText("login.validationUsernameChars"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("login.validationEmailInvalid"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("login.validationPasswordLength"),
+		).toBeInTheDocument();
+
+		fireEvent.change(screen.getByLabelText("login.username"), {
+			target: { value: "admin-1" },
+		});
+		fireEvent.change(screen.getByLabelText("login.email"), {
+			target: { value: "admin@example.com" },
+		});
+		fireEvent.change(screen.getByLabelText("login.password"), {
+			target: { value: "secret-password" },
+		});
+		fireEvent.change(screen.getByLabelText("login.confirmPassword"), {
+			target: { value: "secret-password" },
+		});
+		expect(submitButton).not.toBeDisabled();
+	});
+
+	it("validates setup fields while typing", () => {
+		renderInitPage();
+
+		const usernameInput = screen.getByLabelText("login.username");
+		const passwordInput = screen.getByLabelText("login.password");
+		const confirmPasswordInput = screen.getByLabelText("login.confirmPassword");
+
+		fireEvent.change(usernameInput, { target: { value: "a".repeat(17) } });
+		expect(
+			screen.getByText("login.validationUsernameLength"),
+		).toBeInTheDocument();
+		fireEvent.change(usernameInput, { target: { value: "admin-1" } });
+		expect(
+			screen.queryByText("login.validationUsernameLength"),
+		).not.toBeInTheDocument();
+
+		fireEvent.change(passwordInput, { target: { value: "a".repeat(129) } });
+		expect(
+			screen.getByText("login.validationPasswordLength"),
+		).toBeInTheDocument();
+		fireEvent.change(passwordInput, { target: { value: "secret-password" } });
+		expect(
+			screen.queryByText("login.validationPasswordLength"),
+		).not.toBeInTheDocument();
+
+		fireEvent.change(confirmPasswordInput, { target: { value: "different" } });
+		expect(screen.getByText("login.passwordMismatch")).toBeInTheDocument();
+		fireEvent.change(confirmPasswordInput, {
+			target: { value: "secret-password" },
+		});
+		expect(
+			screen.queryByText("login.passwordMismatch"),
+		).not.toBeInTheDocument();
+	});
+
 	it("creates the first admin with a normalized public site URL", async () => {
 		renderInitPage();
 

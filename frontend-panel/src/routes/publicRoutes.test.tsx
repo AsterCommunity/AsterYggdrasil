@@ -38,6 +38,14 @@ vi.mock("@/pages/LoginPage", () => ({
 	default: () => <div data-testid="login-page">login/register route</div>,
 }));
 
+vi.mock("@/pages/InvitePage", () => ({
+	default: () => <div data-testid="invite-page">invite route</div>,
+}));
+
+vi.mock("@/pages/ResetPasswordPage", () => ({
+	default: () => <div data-testid="reset-password-page">reset route</div>,
+}));
+
 vi.mock("@/pages/PublicConnectPage", () => ({
 	default: () => (
 		<div data-testid="public-connect-page">public connect route</div>
@@ -125,6 +133,8 @@ describe("fixed public routes", () => {
 		expect(authRoutes.map((route) => route.path)).toEqual([
 			publicPaths.login,
 			publicPaths.register,
+			publicPaths.invite,
+			publicPaths.resetPassword,
 		]);
 		expect(publicRoutes.map((route) => route.path)).not.toContain("/connect");
 	});
@@ -135,6 +145,8 @@ describe("fixed public routes", () => {
 		[publicPaths.privacy, "privacy-page"],
 		[publicPaths.login, "login-page"],
 		[publicPaths.register, "login-page"],
+		["/invite/test-token", "invite-page"],
+		[publicPaths.resetPassword, "reset-password-page"],
 	])("renders initialized public route %s", async (path, testId) => {
 		renderPublicRoute(path);
 
@@ -159,6 +171,7 @@ describe("fixed public routes", () => {
 		publicPaths.privacy,
 		publicPaths.login,
 		publicPaths.register,
+		publicPaths.resetPassword,
 	])("blocks %s before initialization without redirecting", async (path) => {
 		setInitializedState(false);
 
@@ -193,6 +206,7 @@ describe("fixed public routes", () => {
 	it.each([
 		publicPaths.login,
 		publicPaths.register,
+		publicPaths.resetPassword,
 	])("blocks guest-only route %s for authenticated users without redirecting", async (path) => {
 		setAuthenticatedState();
 

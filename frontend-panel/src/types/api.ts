@@ -98,11 +98,25 @@ export type AuditPresentation = components["schemas"]["AuditPresentation"];
 export type AuditPresentationMessage =
 	components["schemas"]["AuditPresentationMessage"];
 export type AuthTokenResponse = components["schemas"]["AuthTokenResponse"];
+export type ChangePasswordRequest = components["schemas"]["ChangePasswordReq"];
+export type RegisterResponse = components["schemas"]["RegisterResponse"];
 export type AuthUserInfo = components["schemas"]["AuthUserInfo"];
 export type AdminUserInfo = components["schemas"]["AdminUserInfo"];
 export type AdminUserListQuery = OperationQuery<"admin_list_users">;
 export type AdminUserPage = components["schemas"]["OffsetPage_AdminUserInfo"];
 export type AdminUserSortBy = components["schemas"]["AdminUserSortBy"];
+export type AdminUserInvitationInfo =
+	components["schemas"]["AdminUserInvitationInfo"];
+export type AdminUserInvitationPage =
+	OperationData<"admin_list_user_invitations">;
+export type UserInvitationStatus =
+	components["schemas"]["UserInvitationStatus"];
+export type PublicUserInvitationInfo =
+	components["schemas"]["PublicUserInvitationInfo"];
+export type AcceptUserInvitationRequest =
+	OperationRequestBody<"accept_user_invitation">;
+export type CreateUserInvitationRequest =
+	OperationRequestBody<"admin_create_user_invitation">;
 export type AdminMinecraftProfileInfo =
 	components["schemas"]["MinecraftProfileInfo"];
 export type AdminMinecraftProfilePage =
@@ -167,6 +181,10 @@ export type SystemInfoResponse = components["schemas"]["SystemInfoResponse"];
 export type LoginRequest = components["schemas"]["LoginReq"];
 export type LogoutRequest = components["schemas"]["LogoutReq"];
 export type LogoutResponse = components["schemas"]["LogoutResp"];
+export type PasswordResetConfirmRequest =
+	OperationRequestBody<"confirm_password_reset">;
+export type PasswordResetRequest =
+	OperationRequestBody<"request_password_reset">;
 export type MinecraftTextureModel =
 	components["schemas"]["MinecraftTextureModel"];
 export type MinecraftTextureMetadata =
@@ -219,6 +237,8 @@ export type UpdateExternalAuthProviderRequest =
 	components["schemas"]["UpdateExternalAuthProviderReq"];
 export type UpdateAvatarSourceRequest =
 	components["schemas"]["UpdateAvatarSourceReq"];
+export type RequestEmailChangeRequest =
+	OperationRequestBody<"request_email_change">;
 export type UpdateProfileRequest = components["schemas"]["UpdateProfileReq"];
 export type UserProfileInfo = components["schemas"]["UserProfileInfo"];
 export type UserRole = components["schemas"]["UserRole"];

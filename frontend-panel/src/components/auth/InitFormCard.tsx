@@ -14,12 +14,21 @@ export type PublicUrlStatus =
 	| { valid: true; normalized: string; insecure: boolean }
 	| { valid: false; messageKey: string };
 
+export type InitFormField =
+	| "username"
+	| "email"
+	| "password"
+	| "confirmPassword";
+
+export type InitFormErrors = Partial<Record<InitFormField, string>>;
+
 export function InitFormCard({
 	username,
 	email,
 	password,
 	confirmPassword,
 	publicSiteUrl,
+	errors,
 	showPassword,
 	loading,
 	submitDisabled,
@@ -39,6 +48,7 @@ export function InitFormCard({
 	password: string;
 	confirmPassword: string;
 	publicSiteUrl: string;
+	errors: InitFormErrors;
 	showPassword: boolean;
 	loading: boolean;
 	submitDisabled: boolean;
@@ -64,7 +74,7 @@ export function InitFormCard({
 					{t("init.cardDescription")}
 				</p>
 			</div>
-			<form className="mt-7 grid gap-4" onSubmit={onSubmit}>
+			<form className="mt-7 grid gap-4" onSubmit={onSubmit} noValidate>
 				<div className="grid gap-2">
 					<Label
 						htmlFor="username"
@@ -83,11 +93,20 @@ export function InitFormCard({
 							onChange={(event) => onUsernameChange(event.currentTarget.value)}
 							autoComplete="username"
 							minLength={4}
+							maxLength={16}
 							placeholder={t("login.usernamePlaceholder")}
 							className={cn(initInputClassName, "pr-4 pl-11")}
+							aria-invalid={Boolean(errors.username)}
+							aria-describedby={
+								errors.username ? "init-username-error" : undefined
+							}
 							required
 						/>
 					</div>
+					<FormFieldError
+						id="init-username-error"
+						message={errors.username && t(errors.username)}
+					/>
 				</div>
 				<div className="grid gap-2">
 					<Label htmlFor="email" className="text-slate-700 dark:text-white/88">
@@ -106,9 +125,15 @@ export function InitFormCard({
 							autoComplete="email"
 							placeholder={t("login.emailPlaceholder")}
 							className={cn(initInputClassName, "pr-4 pl-11")}
+							aria-invalid={Boolean(errors.email)}
+							aria-describedby={errors.email ? "init-email-error" : undefined}
 							required
 						/>
 					</div>
+					<FormFieldError
+						id="init-email-error"
+						message={errors.email && t(errors.email)}
+					/>
 				</div>
 				<div className="grid gap-2">
 					<Label
@@ -129,7 +154,12 @@ export function InitFormCard({
 							onChange={(event) => onPasswordChange(event.currentTarget.value)}
 							autoComplete="new-password"
 							placeholder={t("login.passwordPlaceholder")}
+							maxLength={128}
 							className={cn(initInputClassName, "pr-11 pl-11")}
+							aria-invalid={Boolean(errors.password)}
+							aria-describedby={
+								errors.password ? "init-password-error" : undefined
+							}
 							required
 						/>
 						<button
@@ -146,6 +176,10 @@ export function InitFormCard({
 							/>
 						</button>
 					</div>
+					<FormFieldError
+						id="init-password-error"
+						message={errors.password && t(errors.password)}
+					/>
 				</div>
 				<div className="grid gap-2">
 					<Label
@@ -168,10 +202,21 @@ export function InitFormCard({
 							}
 							autoComplete="new-password"
 							placeholder={t("login.confirmPasswordPlaceholder")}
+							maxLength={128}
 							className={cn(initInputClassName, "pr-11 pl-11")}
+							aria-invalid={Boolean(errors.confirmPassword)}
+							aria-describedby={
+								errors.confirmPassword
+									? "init-confirm-password-error"
+									: undefined
+							}
 							required
 						/>
 					</div>
+					<FormFieldError
+						id="init-confirm-password-error"
+						message={errors.confirmPassword && t(errors.confirmPassword)}
+					/>
 				</div>
 				<PasswordStrengthMeter
 					label={t("login.passwordStrength")}
@@ -232,5 +277,18 @@ export function InitFormCard({
 				</Button>
 			</form>
 		</section>
+	);
+}
+
+function FormFieldError({ id, message }: { id: string; message?: string }) {
+	if (!message) return null;
+	return (
+		<p
+			id={id}
+			className="flex items-start gap-2 text-xs leading-5 text-red-700 dark:text-red-300"
+		>
+			<Icon name="CircleAlert" className="mt-0.5 size-3.5 shrink-0" />
+			<span>{message}</span>
+		</p>
 	);
 }

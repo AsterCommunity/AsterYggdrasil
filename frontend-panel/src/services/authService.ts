@@ -5,8 +5,10 @@ import type {
 	AuthSessionQuery,
 	AuthTokenResponse,
 	AuthUserInfo,
+	ChangePasswordRequest,
 	CheckResp,
 	LoginRequest,
+	OperationData,
 	OperationPath,
 	OperationRequestBody,
 	PasskeyInfo,
@@ -17,8 +19,13 @@ import type {
 	PasskeyRegisterFinishRequest,
 	PasskeyRegisterStartRequest,
 	PasskeyRegisterStartResponse,
+	PasswordResetConfirmRequest,
+	PasswordResetRequest,
 	PatchPasskeyRequest,
+	PublicUserInvitationInfo,
 	RegisterRequest,
+	RegisterResponse,
+	RequestEmailChangeRequest,
 	RevokeOtherAuthSessionsResponse,
 	SetupRequest,
 	UpdateAvatarSourceRequest,
@@ -233,10 +240,39 @@ export const authService = {
 	},
 	register: async (data: RegisterRequest) => {
 		invalidateAuthServiceCaches();
-		return api.post<AuthTokenResponse, OperationRequestBody<"register">>(
+		return api.post<RegisterResponse, OperationRequestBody<"register">>(
 			"/auth/register",
 			data,
 		);
+	},
+	resendRegisterActivation: (identifier: string) =>
+		api.post<void, OperationRequestBody<"resend_register_activation">>(
+			"/auth/register/resend",
+			{ identifier },
+		),
+	requestPasswordReset: (data: PasswordResetRequest) =>
+		api.post<
+			OperationData<"request_password_reset">,
+			OperationRequestBody<"request_password_reset">
+		>("/auth/password/reset/request", data),
+	confirmPasswordReset: (data: PasswordResetConfirmRequest) =>
+		api.post<
+			OperationData<"confirm_password_reset">,
+			OperationRequestBody<"confirm_password_reset">
+		>("/auth/password/reset/confirm", data),
+	verifyInvitation: (token: string) =>
+		api.get<PublicUserInvitationInfo>(
+			`/auth/invitations/${encodeURIComponent(token)}`,
+		),
+	acceptInvitation: (
+		token: string,
+		data: OperationRequestBody<"accept_user_invitation">,
+	) => {
+		invalidateAuthServiceCaches();
+		return api.post<
+			AuthUserInfo,
+			OperationRequestBody<"accept_user_invitation">
+		>(`/auth/invitations/${encodeURIComponent(token)}/accept`, data);
 	},
 	login: async (data: LoginRequest) => {
 		invalidateAuthServiceCaches();
@@ -249,11 +285,28 @@ export const authService = {
 		invalidateMeCache();
 		return api.post<AuthTokenResponse>("/auth/refresh");
 	},
+	changePassword: async (data: ChangePasswordRequest) => {
+		invalidateAuthServiceCaches();
+		return api.put<AuthTokenResponse, ChangePasswordRequest>(
+			"/auth/password",
+			data,
+		);
+	},
 	logout: async () => {
 		invalidateAuthServiceCaches();
 		return api.post<void>("/auth/logout");
 	},
 	me,
+	requestEmailChange: async (data: RequestEmailChangeRequest) => {
+		const user = await api.post<
+			AuthUserInfo,
+			OperationRequestBody<"request_email_change">
+		>("/auth/email/change", data);
+		primeMeCache(user);
+		return cloneUser(user);
+	},
+	resendEmailChange: () =>
+		api.post<OperationData<"resend_email_change">>("/auth/email/change/resend"),
 	updateProfile: async (data: UpdateProfileRequest) => {
 		const profile = await api.patch<UserProfileInfo, UpdateProfileRequest>(
 			"/auth/profile",

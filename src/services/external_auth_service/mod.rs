@@ -403,6 +403,7 @@ pub struct ExternalAuthLoginAuditDetails<'a> {
 #[derive(Clone, Debug, Serialize)]
 pub struct ExternalAuthProviderAuditDetails<'a> {
     pub key: &'a str,
+    pub kind: ExternalAuthProviderKind,
     pub icon_url: Option<&'a str>,
     pub issuer_url: Option<&'a str>,
     pub enabled: bool,

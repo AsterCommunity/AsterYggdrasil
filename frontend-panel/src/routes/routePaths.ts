@@ -2,6 +2,8 @@ export const publicPaths = {
 	home: "/",
 	login: "/login",
 	register: "/register",
+	resetPassword: "/reset-password",
+	invite: "/invite/:token",
 	init: "/init",
 	tos: "/tos",
 	privacy: "/privacy",
@@ -9,15 +11,18 @@ export const publicPaths = {
 
 export const accountPaths = {
 	home: "/account",
+	forcePasswordChange: "/force-password-change",
 	profiles: "/account/profiles",
 	wardrobe: "/account/wardrobe",
 	audit: "/account/audit",
 	settings: "/account/settings",
+	settingsSecurityCompat: "/settings/security",
 } as const;
 
 export const adminPaths = {
 	home: "/admin",
 	users: "/admin/users",
+	userInvitations: "/admin/users/invitations",
 	externalAuth: "/admin/external-auth",
 	audit: "/admin/audit",
 	tasks: "/admin/tasks",

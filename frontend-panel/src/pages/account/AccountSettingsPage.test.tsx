@@ -11,6 +11,8 @@ import AccountSettingsPage from "./AccountSettingsPage";
 
 const authServiceMock = vi.hoisted(() => ({
 	me: vi.fn(),
+	requestEmailChange: vi.fn(),
+	resendEmailChange: vi.fn(),
 	revokeOtherSessions: vi.fn(),
 	revokeSession: vi.fn(),
 	sessions: vi.fn(),
@@ -75,6 +77,9 @@ const baseUser: AuthUserInfo = {
 	id: 7,
 	username: "alex",
 	email: "alex@example.com",
+	email_verified: true,
+	must_change_password: false,
+	pending_email: null,
 	role: "user",
 	status: "active",
 	profile: {
@@ -102,7 +107,10 @@ const emptyExternalAuthLinkPage: ExternalAuthLinkPage = {
 	total: 0,
 };
 
-function renderPage(user: AuthUserInfo = baseUser) {
+function renderPage(
+	user: AuthUserInfo = baseUser,
+	initialEntry = "/account/settings",
+) {
 	useAuthStore.setState({
 		user,
 		checking: false,
@@ -114,7 +122,7 @@ function renderPage(user: AuthUserInfo = baseUser) {
 	});
 
 	return render(
-		<MemoryRouter>
+		<MemoryRouter initialEntries={[initialEntry]}>
 			<AccountSettingsPage />
 		</MemoryRouter>,
 	);
@@ -125,6 +133,13 @@ describe("AccountSettingsPage", () => {
 		vi.clearAllMocks();
 		useAuthStore.getState().clear();
 		authServiceMock.me.mockResolvedValue(baseUser);
+		authServiceMock.requestEmailChange.mockResolvedValue({
+			...baseUser,
+			pending_email: "next@example.com",
+		});
+		authServiceMock.resendEmailChange.mockResolvedValue({
+			message: "sent",
+		});
 		authServiceMock.revokeOtherSessions.mockResolvedValue({ removed: 0 });
 		authServiceMock.revokeSession.mockResolvedValue(undefined);
 		authServiceMock.sessions.mockResolvedValue([]);
@@ -227,5 +242,98 @@ describe("AccountSettingsPage", () => {
 		expect(
 			await screen.findByText("No browser sessions returned"),
 		).toBeInTheDocument();
+	});
+
+	it("requests an email change and refreshes the shared auth state", async () => {
+		const refreshedUser = {
+			...baseUser,
+			pending_email: "next@example.com",
+		};
+		authServiceMock.me.mockResolvedValueOnce(refreshedUser);
+		renderPage();
+
+		fireEvent.change(screen.getByRole("textbox", { name: "New email" }), {
+			target: { value: "  next@example.com  " },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Send confirmation" }));
+
+		await waitFor(() =>
+			expect(authServiceMock.requestEmailChange).toHaveBeenCalledWith({
+				new_email: "next@example.com",
+			}),
+		);
+		expect(authServiceMock.me).toHaveBeenCalledTimes(1);
+		expect(useAuthStore.getState().user?.pending_email).toBe(
+			"next@example.com",
+		);
+		expect(toastMock.success).toHaveBeenCalledWith(
+			"Confirmation email sent. Check the new inbox.",
+		);
+	});
+
+	it("blocks email change submission for invalid, current, and pending emails", async () => {
+		renderPage({
+			...baseUser,
+			pending_email: "pending@example.com",
+		});
+
+		const input = screen.getByRole("textbox", { name: "New email" });
+		const submit = screen.getByRole("button", { name: "Send confirmation" });
+
+		expect(submit).toBeDisabled();
+		fireEvent.change(input, { target: { value: "bad-email" } });
+		expect(submit).toBeDisabled();
+
+		fireEvent.change(input, { target: { value: "alex@example.com" } });
+		expect(submit).toBeDisabled();
+
+		fireEvent.change(input, { target: { value: "pending@example.com" } });
+		expect(submit).toBeDisabled();
+
+		fireEvent.change(input, { target: { value: "next@example.com" } });
+		expect(submit).not.toBeDisabled();
+		expect(authServiceMock.requestEmailChange).not.toHaveBeenCalled();
+	});
+
+	it("resends a pending email change confirmation", async () => {
+		renderPage({
+			...baseUser,
+			pending_email: "pending@example.com",
+		});
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Resend confirmation" }),
+		);
+
+		await waitFor(() =>
+			expect(authServiceMock.resendEmailChange).toHaveBeenCalledTimes(1),
+		);
+		expect(toastMock.success).toHaveBeenCalledWith(
+			"Confirmation email resent.",
+		);
+	});
+
+	it("handles email change confirmation redirects and refreshes the user", async () => {
+		const refreshedUser = {
+			...baseUser,
+			email: "next@example.com",
+			pending_email: null,
+		};
+		authServiceMock.me.mockResolvedValueOnce(refreshedUser);
+		renderPage(
+			{
+				...baseUser,
+				pending_email: "next@example.com",
+			},
+			"/settings/security?contact_verification=email-changed&email=next%40example.com",
+		);
+
+		await waitFor(() =>
+			expect(toastMock.success).toHaveBeenCalledWith(
+				"Email updated to next@example.com.",
+			),
+		);
+		expect(authServiceMock.me).toHaveBeenCalledTimes(1);
+		expect(useAuthStore.getState().user?.email).toBe("next@example.com");
 	});
 });

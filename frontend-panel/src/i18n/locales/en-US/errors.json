@@ -21,6 +21,7 @@
 		"auth_setup_already_completed": "The system has already been initialized.",
 		"auth_registration_disabled": "New account registration is disabled.",
 		"auth_password_policy_failed": "The password does not meet the security policy.",
+		"auth_password_change_required": "Change your password before continuing.",
 		"auth_user_disabled": "This account is disabled.",
 		"auth_credentials_failed": "The username or password is incorrect.",
 		"auth_token_expired": "Your session has expired. Sign in again.",

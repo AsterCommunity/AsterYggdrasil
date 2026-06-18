@@ -214,10 +214,16 @@ pub async fn finish_login(
                 &req,
             )
             .await?;
-            let redirect_url = site_url::public_app_url_or_path(
-                state.get_ref().runtime_config(),
-                &result.primary_login.return_path,
-            );
+            let redirect_path = if matches!(
+                session.status,
+                auth_service::AuthTokenStatus::PasswordChangeRequired
+            ) {
+                "/force-password-change"
+            } else {
+                &result.primary_login.return_path
+            };
+            let redirect_url =
+                site_url::public_app_url_or_path(state.get_ref().runtime_config(), redirect_path);
             Ok(super::auth::authenticated_redirect_response(
                 state.get_ref(),
                 session,
@@ -313,10 +319,16 @@ pub async fn confirm_email_verification(
     let session =
         auth_service::issue_tokens_for_user(state.get_ref(), result.primary_login.user, &req)
             .await?;
-    let redirect_url = site_url::public_app_url_or_path(
-        state.get_ref().runtime_config(),
-        &result.primary_login.return_path,
-    );
+    let redirect_path = if matches!(
+        session.status,
+        auth_service::AuthTokenStatus::PasswordChangeRequired
+    ) {
+        "/force-password-change"
+    } else {
+        &result.primary_login.return_path
+    };
+    let redirect_url =
+        site_url::public_app_url_or_path(state.get_ref().runtime_config(), redirect_path);
     super::auth::authenticated_redirect_response(state.get_ref(), session, redirect_url)
 }
 
@@ -349,11 +361,19 @@ pub async fn link_with_password(
         auth_service::issue_tokens_for_user(state.get_ref(), result.primary_login.user, &req)
             .await?;
     let expires_in = session.expires_in;
+    let status = if matches!(
+        session.status,
+        auth_service::AuthTokenStatus::PasswordChangeRequired
+    ) {
+        "password_change_required"
+    } else {
+        "authenticated"
+    };
     super::auth::authenticated_response_with_body(
         state.get_ref(),
         session,
         ExternalAuthFinishLoginResponse {
-            status: "authenticated",
+            status,
             expires_in: Some(expires_in),
             flow_token: None,
             return_path: Some(result.primary_login.return_path),

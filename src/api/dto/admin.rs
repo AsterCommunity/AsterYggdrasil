@@ -102,28 +102,35 @@ impl AdminUserListQuery {
 #[derive(Debug, Deserialize, Validate)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct CreateAdminUserReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[validate(length(min = 4, max = 64, message = "username must be 4-64 characters"))]
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_username"))]
     pub username: String,
     #[validate(email(message = "email must be a valid email address"))]
     pub email: String,
-    #[validate(length(min = 8, max = 256, message = "password must be 8-256 characters"))]
-    pub password: String,
+    pub password: Option<String>,
+    pub must_change_password: Option<bool>,
     pub role: Option<UserRole>,
     pub status: Option<UserStatus>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct CreateUserInvitationReq {
+    #[validate(email(message = "email must be a valid email address"))]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct UpdateAdminUserReq {
-    #[validate(length(min = 4, max = 64, message = "username must be 4-64 characters"))]
+    #[validate(custom(function = "crate::api::dto::validation::validate_optional_auth_username"))]
     pub username: Option<String>,
     #[validate(email(message = "email must be a valid email address"))]
     pub email: Option<String>,
-    #[validate(length(min = 8, max = 256, message = "password must be 8-256 characters"))]
+    #[validate(custom(function = "crate::api::dto::validation::validate_optional_auth_password"))]
     pub password: Option<String>,
     pub role: Option<UserRole>,
     pub status: Option<UserStatus>,
+    pub must_change_password: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

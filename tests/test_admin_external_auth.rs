@@ -4,6 +4,7 @@
 mod common;
 
 use actix_web::test;
+use aster_yggdrasil::services::audit_service;
 use serde_json::Value;
 
 #[actix_web::test]
@@ -59,6 +60,23 @@ async fn admin_external_auth_crud_redacts_secret_and_exposes_public_provider() {
     assert_eq!(
         body["data"]["icon_url"],
         "/static/external-auth/example.svg"
+    );
+
+    audit_service::flush_global_audit_log_manager().await;
+    let req = test::TestRequest::get()
+        .uri("/api/v1/admin/audit-logs?action=admin_create_external_auth_provider&limit=1")
+        .insert_header(common::bearer_header(&token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["total"], 1);
+    let audit_entry = &body["data"]["items"][0];
+    let details: Value = serde_json::from_str(audit_entry["details"].as_str().unwrap()).unwrap();
+    assert_eq!(details["kind"], "generic_oauth2");
+    assert_eq!(
+        audit_entry["presentation"]["detail"]["params"]["kind"],
+        "generic_oauth2"
     );
 
     let req = test::TestRequest::get()

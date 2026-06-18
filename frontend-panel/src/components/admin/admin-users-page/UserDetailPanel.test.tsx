@@ -10,6 +10,7 @@ const user = {
 	email: "alex@example.com",
 	email_verified_at: null,
 	id: 7,
+	must_change_password: false,
 	profile: {
 		avatar: { source: "none", url_1024: null, url_512: null, version: 0 },
 		display_name: "Alex",
@@ -110,7 +111,7 @@ describe("UserDetailPanel", () => {
 		expect(onUpdate).not.toHaveBeenCalled();
 	});
 
-	it("blocks password reset below 8 characters", () => {
+	it("blocks password reset outside the allowed length", () => {
 		const { onUpdate } = renderPanel();
 
 		fireEvent.change(screen.getByLabelText("新密码"), {
@@ -121,7 +122,18 @@ describe("UserDetailPanel", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "重置密码" }));
 
-		expect(screen.getByText("密码至少需要 8 个字符。")).toBeInTheDocument();
+		expect(screen.getByText("密码长度需为 8-128 个字符。")).toBeInTheDocument();
+		expect(onUpdate).not.toHaveBeenCalled();
+
+		fireEvent.change(screen.getByLabelText("新密码"), {
+			target: { value: "a".repeat(129) },
+		});
+		fireEvent.change(screen.getByLabelText("确认密码"), {
+			target: { value: "a".repeat(129) },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "重置密码" }));
+
+		expect(screen.getByText("密码长度需为 8-128 个字符。")).toBeInTheDocument();
 		expect(onUpdate).not.toHaveBeenCalled();
 	});
 
@@ -152,6 +164,26 @@ describe("UserDetailPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "重置密码" }));
 
 		expect(onUpdate).toHaveBeenCalledWith(7, { password: "12345678" });
+	});
+
+	it("updates the force password change flag from the security action", () => {
+		const { onUpdate } = renderPanel();
+
+		fireEvent.click(
+			screen.getByRole("switch", { name: "下次登录必须修改密码" }),
+		);
+
+		expect(onUpdate).toHaveBeenCalledWith(7, { must_change_password: true });
+	});
+
+	it("can clear an existing force password change flag", () => {
+		const { onUpdate } = renderPanel({ must_change_password: true });
+
+		fireEvent.click(
+			screen.getByRole("switch", { name: "下次登录必须修改密码" }),
+		);
+
+		expect(onUpdate).toHaveBeenCalledWith(7, { must_change_password: false });
 	});
 
 	it("revokes sessions from the security action", () => {

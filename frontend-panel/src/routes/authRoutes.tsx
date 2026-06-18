@@ -5,6 +5,10 @@ import { publicPaths } from "@/routes/routePaths";
 import { authElement } from "@/routes/routeSuspense";
 
 const LoginPage = lazyWithPreload(() => import("@/pages/LoginPage"));
+const InvitePage = lazyWithPreload(() => import("@/pages/InvitePage"));
+const ResetPasswordPage = lazyWithPreload(
+	() => import("@/pages/ResetPasswordPage"),
+);
 
 export const authRoutes = [
 	{
@@ -16,5 +20,15 @@ export const authRoutes = [
 		path: publicPaths.register,
 		element: <GuestOnlyGate />,
 		children: [{ index: true, element: authElement(<LoginPage />) }],
+	},
+	{
+		path: publicPaths.invite,
+		element: <GuestOnlyGate />,
+		children: [{ index: true, element: authElement(<InvitePage />) }],
+	},
+	{
+		path: publicPaths.resetPassword,
+		element: <GuestOnlyGate />,
+		children: [{ index: true, element: authElement(<ResetPasswordPage />) }],
 	},
 ] satisfies RouteObject[];

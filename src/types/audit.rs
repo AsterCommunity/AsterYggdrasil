@@ -60,6 +60,12 @@ define_audit_actions! {
     UserRevokeSession => "user_revoke_session",
     UserRevokeOtherSessions => "user_revoke_other_sessions",
     UserChangePassword => "user_change_password",
+    UserConfirmRegistration => "user_confirm_registration",
+    UserRequestEmailChange => "user_request_email_change",
+    UserResendEmailChange => "user_resend_email_change",
+    UserConfirmEmailChange => "user_confirm_email_change",
+    UserRequestPasswordReset => "user_request_password_reset",
+    UserConfirmPasswordReset => "user_confirm_password_reset",
     UserUpdateProfile => "user_update_profile",
     UserPasskeyRegister => "user_passkey_register",
     UserPasskeyRename => "user_passkey_rename",
@@ -68,6 +74,8 @@ define_audit_actions! {
     AdminCreateUser => "admin_create_user",
     AdminUpdateUser => "admin_update_user",
     AdminDisableUser => "admin_disable_user",
+    AdminCreateInvitation => "admin_create_invitation",
+    AdminRevokeInvitation => "admin_revoke_invitation",
     AdminRevokeUserSessions => "admin_revoke_user_sessions",
     AdminDeleteConfig => "admin_delete_config",
     AdminCleanupTasks => "admin_cleanup_tasks",
@@ -119,6 +127,12 @@ impl AuditAction {
             | Self::UserRevokeSession
             | Self::UserRevokeOtherSessions
             | Self::UserChangePassword
+            | Self::UserConfirmRegistration
+            | Self::UserRequestEmailChange
+            | Self::UserResendEmailChange
+            | Self::UserConfirmEmailChange
+            | Self::UserRequestPasswordReset
+            | Self::UserConfirmPasswordReset
             | Self::UserUpdateProfile
             | Self::UserPasskeyRegister
             | Self::UserPasskeyRename
@@ -138,6 +152,8 @@ impl AuditAction {
             Self::AdminCreateUser
             | Self::AdminUpdateUser
             | Self::AdminDisableUser
+            | Self::AdminCreateInvitation
+            | Self::AdminRevokeInvitation
             | Self::AdminRevokeUserSessions => "admin",
             Self::MailSend | Self::MailDeliveryFailed => "mail",
             Self::AdminCreateExternalAuthProvider
@@ -167,6 +183,7 @@ pub enum AuditEntityType {
     System,
     SystemConfig,
     User,
+    Invitation,
     AuthSession,
     Passkey,
     ExternalAuthProvider,
@@ -186,6 +203,7 @@ impl AuditEntityType {
             Self::System => "system",
             Self::SystemConfig => "system_config",
             Self::User => "user",
+            Self::Invitation => "invitation",
             Self::AuthSession => "auth_session",
             Self::Passkey => "passkey",
             Self::ExternalAuthProvider => "external_auth_provider",
@@ -205,6 +223,7 @@ impl AuditEntityType {
             "system" => Some(Self::System),
             "system_config" => Some(Self::SystemConfig),
             "user" => Some(Self::User),
+            "invitation" => Some(Self::Invitation),
             "auth_session" => Some(Self::AuthSession),
             "passkey" => Some(Self::Passkey),
             "external_auth_provider" => Some(Self::ExternalAuthProvider),

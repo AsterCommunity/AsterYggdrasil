@@ -37,11 +37,7 @@ impl AsterError {
         Self::DatabaseConnection(message.into())
     }
 
-    pub fn public_error(
-        status: StatusCode,
-        code: AsterErrorCode,
-        message: impl Into<String>,
-    ) -> Self {
+    fn public_error(status: StatusCode, code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::Public {
             internal_code: "E100",
             status,
@@ -51,7 +47,7 @@ impl AsterError {
         }
     }
 
-    pub fn public_error_with_retryable(
+    fn public_error_with_retryable(
         status: StatusCode,
         code: AsterErrorCode,
         message: impl Into<String>,
@@ -106,6 +102,31 @@ impl AsterError {
         Self::public_error_with_retryable(StatusCode::SERVICE_UNAVAILABLE, code, message, None)
     }
 
+    pub fn runtime_unavailable_retryable(message: impl Into<String>) -> Self {
+        Self::public_error_with_retryable(
+            StatusCode::SERVICE_UNAVAILABLE,
+            AsterErrorCode::RuntimeUnavailable,
+            message,
+            Some(true),
+        )
+    }
+
+    pub fn request_payload_too_large(message: impl Into<String>) -> Self {
+        Self::public_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            AsterErrorCode::RequestPayloadTooLarge,
+            message,
+        )
+    }
+
+    pub fn rate_limited(message: impl Into<String>) -> Self {
+        Self::public_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            AsterErrorCode::RateLimited,
+            message,
+        )
+    }
+
     pub fn database_operation(message: impl Into<String>) -> Self {
         Self::DatabaseOperation(message.into())
     }
@@ -140,6 +161,18 @@ impl AsterError {
 
     pub fn contact_verification_invalid(message: impl Into<String>) -> Self {
         Self::validation_error_code(AsterErrorCode::ContactVerificationInvalid, message)
+    }
+
+    pub fn contact_verification_expired(message: impl Into<String>) -> Self {
+        Self::public_error(
+            StatusCode::GONE,
+            AsterErrorCode::ContactVerificationExpired,
+            message,
+        )
+    }
+
+    pub fn avatar_render_failed(message: impl Into<String>) -> Self {
+        Self::internal_error_code(AsterErrorCode::AvatarRenderFailed, message)
     }
 
     pub fn record_not_found(message: impl Into<String>) -> Self {

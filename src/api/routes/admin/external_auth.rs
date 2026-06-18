@@ -29,6 +29,7 @@ fn external_auth_provider_audit_details(
 ) -> Option<serde_json::Value> {
     audit_service::details(ExternalAuthProviderAuditDetails {
         key: &provider.key,
+        kind: provider.provider_kind,
         icon_url: provider.icon_url.as_deref(),
         issuer_url: provider.issuer_url.as_deref(),
         enabled: provider.enabled,

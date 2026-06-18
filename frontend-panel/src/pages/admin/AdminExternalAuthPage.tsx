@@ -1,11 +1,4 @@
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -229,17 +222,11 @@ export default function AdminExternalAuthPage() {
 
 	usePageTitle(t("admin.externalAuth.title"));
 
-	const [offset, setOffset] = useState(() =>
-		parseOffsetSearchParam(searchParams.get("offset")),
-	);
-	const [pageSize, setPageSize] = useState<
-		(typeof EXTERNAL_AUTH_PAGE_SIZE_OPTIONS)[number]
-	>(() =>
-		parsePageSizeSearchParam(
-			searchParams.get("pageSize"),
-			EXTERNAL_AUTH_PAGE_SIZE_OPTIONS,
-			DEFAULT_EXTERNAL_AUTH_PAGE_SIZE,
-		),
+	const offset = parseOffsetSearchParam(searchParams.get("offset"));
+	const pageSize = parsePageSizeSearchParam(
+		searchParams.get("pageSize"),
+		EXTERNAL_AUTH_PAGE_SIZE_OPTIONS,
+		DEFAULT_EXTERNAL_AUTH_PAGE_SIZE,
 	);
 	const [state, dispatch] = useReducer(reducer, undefined, initialState);
 	const previousCreateStepRef = useRef(0);
@@ -278,30 +265,28 @@ export default function AdminExternalAuthPage() {
 		previousCreateStepRef.current = state.createStep;
 	}
 
-	useEffect(() => {
-		const nextOffset = parseOffsetSearchParam(searchParams.get("offset"));
-		const nextPageSize = parsePageSizeSearchParam(
-			searchParams.get("pageSize"),
-			EXTERNAL_AUTH_PAGE_SIZE_OPTIONS,
-			DEFAULT_EXTERNAL_AUTH_PAGE_SIZE,
-		);
-		setOffset(nextOffset);
-		setPageSize(nextPageSize);
-	}, [searchParams]);
-
-	useEffect(() => {
-		const next = new URLSearchParams(searchParams);
-		if (offset > 0) next.set("offset", String(offset));
-		else next.delete("offset");
-		if (pageSize !== DEFAULT_EXTERNAL_AUTH_PAGE_SIZE) {
-			next.set("pageSize", String(pageSize));
-		} else {
-			next.delete("pageSize");
-		}
-		if (next.toString() !== searchParams.toString()) {
-			setSearchParams(next, { replace: true });
-		}
-	}, [offset, pageSize, searchParams, setSearchParams]);
+	const updatePagination = useCallback(
+		({
+			offset: nextOffset = offset,
+			pageSize: nextPageSize = pageSize,
+		}: {
+			offset?: number;
+			pageSize?: (typeof EXTERNAL_AUTH_PAGE_SIZE_OPTIONS)[number];
+		}) => {
+			const next = new URLSearchParams(searchParams);
+			if (nextOffset > 0) next.set("offset", String(nextOffset));
+			else next.delete("offset");
+			if (nextPageSize !== DEFAULT_EXTERNAL_AUTH_PAGE_SIZE) {
+				next.set("pageSize", String(nextPageSize));
+			} else {
+				next.delete("pageSize");
+			}
+			if (next.toString() !== searchParams.toString()) {
+				setSearchParams(next, { replace: true });
+			}
+		},
+		[offset, pageSize, searchParams, setSearchParams],
+	);
 
 	const loadProviders = useCallback(async () => {
 		try {
@@ -311,9 +296,12 @@ export default function AdminExternalAuthPage() {
 				adminExternalAuthService.list({ limit: pageSize, offset }),
 			]);
 			if (page.items.length === 0 && page.total > 0 && offset > 0) {
-				setOffset(
-					Math.max(0, Math.floor((page.total - 1) / pageSize) * pageSize),
-				);
+				updatePagination({
+					offset: Math.max(
+						0,
+						Math.floor((page.total - 1) / pageSize) * pageSize,
+					),
+				});
 				return;
 			}
 			dispatch({
@@ -327,7 +315,7 @@ export default function AdminExternalAuthPage() {
 		} finally {
 			dispatch({ type: "set_loading", value: false });
 		}
-	}, [offset, pageSize]);
+	}, [offset, pageSize, updatePagination]);
 
 	useEffect(() => {
 		void loadProviders();
@@ -458,15 +446,140 @@ export default function AdminExternalAuthPage() {
 		}
 	}
 
+	return (
+		<AdminPageShell>
+			<AdminPageHeader
+				title={t("admin.externalAuth.title")}
+				description={t("admin.externalAuth.description")}
+				actions={
+					<ExternalAuthPageActions
+						loading={state.loading}
+						onCreate={openCreate}
+						onRefresh={() => void loadProviders()}
+					/>
+				}
+			/>
+
+			<ExternalAuthProviderList
+				currentPage={currentPage}
+				offset={offset}
+				pageSize={pageSize}
+				pageSizeOptions={pageSizeOptions}
+				state={state}
+				totalPages={totalPages}
+				onCopyCallbackUrl={copyCallback}
+				onCreate={openCreate}
+				onEdit={openEdit}
+				onRequestDelete={(provider) =>
+					dispatch({ type: "set_deleting_provider", value: provider })
+				}
+				onTestProvider={(provider) => void testProvider(provider)}
+				onUpdatePagination={updatePagination}
+			/>
+
+			<ExternalAuthPageDialogs
+				createStepDirection={stepAnimationRef.current}
+				createSteps={createSteps}
+				state={state}
+				onCloseCreatedProvider={() =>
+					dispatch({ type: "set_created_provider", value: null })
+				}
+				onCloseDeleteProvider={() =>
+					dispatch({ type: "set_deleting_provider", value: null })
+				}
+				onCloseProviderDialog={() => dispatch({ type: "close_dialog" })}
+				onCopyCallbackUrl={copyCallback}
+				onCreateBack={() =>
+					dispatch({ type: "set_create_step", value: state.createStep - 1 })
+				}
+				onCreateNext={goCreateNext}
+				onCreateStepChange={(value) =>
+					dispatch({ type: "set_create_step", value })
+				}
+				onDeleteProvider={() => void deleteProvider()}
+				onFieldChange={setField}
+				onProviderKindChange={setProviderKind}
+				onSubmit={() => void submitProvider()}
+				onTestConnection={() => void testDraft()}
+			/>
+		</AdminPageShell>
+	);
+}
+
+function ExternalAuthPageActions({
+	loading,
+	onCreate,
+	onRefresh,
+}: {
+	loading: boolean;
+	onCreate: () => void;
+	onRefresh: () => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<>
+			<Button type="button" size="sm" onClick={onCreate}>
+				<Icon name="Plus" className="mr-2 size-4" />
+				{t("admin.externalAuth.create")}
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				disabled={loading}
+				onClick={onRefresh}
+			>
+				<Icon
+					name={loading ? "Spinner" : "ArrowsClockwise"}
+					className={cn("mr-2 size-4", loading && "animate-spin")}
+				/>
+				{t("common.refresh")}
+			</Button>
+		</>
+	);
+}
+
+function ExternalAuthProviderList({
+	currentPage,
+	offset,
+	onCopyCallbackUrl,
+	onCreate,
+	onEdit,
+	onRequestDelete,
+	onTestProvider,
+	onUpdatePagination,
+	pageSize,
+	pageSizeOptions,
+	state,
+	totalPages,
+}: {
+	currentPage: number;
+	offset: number;
+	onCopyCallbackUrl: (value: string) => void;
+	onCreate: () => void;
+	onEdit: (provider: AdminExternalAuthProviderInfo) => void;
+	onRequestDelete: (provider: AdminExternalAuthProviderInfo) => void;
+	onTestProvider: (provider: AdminExternalAuthProviderInfo) => void;
+	onUpdatePagination: (value: {
+		offset?: number;
+		pageSize?: (typeof EXTERNAL_AUTH_PAGE_SIZE_OPTIONS)[number];
+	}) => void;
+	pageSize: (typeof EXTERNAL_AUTH_PAGE_SIZE_OPTIONS)[number];
+	pageSizeOptions: { label: string; value: string }[];
+	state: UiState;
+	totalPages: number;
+}) {
+	const { t } = useTranslation();
 	const emptyIcon = useMemo(() => <Icon name="Globe" className="size-5" />, []);
 	const emptyAction = useMemo(
 		() => (
-			<Button type="button" size="sm" onClick={openCreate}>
+			<Button type="button" size="sm" onClick={onCreate}>
 				<Icon name="Plus" className="mr-2 size-4" />
 				{t("admin.externalAuth.create")}
 			</Button>
 		),
-		[openCreate, t],
+		[onCreate, t],
 	);
 	const headerRow = useMemo(() => <ExternalAuthProvidersTableHeader />, []);
 	const pagination = useMemo(
@@ -480,82 +593,102 @@ export default function AdminExternalAuthPage() {
 				prevDisabled={offset === 0}
 				nextDisabled={offset + pageSize >= state.total}
 				onPrevious={() =>
-					setOffset((current) => Math.max(0, current - pageSize))
+					onUpdatePagination({ offset: Math.max(0, offset - pageSize) })
 				}
-				onNext={() => setOffset((current) => current + pageSize)}
+				onNext={() => onUpdatePagination({ offset: offset + pageSize })}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(
 						value,
 						EXTERNAL_AUTH_PAGE_SIZE_OPTIONS,
 					);
 					if (next == null) return;
-					setPageSize(next);
-					setOffset(0);
+					onUpdatePagination({ offset: 0, pageSize: next });
 				}}
 			/>
 		),
-		[currentPage, offset, pageSize, pageSizeOptions, state.total, totalPages],
+		[
+			currentPage,
+			offset,
+			onUpdatePagination,
+			pageSize,
+			pageSizeOptions,
+			state.total,
+			totalPages,
+		],
 	);
 
 	return (
-		<AdminPageShell>
-			<AdminPageHeader
-				title={t("admin.externalAuth.title")}
-				description={t("admin.externalAuth.description")}
-				actions={
-					<>
-						<Button type="button" size="sm" onClick={openCreate}>
-							<Icon name="Plus" className="mr-2 size-4" />
-							{t("admin.externalAuth.create")}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={state.loading}
-							onClick={() => void loadProviders()}
-						>
-							<Icon
-								name={state.loading ? "Spinner" : "ArrowsClockwise"}
-								className={cn("mr-2 size-4", state.loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
-					</>
-				}
-			/>
+		<AdminTableList
+			loading={state.loading}
+			items={state.providers}
+			columns={4}
+			rows={6}
+			emptyIcon={emptyIcon}
+			emptyTitle={t("admin.externalAuth.emptyTitle")}
+			emptyDescription={t("admin.externalAuth.emptyDescription")}
+			emptyAction={emptyAction}
+			headerRow={headerRow}
+			pagination={pagination}
+			renderRow={(provider) => (
+				<ExternalAuthProvidersTableRow
+					key={provider.id}
+					provider={provider}
+					providerKinds={state.providerKinds}
+					deletingId={state.deletingProvider?.id ?? null}
+					testingId={state.testingId}
+					onEdit={onEdit}
+					onCopyCallbackUrl={onCopyCallbackUrl}
+					onTestProvider={onTestProvider}
+					onRequestDelete={onRequestDelete}
+				/>
+			)}
+		/>
+	);
+}
 
-			<AdminTableList
-				loading={state.loading}
-				items={state.providers}
-				columns={4}
-				rows={6}
-				emptyIcon={emptyIcon}
-				emptyTitle={t("admin.externalAuth.emptyTitle")}
-				emptyDescription={t("admin.externalAuth.emptyDescription")}
-				emptyAction={emptyAction}
-				headerRow={headerRow}
-				pagination={pagination}
-				renderRow={(provider) => (
-					<ExternalAuthProvidersTableRow
-						key={provider.id}
-						provider={provider}
-						providerKinds={state.providerKinds}
-						deletingId={state.deletingProvider?.id ?? null}
-						testingId={state.testingId}
-						onEdit={openEdit}
-						onCopyCallbackUrl={copyCallback}
-						onTestProvider={(item) => void testProvider(item)}
-						onRequestDelete={(item) =>
-							dispatch({ type: "set_deleting_provider", value: item })
-						}
-					/>
-				)}
-			/>
+function ExternalAuthPageDialogs({
+	createStepDirection,
+	createSteps,
+	onCloseCreatedProvider,
+	onCloseDeleteProvider,
+	onCloseProviderDialog,
+	onCopyCallbackUrl,
+	onCreateBack,
+	onCreateNext,
+	onCreateStepChange,
+	onDeleteProvider,
+	onFieldChange,
+	onProviderKindChange,
+	onSubmit,
+	onTestConnection,
+	state,
+}: {
+	createStepDirection: "idle" | "forward" | "backward";
+	createSteps: ExternalAuthCreateStep[];
+	onCloseCreatedProvider: () => void;
+	onCloseDeleteProvider: () => void;
+	onCloseProviderDialog: () => void;
+	onCopyCallbackUrl: (value: string) => void;
+	onCreateBack: () => void;
+	onCreateNext: () => void;
+	onCreateStepChange: (value: number) => void;
+	onDeleteProvider: () => void;
+	onFieldChange: <K extends keyof ExternalAuthProviderFormData>(
+		key: K,
+		value: ExternalAuthProviderFormData[K],
+	) => void;
+	onProviderKindChange: (kind: ExternalAuthKind) => void;
+	onSubmit: () => void;
+	onTestConnection: () => void;
+	state: UiState;
+}) {
+	const { t } = useTranslation();
 
+	return (
+		<>
 			<ExternalAuthProviderDialog
 				createStep={state.createStep}
-				createStepDirection={stepAnimationRef.current}
+				createStepDirection={createStepDirection}
 				createStepTouched={state.createStepTouched}
 				createSteps={createSteps}
 				form={state.form}
@@ -566,29 +699,23 @@ export default function AdminExternalAuthPage() {
 				submitting={state.submitting}
 				testResult={state.testResult}
 				testing={state.testingDraft}
-				onCopyCallbackUrl={copyCallback}
-				onCreateBack={() =>
-					dispatch({ type: "set_create_step", value: state.createStep - 1 })
-				}
-				onCreateNext={goCreateNext}
-				onCreateStepChange={(value) =>
-					dispatch({ type: "set_create_step", value })
-				}
-				onFieldChange={setField}
+				onCopyCallbackUrl={onCopyCallbackUrl}
+				onCreateBack={onCreateBack}
+				onCreateNext={onCreateNext}
+				onCreateStepChange={onCreateStepChange}
+				onFieldChange={onFieldChange}
 				onOpenChange={(open) => {
-					if (!open) dispatch({ type: "close_dialog" });
+					if (!open) onCloseProviderDialog();
 				}}
-				onProviderKindChange={setProviderKind}
-				onSubmit={() => void submitProvider()}
-				onTestConnection={() => void testDraft()}
+				onProviderKindChange={onProviderKindChange}
+				onSubmit={onSubmit}
+				onTestConnection={onTestConnection}
 			/>
 
 			<ConfirmDialog
 				open={Boolean(state.deletingProvider)}
 				onOpenChange={(open) => {
-					if (!open) {
-						dispatch({ type: "set_deleting_provider", value: null });
-					}
+					if (!open) onCloseDeleteProvider();
 				}}
 				title={t("admin.externalAuth.deleteTitle", {
 					name: state.deletingProvider?.display_name ?? "",
@@ -597,15 +724,13 @@ export default function AdminExternalAuthPage() {
 				cancelLabel={t("common.cancel")}
 				confirmLabel={t("common.delete")}
 				variant="destructive"
-				onConfirm={() => void deleteProvider()}
+				onConfirm={onDeleteProvider}
 			/>
 
 			<ConfirmDialog
 				open={Boolean(state.createdProvider)}
 				onOpenChange={(open) => {
-					if (!open) {
-						dispatch({ type: "set_created_provider", value: null });
-					}
+					if (!open) onCloseCreatedProvider();
 				}}
 				title={t("admin.externalAuth.callbackTitle")}
 				description={
@@ -615,10 +740,10 @@ export default function AdminExternalAuthPage() {
 				confirmLabel={t("admin.externalAuth.copyCallback")}
 				onConfirm={() => {
 					if (state.createdProvider) {
-						copyCallback(callbackUrl(state.createdProvider));
+						onCopyCallbackUrl(callbackUrl(state.createdProvider));
 					}
 				}}
 			/>
-		</AdminPageShell>
+		</>
 	);
 }

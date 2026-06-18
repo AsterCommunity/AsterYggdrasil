@@ -21,6 +21,7 @@
 		"auth_setup_already_completed": "系统已经初始化。",
 		"auth_registration_disabled": "当前不允许注册新账号。",
 		"auth_password_policy_failed": "密码不符合安全要求。",
+		"auth_password_change_required": "请先修改密码后再继续。",
 		"auth_user_disabled": "账号已被禁用。",
 		"auth_credentials_failed": "账号或密码不正确。",
 		"auth_token_expired": "登录状态已过期，请重新登录。",

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { handleApiError } from "@/hooks/useApiError";
+import { passwordSchema } from "@/lib/validation";
 import { adminMinecraftProfileService } from "@/services/adminService";
 import type {
 	AdminUserInfo,
@@ -19,7 +20,11 @@ import {
 import { UserDetailSecuritySection } from "./UserDetailSecuritySection";
 import { UserDetailSidebar } from "./UserDetailSidebar";
 
-type BusyField = "revokingSessions" | "savingPassword" | "savingProfile";
+type BusyField =
+	| "revokingSessions"
+	| "savingForcePasswordChange"
+	| "savingPassword"
+	| "savingProfile";
 
 type UserDetailDraftState = {
 	confirmPassword: string;
@@ -28,6 +33,7 @@ type UserDetailDraftState = {
 	passwordError?: string;
 	confirmPasswordError?: string;
 	revokingSessions: boolean;
+	savingForcePasswordChange: boolean;
 	role: UserRole;
 	savingPassword: boolean;
 	savingProfile: boolean;
@@ -63,6 +69,7 @@ function createUserDraftState(user: AdminUserInfo): UserDetailDraftState {
 		email: user.email,
 		password: "",
 		revokingSessions: false,
+		savingForcePasswordChange: false,
 		role: user.role,
 		savingPassword: false,
 		savingProfile: false,
@@ -143,6 +150,7 @@ function userDetailDraftKey(user: AdminUserInfo) {
 		user.active_session_count,
 		user.profile_count,
 		user.session_version,
+		user.must_change_password,
 	].join(":");
 }
 
@@ -169,6 +177,7 @@ export function UserDetailPanel({
 		password,
 		passwordError,
 		revokingSessions,
+		savingForcePasswordChange,
 		role,
 		savingPassword,
 		savingProfile,
@@ -182,7 +191,11 @@ export function UserDetailPanel({
 		(!roleStatusLocked && role !== user.role) ||
 		(!roleStatusLocked && status !== user.status);
 	const profileInvalid = !username.trim() || !email.trim();
-	const busy = savingProfile || savingPassword || revokingSessions;
+	const busy =
+		savingProfile ||
+		savingPassword ||
+		revokingSessions ||
+		savingForcePasswordChange;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -245,8 +258,9 @@ export function UserDetailPanel({
 		const nextPassword = password.trim();
 		const errors: { confirmPassword?: string; password?: string } = {};
 
-		if (nextPassword.length < 8) {
-			errors.password = t("admin.users.passwordMinLength");
+		const passwordResult = passwordSchema.safeParse(nextPassword);
+		if (!passwordResult.success) {
+			errors.password = t(passwordResult.error.issues[0]?.message ?? "");
 		}
 		if (confirmPassword !== password) {
 			errors.confirmPassword = t("admin.users.passwordConfirmMismatch");
@@ -270,6 +284,15 @@ export function UserDetailPanel({
 			const removed = await onRevokeSessions(user.id);
 			toast.success(t("admin.users.sessionsRevoked", { count: removed }));
 		});
+	};
+
+	const handleForcePasswordChangeToggle = async (value: boolean) => {
+		if (value === user.must_change_password) return;
+		await runPanelAction(
+			"savingForcePasswordChange",
+			async () => onUpdate(user.id, { must_change_password: value }),
+			t("admin.users.updated"),
+		);
 	};
 
 	return (
@@ -321,9 +344,11 @@ export function UserDetailPanel({
 								activeSessionCount={user.active_session_count}
 								confirmPassword={confirmPassword}
 								confirmPasswordError={confirmPasswordError}
+								mustChangePassword={user.must_change_password}
 								password={password}
 								passwordError={passwordError}
 								revokingSessions={revokingSessions}
+								savingForcePasswordChange={savingForcePasswordChange}
 								savingPassword={savingPassword}
 								onConfirmPasswordChange={(value) => {
 									dispatch({ type: "set_confirm_password", value });
@@ -337,6 +362,9 @@ export function UserDetailPanel({
 									dispatch({ type: "clear_password_error", field: "password" });
 								}}
 								onPasswordReset={() => void handlePasswordReset()}
+								onForcePasswordChangeToggle={(value) =>
+									void handleForcePasswordChangeToggle(value)
+								}
 								onSessionRevoke={() => void handleSessionRevoke()}
 							/>
 							<UserDetailMinecraftSection

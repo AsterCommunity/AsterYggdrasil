@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
@@ -16,32 +16,96 @@ import type { AuthSessionInfo } from "@/types/api";
 
 const SESSION_PAGE_SIZE_OPTIONS = [5, 10] as const;
 const DEFAULT_SESSION_PAGE_SIZE = 5;
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat(undefined, {
+	numeric: "auto",
+});
+
+type LoginDevicesState = {
+	loading: boolean;
+	offset: number;
+	pageSize: number;
+	revokeBusyId: string | null;
+	revokeOthersBusy: boolean;
+	sessionTotal: number;
+	sessions: AuthSessionInfo[];
+};
+
+type LoginDevicesAction =
+	| { type: "loaded"; sessions: AuthSessionInfo[]; total: number }
+	| { type: "set_loading"; value: boolean }
+	| { type: "set_offset"; value: number }
+	| { type: "set_page_size"; value: number }
+	| { type: "set_revoke_busy_id"; value: string | null }
+	| { type: "set_revoke_others_busy"; value: boolean };
+
+const loginDevicesInitialState: LoginDevicesState = {
+	loading: true,
+	offset: 0,
+	pageSize: DEFAULT_SESSION_PAGE_SIZE,
+	revokeBusyId: null,
+	revokeOthersBusy: false,
+	sessionTotal: 0,
+	sessions: [],
+};
+
+function loginDevicesReducer(
+	state: LoginDevicesState,
+	action: LoginDevicesAction,
+): LoginDevicesState {
+	switch (action.type) {
+		case "loaded":
+			return {
+				...state,
+				sessionTotal: action.total,
+				sessions: sortSessions(action.sessions),
+			};
+		case "set_loading":
+			return { ...state, loading: action.value };
+		case "set_offset":
+			return { ...state, offset: action.value };
+		case "set_page_size":
+			return { ...state, offset: 0, pageSize: action.value };
+		case "set_revoke_busy_id":
+			return { ...state, revokeBusyId: action.value };
+		case "set_revoke_others_busy":
+			return { ...state, revokeOthersBusy: action.value };
+	}
+}
 
 export function LoginDevicesSection() {
 	const { t } = useTranslation();
 	const clearAuth = useAuthStore((state) => state.clear);
-	const [sessions, setSessions] = useState<AuthSessionInfo[]>([]);
-	const [sessionTotal, setSessionTotal] = useState(0);
-	const [offset, setOffset] = useState(0);
-	const [pageSize, setPageSize] = useState<number>(DEFAULT_SESSION_PAGE_SIZE);
-	const [loading, setLoading] = useState(true);
-	const [revokeBusyId, setRevokeBusyId] = useState<string | null>(null);
-	const [revokeOthersBusy, setRevokeOthersBusy] = useState(false);
+	const [state, dispatch] = useReducer(
+		loginDevicesReducer,
+		loginDevicesInitialState,
+	);
+	const {
+		loading,
+		offset,
+		pageSize,
+		revokeBusyId,
+		revokeOthersBusy,
+		sessionTotal,
+		sessions,
+	} = state;
 
 	const loadSessions = useCallback(
 		async (nextOffset = offset) => {
-			setLoading(true);
+			dispatch({ type: "set_loading", value: true });
 			try {
 				const next = await authService.sessionsPage({
 					limit: pageSize,
 					offset: nextOffset,
 				});
-				setSessions(sortSessions(next.items));
-				setSessionTotal(next.total);
+				dispatch({
+					type: "loaded",
+					sessions: next.items,
+					total: next.total,
+				});
 			} catch (nextError: unknown) {
 				toast.error(formatUnknownError(nextError));
 			} finally {
-				setLoading(false);
+				dispatch({ type: "set_loading", value: false });
 			}
 		},
 		[offset, pageSize],
@@ -68,35 +132,36 @@ export function LoginDevicesSection() {
 	);
 	const revokeSession = useCallback(
 		async (session: AuthSessionInfo) => {
-			setRevokeBusyId(session.id);
+			dispatch({ type: "set_revoke_busy_id", value: session.id });
 			try {
-				await authService.revokeSession(session.id);
 				if (session.is_current) {
+					await authService.revokeSession(session.id);
 					toast.success(t("sessions.currentSessionRevoked"));
 					clearAuth();
 					return;
 				}
+				await authService.revokeSession(session.id);
 				await loadSessions();
 				toast.success(t("sessions.sessionRevoked"));
 			} catch (nextError: unknown) {
 				toast.error(formatUnknownError(nextError));
 			} finally {
-				setRevokeBusyId(null);
+				dispatch({ type: "set_revoke_busy_id", value: null });
 			}
 		},
 		[clearAuth, loadSessions, t],
 	);
 	const revokeOtherSessions = useCallback(async () => {
-		setRevokeOthersBusy(true);
+		dispatch({ type: "set_revoke_others_busy", value: true });
 		try {
 			await authService.revokeOtherSessions();
-			setOffset(0);
+			dispatch({ type: "set_offset", value: 0 });
 			await loadSessions(0);
 			toast.success(t("sessions.otherSessionsRevoked"));
 		} catch (nextError: unknown) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
-			setRevokeOthersBusy(false);
+			dispatch({ type: "set_revoke_others_busy", value: false });
 		}
 	}, [loadSessions, t]);
 
@@ -107,8 +172,7 @@ export function LoginDevicesSection() {
 		)
 			? parsed
 			: DEFAULT_SESSION_PAGE_SIZE;
-		setPageSize(nextPageSize);
-		setOffset(0);
+		dispatch({ type: "set_page_size", value: nextPageSize });
 	}
 
 	return (
@@ -226,10 +290,15 @@ export function LoginDevicesSection() {
 						<AdminOffsetPagination
 							currentPage={Math.floor(offset / pageSize) + 1}
 							nextDisabled={offset + pageSize >= sessionTotal}
-							onNext={() => setOffset((current) => current + pageSize)}
+							onNext={() =>
+								dispatch({ type: "set_offset", value: offset + pageSize })
+							}
 							onPageSizeChange={changePageSize}
 							onPrevious={() =>
-								setOffset((current) => Math.max(0, current - pageSize))
+								dispatch({
+									type: "set_offset",
+									value: Math.max(0, offset - pageSize),
+								})
 							}
 							pageSize={String(pageSize)}
 							pageSizeOptions={SESSION_PAGE_SIZE_OPTIONS.map((size) => ({
@@ -434,15 +503,23 @@ function formatRelativeDateTime(value: string) {
 	if (!Number.isFinite(timestamp)) return value;
 	const differenceSeconds = Math.round((timestamp - Date.now()) / 1000);
 	const absoluteSeconds = Math.abs(differenceSeconds);
-	const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
 	if (absoluteSeconds < 60)
-		return formatter.format(differenceSeconds, "second");
+		return RELATIVE_TIME_FORMATTER.format(differenceSeconds, "second");
 	if (absoluteSeconds < 3600) {
-		return formatter.format(Math.round(differenceSeconds / 60), "minute");
+		return RELATIVE_TIME_FORMATTER.format(
+			Math.round(differenceSeconds / 60),
+			"minute",
+		);
 	}
 	if (absoluteSeconds < 86400) {
-		return formatter.format(Math.round(differenceSeconds / 3600), "hour");
+		return RELATIVE_TIME_FORMATTER.format(
+			Math.round(differenceSeconds / 3600),
+			"hour",
+		);
 	}
-	return formatter.format(Math.round(differenceSeconds / 86400), "day");
+	return RELATIVE_TIME_FORMATTER.format(
+		Math.round(differenceSeconds / 86400),
+		"day",
+	);
 }

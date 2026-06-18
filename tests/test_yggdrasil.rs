@@ -41,6 +41,12 @@ async fn setup_yggdrasil() -> aster_yggdrasil::runtime::AppState {
     state
 }
 
+async fn setup_yggdrasil_with_memory_cache() -> aster_yggdrasil::runtime::AppState {
+    let state = common::setup_with_memory_cache().await;
+    configure_yggdrasil_public_site_url(&state).await;
+    state
+}
+
 async fn setup_yggdrasil_with_strict_auth_rate_limit() -> aster_yggdrasil::runtime::AppState {
     let mut state = setup_yggdrasil().await;
     let config = RateLimitConfig {
@@ -1613,7 +1619,7 @@ async fn minecraft_profile_delete_unbinds_textures_keeps_wardrobe_revokes_tokens
 
 #[actix_web::test]
 async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
-    let state = common::setup_with_memory_cache().await;
+    let state = setup_yggdrasil_with_memory_cache().await;
     let app = create_test_app!(state);
     let access = setup_admin!(app);
 
@@ -1729,7 +1735,7 @@ async fn yggdrasil_join_has_joined_and_profile_query_use_cache_session() {
 
 #[actix_web::test]
 async fn yggdrasil_join_records_forwarded_ip_from_trusted_proxy() {
-    let mut state = common::setup_with_memory_cache().await;
+    let mut state = setup_yggdrasil_with_memory_cache().await;
     let mut config = state.config.as_ref().clone();
     config.network_trust.trusted_proxies = vec!["10.0.0.0/8".to_string()];
     state.config = Arc::new(config);
@@ -1767,7 +1773,7 @@ async fn yggdrasil_join_records_forwarded_ip_from_trusted_proxy() {
 
 #[actix_web::test]
 async fn yggdrasil_join_ignores_forwarded_ip_from_untrusted_peer() {
-    let mut state = common::setup_with_memory_cache().await;
+    let mut state = setup_yggdrasil_with_memory_cache().await;
     let mut config = state.config.as_ref().clone();
     config.network_trust.trusted_proxies = vec!["10.0.0.0/8".to_string()];
     state.config = Arc::new(config);
@@ -3314,7 +3320,7 @@ async fn wardrobe_texture_list_filters_by_type_keyword_pagination_and_user_scope
     let admin_access = setup_admin!(app);
     let user_access = register_user!(
         app,
-        "wardrobe-filter-user",
+        "wardrobe-filter",
         "wardrobe-filter-user@example.com",
         "password1234"
     );
@@ -3811,7 +3817,14 @@ async fn admin_texture_deletes_by_profile_type_and_hash_with_audit_and_blob_clea
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     let body: Value = test::read_body_json(resp).await;
-    assert!(body["data"].as_array().unwrap().is_empty());
+    let items = body["data"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_default_skin_metadata(
+        &items[0],
+        &first_profile,
+        "AdminTexOne",
+        expected_default_skin_hash(&first_profile),
+    );
 
     let req = test::TestRequest::get()
         .uri(&format!("/api/yggdrasil/textures/{shared_hash}"))
@@ -5016,7 +5029,7 @@ async fn wardrobe_texture_api_rejects_invalid_upload_and_auth_edges() {
 
     let user_access = register_user!(
         app,
-        "wardrobe-delete-user",
+        "wardrobe-delete",
         "wardrobe-delete-user@example.com",
         "password1234"
     );

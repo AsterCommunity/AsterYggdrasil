@@ -28,6 +28,10 @@ export const accountRoutes = [
 			{ path: accountPaths.wardrobe, element: <TextureWardrobePage /> },
 			{ path: accountPaths.audit, element: <AccountAuditPage /> },
 			{ path: accountPaths.settings, element: <AccountSettingsPage /> },
+			{
+				path: accountPaths.settingsSecurityCompat,
+				element: <AccountSettingsPage />,
+			},
 		],
 	},
 ] satisfies RouteObject[];

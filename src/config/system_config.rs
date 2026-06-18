@@ -110,6 +110,7 @@ where
         auth_runtime::AUTH_ACCESS_TOKEN_TTL_SECS_KEY
         | auth_runtime::AUTH_REFRESH_TOKEN_TTL_SECS_KEY
         | auth_runtime::AUTH_REGISTER_ACTIVATION_TTL_SECS_KEY
+        | auth_runtime::AUTH_USER_INVITATION_TTL_SECS_KEY
         | auth_runtime::AUTH_CONTACT_CHANGE_TTL_SECS_KEY
         | auth_runtime::AUTH_PASSWORD_RESET_TTL_SECS_KEY
         | auth_runtime::AUTH_EMAIL_CODE_LOGIN_TTL_SECS_KEY
@@ -135,7 +136,8 @@ where
         | mail::MAIL_TEMPLATE_PASSWORD_RESET_NOTICE_SUBJECT_KEY
         | mail::MAIL_TEMPLATE_CONTACT_CHANGE_NOTICE_SUBJECT_KEY
         | mail::MAIL_TEMPLATE_EXTERNAL_AUTH_EMAIL_VERIFICATION_SUBJECT_KEY
-        | mail::MAIL_TEMPLATE_LOGIN_EMAIL_CODE_SUBJECT_KEY => {
+        | mail::MAIL_TEMPLATE_LOGIN_EMAIL_CODE_SUBJECT_KEY
+        | mail::MAIL_TEMPLATE_USER_INVITATION_SUBJECT_KEY => {
             mail::normalize_mail_template_subject_config_value(key, value)
         }
         mail::MAIL_TEMPLATE_REGISTER_ACTIVATION_HTML_KEY
@@ -144,7 +146,8 @@ where
         | mail::MAIL_TEMPLATE_PASSWORD_RESET_NOTICE_HTML_KEY
         | mail::MAIL_TEMPLATE_CONTACT_CHANGE_NOTICE_HTML_KEY
         | mail::MAIL_TEMPLATE_EXTERNAL_AUTH_EMAIL_VERIFICATION_HTML_KEY
-        | mail::MAIL_TEMPLATE_LOGIN_EMAIL_CODE_HTML_KEY => {
+        | mail::MAIL_TEMPLATE_LOGIN_EMAIL_CODE_HTML_KEY
+        | mail::MAIL_TEMPLATE_USER_INVITATION_HTML_KEY => {
             mail::normalize_mail_template_body_config_value(key, value)
         }
         operations::BACKGROUND_TASK_DISPATCH_INTERVAL_SECS_KEY

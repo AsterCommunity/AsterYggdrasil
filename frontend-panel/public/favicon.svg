@@ -1,21 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="100%" height="100%">
-  <title>AsterYggdrasil App Icon</title>
-  <rect x="1.5" y="1.5" width="85" height="85" rx="15.5" fill="#07110D" fill-opacity="0.92"/>
-  <rect x="1.5" y="1.5" width="85" height="85" rx="15.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="3"/>
-  <g filter="url(#shadow)">
-    <rect x="11" y="10" width="20" height="20" rx="4" fill="#56C787"/>
-    <rect x="34" y="10" width="20" height="20" rx="4" fill="#56C787"/>
-    <rect x="57" y="10" width="20" height="20" rx="4" fill="#56C787"/>
-    <rect x="11" y="35" width="20" height="20" rx="4" fill="#514D47"/>
-    <rect x="34" y="35" width="20" height="20" rx="4" fill="#AF5B00"/>
-    <rect x="57" y="35" width="20" height="20" rx="4" fill="#B86102"/>
-    <rect x="11" y="60" width="20" height="20" rx="4" fill="#514D47"/>
-    <rect x="34" y="60" width="20" height="20" rx="4" fill="#B86102"/>
-    <rect x="57" y="60" width="20" height="20" rx="4" fill="#B86102"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <title>AsterYggdrasil Minecraft Icon</title>
   <defs>
-    <filter id="shadow" x="5" y="6" width="78" height="82" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.28"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComponentTransfer in="blur" result="glow">
+        <feFuncA type="linear" slope="0.6" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
     </filter>
   </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" rx="60" fill="url(#bg)" />
+  <!-- Inner Border -->
+  <rect x="2" y="2" width="252" height="252" rx="58" fill="none" stroke="#27272a" stroke-width="2" />
+
+  <g>
+    <!-- Left Dirt -->
+    <path d="M 48 88 L 128 128 L 128 208 L 48 168 Z" fill="#27272a" />
+    <!-- Right Dirt -->
+    <path d="M 128 128 L 208 88 L 208 168 L 128 208 Z" fill="#18181b" />
+
+    <!-- Cyber Roots / Circuits -->
+    <g fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <!-- Left Face -->
+      <path d="M 64 136 L 64 160 L 80 168 L 80 184" />
+      <path d="M 96 144 L 96 160 L 112 168 L 112 200" />
+      <!-- Right Face -->
+      <path d="M 144 152 L 144 184 L 160 176 L 160 192" />
+      <path d="M 176 144 L 176 160 L 192 152 L 192 176" />
+    </g>
+
+    <!-- Top Grass Face -->
+    <path d="M 128 48 L 208 88 L 128 128 L 48 88 Z" fill="#10b981" />
+    <!-- Top Face Inner Highlight -->
+    <path d="M 128 52 L 200 88 L 128 124 L 56 88 Z" fill="none" stroke="#34d399" stroke-width="2" opacity="0.6" />
+
+    <!-- Left Grass Overlap -->
+    <path d="M 48 88 L 128 128 L 128 144 L 112 136 L 112 152 L 96 144 L 96 128 L 80 120 L 80 144 L 64 136 L 64 120 L 48 112 Z" fill="#059669" />
+
+    <!-- Right Grass Overlap -->
+    <path d="M 128 128 L 208 88 L 208 112 L 192 120 L 192 136 L 176 144 L 176 120 L 160 128 L 160 144 L 144 152 L 144 136 L 128 144 Z" fill="#047857" />
+
+    <!-- Grass Edge Highlight -->
+    <path d="M 48 88 L 128 128 L 208 88" fill="none" stroke="#34d399" stroke-width="2" opacity="0.8" />
+
+    <!-- Aster Star on Top Face -->
+    <g transform="translate(128, 88) scale(2, 1)">
+      <path d="M 0 -16 Q 0 0 16 0 Q 0 0 0 16 Q 0 0 -16 0 Q 0 0 0 -16 Z" fill="#a7f3d0" filter="url(#glow)" />
+      <!-- Star Core -->
+      <circle cx="0" cy="0" r="3" fill="#ffffff" />
+    </g>
+
+    <!-- Floating EXP Orbs / Spores -->
+    <rect x="56" y="52" width="6" height="6" fill="#a7f3d0" filter="url(#glow)"/>
+    <rect x="184" y="44" width="4" height="4" fill="#34d399" filter="url(#glow)"/>
+    <rect x="192" y="132" width="6" height="6" fill="#6ee7b7" filter="url(#glow)"/>
+    <rect x="40" y="124" width="4" height="4" fill="#10b981" filter="url(#glow)"/>
+    <rect x="156" y="24" width="6" height="6" fill="#10b981" filter="url(#glow)"/>
+  </g>
 </svg>

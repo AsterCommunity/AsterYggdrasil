@@ -40,12 +40,24 @@ pub(crate) fn validate_auth_username(value: &str) -> std::result::Result<(), Val
     crate::services::auth_service::validate_username(value).map_err(aster_to_validation_error)
 }
 
+pub(crate) fn validate_optional_auth_username(
+    value: &str,
+) -> std::result::Result<(), ValidationError> {
+    validate_auth_username(value)
+}
+
 pub(crate) fn validate_auth_email(value: &str) -> std::result::Result<(), ValidationError> {
     crate::services::auth_service::validate_email(value).map_err(aster_to_validation_error)
 }
 
 pub(crate) fn validate_auth_password(value: &str) -> std::result::Result<(), ValidationError> {
     crate::services::auth_service::validate_password(value).map_err(aster_to_validation_error)
+}
+
+pub(crate) fn validate_optional_auth_password(
+    value: &str,
+) -> std::result::Result<(), ValidationError> {
+    validate_auth_password(value)
 }
 
 pub(crate) fn validate_minecraft_profile_name(

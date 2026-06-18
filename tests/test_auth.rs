@@ -6,16 +6,20 @@ mod common;
 use actix_web::{body::MessageBody, cookie::SameSite, http::header, test};
 use aster_yggdrasil::api::error_code::AsterErrorCode;
 use aster_yggdrasil::config::avatar::AVATAR_DIR_KEY;
+use aster_yggdrasil::config::branding::DEFAULT_BRANDING_TITLE;
 use aster_yggdrasil::db::repository::{
-    auth_session_repo, passkey_repo, system_config_repo, user_repo,
+    auth_session_repo, contact_verification_token_repo, passkey_repo, system_config_repo, user_repo,
 };
-use aster_yggdrasil::entities::{auth_session, passkey};
+use aster_yggdrasil::entities::{audit_log, auth_session, contact_verification_token, passkey};
 use aster_yggdrasil::services::auth_service::AccessClaims;
-use aster_yggdrasil::types::{StoredPasskeyCredential, TokenType, UserRole, UserStatus};
+use aster_yggdrasil::types::{
+    StoredPasskeyCredential, TokenType, UserRole, UserStatus, VerificationChannel,
+    VerificationPurpose,
+};
 use base64::Engine as _;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, Validation};
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set};
 use serde_json::Value;
 use std::io::Cursor;
 use webauthn_authenticator_rs::prelude::{Url, WebauthnAuthenticator};
@@ -55,8 +59,51 @@ macro_rules! login_session {
     }};
 }
 
+macro_rules! login_session_with_body {
+    ($app:expr, $identifier:expr, $password:expr) => {{
+        let req = test::TestRequest::post()
+            .uri("/api/v1/auth/login")
+            .peer_addr("127.0.0.1:12345".parse().unwrap())
+            .set_json(serde_json::json!({
+                "identifier": $identifier,
+                "password": $password
+            }))
+            .to_request();
+        let resp = test::call_service(&$app, req).await;
+        let status = resp.status();
+        let access = common::extract_cookie(&resp, "aster_access");
+        let refresh = common::extract_cookie(&resp, "aster_refresh");
+        let csrf = common::extract_cookie(&resp, "aster_csrf");
+        let body: Value = test::read_body_json(resp).await;
+        (status, body, access, refresh, csrf)
+    }};
+}
+
+macro_rules! admin_create_user_with_body {
+    ($app:expr, $admin_token:expr, $payload:expr) => {{
+        let req = test::TestRequest::post()
+            .uri("/api/v1/admin/users")
+            .insert_header(("Cookie", common::access_cookie_header(&$admin_token)))
+            .insert_header(common::csrf_header_for(&$admin_token))
+            .peer_addr("127.0.0.1:12345".parse().unwrap())
+            .set_json($payload)
+            .to_request();
+        let resp = test::call_service(&$app, req).await;
+        let status = resp.status();
+        let body: Value = test::read_body_json(resp).await;
+        (status, body)
+    }};
+}
+
 fn access_and_csrf_cookie_header(access_token: &str, csrf_token: &str) -> String {
     format!("aster_access={access_token}; aster_csrf={csrf_token}")
+}
+
+fn extract_password_reset_token(
+    message: &aster_yggdrasil::services::mail_service::MailMessage,
+) -> String {
+    common::extract_token_from_mail_message(message, "/reset-password?token=")
+        .expect("password reset link missing from mail body")
 }
 
 fn configure_passkey_public_site_url(state: &aster_yggdrasil::runtime::AppState) {
@@ -72,6 +119,31 @@ async fn admin_user_id<C: sea_orm::ConnectionTrait>(db: &C) -> i64 {
         .expect("admin lookup should succeed")
         .expect("admin user should exist")
         .id
+}
+
+fn assert_generated_password_policy(password: &str) {
+    assert!(
+        password.len() >= 24,
+        "generated password should be at least 24 bytes"
+    );
+    assert!(
+        password.chars().any(|c| c.is_ascii_uppercase()),
+        "generated password should include uppercase ASCII"
+    );
+    assert!(
+        password.chars().any(|c| c.is_ascii_lowercase()),
+        "generated password should include lowercase ASCII"
+    );
+    assert!(
+        password.chars().any(|c| c.is_ascii_digit()),
+        "generated password should include an ASCII digit"
+    );
+    assert!(
+        password
+            .chars()
+            .any(|c| "!@#$%^&*-_+=".chars().any(|symbol| symbol == c)),
+        "generated password should include an allowed symbol"
+    );
 }
 
 async fn register_test_passkey<S, B, E>(
@@ -374,6 +446,530 @@ async fn auth_setup_saves_public_site_url_to_runtime_config() {
 }
 
 #[actix_web::test]
+async fn register_with_activation_requires_email_confirmation_before_login() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "true",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::site_url::PUBLIC_SITE_URL_KEY,
+        r#"["http://localhost:8080"]"#,
+    ));
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "pending-user",
+            "email": "pending@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert!(
+        common::extract_cookie(&resp, "aster_access").is_none(),
+        "pending activation registration must not issue access cookie"
+    );
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["requires_activation"], true);
+
+    let user = user_repo::find_by_email(state.writer_db(), "pending@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(user.email_verified_at.is_none());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/login")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "identifier": "pending@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 403);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::AuthPendingActivation.as_str());
+
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let message = sender
+        .last_message()
+        .expect("activation email should be delivered");
+    let token = common::extract_token_from_mail_message(&message, "token=")
+        .expect("activation mail should contain token");
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+
+    let verified = user_repo::find_by_email(state.writer_db(), "pending@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(verified.email_verified_at.is_some());
+
+    let access = login_user!(app, "pending@example.com", "password1234");
+    assert!(!access.is_empty());
+}
+
+#[actix_web::test]
+async fn register_skips_activation_when_activation_is_disabled() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "false",
+    ));
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "direct-user",
+            "email": "Direct@Example.COM",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert!(
+        common::extract_cookie(&resp, "aster_access").is_some(),
+        "non-activation registration should issue session cookies"
+    );
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["requires_activation"], false);
+    let user = user_repo::find_by_email(state.writer_db(), "direct@example.com")
+        .await
+        .unwrap()
+        .expect("registered user should exist");
+    assert_eq!(user.email, "direct@example.com");
+    assert!(user.email_verified_at.is_some());
+
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    assert!(sender.messages().is_empty());
+}
+
+#[actix_web::test]
+async fn register_activation_resend_is_generic_and_respects_cooldown() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "true",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY,
+        "3600",
+    ));
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+    admin_create_user!(
+        app,
+        admin_token,
+        "active-user",
+        "active@example.com",
+        "password1234"
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "cooldown-user",
+            "email": "cooldown@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+
+    let resend = |identifier: &str| {
+        test::TestRequest::post()
+            .uri("/api/v1/auth/register/resend")
+            .peer_addr("127.0.0.1:12345".parse().unwrap())
+            .set_json(serde_json::json!({ "identifier": identifier }))
+            .to_request()
+    };
+
+    for identifier in [
+        "missing@example.com",
+        "active@example.com",
+        "cooldown@example.com",
+    ] {
+        let resp = test::call_service(&app, resend(identifier)).await;
+        assert_eq!(resp.status(), 200);
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(
+            body["data"]["message"],
+            "If the account can be reactivated, an activation email will be sent"
+        );
+    }
+
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    assert_eq!(
+        sender.messages().len(),
+        1,
+        "cooldown resend should not queue another activation email"
+    );
+}
+
+#[actix_web::test]
+async fn register_activation_resend_hides_email_policy_rejection() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "true",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY,
+        "1",
+    ));
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "policy-pending",
+            "email": "policy-pending@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::local_email_policy::AUTH_LOCAL_EMAIL_ALLOWLIST_KEY,
+        r#"["allowed.test"]"#,
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::local_email_policy::AUTH_LOCAL_EMAIL_BLOCKLIST_KEY,
+        r#"["policy-pending@example.com"]"#,
+    ));
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register/resend")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "identifier": "policy-pending@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["data"]["message"],
+        "If the account can be reactivated, an activation email will be sent"
+    );
+
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    assert_eq!(
+        sender.messages().len(),
+        1,
+        "policy rejection should not leak by sending another email"
+    );
+}
+
+#[actix_web::test]
+async fn contact_verification_confirm_rejects_invalid_expired_and_replayed_tokens() {
+    use sea_orm::{ColumnTrait, QueryFilter};
+
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "true",
+    ));
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::site_url::PUBLIC_SITE_URL_KEY,
+        r#"["http://localhost:8080"]"#,
+    ));
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/contact-verification/confirm?token=not-a-token")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    assert_eq!(
+        resp.headers()
+            .get("Location")
+            .and_then(|value| value.to_str().ok()),
+        Some("/login?contact_verification=invalid")
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "expiredactive",
+            "email": "expired-activation@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let token = common::extract_token_from_mail_message(
+        &sender
+            .last_message()
+            .expect("activation email should be delivered"),
+        "token=",
+    )
+    .expect("activation mail should contain token");
+
+    let token_hash = aster_yggdrasil::utils::hash::sha256_hex(token.as_bytes());
+    let record = contact_verification_token::Entity::find()
+        .filter(contact_verification_token::Column::TokenHash.eq(token_hash))
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("activation token record should exist");
+    let mut active: contact_verification_token::ActiveModel = record.into();
+    active.expires_at = Set(Utc::now() - Duration::seconds(1));
+    active.update(state.writer_db()).await.unwrap();
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    assert_eq!(
+        resp.headers()
+            .get("Location")
+            .and_then(|value| value.to_str().ok()),
+        Some("/login?contact_verification=expired")
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "replayactive",
+            "email": "replay-activation@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+    let token = common::extract_token_from_mail_message(
+        &sender
+            .last_message()
+            .expect("activation email should be delivered"),
+        "token=",
+    )
+    .expect("activation mail should contain token");
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    assert_eq!(
+        resp.headers()
+            .get("Location")
+            .and_then(|value| value.to_str().ok()),
+        Some("/login?contact_verification=invalid")
+    );
+}
+
+#[actix_web::test]
+async fn contact_verification_tokens_allow_only_one_unconsumed_token_per_purpose() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+    let user = user_repo::find_by_email(&db, "admin@example.com")
+        .await
+        .unwrap()
+        .expect("admin user should exist");
+    let now = Utc::now();
+
+    contact_verification_token_repo::create(
+        &db,
+        contact_verification_token::ActiveModel {
+            user_id: Set(user.id),
+            channel: Set(VerificationChannel::Email),
+            purpose: Set(VerificationPurpose::RegisterActivation),
+            target: Set(user.email.clone()),
+            token_hash: Set("token-hash-1".to_string()),
+            expires_at: Set(now + Duration::minutes(10)),
+            consumed_at: Set(None),
+            created_at: Set(now),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let duplicate = contact_verification_token_repo::create(
+        &db,
+        contact_verification_token::ActiveModel {
+            user_id: Set(user.id),
+            channel: Set(VerificationChannel::Email),
+            purpose: Set(VerificationPurpose::RegisterActivation),
+            target: Set(user.email.clone()),
+            token_hash: Set("token-hash-2".to_string()),
+            expires_at: Set(now + Duration::minutes(20)),
+            consumed_at: Set(None),
+            created_at: Set(now + Duration::seconds(1)),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(duplicate.is_err());
+
+    let first = contact_verification_token_repo::find_latest_active_for_user(
+        &db,
+        user.id,
+        VerificationChannel::Email,
+        VerificationPurpose::RegisterActivation,
+    )
+    .await
+    .unwrap()
+    .expect("first token should still be active");
+    assert!(
+        contact_verification_token_repo::mark_consumed_if_unused(&db, first.id)
+            .await
+            .unwrap()
+    );
+
+    contact_verification_token_repo::create(
+        &db,
+        contact_verification_token::ActiveModel {
+            user_id: Set(user.id),
+            channel: Set(VerificationChannel::Email),
+            purpose: Set(VerificationPurpose::RegisterActivation),
+            target: Set(user.email),
+            token_hash: Set("token-hash-3".to_string()),
+            expires_at: Set(now + Duration::minutes(30)),
+            consumed_at: Set(None),
+            created_at: Set(now + Duration::seconds(2)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+}
+
+#[actix_web::test]
+async fn admin_invitation_can_be_verified_and_accepted_once() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::site_url::PUBLIC_SITE_URL_KEY,
+        r#"["http://localhost:8080"]"#,
+    ));
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/admin/users/invitations")
+        .insert_header(common::bearer_header(&admin_token))
+        .set_json(serde_json::json!({ "email": "invitee@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 201);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["email"], "invitee@example.com");
+    assert_eq!(body["data"]["status"], "pending");
+    assert_eq!(body["data"]["mail_queued"], true);
+
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let message = sender
+        .last_message()
+        .expect("invitation email should be delivered");
+    let token = common::extract_token_from_mail_message(&message, "/invite/")
+        .expect("invitation mail should contain token");
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/auth/invitations/{token}"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["email"], "invitee@example.com");
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/v1/auth/invitations/{token}/accept"))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "invited-user",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 201);
+    assert!(
+        common::extract_cookie(&resp, "aster_access").is_none(),
+        "accepting an invitation should not issue auth cookies"
+    );
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["username"], "invited-user");
+    assert_eq!(body["data"]["email"], "invitee@example.com");
+
+    let user = user_repo::find_by_email(state.writer_db(), "invitee@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(user.username, "invited-user");
+    assert!(user.email_verified_at.is_some());
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/v1/auth/invitations/{token}/accept"))
+        .set_json(serde_json::json!({
+            "username": "second-user",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["code"],
+        AsterErrorCode::AuthInvitationAccepted.as_str()
+    );
+}
+
+#[actix_web::test]
 async fn auth_setup_accepts_localhost_http_public_site_url() {
     let state = common::setup().await;
     let app = create_test_app!(state.clone());
@@ -499,6 +1095,7 @@ async fn auth_login_sets_http_only_session_cookies_without_token_body() {
 #[actix_web::test]
 async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     let state = common::setup().await;
+    configure_passkey_public_site_url(&state);
     let app = create_test_app!(state.clone());
     let _ = setup_admin!(app);
 
@@ -846,6 +1443,7 @@ async fn auth_passkey_login_policy_disables_start_and_finish_without_deleting_cr
 #[actix_web::test]
 async fn auth_sessions_mark_current_and_revoke_selected_session() {
     let state = common::setup().await;
+    configure_passkey_public_site_url(&state);
     let app = create_test_app!(state.clone());
     let _ = setup_admin!(app);
     let (_other_access, other_refresh, other_csrf) = login_session!(app, "admin", "password1234");
@@ -1141,8 +1739,67 @@ async fn auth_register_requires_username_at_least_four_characters() {
         body["msg"]
             .as_str()
             .unwrap_or_default()
-            .contains("username must contain at least 4 characters")
+            .contains("username must be 4-16 characters")
     );
+}
+
+#[actix_web::test]
+async fn auth_register_enforces_username_policy_boundaries() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+
+    for (index, (username, expected_message)) in [
+        ("abc", "username must be 4-16 characters"),
+        ("a2345678901234567", "username must be 4-16 characters"),
+        (
+            "bad.name",
+            "username may only contain letters, numbers, underscores and hyphens",
+        ),
+        (
+            "bad name",
+            "username may only contain letters, numbers, underscores and hyphens",
+        ),
+        (
+            "用户名",
+            "username may only contain letters, numbers, underscores and hyphens",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let req = test::TestRequest::post()
+            .uri("/api/v1/auth/register")
+            .set_json(serde_json::json!({
+                "username": username,
+                "email": format!("invalid-username-{index}@example.com"),
+                "password": "password1234"
+            }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 400, "{username} should be rejected");
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(body["code"], AsterErrorCode::BadRequest.as_str());
+        assert!(
+            body["msg"]
+                .as_str()
+                .unwrap_or_default()
+                .contains(expected_message),
+            "unexpected validation message: {}",
+            body["msg"]
+        );
+    }
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .set_json(serde_json::json!({
+            "username": "user-name_123456",
+            "email": "user-name-123456@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
 }
 
 #[actix_web::test]
@@ -1168,7 +1825,7 @@ async fn auth_register_requires_password_at_least_eight_characters() {
         body["msg"]
             .as_str()
             .unwrap_or_default()
-            .contains("password must contain at least 8 characters")
+            .contains("password must be 8-128 characters")
     );
 
     let req = test::TestRequest::post()
@@ -1177,6 +1834,462 @@ async fn auth_register_requires_password_at_least_eight_characters() {
             "username": "eightpass",
             "email": "eightpass@example.com",
             "password": "12345678"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn auth_register_enforces_password_policy_boundaries() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+
+    for (username, password) in [
+        ("pwshort", "1234567".to_string()),
+        ("pwlong", "a".repeat(129)),
+    ] {
+        let req = test::TestRequest::post()
+            .uri("/api/v1/auth/register")
+            .set_json(serde_json::json!({
+                "username": username,
+                "email": format!("{username}@example.com"),
+                "password": password
+            }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 400, "{username} should be rejected");
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(body["code"], AsterErrorCode::BadRequest.as_str());
+        assert!(
+            body["msg"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("password must be 8-128 characters")
+        );
+    }
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .set_json(serde_json::json!({
+            "username": "pwboundary",
+            "email": "pwboundary@example.com",
+            "password": "a".repeat(128)
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn admin_create_user_uses_auth_username_and_password_policy() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let token = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/admin/users")
+        .insert_header(("Cookie", common::access_cookie_header(&token)))
+        .insert_header(common::csrf_header_for(&token))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "admin.created",
+            "email": "admin-created@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert!(
+        body["msg"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("username may only contain letters, numbers, underscores and hyphens")
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/admin/users")
+        .insert_header(("Cookie", common::access_cookie_header(&token)))
+        .insert_header(common::csrf_header_for(&token))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "admin-created",
+            "email": "admin-created@example.com",
+            "password": "a".repeat(129)
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert!(
+        body["msg"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("password must be 8-128 characters")
+    );
+}
+
+#[actix_web::test]
+async fn forced_password_change_login_restricts_session_until_password_is_changed() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let admin_token = setup_admin!(app);
+
+    let (status, body) = admin_create_user_with_body!(
+        app,
+        admin_token,
+        &serde_json::json!({
+            "username": "forced-user",
+            "email": "forced-user@example.com",
+            "password": "password1234",
+            "must_change_password": true
+        })
+    );
+    assert_eq!(status, 201);
+    assert_eq!(body["data"]["user"]["must_change_password"], true);
+    assert!(body["data"].get("generated_password").is_none());
+
+    let (status, body, access, refresh, csrf) =
+        login_session_with_body!(app, "forced-user", "password1234");
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["status"], "password_change_required");
+    let access = access.expect("forced login should issue access cookie");
+    let refresh = refresh.expect("forced login should issue refresh cookie");
+    let csrf = csrf.expect("forced login should issue csrf cookie");
+    let claims = decode_test_claims(&access);
+    assert!(claims.password_change);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["must_change_password"], true);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/sessions")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 403);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["code"],
+        AsterErrorCode::AuthPasswordChangeRequired.as_str()
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/refresh")
+        .insert_header(("Cookie", common::refresh_cookie_header(&refresh, &csrf)))
+        .insert_header(common::csrf_header_for(&refresh))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 403);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["code"],
+        AsterErrorCode::AuthPasswordChangeRequired.as_str()
+    );
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({
+            "current_password": "wrong-password",
+            "new_password": "newpassword1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::AuthCredentialsFailed.as_str());
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({
+            "current_password": "password1234",
+            "new_password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["must_change_password"], true);
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({
+            "current_password": "password1234",
+            "new_password": "newpassword1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let new_access =
+        common::extract_cookie(&resp, "aster_access").expect("new access cookie missing");
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["status"], "authenticated");
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(("Cookie", common::access_cookie_header(&new_access)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["must_change_password"], false);
+}
+
+#[actix_web::test]
+async fn forced_password_change_token_can_logout() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let admin_token = setup_admin!(app);
+
+    let (status, _) = admin_create_user_with_body!(
+        app,
+        admin_token,
+        &serde_json::json!({
+            "username": "forced-logout",
+            "email": "forced-logout@example.com",
+            "password": "password1234",
+            "must_change_password": true
+        })
+    );
+    assert_eq!(status, 201);
+
+    let (status, _, access, refresh, csrf) =
+        login_session_with_body!(app, "forced-logout", "password1234");
+    assert_eq!(status, 200);
+    let access = access.expect("forced login should issue access cookie");
+    let refresh = refresh.expect("forced login should issue refresh cookie");
+    let csrf = csrf.expect("forced login should issue csrf cookie");
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/logout")
+        .insert_header((
+            "Cookie",
+            common::access_and_refresh_cookie_header(&access, &refresh, &csrf),
+        ))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({}))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/refresh")
+        .insert_header(("Cookie", common::refresh_cookie_header(&refresh, &csrf)))
+        .insert_header(common::csrf_header_for(&refresh))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}
+
+#[actix_web::test]
+async fn admin_create_user_can_generate_temporary_password_without_leaking_audit_details() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+
+    let (status, body) = admin_create_user_with_body!(
+        app,
+        admin_token,
+        &serde_json::json!({
+            "username": "generated-user",
+            "email": "generated-user@example.com"
+        })
+    );
+    assert_eq!(status, 201);
+    let generated_password = body["data"]["generated_password"]
+        .as_str()
+        .expect("create response should include generated password")
+        .to_string();
+    assert_generated_password_policy(&generated_password);
+    assert_eq!(body["data"]["user"]["must_change_password"], true);
+
+    let user = user_repo::find_by_username(&db, "generated-user")
+        .await
+        .expect("user lookup should succeed")
+        .expect("generated user should exist");
+    assert!(user.must_change_password);
+    assert!(!user.password_hash.contains(&generated_password));
+
+    let audit = audit_log::Entity::find()
+        .all(&db)
+        .await
+        .expect("audit lookup should succeed")
+        .into_iter()
+        .find(|entry| {
+            entry.action.to_string() == "admin_create_user"
+                && entry.entity_name.as_deref() == Some("generated-user")
+        })
+        .expect("admin create user audit should exist");
+    let details = audit.details.unwrap_or_default();
+    assert!(details.contains("\"temporary_password_generated\":true"));
+    assert!(details.contains("\"must_change_password\":true"));
+    assert!(!details.contains(&generated_password));
+    assert!(!details.contains("\"generated_password\""));
+
+    let (status, body, _access, _refresh, _csrf) =
+        login_session_with_body!(app, "generated-user", &generated_password);
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["status"], "password_change_required");
+}
+
+#[actix_web::test]
+async fn admin_can_toggle_forced_password_change_for_existing_users() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state);
+    let admin_token = setup_admin!(app);
+
+    let (status, body) = admin_create_user_with_body!(
+        app,
+        admin_token,
+        &serde_json::json!({
+            "username": "toggle-user",
+            "email": "toggle-user@example.com",
+            "password": "password1234",
+            "must_change_password": true
+        })
+    );
+    assert_eq!(status, 201);
+    assert!(body["data"].get("generated_password").is_none());
+    let user_id = body["data"]["user"]["id"]
+        .as_i64()
+        .expect("created user should include id");
+
+    let req = test::TestRequest::patch()
+        .uri(&format!("/api/v1/admin/users/{user_id}"))
+        .insert_header(("Cookie", common::access_cookie_header(&admin_token)))
+        .insert_header(common::csrf_header_for(&admin_token))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "must_change_password": false }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["must_change_password"], false);
+
+    let (status, body, _access, _refresh, _csrf) =
+        login_session_with_body!(app, "toggle-user", "password1234");
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["status"], "authenticated");
+
+    let req = test::TestRequest::patch()
+        .uri(&format!("/api/v1/admin/users/{user_id}"))
+        .insert_header(("Cookie", common::access_cookie_header(&admin_token)))
+        .insert_header(common::csrf_header_for(&admin_token))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "must_change_password": true }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["must_change_password"], true);
+
+    let (status, body, _access, _refresh, _csrf) =
+        login_session_with_body!(app, "toggle-user", "password1234");
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["status"], "password_change_required");
+
+    let update_details: Vec<String> = audit_log::Entity::find()
+        .all(&db)
+        .await
+        .expect("audit lookup should succeed")
+        .into_iter()
+        .filter(|entry| entry.action.to_string() == "admin_update_user")
+        .filter_map(|entry| entry.details)
+        .collect();
+    assert!(
+        update_details
+            .iter()
+            .any(|details| details.contains("\"must_change_password\":false"))
+    );
+    assert!(
+        update_details
+            .iter()
+            .any(|details| details.contains("\"must_change_password\":true"))
+    );
+}
+
+#[actix_web::test]
+async fn auth_change_password_enforces_new_password_boundaries() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+    let (mut access, _refresh, _) = login_session!(app, "admin", "password1234");
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({
+            "current_password": "password1234",
+            "new_password": "1234567"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .set_json(serde_json::json!({
+            "current_password": "password1234",
+            "new_password": "12345678"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    access = common::extract_cookie(&resp, "aster_access").expect("new access cookie missing");
+    let csrf = common::extract_cookie(&resp, "aster_csrf").expect("new csrf cookie missing");
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", access_and_csrf_cookie_header(&access, &csrf)))
+        .insert_header(common::csrf_header(&csrf))
+        .set_json(serde_json::json!({
+            "current_password": "12345678",
+            "new_password": "a".repeat(129)
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+
+    let req = test::TestRequest::put()
+        .uri("/api/v1/auth/password")
+        .insert_header(("Cookie", access_and_csrf_cookie_header(&access, &csrf)))
+        .insert_header(common::csrf_header(&csrf))
+        .set_json(serde_json::json!({
+            "current_password": "12345678",
+            "new_password": "b".repeat(128)
         }))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -1620,4 +2733,341 @@ async fn cleanup_expired_auth_sessions_removes_only_expired_sessions() {
         .expect("active session query should succeed");
     assert!(expired_after.is_none());
     assert!(active_after.is_some());
+}
+
+#[actix_web::test]
+async fn password_reset_request_is_generic_for_unknown_email() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/request")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "email": "missing@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "success");
+
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    assert!(sender.messages().is_empty());
+}
+
+#[actix_web::test]
+async fn password_reset_rotates_session_sends_notice_and_records_audit() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+    let (access, refresh, csrf) = login_session!(app, "admin", "password1234");
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/request")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "email": "admin@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let token = extract_password_reset_token(
+        &sender
+            .last_message()
+            .expect("password reset email should be sent"),
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/confirm")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "token": token,
+            "new_password": "newsecret456"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+
+    let notice = sender
+        .last_message()
+        .expect("password reset notice should be sent");
+    assert_eq!(notice.to.address, "admin@example.com");
+    assert_eq!(
+        notice.subject,
+        format!("Your {DEFAULT_BRANDING_TITLE} Password Was Reset")
+    );
+    assert!(notice.text_body.contains("Your password was reset"));
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(("Cookie", common::access_cookie_header(&access)))
+        .insert_header(common::csrf_header_for(&access))
+        .to_request();
+    assert_service_status!(app, req, 401);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/refresh")
+        .insert_header(("Cookie", common::refresh_cookie_header(&refresh, &csrf)))
+        .insert_header(common::csrf_header_for(&refresh))
+        .to_request();
+    assert_service_status!(app, req, 401);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/login")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "identifier": "admin",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+
+    let _ = login_user!(app, "admin", "newsecret456");
+
+    let actions: Vec<String> = audit_log::Entity::find()
+        .all(&db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.action.to_string())
+        .collect();
+    assert!(actions.contains(&"user_request_password_reset".to_string()));
+    assert!(actions.contains(&"user_confirm_password_reset".to_string()));
+}
+
+#[actix_web::test]
+async fn password_reset_rejects_reused_expired_and_wrong_endpoint_tokens() {
+    use sea_orm::{ColumnTrait, IntoActiveModel, QueryFilter};
+
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/request")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "email": "admin@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let token = extract_password_reset_token(
+        &sender
+            .last_message()
+            .expect("password reset email should be sent"),
+    );
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    assert_eq!(
+        resp.headers()
+            .get("Location")
+            .and_then(|value| value.to_str().ok()),
+        Some("/login?contact_verification=invalid")
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/confirm")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "token": token,
+            "new_password": "newsecret456"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/confirm")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "token": token,
+            "new_password": "anothersecret789"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "auth.contact_verification_invalid");
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/request")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({ "email": "admin@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+    let expired_token = extract_password_reset_token(
+        &sender
+            .last_message()
+            .expect("password reset email should be sent"),
+    );
+    let token_hash = aster_yggdrasil::utils::hash::sha256_hex(expired_token.as_bytes());
+    let record = contact_verification_token::Entity::find()
+        .filter(contact_verification_token::Column::TokenHash.eq(token_hash))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("password reset token record should exist");
+    let mut active = record.into_active_model();
+    active.expires_at = Set(Utc::now() - Duration::seconds(1));
+    active.update(&db).await.unwrap();
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/password/reset/confirm")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "token": expired_token,
+            "new_password": "newsecret456"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 410);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "auth.contact_verification_expired");
+}
+
+#[actix_web::test]
+async fn email_change_confirms_resends_and_sends_notice() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+    let (access, _refresh, csrf) = login_session!(app, "admin", "password1234");
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/email/change")
+        .insert_header(("Cookie", access_and_csrf_cookie_header(&access, &csrf)))
+        .insert_header(common::csrf_header(&csrf))
+        .set_json(serde_json::json!({ "new_email": "new-admin@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["pending_email"], "new-admin@example.com");
+    common::flush_mail_outbox(&state).await;
+
+    let user = user_repo::find_by_email(&db, "admin@example.com")
+        .await
+        .unwrap()
+        .expect("admin user should still use old email");
+    assert_eq!(user.pending_email.as_deref(), Some("new-admin@example.com"));
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/email/change/resend")
+        .insert_header(("Cookie", access_and_csrf_cookie_header(&access, &csrf)))
+        .insert_header(common::csrf_header(&csrf))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    common::flush_mail_outbox(&state).await;
+
+    let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
+        .expect("test state should use memory mail sender");
+    let token = common::extract_token_from_mail_message(
+        &sender
+            .last_message()
+            .expect("contact change confirmation email should be sent"),
+        "token=",
+    )
+    .expect("contact change email should include token");
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/v1/auth/contact-verification/confirm?token={}",
+            urlencoding::encode(&token)
+        ))
+        .insert_header(("Cookie", access_and_csrf_cookie_header(&access, &csrf)))
+        .insert_header(common::csrf_header(&csrf))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    let location = resp
+        .headers()
+        .get("Location")
+        .and_then(|value| value.to_str().ok())
+        .expect("contact verification redirect location missing");
+    assert_eq!(
+        location,
+        "/settings/security?contact_verification=email-changed&email=new-admin%40example.com"
+    );
+    common::flush_mail_outbox(&state).await;
+
+    let updated = user_repo::find_by_email(&db, "new-admin@example.com")
+        .await
+        .unwrap()
+        .expect("admin email should be changed");
+    assert_eq!(updated.pending_email, None);
+    let notice = sender
+        .last_message()
+        .expect("contact change notice should be sent");
+    assert_eq!(notice.to.address, "admin@example.com");
+    assert!(notice.text_body.contains("new-admin@example.com"));
+}
+
+#[actix_web::test]
+async fn email_change_rejects_conflicts_and_pending_activation() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+    let (admin_access, _refresh, admin_csrf) = login_session!(app, "admin", "password1234");
+    let admin_token = login_user!(app, "admin", "password1234");
+    let _user_id = admin_create_user!(
+        app,
+        admin_token,
+        "otheruser",
+        "other@example.com",
+        "password1234"
+    );
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/email/change")
+        .insert_header((
+            "Cookie",
+            access_and_csrf_cookie_header(&admin_access, &admin_csrf),
+        ))
+        .insert_header(common::csrf_header(&admin_csrf))
+        .set_json(serde_json::json!({ "new_email": "other@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "auth.email_exists");
+
+    let mut admin = user_repo::find_by_email(state.writer_db(), "admin@example.com")
+        .await
+        .unwrap()
+        .expect("admin user should exist")
+        .into_active_model();
+    admin.email_verified_at = Set(None);
+    admin.update(state.writer_db()).await.unwrap();
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/email/change")
+        .insert_header((
+            "Cookie",
+            access_and_csrf_cookie_header(&admin_access, &admin_csrf),
+        ))
+        .insert_header(common::csrf_header(&admin_csrf))
+        .set_json(serde_json::json!({ "new_email": "pending-new@example.com" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 403);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], "auth.pending_activation");
 }

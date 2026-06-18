@@ -23,9 +23,11 @@ pub struct Model {
     pub password_hash: String,
     pub role: UserRole,
     pub status: UserStatus,
+    pub must_change_password: bool,
     pub session_version: i64,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
     pub email_verified_at: Option<DateTimeUtc>,
+    pub pending_email: Option<String>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: DateTimeUtc,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
@@ -44,6 +46,8 @@ pub enum Relation {
     Passkeys,
     #[sea_orm(has_one = "super::user_profile::Entity")]
     UserProfile,
+    #[sea_orm(has_many = "super::contact_verification_token::Entity")]
+    ContactVerificationTokens,
     #[sea_orm(has_many = "super::yggdrasil_token::Entity")]
     YggdrasilTokens,
 }
@@ -75,6 +79,12 @@ impl Related<super::passkey::Entity> for Entity {
 impl Related<super::user_profile::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::UserProfile.def()
+    }
+}
+
+impl Related<super::contact_verification_token::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ContactVerificationTokens.def()
     }
 }
 

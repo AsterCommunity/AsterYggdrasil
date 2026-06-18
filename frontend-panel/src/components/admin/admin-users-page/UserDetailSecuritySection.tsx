@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { UserDetailField } from "./UserDetailField";
 
@@ -10,11 +11,14 @@ export function UserDetailSecuritySection({
 	activeSessionCount,
 	confirmPassword,
 	confirmPasswordError,
+	mustChangePassword,
 	password,
 	passwordError,
 	revokingSessions,
+	savingForcePasswordChange,
 	savingPassword,
 	onConfirmPasswordChange,
+	onForcePasswordChangeToggle,
 	onPasswordChange,
 	onPasswordReset,
 	onSessionRevoke,
@@ -22,11 +26,14 @@ export function UserDetailSecuritySection({
 	activeSessionCount: number;
 	confirmPassword: string;
 	confirmPasswordError?: string;
+	mustChangePassword: boolean;
 	password: string;
 	passwordError?: string;
 	revokingSessions: boolean;
+	savingForcePasswordChange: boolean;
 	savingPassword: boolean;
 	onConfirmPasswordChange: (value: string) => void;
+	onForcePasswordChangeToggle: (value: boolean) => void;
 	onPasswordChange: (value: string) => void;
 	onPasswordReset: () => void;
 	onSessionRevoke: () => void;
@@ -85,6 +92,39 @@ export function UserDetailSecuritySection({
 						/>
 						{t("admin.users.resetPassword")}
 					</Button>
+				</div>
+			</div>
+
+			<div className="mt-5 rounded-lg border border-border/70 bg-background/70 p-4 dark:border-white/10 dark:bg-input/10">
+				<div className="flex items-start justify-between gap-4">
+					<div className="space-y-1">
+						<Label htmlFor="admin-user-force-password-change">
+							{t("admin.users.forcePasswordChange")}
+						</Label>
+						<p className="text-muted-foreground text-sm leading-5">
+							{t("admin.users.forcePasswordChangeDescription")}
+						</p>
+						<p className="font-medium text-muted-foreground text-xs">
+							{mustChangePassword
+								? t("admin.users.forcePasswordChangeEnabled")
+								: t("admin.users.forcePasswordChangeDisabled")}
+						</p>
+					</div>
+					<div className="flex items-center gap-2">
+						{savingForcePasswordChange ? (
+							<Icon
+								name="Spinner"
+								className="size-4 animate-spin text-muted-foreground"
+							/>
+						) : null}
+						<Switch
+							id="admin-user-force-password-change"
+							checked={mustChangePassword}
+							disabled={savingForcePasswordChange}
+							aria-label={t("admin.users.forcePasswordChange")}
+							onCheckedChange={onForcePasswordChangeToggle}
+						/>
+					</div>
 				</div>
 			</div>
 

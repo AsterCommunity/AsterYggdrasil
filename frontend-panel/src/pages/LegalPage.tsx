@@ -236,7 +236,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 							<a
 								key={section.id}
 								href={`#${section.id}`}
-								className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-slate-700 transition-colors hover:bg-emerald-600/10 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-slate-300 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
+								className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-emerald-950 transition-colors hover:bg-emerald-600/10 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-emerald-50 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
 							>
 								<Icon
 									name={section.icon}

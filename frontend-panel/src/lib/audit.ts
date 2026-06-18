@@ -10,6 +10,7 @@ export const AUDIT_ENTITY_TYPE_FILTER_VALUES = [
 	"system",
 	"system_config",
 	"user",
+	"invitation",
 	"auth_session",
 	"passkey",
 	"external_auth_provider",
@@ -103,6 +104,16 @@ function humanizeCode(value: string) {
 	return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function cleanUnresolvedInterpolation(value: string) {
+	return value
+		.replace(/\{\{\s*[\w.]+\s*\}\}\s*[,，]\s*/g, "")
+		.replace(/\s*[,，]\s*\{\{\s*[\w.]+\s*\}\}/g, "")
+		.replace(/\{\{\s*[\w.]+\s*\}\}/g, "")
+		.replace(/\s+([,，])/g, "$1")
+		.replace(/([,，])\s*([,，])/g, "$1")
+		.trim();
+}
+
 function formatAuditPresentationMessage(
 	t: TFunction,
 	message: AuditPresentationMessage | undefined | null,
@@ -129,10 +140,11 @@ function formatAuditPresentationMessage(
 		`admin.audit.presentation.${message.code}`,
 	);
 	if (direct) {
-		return t(`admin.audit.presentation.${message.code}`, {
+		const formatted = t(`admin.audit.presentation.${message.code}`, {
 			defaultValue: direct,
 			...params,
 		});
+		return cleanUnresolvedInterpolation(formatted);
 	}
 
 	const actionLabel = resolveAuditTranslation(
@@ -227,6 +239,7 @@ const AUDIT_ACTION_TONES = {
 	admin_delete_config: "danger",
 	admin_delete_external_auth_provider: "danger",
 	admin_disable_user: "danger",
+	admin_revoke_invitation: "danger",
 	admin_revoke_user_sessions: "danger",
 	config_delete: "danger",
 	external_auth_provider_delete: "danger",
@@ -246,6 +259,7 @@ const AUDIT_ACTION_TONES = {
 	user_register: "success",
 
 	admin_create_external_auth_provider: "info",
+	admin_create_invitation: "info",
 	admin_create_user: "info",
 	admin_update_external_auth_provider: "info",
 	admin_update_user: "info",
@@ -256,6 +270,12 @@ const AUDIT_ACTION_TONES = {
 	minecraft_texture_bind: "info",
 	task_retry: "info",
 	user_change_password: "info",
+	user_confirm_email_change: "info",
+	user_confirm_password_reset: "info",
+	user_confirm_registration: "info",
+	user_request_email_change: "info",
+	user_request_password_reset: "info",
+	user_resend_email_change: "info",
 	user_update_profile: "info",
 
 	admin_test_external_auth_provider: "warning",

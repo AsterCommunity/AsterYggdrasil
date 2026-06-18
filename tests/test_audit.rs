@@ -361,11 +361,11 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     let _admin_token = setup_admin!(app);
     let token = register_user!(
         app,
-        "audit-filter-user",
+        "audit-filter",
         "audit-filter-user@example.com",
         "password1234"
     );
-    let user_id = user_id_by_username(&state_for_insert, "audit-filter-user").await;
+    let user_id = user_id_by_username(&state_for_insert, "audit-filter").await;
     let base = chrono::DateTime::parse_from_rfc3339("2035-02-01T00:00:00Z")
         .unwrap()
         .with_timezone(&Utc);
@@ -596,18 +596,18 @@ async fn account_overview_returns_latest_five_current_user_activities() {
     let _admin_token = setup_admin!(app);
     let token = register_user!(
         app,
-        "overview-limit-user",
+        "overview-limit",
         "overview-limit-user@example.com",
         "password1234"
     );
     let other_token = register_user!(
         app,
-        "overview-other-user",
+        "overview-other",
         "overview-other-user@example.com",
         "password1234"
     );
-    let user_id = user_id_by_username(&state_for_insert, "overview-limit-user").await;
-    let other_user_id = user_id_by_username(&state_for_insert, "overview-other-user").await;
+    let user_id = user_id_by_username(&state_for_insert, "overview-limit").await;
+    let other_user_id = user_id_by_username(&state_for_insert, "overview-other").await;
     let base = chrono::DateTime::parse_from_rfc3339("2035-03-01T00:00:00Z")
         .unwrap()
         .with_timezone(&Utc);

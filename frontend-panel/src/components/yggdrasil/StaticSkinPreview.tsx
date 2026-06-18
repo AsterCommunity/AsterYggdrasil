@@ -39,9 +39,8 @@ export function StaticSkinPreview({
 				"grid aspect-[5/4] grid-cols-2 overflow-hidden border-b border-border/70 bg-[linear-gradient(180deg,oklch(0.98_0.004_255),oklch(0.93_0.012_151))] dark:bg-[linear-gradient(180deg,oklch(0.22_0.022_255),oklch(0.17_0.018_255))]",
 				className,
 			)}
-			aria-label={alt}
-			role="img"
 		>
+			<img src={skinUrl} alt={alt} className="sr-only" />
 			<StaticSkinCanvasGroup key={previewKey}>
 				{STATIC_SKIN_VIEWS.map((view) => (
 					<StaticSkinCanvas

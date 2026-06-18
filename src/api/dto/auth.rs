@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 use crate::types::AvatarSource;
@@ -28,6 +28,63 @@ pub struct RegisterReq {
     pub email: String,
     #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
     pub password: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct ResendRegisterActivationReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
+    pub identifier: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct RequestEmailChangeReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_email"))]
+    pub new_email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct PasswordResetRequestReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_email"))]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct PasswordResetConfirmReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
+    pub token: String,
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
+    pub new_password: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct ChangePasswordReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
+    pub current_password: String,
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
+    pub new_password: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct AcceptUserInvitationReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_username"))]
+    pub username: String,
+    #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[cfg_attr(
+    all(debug_assertions, feature = "openapi"),
+    derive(IntoParams, ToSchema)
+)]
+pub struct ContactVerificationConfirmQuery {
+    pub token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -75,6 +132,12 @@ pub struct CheckResp {
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct LogoutResp {
     pub revoked: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct ActionMessageResp {
+    pub message: String,
 }
 
 #[derive(Debug, Deserialize)]

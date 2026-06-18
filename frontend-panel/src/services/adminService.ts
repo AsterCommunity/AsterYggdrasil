@@ -8,6 +8,8 @@ import type {
 	AdminTaskCleanupRequest,
 	AdminTaskListQuery,
 	AdminTaskPage,
+	AdminUserInvitationInfo,
+	AdminUserInvitationPage,
 	AdminUserListQuery,
 	AdminUserMinecraftProfileQuery,
 	AdminUserPage,
@@ -16,6 +18,7 @@ import type {
 	ConfigSchemaItem,
 	CreateAdminUserRequest,
 	CreateExternalAuthProviderRequest,
+	CreateUserInvitationRequest,
 	ExecuteConfigActionRequest,
 	ExecuteConfigActionResponse,
 	ExternalAuthProviderKindInfo,
@@ -192,6 +195,20 @@ export const adminUserService = {
 		api.post<OperationData<"admin_revoke_user_sessions">>(
 			`/admin/users/${id}/sessions/revoke`,
 		),
+	listInvitations: (params: { limit?: number; offset?: number } = {}) =>
+		api.get<AdminUserInvitationPage>(
+			withQuery("/admin/users/invitations", {
+				limit: params.limit,
+				offset: params.offset,
+			}),
+		),
+	createInvitation: (data: CreateUserInvitationRequest) =>
+		api.post<AdminUserInvitationInfo, CreateUserInvitationRequest>(
+			"/admin/users/invitations",
+			data,
+		),
+	revokeInvitation: (id: number) =>
+		api.post<AdminUserInvitationInfo>(`/admin/users/invitations/${id}/revoke`),
 };
 
 export const adminExternalAuthService = {

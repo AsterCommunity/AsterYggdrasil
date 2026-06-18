@@ -4,7 +4,6 @@ use crate::types::SystemConfigValueType;
 
 pub const CONFIG_CATEGORY_SITE: &str = "site";
 pub const CONFIG_CATEGORY_AUTH: &str = "auth";
-pub const CONFIG_CATEGORY_EXTERNAL_AUTH: &str = "external_auth";
 pub const CONFIG_CATEGORY_USER_AVATAR: &str = "user.avatar";
 pub const CONFIG_CATEGORY_NETWORK: &str = "network";
 pub const CONFIG_CATEGORY_AUDIT: &str = "audit";
@@ -17,7 +16,6 @@ pub const CONFIG_CATEGORY_YGGDRASIL: &str = "yggdrasil";
 pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_SITE,
     CONFIG_CATEGORY_AUTH,
-    CONFIG_CATEGORY_EXTERNAL_AUTH,
     CONFIG_CATEGORY_USER_AVATAR,
     CONFIG_CATEGORY_NETWORK,
     CONFIG_CATEGORY_AUDIT,
@@ -41,6 +39,7 @@ pub const AUTH_REFRESH_TOKEN_TTL_SECS_KEY: &str = "auth_refresh_token_ttl_secs";
 pub const AUTH_ALLOW_USER_REGISTRATION_KEY: &str = "auth_allow_user_registration";
 pub const AUTH_REGISTER_ACTIVATION_ENABLED_KEY: &str = "auth_register_activation_enabled";
 pub const AUTH_REGISTER_ACTIVATION_TTL_SECS_KEY: &str = "auth_register_activation_ttl_secs";
+pub const AUTH_USER_INVITATION_TTL_SECS_KEY: &str = "auth_user_invitation_ttl_secs";
 pub const AUTH_CONTACT_CHANGE_TTL_SECS_KEY: &str = "auth_contact_change_ttl_secs";
 pub const AUTH_PASSWORD_RESET_TTL_SECS_KEY: &str = "auth_password_reset_ttl_secs";
 pub const AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY: &str =
@@ -56,9 +55,6 @@ pub const AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS_KEY: &str =
     "auth_email_code_login_resend_cooldown_secs";
 pub const AUTH_LOCAL_EMAIL_ALLOWLIST_KEY: &str = "auth_local_email_allowlist";
 pub const AUTH_LOCAL_EMAIL_BLOCKLIST_KEY: &str = "auth_local_email_blocklist";
-
-pub const EXTERNAL_AUTH_ENABLED_KEY: &str = "external_auth_enabled";
-pub const EXTERNAL_AUTH_AUTO_REGISTER_KEY: &str = "external_auth_auto_register";
 
 pub const AVATAR_DIR_KEY: &str = "avatar_dir";
 pub const GRAVATAR_BASE_URL_KEY: &str = "gravatar_base_url";
@@ -104,6 +100,8 @@ pub const MAIL_TEMPLATE_EXTERNAL_AUTH_EMAIL_VERIFICATION_HTML_KEY: &str =
 pub const MAIL_TEMPLATE_LOGIN_EMAIL_CODE_SUBJECT_KEY: &str =
     "mail_template_login_email_code_subject";
 pub const MAIL_TEMPLATE_LOGIN_EMAIL_CODE_HTML_KEY: &str = "mail_template_login_email_code_html";
+pub const MAIL_TEMPLATE_USER_INVITATION_SUBJECT_KEY: &str = "mail_template_user_invitation_subject";
+pub const MAIL_TEMPLATE_USER_INVITATION_HTML_KEY: &str = "mail_template_user_invitation_html";
 
 pub const MAIL_OUTBOX_DISPATCH_INTERVAL_SECS_KEY: &str = "mail_outbox_dispatch_interval_secs";
 pub const BACKGROUND_TASK_DISPATCH_INTERVAL_SECS_KEY: &str =
@@ -283,6 +281,19 @@ pub static ALL_CONFIGS: &[ConfigDef] = &[
         description: "Registration activation token lifetime in seconds",
     },
     ConfigDef {
+        key: AUTH_USER_INVITATION_TTL_SECS_KEY,
+        label_i18n_key: "settings_item_auth_user_invitation_ttl_secs_label",
+        description_i18n_key: "settings_item_auth_user_invitation_ttl_secs_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || {
+            crate::config::auth_runtime::DEFAULT_AUTH_USER_INVITATION_TTL_SECS.to_string()
+        },
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH,
+        description: "User invitation token lifetime in seconds",
+    },
+    ConfigDef {
         key: AUTH_CONTACT_CHANGE_TTL_SECS_KEY,
         label_i18n_key: "settings_item_auth_contact_change_ttl_secs_label",
         description_i18n_key: "settings_item_auth_contact_change_ttl_secs_desc",
@@ -402,28 +413,6 @@ pub static ALL_CONFIGS: &[ConfigDef] = &[
         is_sensitive: false,
         category: CONFIG_CATEGORY_AUTH,
         description: "Blocked local-account email addresses and exact ASCII domains. Blocklist wins over allowlist",
-    },
-    ConfigDef {
-        key: EXTERNAL_AUTH_ENABLED_KEY,
-        label_i18n_key: "settings_item_external_auth_enabled_label",
-        description_i18n_key: "settings_item_external_auth_enabled_desc",
-        value_type: SystemConfigValueType::Boolean,
-        default_fn: || "true".to_string(),
-        requires_restart: false,
-        is_sensitive: false,
-        category: CONFIG_CATEGORY_EXTERNAL_AUTH,
-        description: "Enable external OAuth2/OIDC authentication provider support",
-    },
-    ConfigDef {
-        key: EXTERNAL_AUTH_AUTO_REGISTER_KEY,
-        label_i18n_key: "settings_item_external_auth_auto_register_label",
-        description_i18n_key: "settings_item_external_auth_auto_register_desc",
-        value_type: SystemConfigValueType::Boolean,
-        default_fn: || "true".to_string(),
-        requires_restart: false,
-        is_sensitive: false,
-        category: CONFIG_CATEGORY_EXTERNAL_AUTH,
-        description: "Allow external auth identities to create local users automatically",
     },
     ConfigDef {
         key: AVATAR_DIR_KEY,
@@ -824,6 +813,38 @@ pub static ALL_CONFIGS: &[ConfigDef] = &[
         is_sensitive: false,
         category: CONFIG_CATEGORY_MAIL_TEMPLATE,
         description: "HTML template for login email code messages",
+    },
+    ConfigDef {
+        key: MAIL_TEMPLATE_USER_INVITATION_SUBJECT_KEY,
+        label_i18n_key: "settings_item_mail_template_user_invitation_subject_label",
+        description_i18n_key: "settings_item_mail_template_user_invitation_subject_desc",
+        value_type: SystemConfigValueType::String,
+        default_fn: || {
+            crate::config::mail::default_template_subject(
+                crate::types::MailTemplateCode::UserInvitation,
+            )
+            .to_string()
+        },
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_MAIL_TEMPLATE,
+        description: "Subject template for user invitation emails",
+    },
+    ConfigDef {
+        key: MAIL_TEMPLATE_USER_INVITATION_HTML_KEY,
+        label_i18n_key: "settings_item_mail_template_user_invitation_html_label",
+        description_i18n_key: "settings_item_mail_template_user_invitation_html_desc",
+        value_type: SystemConfigValueType::Multiline,
+        default_fn: || {
+            crate::config::mail::default_template_html(
+                crate::types::MailTemplateCode::UserInvitation,
+            )
+            .to_string()
+        },
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_MAIL_TEMPLATE,
+        description: "HTML template for user invitation emails",
     },
     ConfigDef {
         key: YGGDRASIL_SERVER_NAME_KEY,

@@ -6,7 +6,7 @@
 //! shared across module boundaries.
 
 pub use super::audit::{AuditAction, AuditEntityType};
-pub use super::auth::TokenType;
+pub use super::auth::{TokenType, VerificationChannel, VerificationPurpose};
 pub use super::config::{SystemConfigSource, SystemConfigValueType, SystemConfigVisibility};
 pub use super::external_auth::{
     ExternalAuthKind, ExternalAuthProtocol, ExternalAuthProviderKind, ExternalAuthProviderOptions,
@@ -20,7 +20,7 @@ pub use super::task::{
     BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload, StoredTaskResult,
     StoredTaskRuntime, StoredTaskSteps,
 };
-pub use super::user::{AvatarSource, UserRole, UserStatus};
+pub use super::user::{AvatarSource, UserInvitationStatus, UserRole, UserStatus};
 pub use super::yggdrasil::{
     MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility,
 };

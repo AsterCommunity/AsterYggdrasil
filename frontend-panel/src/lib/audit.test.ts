@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createInstance } from "i18next";
 import { describe, expect, it } from "vitest";
 import { resources } from "@/i18n/resources";
 import {
+	formatAuditAction,
 	formatAuditDetail,
+	formatAuditEntityType,
 	formatAuditSummary,
 	formatAuditTarget,
 } from "@/lib/audit";
@@ -61,7 +65,64 @@ function renameAuditEntry() {
 	} satisfies AuditEntrySample;
 }
 
+function generatedSchemaValues(schemaName: "AuditAction" | "AuditEntityType") {
+	const generatedTypesPath = resolve(
+		process.cwd(),
+		"src/types/api.generated.ts",
+	);
+	const generatedTypes = readFileSync(generatedTypesPath, "utf8");
+	const match = generatedTypes.match(new RegExp(`${schemaName}: ([^;]+);`));
+	if (!match) {
+		throw new Error(`Missing generated schema ${schemaName}`);
+	}
+	return Array.from(match[1].matchAll(/"([^"]+)"/g), (item) => item[1]);
+}
+
 describe("audit i18n helpers", () => {
+	it("has localized labels for all generated audit actions and entities", async () => {
+		const auditActions = generatedSchemaValues("AuditAction");
+		const auditEntityTypes = generatedSchemaValues("AuditEntityType");
+
+		for (const language of ["en-US", "zh-CN"] as const) {
+			const auditResources = resources[language].frontend.admin.audit;
+
+			for (const action of auditActions) {
+				expect(
+					Object.hasOwn(auditResources.action, action),
+					`${language} action ${action}`,
+				).toBe(true);
+			}
+
+			for (const entityType of auditEntityTypes) {
+				expect(
+					Object.hasOwn(auditResources.entity, entityType),
+					`${language} entity ${entityType}`,
+				).toBe(true);
+			}
+		}
+	});
+
+	it("formats passkey and invitation audit labels", async () => {
+		const en = await tFor("en-US");
+		const zh = await tFor("zh-CN");
+
+		expect(formatAuditAction(en, "user_passkey_login")).toBe("Passkey login");
+		expect(formatAuditAction(en, "user_passkey_register")).toBe(
+			"Registered passkey",
+		);
+		expect(formatAuditAction(en, "admin_create_invitation")).toBe(
+			"Created invitation",
+		);
+		expect(formatAuditEntityType(en, "passkey")).toBe("Passkey");
+		expect(formatAuditEntityType(en, "invitation")).toBe("Invitation");
+
+		expect(formatAuditAction(zh, "user_passkey_login")).toBe("Passkey 登录");
+		expect(formatAuditAction(zh, "user_passkey_register")).toBe("注册 Passkey");
+		expect(formatAuditAction(zh, "admin_create_invitation")).toBe("创建邀请");
+		expect(formatAuditEntityType(zh, "passkey")).toBe("Passkey");
+		expect(formatAuditEntityType(zh, "invitation")).toBe("邀请");
+	});
+
 	it("formats Minecraft profile rename audit entries in Chinese", async () => {
 		const t = await tFor("zh-CN");
 		const entry = renameAuditEntry();
@@ -96,5 +157,26 @@ describe("audit i18n helpers", () => {
 
 		expect(formatAuditSummary(t, entry)).toBe("重命名 Minecraft 角色档案");
 		expect(formatAuditDetail(t, entry)).toBeUndefined();
+	});
+
+	it("does not render unresolved audit presentation placeholders", async () => {
+		const t = await tFor("zh-CN");
+		const entry = {
+			action: "admin_update_external_auth_provider",
+			entity_id: 9,
+			entity_name: "example",
+			entity_type: "external_auth_provider",
+			presentation: {
+				detail: {
+					code: "external_auth_provider_changed",
+					params: {
+						enabled: true,
+						key: "example",
+					},
+				},
+			},
+		} satisfies AuditEntrySample;
+
+		expect(formatAuditDetail(t, entry)).toBe("example，启用 true");
 	});
 });

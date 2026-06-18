@@ -92,6 +92,9 @@ pub struct UserAuditDetails<'a> {
     pub email: &'a str,
     pub role: UserRole,
     pub status: UserStatus,
+    pub must_change_password: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temporary_password_generated: Option<bool>,
     pub profile_count: u64,
     pub active_session_count: u64,
 }
@@ -322,6 +325,8 @@ mod tests {
                 email: "alex@example.com",
                 role: UserRole::Admin,
                 status: UserStatus::Active,
+                must_change_password: true,
+                temporary_password_generated: Some(false),
                 profile_count: 2,
                 active_session_count: 3,
             })
@@ -331,6 +336,8 @@ mod tests {
                 "email": "alex@example.com",
                 "role": "admin",
                 "status": "active",
+                "must_change_password": true,
+                "temporary_password_generated": false,
                 "profile_count": 2,
                 "active_session_count": 3,
             })

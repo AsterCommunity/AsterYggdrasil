@@ -78,6 +78,9 @@
 			"alreadySignedInTitle": "Already signed in",
 			"alreadySignedInDescription": "You are already signed in. Open the workbench to continue managing profiles and textures.",
 			"alreadySignedInAction": "Open workbench",
+			"forcePasswordChangeTitle": "Password change required",
+			"forcePasswordChangeDescription": "You are signed in, but an administrator requires you to change your password first.",
+			"forcePasswordChangeAction": "Change password",
 			"adminRequiredTitle": "Admin access required",
 			"adminRequiredDescription": "This area requires administrator access. Use the workbench for account, profile, and texture tasks.",
 			"adminRequiredAction": "Back to workbench"

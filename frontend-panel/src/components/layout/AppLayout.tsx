@@ -51,15 +51,16 @@ export function AppLayout({ scope }: { scope?: ShellScope }) {
 	const isAdmin = useAuthStore((state) => state.isAdmin);
 	const logout = useAuthStore((state) => state.logout);
 	const branding = useFrontendConfigStore((state) => state.branding);
+	const pathname = location.pathname;
 	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 	const [desktopSidebarExpanded, setDesktopSidebarExpanded] = useState(
 		() =>
 			readStoredDesktopSidebarExpanded() ?? getDefaultDesktopSidebarExpanded(),
 	);
-	const previousPathnameRef = useRef(location.pathname);
+	const previousPathnameRef = useRef(pathname);
 	const resolvedScope = scope
 		? scope
-		: location.pathname.startsWith(adminPaths.home)
+		: pathname.startsWith(adminPaths.home)
 			? "admin"
 			: "account";
 	const isAdminScope = resolvedScope === "admin";
@@ -87,13 +88,13 @@ export function AppLayout({ scope }: { scope?: ShellScope }) {
 	}, [logout, navigate, t]);
 
 	useEffect(() => {
-		if (previousPathnameRef.current === location.pathname) {
+		if (previousPathnameRef.current === pathname) {
 			return;
 		}
 
-		previousPathnameRef.current = location.pathname;
+		previousPathnameRef.current = pathname;
 		setMobileSidebarOpen(false);
-	});
+	}, [pathname]);
 
 	useEffect(() => {
 		if (!mobileSidebarOpen) {

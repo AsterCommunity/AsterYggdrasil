@@ -78,6 +78,9 @@
 			"alreadySignedInTitle": "已登录",
 			"alreadySignedInDescription": "你已经登录。打开工作台继续管理角色档案和材质。",
 			"alreadySignedInAction": "打开工作台",
+			"forcePasswordChangeTitle": "需要修改密码",
+			"forcePasswordChangeDescription": "你的账号已登录，但管理员要求先修改密码。",
+			"forcePasswordChangeAction": "前往修改密码",
 			"adminRequiredTitle": "需要管理员权限",
 			"adminRequiredDescription": "这个区域需要管理员权限。账号、角色档案和材质操作请回到工作台处理。",
 			"adminRequiredAction": "返回工作台"

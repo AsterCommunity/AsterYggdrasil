@@ -22,6 +22,9 @@ const AdminExternalAuthPage = lazyWithPreload(
 const AdminUsersPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminUsersPage"),
 );
+const AdminUserInvitationsPage = lazyWithPreload(
+	() => import("@/pages/admin/AdminUserInvitationsPage"),
+);
 const AdminMinecraftProfilePage = lazyWithPreload(
 	() => import("@/pages/admin/AdminMinecraftProfilePage"),
 );
@@ -43,6 +46,10 @@ export const adminRoutes = [
 					{
 						path: adminPaths.users,
 						element: <AdminUsersPage />,
+					},
+					{
+						path: adminPaths.userInvitations,
+						element: <AdminUserInvitationsPage />,
 					},
 					{
 						path: adminPaths.minecraftProfile,

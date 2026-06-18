@@ -1348,6 +1348,6 @@ macro_rules! admin_create_user {
         let resp = test::call_service(&$app, req).await;
         assert_eq!(resp.status(), 201, "admin create user should return 201");
         let body: Value = test::read_body_json(resp).await;
-        body["data"]["id"].as_i64().unwrap()
+        body["data"]["user"]["id"].as_i64().unwrap()
     }};
 }

@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	type Dispatch,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminNumberUnitInput } from "@/components/admin/AdminNumberUnitInput";
@@ -16,6 +23,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -53,6 +61,7 @@ type DraftArrayRow = {
 
 type CategoryMeta = {
 	descriptionKey: string;
+	icon: IconName;
 	id: string;
 	labelKey: string;
 };
@@ -63,11 +72,170 @@ type ValidationIssue = {
 };
 
 type SaveBarPhase = "hidden" | "entering" | "visible" | "exiting";
+type SaveBarPhaseState = {
+	active: boolean;
+	phase: SaveBarPhase;
+};
+
+type AdminSettingsState = {
+	activeCategory: string;
+	activeTemplateVariableGroupCode: string | null;
+	configs: SystemConfig[];
+	drafts: Record<string, DraftValue>;
+	expandedTemplateGroups: Record<string, boolean>;
+	loading: boolean;
+	rotatingYggdrasilKey: boolean;
+	savedAt: string | null;
+	saveError: string | null;
+	saving: boolean;
+	schema: ConfigSchemaItem[];
+	sendingTestEmail: boolean;
+	templateVariableGroups: TemplateVariableGroup[];
+	testEmailDialogOpen: boolean;
+	testEmailTarget: string;
+};
+
+type AdminSettingsAction =
+	| {
+			type: "loaded";
+			configs: SystemConfig[];
+			schema: ConfigSchemaItem[];
+			templateVariableGroups: TemplateVariableGroup[];
+	  }
+	| { type: "load_finished" }
+	| { type: "set_active_category"; value: string }
+	| { type: "set_active_template_variable_group_code"; value: string | null }
+	| { type: "set_draft"; key: string; draft: DraftValue }
+	| { type: "discard_changes" }
+	| { type: "set_saving"; value: boolean }
+	| { type: "save_failed"; message: string }
+	| { type: "saved"; updated: SystemConfig[] }
+	| { type: "reloaded"; configs: SystemConfig[] }
+	| { type: "set_test_email_dialog_open"; value: boolean }
+	| { type: "set_test_email_target"; value: string }
+	| { type: "set_sending_test_email"; value: boolean }
+	| { type: "set_rotating_yggdrasil_key"; value: boolean }
+	| { type: "set_saved_at"; value: string | null }
+	| { type: "toggle_template_group"; groupKey: string; open: boolean };
+
+const initialAdminSettingsState: AdminSettingsState = {
+	activeCategory: "site",
+	activeTemplateVariableGroupCode: null,
+	configs: [],
+	drafts: {},
+	expandedTemplateGroups: {},
+	loading: true,
+	rotatingYggdrasilKey: false,
+	savedAt: null,
+	saveError: null,
+	saving: false,
+	schema: [],
+	sendingTestEmail: false,
+	templateVariableGroups: [],
+	testEmailDialogOpen: false,
+	testEmailTarget: "",
+};
+
+function draftsFromConfigs(configs: SystemConfig[]) {
+	return Object.fromEntries(
+		configs.map((config) => [config.key, configToDraft(config)]),
+	);
+}
+
+function adminSettingsReducer(
+	state: AdminSettingsState,
+	action: AdminSettingsAction,
+): AdminSettingsState {
+	switch (action.type) {
+		case "loaded": {
+			const configs = sortConfigs(action.configs);
+			return {
+				...state,
+				configs,
+				drafts: draftsFromConfigs(configs),
+				loading: false,
+				schema: action.schema,
+				templateVariableGroups: action.templateVariableGroups,
+			};
+		}
+		case "load_finished":
+			return { ...state, loading: false };
+		case "set_active_category":
+			return { ...state, activeCategory: action.value };
+		case "set_active_template_variable_group_code":
+			return { ...state, activeTemplateVariableGroupCode: action.value };
+		case "set_draft":
+			return {
+				...state,
+				drafts: { ...state.drafts, [action.key]: action.draft },
+				savedAt: null,
+				saveError: null,
+			};
+		case "discard_changes":
+			return {
+				...state,
+				drafts: draftsFromConfigs(state.configs),
+				savedAt: null,
+				saveError: null,
+			};
+		case "set_saving":
+			return {
+				...state,
+				saving: action.value,
+				saveError: action.value ? null : state.saveError,
+			};
+		case "save_failed":
+			return { ...state, saveError: action.message };
+		case "saved": {
+			const updated = action.updated;
+			const configs = sortConfigs(
+				state.configs.map((config) => {
+					const next = updated.find((result) => result.key === config.key);
+					return next ?? config;
+				}),
+			);
+			return {
+				...state,
+				configs,
+				drafts: {
+					...state.drafts,
+					...draftsFromConfigs(updated),
+				},
+				savedAt: new Date().toISOString(),
+			};
+		}
+		case "reloaded": {
+			const configs = sortConfigs(action.configs);
+			return {
+				...state,
+				configs,
+				drafts: draftsFromConfigs(configs),
+			};
+		}
+		case "set_test_email_dialog_open":
+			return { ...state, testEmailDialogOpen: action.value };
+		case "set_test_email_target":
+			return { ...state, testEmailTarget: action.value };
+		case "set_sending_test_email":
+			return { ...state, sendingTestEmail: action.value };
+		case "set_rotating_yggdrasil_key":
+			return { ...state, rotatingYggdrasilKey: action.value };
+		case "set_saved_at":
+			return { ...state, savedAt: action.value };
+		case "toggle_template_group":
+			return {
+				...state,
+				expandedTemplateGroups: {
+					...state.expandedTemplateGroups,
+					[action.groupKey]: action.open,
+				},
+			};
+	}
+}
 
 const SAVE_BAR_ENTER_DURATION_MS = 150;
 const SAVE_BAR_EXIT_DURATION_MS = 140;
 const SAVE_BAR_EXIT_UNMOUNT_GRACE_MS = 50;
-const SAVE_BAR_NEXT_FRAME_DELAY_MS = 16;
 
 const categoryOrder = [
 	"site",
@@ -77,47 +245,48 @@ const categoryOrder = [
 	"yggdrasil",
 	"runtime",
 	"audit",
-	"external_auth",
 ] as const;
 
 const categoryMeta: Record<string, CategoryMeta> = {
 	yggdrasil: {
 		id: "yggdrasil",
+		icon: "Key",
 		labelKey: "settings_category_yggdrasil",
 		descriptionKey: "settings_category_yggdrasil_desc",
 	},
 	auth: {
 		id: "auth",
+		icon: "Shield",
 		labelKey: "settings_category_auth",
 		descriptionKey: "settings_category_auth_desc",
 	},
-	external_auth: {
-		id: "external_auth",
-		labelKey: "settings_category_external_auth",
-		descriptionKey: "settings_category_external_auth_desc",
-	},
 	site: {
 		id: "site",
+		icon: "Gear",
 		labelKey: "settings_category_site",
 		descriptionKey: "settings_category_site_desc",
 	},
 	network: {
 		id: "network",
+		icon: "Globe",
 		labelKey: "settings_category_network",
 		descriptionKey: "settings_category_network_desc",
 	},
 	mail: {
 		id: "mail",
+		icon: "EnvelopeSimple",
 		labelKey: "settings_category_mail",
 		descriptionKey: "settings_category_mail_desc",
 	},
 	runtime: {
 		id: "runtime",
+		icon: "Gauge",
 		labelKey: "settings_category_runtime",
 		descriptionKey: "settings_category_runtime_desc",
 	},
 	audit: {
 		id: "audit",
+		icon: "Scroll",
 		labelKey: "settings_category_audit",
 		descriptionKey: "settings_category_audit_desc",
 	},
@@ -165,33 +334,32 @@ const timeDisplayUnits: Record<TimeConfigBaseUnit, readonly TimeDisplayUnit[]> =
 
 export default function AdminSettingsPage() {
 	const { t } = useTranslation();
-	const [configs, setConfigs] = useState<SystemConfig[]>([]);
+	const [state, dispatch] = useReducer(
+		adminSettingsReducer,
+		initialAdminSettingsState,
+	);
+	const {
+		activeCategory,
+		activeTemplateVariableGroupCode,
+		configs,
+		drafts,
+		expandedTemplateGroups,
+		loading,
+		rotatingYggdrasilKey,
+		savedAt,
+		saveError,
+		saving,
+		schema,
+		sendingTestEmail,
+		templateVariableGroups,
+		testEmailDialogOpen,
+		testEmailTarget,
+	} = state;
 
 	usePageTitle(t("settings_title"));
 
-	const [schema, setSchema] = useState<ConfigSchemaItem[]>([]);
-	const [templateVariableGroups, setTemplateVariableGroups] = useState<
-		TemplateVariableGroup[]
-	>([]);
-	const [drafts, setDrafts] = useState<Record<string, DraftValue>>({});
-	const [activeCategory, setActiveCategory] = useState("site");
-	const [expandedTemplateGroups, setExpandedTemplateGroups] = useState<
-		Record<string, boolean>
-	>({});
-	const [activeTemplateVariableGroupCode, setActiveTemplateVariableGroupCode] =
-		useState<string | null>(null);
-	const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
-	const [testEmailTarget, setTestEmailTarget] = useState("");
-	const [sendingTestEmail, setSendingTestEmail] = useState(false);
-	const [rotatingYggdrasilKey, setRotatingYggdrasilKey] = useState(false);
-	const [loading, setLoading] = useState(true);
-	const [saving, setSaving] = useState(false);
-	const [saveError, setSaveError] = useState<string | null>(null);
-	const [savedAt, setSavedAt] = useState<string | null>(null);
-
 	useEffect(() => {
 		let cancelled = false;
-		setLoading(true);
 		Promise.all([
 			adminConfigService.list({ limit: 500 }),
 			adminConfigService.schema(),
@@ -199,21 +367,19 @@ export default function AdminSettingsPage() {
 		])
 			.then(([page, nextSchema, nextTemplateVariableGroups]) => {
 				if (cancelled) return;
-				setConfigs(sortConfigs(page.items));
-				setSchema(nextSchema);
-				setTemplateVariableGroups(nextTemplateVariableGroups);
-				setDrafts(
-					Object.fromEntries(
-						page.items.map((config) => [config.key, configToDraft(config)]),
-					),
-				);
+				dispatch({
+					type: "loaded",
+					configs: page.items,
+					schema: nextSchema,
+					templateVariableGroups: nextTemplateVariableGroups,
+				});
 			})
 			.catch((nextError: unknown) => {
 				if (cancelled) return;
 				toast.error(formatError(nextError));
 			})
 			.finally(() => {
-				if (!cancelled) setLoading(false);
+				if (!cancelled) dispatch({ type: "load_finished" });
 			});
 		return () => {
 			cancelled = true;
@@ -285,25 +451,16 @@ export default function AdminSettingsPage() {
 	);
 
 	function updateDraft(key: string, draft: DraftValue) {
-		setDrafts((current) => ({ ...current, [key]: draft }));
-		setSavedAt(null);
-		setSaveError(null);
+		dispatch({ type: "set_draft", key, draft });
 	}
 
 	function discardChanges() {
-		setDrafts(
-			Object.fromEntries(
-				configs.map((config) => [config.key, configToDraft(config)]),
-			),
-		);
-		setSaveError(null);
-		setSavedAt(null);
+		dispatch({ type: "discard_changes" });
 	}
 
 	async function saveChanges() {
 		if (validationIssues.length > 0) return;
-		setSaving(true);
-		setSaveError(null);
+		dispatch({ type: "set_saving", value: true });
 		try {
 			const results = await Promise.all(
 				changedConfigs.map((config) => {
@@ -318,70 +475,142 @@ export default function AdminSettingsPage() {
 				}),
 			);
 			const updated = results.map((result) => result.config);
-			setConfigs((current) =>
-				sortConfigs(
-					current.map((config) => {
-						const next = updated.find((result) => result.key === config.key);
-						return next ?? config;
-					}),
-				),
-			);
-			setDrafts((current) => {
-				const next = { ...current };
-				for (const result of updated) {
-					next[result.key] = configToDraft(result);
-				}
-				return next;
-			});
+			dispatch({ type: "saved", updated });
 			for (const warning of results.flatMap((result) => result.warnings)) {
 				if (warning.message) toast.warning(warning.message);
 			}
-			setSavedAt(new Date().toISOString());
 		} catch (nextError) {
-			setSaveError(formatError(nextError));
+			dispatch({ type: "save_failed", message: formatError(nextError) });
 		} finally {
-			setSaving(false);
+			dispatch({ type: "set_saving", value: false });
 		}
 	}
 
 	async function reloadConfigs() {
 		const page = await adminConfigService.list({ limit: 500 });
-		setConfigs(sortConfigs(page.items));
-		setDrafts(
-			Object.fromEntries(
-				page.items.map((config) => [config.key, configToDraft(config)]),
-			),
-		);
+		dispatch({ type: "reloaded", configs: page.items });
 	}
 
 	async function sendTestEmail() {
-		setSendingTestEmail(true);
+		dispatch({ type: "set_sending_test_email", value: true });
 		try {
 			const result = await adminConfigService.sendTestEmail(testEmailTarget);
 			toast.success(result.message || t("mail_test_email_sent_default"));
-			setTestEmailDialogOpen(false);
+			dispatch({ type: "set_test_email_dialog_open", value: false });
 		} catch (nextError) {
 			toast.error(formatError(nextError));
 		} finally {
-			setSendingTestEmail(false);
+			dispatch({ type: "set_sending_test_email", value: false });
 		}
 	}
 
 	async function rotateYggdrasilSignatureKey() {
-		setRotatingYggdrasilKey(true);
+		dispatch({ type: "set_rotating_yggdrasil_key", value: true });
 		try {
 			const result = await adminConfigService.rotateYggdrasilSignatureKey();
 			toast.success(
 				result.message || t("yggdrasil_rotate_signature_key_success"),
 			);
 			await reloadConfigs();
-			setSavedAt(new Date().toISOString());
+			dispatch({ type: "set_saved_at", value: new Date().toISOString() });
 		} catch (nextError) {
 			toast.error(formatError(nextError));
 		} finally {
-			setRotatingYggdrasilKey(false);
+			dispatch({ type: "set_rotating_yggdrasil_key", value: false });
 		}
 	}
+
+	return (
+		<SettingsPageLayout
+			active={active}
+			activeMeta={activeMeta}
+			activeTemplateVariableGroup={activeTemplateVariableGroup}
+			activeTemplateVariableGroupCode={activeTemplateVariableGroupCode}
+			categories={categories}
+			changedCount={changedConfigs.length}
+			configs={configs}
+			disabled={validationIssues.length > 0}
+			dispatch={dispatch}
+			drafts={drafts}
+			empty={filteredConfigs.length === 0}
+			error={saveError ?? validationIssues[0]?.message ?? null}
+			expandedTemplateGroups={expandedTemplateGroups}
+			groupedConfigs={groupedConfigs}
+			loading={loading}
+			rotatingYggdrasilKey={rotatingYggdrasilKey}
+			savedAt={savedAt}
+			saving={saving}
+			schemaMap={schemaMap}
+			sendingTestEmail={sendingTestEmail}
+			testEmailDialogOpen={testEmailDialogOpen}
+			testEmailTarget={testEmailTarget}
+			onDiscard={discardChanges}
+			onRotateYggdrasilSignatureKey={() => void rotateYggdrasilSignatureKey()}
+			onSave={() => void saveChanges()}
+			onSendTestEmail={() => void sendTestEmail()}
+			onUpdateDraft={updateDraft}
+		/>
+	);
+}
+
+function SettingsPageLayout({
+	active,
+	activeMeta,
+	activeTemplateVariableGroup,
+	activeTemplateVariableGroupCode,
+	categories,
+	changedCount,
+	configs,
+	disabled,
+	dispatch,
+	drafts,
+	empty,
+	error,
+	expandedTemplateGroups,
+	groupedConfigs,
+	loading,
+	onDiscard,
+	onRotateYggdrasilSignatureKey,
+	onSave,
+	onSendTestEmail,
+	onUpdateDraft,
+	rotatingYggdrasilKey,
+	savedAt,
+	saving,
+	schemaMap,
+	sendingTestEmail,
+	testEmailDialogOpen,
+	testEmailTarget,
+}: {
+	active: string;
+	activeMeta: CategoryMeta;
+	activeTemplateVariableGroup: TemplateVariableGroup | null;
+	activeTemplateVariableGroupCode: string | null;
+	categories: readonly string[];
+	changedCount: number;
+	configs: SystemConfig[];
+	disabled: boolean;
+	dispatch: Dispatch<AdminSettingsAction>;
+	drafts: Record<string, DraftValue>;
+	empty: boolean;
+	error: string | null;
+	expandedTemplateGroups: Record<string, boolean>;
+	groupedConfigs: Record<string, SystemConfig[]>;
+	loading: boolean;
+	onDiscard: () => void;
+	onRotateYggdrasilSignatureKey: () => void;
+	onSave: () => void;
+	onSendTestEmail: () => void;
+	onUpdateDraft: (key: string, draft: DraftValue) => void;
+	rotatingYggdrasilKey: boolean;
+	savedAt: string | null;
+	saving: boolean;
+	schemaMap: Map<string, ConfigSchemaItem>;
+	sendingTestEmail: boolean;
+	testEmailDialogOpen: boolean;
+	testEmailTarget: string;
+}) {
+	const { t } = useTranslation();
 
 	return (
 		<AdminPageShell className="gap-5">
@@ -390,128 +619,215 @@ export default function AdminSettingsPage() {
 				description={t("settings_intro")}
 				actions={
 					<SettingsActions
-						changedCount={changedConfigs.length}
-						disabled={validationIssues.length > 0}
+						changedCount={changedCount}
+						disabled={disabled}
 						savedAt={savedAt}
 						saving={saving}
-						onDiscard={discardChanges}
-						onSave={() => void saveChanges()}
+						onDiscard={onDiscard}
+						onSave={onSave}
 					/>
 				}
 			/>
-
 			<div className="grid gap-5 xl:grid-cols-[16.5rem_minmax(0,1fr)]">
-				<aside className="min-w-0 xl:sticky xl:top-20 xl:self-start">
-					<AdminSurface padded={false} className="overflow-hidden">
-						<div className="border-b border-border/70 px-4 py-3 dark:border-white/10">
-							<div className="text-sm font-semibold">
-								{t("settings_navigation")}
-							</div>
-							<div className="mt-1 text-xs text-muted-foreground">
-								{t("settings_navigation_desc")}
-							</div>
-						</div>
-						<nav className="grid gap-1 p-2">
-							{categories.map((category) => (
-								<CategoryButton
-									key={category}
-									active={category === active}
-									category={category}
-									count={
-										configs.filter(
-											(config) => rootCategory(config.category) === category,
-										).length
-									}
-									onClick={() => setActiveCategory(category)}
-								/>
-							))}
-						</nav>
-					</AdminSurface>
-				</aside>
-
-				<section className="min-w-0">
-					{loading ? (
-						<SettingsSkeleton />
-					) : filteredConfigs.length === 0 ? (
-						<AdminSurface padded={false}>
-							<div className="grid min-h-56 place-items-center px-4 py-10 text-center">
-								<div className="max-w-md">
-									<div className="text-sm font-semibold">
-										{t("settings_empty_title")}
-									</div>
-									<p className="mt-1 text-sm leading-6 text-muted-foreground">
-										{t("settings_empty_desc")}
-									</p>
-								</div>
-							</div>
-						</AdminSurface>
-					) : (
-						<div className="grid gap-4">
-							<AdminSurface>
-								<div className="min-w-0">
-									<h2 className="text-base font-semibold">
-										{t(activeMeta.labelKey)}
-									</h2>
-									<p className="mt-1 text-sm leading-6 text-muted-foreground">
-										{t(activeMeta.descriptionKey)}
-									</p>
-								</div>
-							</AdminSurface>
-							{Object.entries(groupedConfigs).map(([category, items]) => (
-								<SettingsGroup
-									key={category}
-									category={category}
-									configs={items}
-									drafts={drafts}
-									schemaMap={schemaMap}
-									expandedTemplateGroups={expandedTemplateGroups}
-									rotatingYggdrasilKey={rotatingYggdrasilKey}
-									onChange={updateDraft}
-									onOpenTemplateVariables={setActiveTemplateVariableGroupCode}
-									onOpenTestEmail={() => setTestEmailDialogOpen(true)}
-									onRotateYggdrasilSignatureKey={() =>
-										void rotateYggdrasilSignatureKey()
-									}
-									onToggleTemplateGroup={(groupKey, open) =>
-										setExpandedTemplateGroups((current) => ({
-											...current,
-											[groupKey]: open,
-										}))
-									}
-								/>
-							))}
-						</div>
-					)}
-				</section>
+				<SettingsCategoryNav
+					active={active}
+					categories={categories}
+					configs={configs}
+					onSelect={(value) => dispatch({ type: "set_active_category", value })}
+				/>
+				<SettingsCategoryContent
+					activeMeta={activeMeta}
+					drafts={drafts}
+					empty={empty}
+					expandedTemplateGroups={expandedTemplateGroups}
+					groupedConfigs={groupedConfigs}
+					loading={loading}
+					rotatingYggdrasilKey={rotatingYggdrasilKey}
+					schemaMap={schemaMap}
+					onChange={onUpdateDraft}
+					onOpenTemplateVariables={(value) =>
+						dispatch({
+							type: "set_active_template_variable_group_code",
+							value,
+						})
+					}
+					onOpenTestEmail={() =>
+						dispatch({ type: "set_test_email_dialog_open", value: true })
+					}
+					onRotateYggdrasilSignatureKey={onRotateYggdrasilSignatureKey}
+					onToggleTemplateGroup={(groupKey, open) =>
+						dispatch({ type: "toggle_template_group", groupKey, open })
+					}
+				/>
 			</div>
-
 			<SettingsSaveBar
-				changedCount={changedConfigs.length}
-				disabled={validationIssues.length > 0}
-				error={saveError ?? validationIssues[0]?.message ?? null}
-				hasUnsavedChanges={changedConfigs.length > 0}
+				changedCount={changedCount}
+				disabled={disabled}
+				error={error}
+				hasUnsavedChanges={changedCount > 0}
 				saving={saving}
-				onDiscard={discardChanges}
-				onSave={() => void saveChanges()}
+				onDiscard={onDiscard}
+				onSave={onSave}
 			/>
 			<MailTemplateVariablesDialog
 				activeGroup={activeTemplateVariableGroup}
 				activeGroupCode={activeTemplateVariableGroupCode}
 				onOpenChange={(open) =>
-					setActiveTemplateVariableGroupCode(
-						open ? activeTemplateVariableGroupCode : null,
-					)
+					dispatch({
+						type: "set_active_template_variable_group_code",
+						value: open ? activeTemplateVariableGroupCode : null,
+					})
 				}
 			/>
 			<TestEmailDialog
 				open={testEmailDialogOpen}
 				sending={sendingTestEmail}
 				target={testEmailTarget}
-				onOpenChange={setTestEmailDialogOpen}
-				onSend={() => void sendTestEmail()}
-				onTargetChange={setTestEmailTarget}
+				onOpenChange={(value) =>
+					dispatch({ type: "set_test_email_dialog_open", value })
+				}
+				onSend={onSendTestEmail}
+				onTargetChange={(value) =>
+					dispatch({ type: "set_test_email_target", value })
+				}
 			/>
 		</AdminPageShell>
+	);
+}
+
+function SettingsCategoryNav({
+	active,
+	categories,
+	configs,
+	onSelect,
+}: {
+	active: string;
+	categories: readonly string[];
+	configs: SystemConfig[];
+	onSelect: (category: string) => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<aside className="min-w-0 xl:sticky xl:top-20 xl:self-start">
+			<AdminSurface padded={false} className="overflow-hidden">
+				<div className="border-b border-border/70 px-4 py-3 dark:border-white/10">
+					<div className="text-sm font-semibold">
+						{t("settings_navigation")}
+					</div>
+					<div className="mt-1 text-xs text-muted-foreground">
+						{t("settings_navigation_desc")}
+					</div>
+				</div>
+				<nav className="grid gap-1 p-2">
+					{categories.map((category) => (
+						<CategoryButton
+							key={category}
+							active={category === active}
+							category={category}
+							count={
+								configs.filter(
+									(config) => rootCategory(config.category) === category,
+								).length
+							}
+							onClick={() => onSelect(category)}
+						/>
+					))}
+				</nav>
+			</AdminSurface>
+		</aside>
+	);
+}
+
+function SettingsCategoryContent({
+	activeMeta,
+	drafts,
+	empty,
+	expandedTemplateGroups,
+	groupedConfigs,
+	loading,
+	onChange,
+	onOpenTemplateVariables,
+	onOpenTestEmail,
+	onRotateYggdrasilSignatureKey,
+	onToggleTemplateGroup,
+	rotatingYggdrasilKey,
+	schemaMap,
+}: {
+	activeMeta: CategoryMeta;
+	drafts: Record<string, DraftValue>;
+	empty: boolean;
+	expandedTemplateGroups: Record<string, boolean>;
+	groupedConfigs: Record<string, SystemConfig[]>;
+	loading: boolean;
+	onChange: (key: string, draft: DraftValue) => void;
+	onOpenTemplateVariables: (templateCode: string) => void;
+	onOpenTestEmail: () => void;
+	onRotateYggdrasilSignatureKey: () => void;
+	onToggleTemplateGroup: (groupKey: string, open: boolean) => void;
+	rotatingYggdrasilKey: boolean;
+	schemaMap: Map<string, ConfigSchemaItem>;
+}) {
+	const { t } = useTranslation();
+
+	if (loading) {
+		return (
+			<section className="min-w-0">
+				<SettingsSkeleton />
+			</section>
+		);
+	}
+
+	if (empty) {
+		return (
+			<section className="min-w-0">
+				<AdminSurface padded={false}>
+					<div className="grid min-h-56 place-items-center px-4 py-10 text-center">
+						<div className="max-w-md">
+							<div className="text-sm font-semibold">
+								{t("settings_empty_title")}
+							</div>
+							<p className="mt-1 text-sm leading-6 text-muted-foreground">
+								{t("settings_empty_desc")}
+							</p>
+						</div>
+					</div>
+				</AdminSurface>
+			</section>
+		);
+	}
+
+	return (
+		<section className="min-w-0">
+			<div className="grid gap-4">
+				<AdminSurface>
+					<div className="min-w-0">
+						<h2 className="text-base font-semibold">
+							{t(activeMeta.labelKey)}
+						</h2>
+						<p className="mt-1 text-sm leading-6 text-muted-foreground">
+							{t(activeMeta.descriptionKey)}
+						</p>
+					</div>
+				</AdminSurface>
+				{Object.entries(groupedConfigs).map(([category, items]) => (
+					<SettingsGroup
+						key={category}
+						category={category}
+						configs={items}
+						drafts={drafts}
+						schemaMap={schemaMap}
+						expandedTemplateGroups={expandedTemplateGroups}
+						rotatingYggdrasilKey={rotatingYggdrasilKey}
+						onChange={onChange}
+						onOpenTemplateVariables={onOpenTemplateVariables}
+						onOpenTestEmail={onOpenTestEmail}
+						onRotateYggdrasilSignatureKey={onRotateYggdrasilSignatureKey}
+						onToggleTemplateGroup={onToggleTemplateGroup}
+					/>
+				))}
+			</div>
+		</section>
 	);
 }
 
@@ -1410,6 +1726,7 @@ function CategoryButton({
 	const { t } = useTranslation();
 	const meta = categoryMeta[category] ?? {
 		descriptionKey: "settings_category_other_desc",
+		icon: "Grid" satisfies IconName,
 		id: category,
 		labelKey: "settings_category_other",
 	};
@@ -1425,6 +1742,7 @@ function CategoryButton({
 					: "text-muted-foreground",
 			)}
 		>
+			<Icon name={meta.icon} className="size-4 shrink-0" aria-hidden="true" />
 			<span className="min-w-0 flex-1">
 				<span className="block truncate text-sm font-semibold">
 					{t(meta.labelKey)}
@@ -1562,87 +1880,44 @@ function SettingsSaveBar({
 }
 
 function useSettingsSaveBarPhase(active: boolean) {
-	const timerRef = useRef<number | null>(null);
-	const phaseRef = useRef<SaveBarPhase>("hidden");
-	const [phase, setPhase] = useState<SaveBarPhase>("hidden");
+	const [state, setState] = useState<SaveBarPhaseState>(() => ({
+		active,
+		phase: active ? "entering" : "hidden",
+	}));
+	let phase = state.phase;
+
+	if (active !== state.active) {
+		phase = active
+			? "entering"
+			: state.phase === "hidden"
+				? "hidden"
+				: "exiting";
+		setState({ active, phase });
+	}
 
 	useEffect(() => {
-		phaseRef.current = phase;
-	}, [phase]);
-
-	useEffect(() => {
-		const clearTimer = () => {
-			if (timerRef.current !== null) {
-				window.clearTimeout(timerRef.current);
-				timerRef.current = null;
-			}
-		};
-		const setPhaseState = (nextPhase: SaveBarPhase) => {
-			phaseRef.current = nextPhase;
-			setPhase(nextPhase);
-		};
-		const scheduleHidden = () => {
-			timerRef.current = window.setTimeout(() => {
-				setPhaseState("hidden");
-				timerRef.current = null;
-			}, SAVE_BAR_EXIT_DURATION_MS + SAVE_BAR_EXIT_UNMOUNT_GRACE_MS);
-		};
-		const scheduleExit = (delayMs = 0) => {
-			if (delayMs === 0) {
-				setPhaseState("exiting");
-				scheduleHidden();
-				return;
-			}
-
-			timerRef.current = window.setTimeout(() => {
-				timerRef.current = null;
-				setPhaseState("exiting");
-				scheduleHidden();
-			}, delayMs);
-		};
-
-		clearTimer();
-
-		if (active) {
-			if (phaseRef.current === "visible") return;
-
-			if (phaseRef.current !== "entering") {
-				setPhaseState("entering");
-			}
-
-			timerRef.current = window.setTimeout(() => {
-				setPhaseState("visible");
-				timerRef.current = null;
+		if (phase === "entering") {
+			const timer = window.setTimeout(() => {
+				setState((current) =>
+					current.phase === "entering"
+						? { ...current, phase: "visible" }
+						: current,
+				);
 			}, 0);
-			return;
+			return () => window.clearTimeout(timer);
 		}
 
-		if (phaseRef.current === "hidden" || phaseRef.current === "exiting") {
-			return;
+		if (phase === "exiting") {
+			const timer = window.setTimeout(() => {
+				setState((current) =>
+					current.phase === "exiting"
+						? { ...current, phase: "hidden" }
+						: current,
+				);
+			}, SAVE_BAR_EXIT_DURATION_MS + SAVE_BAR_EXIT_UNMOUNT_GRACE_MS);
+			return () => window.clearTimeout(timer);
 		}
-
-		if (phaseRef.current === "entering") {
-			timerRef.current = window.setTimeout(() => {
-				timerRef.current = null;
-				setPhaseState("visible");
-				scheduleExit(SAVE_BAR_NEXT_FRAME_DELAY_MS);
-			}, SAVE_BAR_NEXT_FRAME_DELAY_MS);
-			return;
-		}
-
-		scheduleExit();
-
-		return clearTimer;
-	}, [active]);
-
-	useEffect(() => {
-		const timerState = timerRef;
-		return () => {
-			if (timerState.current !== null) {
-				window.clearTimeout(timerState.current);
-			}
-		};
-	}, []);
+	}, [phase]);
 
 	return {
 		phase,

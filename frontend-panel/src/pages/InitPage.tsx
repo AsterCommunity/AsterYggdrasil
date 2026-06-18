@@ -2,14 +2,23 @@ import { type FormEvent, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { z } from "zod/v4";
 import { InitEntryFooter } from "@/components/auth/InitEntryFooter";
 import {
 	InitFormCard,
+	type InitFormErrors,
+	type InitFormField,
 	type PublicUrlStatus,
 } from "@/components/auth/InitFormCard";
 import { InitHero } from "@/components/auth/InitHero";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import {
+	confirmPasswordRequiredSchema,
+	emailSchema,
+	passwordSchema,
+	usernameSchema,
+} from "@/lib/validation";
 import { accountPaths } from "@/routes/routePaths";
 import { formatUnknownError } from "@/services/http";
 import { useAuthStore } from "@/stores/authStore";
@@ -67,6 +76,7 @@ type InitFormState = {
 	password: string;
 	confirmPassword: string;
 	publicSiteUrl: string;
+	errors: InitFormErrors;
 	showPassword: boolean;
 	loading: boolean;
 };
@@ -82,8 +92,52 @@ type InitFormAction =
 				| "publicSiteUrl";
 			value: string;
 	  }
+	| { type: "errors"; value: InitFormErrors }
+	| { type: "fieldError"; field: InitFormField; message: string | null }
 	| { type: "togglePassword" }
 	| { type: "loading"; value: boolean };
+
+const setupFormSchema = z
+	.object({
+		username: usernameSchema,
+		email: emailSchema,
+		password: passwordSchema,
+		confirmPassword: confirmPasswordRequiredSchema,
+	})
+	.refine((value) => value.password === value.confirmPassword, {
+		path: ["confirmPassword"],
+		message: "login.passwordMismatch",
+	});
+
+function omitFormError(
+	errors: InitFormErrors,
+	field: InitFormField,
+): InitFormErrors {
+	if (!errors[field]) return errors;
+	const nextErrors = { ...errors };
+	delete nextErrors[field];
+	return nextErrors;
+}
+
+function zodErrorToFormErrors(error: z.ZodError): InitFormErrors {
+	const nextErrors: InitFormErrors = {};
+	for (const issue of error.issues) {
+		const field = issue.path[0];
+		if (
+			field === "username" ||
+			field === "email" ||
+			field === "password" ||
+			field === "confirmPassword"
+		) {
+			nextErrors[field] = issue.message;
+		}
+	}
+	return nextErrors;
+}
+
+function firstZodIssueMessage(result: z.ZodSafeParseResult<unknown>) {
+	return result.success ? null : (result.error.issues[0]?.message ?? "");
+}
 
 function initFormReducer(
 	state: InitFormState,
@@ -91,7 +145,24 @@ function initFormReducer(
 ): InitFormState {
 	switch (action.type) {
 		case "field":
-			return { ...state, [action.name]: action.value };
+			return {
+				...state,
+				[action.name]: action.value,
+				errors:
+					action.name === "publicSiteUrl"
+						? state.errors
+						: omitFormError(state.errors, action.name),
+			};
+		case "errors":
+			return { ...state, errors: action.value };
+		case "fieldError":
+			return {
+				...state,
+				errors:
+					action.message === null
+						? omitFormError(state.errors, action.field)
+						: { ...state.errors, [action.field]: action.message },
+			};
 		case "togglePassword":
 			return { ...state, showPassword: !state.showPassword };
 		case "loading":
@@ -105,15 +176,20 @@ export default function InitPage() {
 	const branding = useFrontendConfigStore((state) => state.branding);
 	const markInitialized = useInitStatusStore((state) => state.markInitialized);
 	const navigate = useNavigate();
-	const [form, dispatch] = useReducer(initFormReducer, undefined, () => ({
-		username: "",
-		email: "",
-		password: "",
-		confirmPassword: "",
-		publicSiteUrl: detectedPublicUrl(),
-		showPassword: false,
-		loading: false,
-	}));
+	const [form, dispatch] = useReducer(
+		initFormReducer,
+		undefined,
+		(): InitFormState => ({
+			username: "",
+			email: "",
+			password: "",
+			confirmPassword: "",
+			publicSiteUrl: detectedPublicUrl(),
+			errors: {},
+			showPassword: false,
+			loading: false,
+		}),
+	);
 
 	const publicUrlStatus = useMemo(
 		() => validatePublicSiteUrl(form.publicSiteUrl),
@@ -126,22 +202,33 @@ export default function InitPage() {
 			: passwordScore <= 3
 				? "login.passwordStrengthMedium"
 				: "login.passwordStrengthStrong";
-	const submitDisabled =
-		form.loading ||
-		!form.username.trim() ||
-		!form.email.trim() ||
-		!form.password ||
-		!form.confirmPassword ||
-		form.password !== form.confirmPassword ||
-		!publicUrlStatus.valid;
+	const canSubmit =
+		publicUrlStatus.valid &&
+		setupFormSchema.safeParse({
+			username: form.username,
+			email: form.email,
+			password: form.password,
+			confirmPassword: form.confirmPassword,
+		}).success;
+	const submitDisabled = form.loading || !canSubmit;
 	const brandTitle = branding.title || t("brand.name");
 
 	usePageTitle(t("init.title"));
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (form.password !== form.confirmPassword) {
-			toast.error(t("login.passwordMismatch"));
+		const validation = setupFormSchema.safeParse({
+			username: form.username,
+			email: form.email,
+			password: form.password,
+			confirmPassword: form.confirmPassword,
+		});
+		if (!validation.success) {
+			dispatch({
+				type: "errors",
+				value: zodErrorToFormErrors(validation.error),
+			});
+			toast.error(t("login.validationFailed"));
 			return;
 		}
 		if (!publicUrlStatus.valid) {
@@ -149,12 +236,13 @@ export default function InitPage() {
 			return;
 		}
 
+		dispatch({ type: "errors", value: {} });
 		dispatch({ type: "loading", value: true });
 		try {
 			await setup(
-				form.username,
-				form.email,
-				form.password,
+				validation.data.username,
+				validation.data.email,
+				validation.data.password,
 				publicUrlStatus.normalized,
 			);
 			markInitialized();
@@ -165,6 +253,60 @@ export default function InitPage() {
 		} finally {
 			dispatch({ type: "loading", value: false });
 		}
+	}
+
+	function setFieldError(field: InitFormField, message: string | null) {
+		dispatch({ type: "fieldError", field, message });
+	}
+
+	function validateSingle(
+		field: InitFormField,
+		value: unknown,
+		schema: z.ZodType,
+	) {
+		setFieldError(field, firstZodIssueMessage(schema.safeParse(value)));
+	}
+
+	function validateConfirmPassword(
+		nextConfirmPassword: string,
+		nextPassword: string,
+	) {
+		const requiredResult =
+			confirmPasswordRequiredSchema.safeParse(nextConfirmPassword);
+		if (!requiredResult.success) {
+			setFieldError(
+				"confirmPassword",
+				requiredResult.error.issues[0]?.message ?? "",
+			);
+			return;
+		}
+		setFieldError(
+			"confirmPassword",
+			nextConfirmPassword === nextPassword ? null : "login.passwordMismatch",
+		);
+	}
+
+	function changeUsername(value: string) {
+		dispatch({ type: "field", name: "username", value });
+		validateSingle("username", value, usernameSchema);
+	}
+
+	function changeEmail(value: string) {
+		dispatch({ type: "field", name: "email", value });
+		validateSingle("email", value, emailSchema);
+	}
+
+	function changePassword(value: string) {
+		dispatch({ type: "field", name: "password", value });
+		validateSingle("password", value, passwordSchema);
+		if (form.confirmPassword || form.errors.confirmPassword) {
+			validateConfirmPassword(form.confirmPassword, value);
+		}
+	}
+
+	function changeConfirmPassword(value: string) {
+		dispatch({ type: "field", name: "confirmPassword", value });
+		validateConfirmPassword(value, form.password);
 	}
 
 	return (
@@ -182,6 +324,7 @@ export default function InitPage() {
 					password={form.password}
 					confirmPassword={form.confirmPassword}
 					publicSiteUrl={form.publicSiteUrl}
+					errors={form.errors}
 					showPassword={form.showPassword}
 					loading={form.loading}
 					submitDisabled={submitDisabled}
@@ -189,18 +332,10 @@ export default function InitPage() {
 					passwordStrengthLabel={t(passwordStrengthKey)}
 					publicUrlStatus={publicUrlStatus}
 					onSubmit={submit}
-					onUsernameChange={(value) =>
-						dispatch({ type: "field", name: "username", value })
-					}
-					onEmailChange={(value) =>
-						dispatch({ type: "field", name: "email", value })
-					}
-					onPasswordChange={(value) =>
-						dispatch({ type: "field", name: "password", value })
-					}
-					onConfirmPasswordChange={(value) =>
-						dispatch({ type: "field", name: "confirmPassword", value })
-					}
+					onUsernameChange={changeUsername}
+					onEmailChange={changeEmail}
+					onPasswordChange={changePassword}
+					onConfirmPasswordChange={changeConfirmPassword}
 					onPublicSiteUrlChange={(value) =>
 						dispatch({ type: "field", name: "publicSiteUrl", value })
 					}

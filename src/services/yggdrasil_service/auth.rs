@@ -61,6 +61,13 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
+    if login_target.user.email_verified_at.is_none() {
+        tracing::debug!(
+            user_id = login_target.user.id,
+            "yggdrasil authenticate rejected pending email activation"
+        );
+        return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
+    }
     if !verify_password(&body.password, &login_target.user.password_hash)
         .map_err(YggdrasilError::from)?
     {

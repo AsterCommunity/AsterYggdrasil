@@ -10,6 +10,9 @@ export function GuestOnlyGate() {
 	const checking = useAuthStore((state) => state.checking);
 	const isAuthStale = useAuthStore((state) => state.isAuthStale);
 	const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+	const mustChangePassword = useAuthStore(
+		(state) => state.user?.must_change_password ?? false,
+	);
 
 	useEffect(() => {
 		if (!isAuthenticated && !isAuthStale) return;
@@ -19,11 +22,27 @@ export function GuestOnlyGate() {
 	if (isAuthenticated) {
 		return (
 			<RouteAccessState
-				actionHref={accountPaths.home}
-				actionLabelKey="shell.routeState.alreadySignedInAction"
-				descriptionKey="shell.routeState.alreadySignedInDescription"
+				actionHref={
+					mustChangePassword
+						? accountPaths.forcePasswordChange
+						: accountPaths.home
+				}
+				actionLabelKey={
+					mustChangePassword
+						? "shell.routeState.forcePasswordChangeAction"
+						: "shell.routeState.alreadySignedInAction"
+				}
+				descriptionKey={
+					mustChangePassword
+						? "shell.routeState.forcePasswordChangeDescription"
+						: "shell.routeState.alreadySignedInDescription"
+				}
 				icon="Lock"
-				titleKey="shell.routeState.alreadySignedInTitle"
+				titleKey={
+					mustChangePassword
+						? "shell.routeState.forcePasswordChangeTitle"
+						: "shell.routeState.alreadySignedInTitle"
+				}
 			/>
 		);
 	}

@@ -407,6 +407,45 @@ describe("admin services", () => {
 		);
 	});
 
+	it("uses admin user invitation endpoints", async () => {
+		const invitation = {
+			accepted_at: null,
+			accepted_user_id: null,
+			created_at: "2026-06-18T00:00:00Z",
+			email: "invitee@example.com",
+			expires_at: "2026-06-25T00:00:00Z",
+			id: 42,
+			invitation_url: "http://localhost:3300/invite/token",
+			invited_by: 1,
+			mail_queued: true,
+			revoked_at: null,
+			status: "pending" as const,
+			updated_at: "2026-06-18T00:00:00Z",
+		} satisfies import("@/types/api").AdminUserInvitationInfo;
+		apiMock.get.mockResolvedValueOnce(offsetPage([invitation], 10, 20, 1));
+		apiMock.post
+			.mockResolvedValueOnce(invitation)
+			.mockResolvedValueOnce({ ...invitation, status: "revoked" });
+		const { adminUserService } = await import("./adminService");
+
+		await adminUserService.listInvitations({ limit: 10, offset: 20 });
+		await adminUserService.createInvitation({ email: "invitee@example.com" });
+		await adminUserService.revokeInvitation(42);
+
+		expect(apiMock.get).toHaveBeenCalledWith(
+			"/admin/users/invitations?limit=10&offset=20",
+		);
+		expect(apiMock.post).toHaveBeenNthCalledWith(
+			1,
+			"/admin/users/invitations",
+			{ email: "invitee@example.com" },
+		);
+		expect(apiMock.post).toHaveBeenNthCalledWith(
+			2,
+			"/admin/users/invitations/42/revoke",
+		);
+	});
+
 	it("passes config updates as generated request bodies", async () => {
 		const payload = { value: "Aster", visibility: "public" as const };
 		apiMock.put.mockResolvedValue({
