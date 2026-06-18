@@ -21,6 +21,16 @@ pub struct PublicBranding {
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct PublicCaptchaConfig {
+    pub enabled: bool,
+    pub login_required: bool,
+    pub register_required: bool,
+    pub invitation_accept_required: bool,
+    pub register_activation_resend_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicYggdrasilConfig {
     pub server_name: String,
     pub skin_domains: Vec<String>,
@@ -37,6 +47,7 @@ pub struct PublicYggdrasilConfig {
 pub struct PublicFrontendConfig {
     pub version: i32,
     pub branding: PublicBranding,
+    pub captcha: PublicCaptchaConfig,
     pub yggdrasil: PublicYggdrasilConfig,
 }
 
@@ -52,6 +63,17 @@ pub fn get_public_branding(state: &impl RuntimeConfigRuntimeState) -> PublicBran
         site_urls: site_url::public_site_urls(runtime_config),
         allow_user_registration: auth_policy.allow_user_registration,
         passkey_login_enabled: auth_policy.passkey_login_enabled,
+    }
+}
+
+pub fn get_public_captcha_config(state: &impl RuntimeConfigRuntimeState) -> PublicCaptchaConfig {
+    let policy = auth_runtime::RuntimeCaptchaPolicy::from_runtime_config(state.runtime_config());
+    PublicCaptchaConfig {
+        enabled: policy.enabled,
+        login_required: policy.login_required(),
+        register_required: policy.register_required(),
+        invitation_accept_required: policy.invitation_accept_required(),
+        register_activation_resend_required: policy.register_activation_resend_required(),
     }
 }
 
@@ -75,6 +97,7 @@ pub fn get_public_frontend_config(state: &impl SharedRuntimeState) -> PublicFron
     PublicFrontendConfig {
         version: 1,
         branding: get_public_branding(state),
+        captcha: get_public_captcha_config(state),
         yggdrasil: get_public_yggdrasil_config(state),
     }
 }

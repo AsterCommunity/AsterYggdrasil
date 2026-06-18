@@ -218,7 +218,7 @@ pub async fn execute_config_action(
         admin_user_id = user_id,
         key,
         action = %body.action.as_str(),
-        has_target_email = body.target_email.is_some(),
+        has_values = body.values.as_ref().is_some_and(|values| !values.is_empty()),
         "admin executing config action"
     );
     let ctx = audit_service::AuditContext::from_request(&req, user_id);
@@ -228,7 +228,7 @@ pub async fn execute_config_action(
             key: &key,
             action: body.action,
             actor_user_id: user_id,
-            target_email: body.target_email.as_deref(),
+            values: body.values.as_ref(),
         },
         &ctx,
     )

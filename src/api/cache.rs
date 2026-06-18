@@ -24,6 +24,7 @@ pub(crate) fn conditional_bytes_response(
     cache_control: &'static str,
 ) -> HttpResponse {
     let etag = weak_etag_for_bytes(&bytes);
+    let content_length = bytes.len().to_string();
 
     if request_etag_matches(req, &etag) {
         return not_modified_response(etag, cache_control);
@@ -32,6 +33,7 @@ pub(crate) fn conditional_bytes_response(
     HttpResponse::Ok()
         .insert_header((header::ETAG, etag))
         .insert_header((header::CACHE_CONTROL, cache_control))
+        .insert_header((header::CONTENT_LENGTH, content_length))
         .content_type(content_type)
         .body(bytes)
 }

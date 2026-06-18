@@ -47,7 +47,7 @@ panic = "abort"
 strip = true
 
 [workspace]
-members = [".", "migration", "api-docs-macros"]
+members = [".", "migration", "api-docs-macros", "crates/aster-texture-renderer"]
 
 [features]
 default = ["server"]
@@ -70,11 +70,13 @@ actix-web = { version = "4.13.0", features = ["compress-brotli", "compress-gzip"
 actix-multipart = "0.7.2"
 actix-governor = "0.10"
 api-docs-macros = { path = "api-docs-macros" }
+aster-texture-renderer = { path = "crates/aster-texture-renderer" }
 argon2 = "0.5.3"
 async-trait = "0.1"
 aws-credential-types = { version = "1.2.14", features = ["hardcoded-credentials"] }
 aws-sdk-s3 = { version = "1.136.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
 base64 = "0.22"
+captcha-rs = "0.5"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4", features = ["derive", "env"], optional = true }
 config = { version = "0.15", default-features = false, features = ["toml"] }

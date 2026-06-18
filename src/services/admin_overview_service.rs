@@ -511,8 +511,8 @@ mod tests {
     };
     use crate::types::{
         AuditAction, AuditEntityType, BackgroundTaskKind, BackgroundTaskStatus,
-        MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility, StoredTaskPayload,
-        StoredTaskResult, UserRole, UserStatus,
+        MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureType,
+        MinecraftTextureVisibility, StoredTaskPayload, StoredTaskResult, UserRole, UserStatus,
     };
     use chrono::{Duration, Utc};
     use sea_orm::{ActiveModelTrait, ActiveValue::Set};
@@ -664,6 +664,7 @@ mod tests {
                 texture_model: MinecraftTextureModel::Default,
                 visibility: MinecraftTextureVisibility::Private,
                 is_wardrobe_item: true,
+                display_name: None,
             },
         )
         .await
@@ -688,6 +689,8 @@ mod tests {
             texture_model: Set(MinecraftTextureModel::Default),
             visibility: Set(MinecraftTextureVisibility::Private),
             is_wardrobe_item: Set(true),
+            display_name: Set(None),
+            library_status: Set(MinecraftTextureLibraryStatus::Private),
             created_at: Set(created_at),
             updated_at: Set(created_at),
             ..Default::default()

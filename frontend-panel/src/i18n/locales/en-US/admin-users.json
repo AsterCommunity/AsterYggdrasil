@@ -44,6 +44,9 @@
 			"email": "Email",
 			"password": "Password",
 			"roleLabel": "Role",
+			"operatorScopesLabel": "Manageable areas",
+			"operatorScopesDescription": "Operators can only access enabled admin areas. Administrators always have full permissions and cannot be scoped down.",
+			"adminScopePolicy": "Administrators always have full admin permissions. Use the operator role when permissions need to be scoped.",
 			"statusLabel": "Status",
 			"allRoles": "All roles",
 			"allStatuses": "All statuses",
@@ -93,7 +96,18 @@
 			"sessionsRevoked": "Revoked {{count}} sessions",
 			"role": {
 				"admin": "Admin",
+				"operator": "Operator",
 				"user": "User"
+			},
+			"operatorScope": {
+				"overview": "Admin overview",
+				"users": "Users",
+				"profiles": "Profiles",
+				"texture_library": "Texture library",
+				"audit": "Audit logs",
+				"tasks": "Background tasks",
+				"settings": "System settings",
+				"external_auth": "External auth"
 			},
 			"status": {
 				"active": "Active",

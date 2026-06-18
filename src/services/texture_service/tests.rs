@@ -94,6 +94,7 @@ async fn create_profile_texture_asset(
             texture_model: MinecraftTextureModel::Default,
             visibility: MinecraftTextureVisibility::Private,
             is_wardrobe_item,
+            display_name: None,
         },
     )
     .await

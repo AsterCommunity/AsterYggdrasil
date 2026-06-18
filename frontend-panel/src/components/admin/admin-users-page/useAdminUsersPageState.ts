@@ -170,7 +170,9 @@ export function useAdminUsersPageState(searchParams: URLSearchParams) {
 }
 
 function parseRole(value: string | null): UserFilterValue<UserRole> {
-	return value === "admin" || value === "user" ? value : "__all__";
+	return value === "admin" || value === "operator" || value === "user"
+		? value
+		: "__all__";
 }
 
 function parseStatus(value: string | null): UserFilterValue<UserStatus> {

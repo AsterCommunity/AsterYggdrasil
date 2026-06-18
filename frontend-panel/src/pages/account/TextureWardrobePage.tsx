@@ -2,9 +2,11 @@ import {
 	type DragEvent,
 	type FormEvent,
 	type ReactNode,
+	type UIEvent,
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,21 +28,27 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MinecraftPreviewPanel } from "@/components/yggdrasil/MinecraftPreviewPanel";
+import { MinecraftTextureImagePreview } from "@/components/yggdrasil/MinecraftTextureImagePreview";
+import { TextureTagFilterPopover } from "@/components/yggdrasil/TextureTagFilterPopover";
 import { TextureUploadForm } from "@/components/yggdrasil/TextureUploadForm";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useTextureTagPager } from "@/hooks/useTextureTagPager";
 import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
 import { cn } from "@/lib/utils";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 import type {
+	MinecraftTextureTagInfo,
 	MinecraftTextureType,
 	MinecraftWardrobeTextureMetadata,
+	TextureTagSearchMethod,
 } from "@/types/api";
 
 const WARDROBE_PAGE_SIZE_OPTIONS = [10, 20] as const;
 const DEFAULT_WARDROBE_PAGE_SIZE = 10;
 const WARDROBE_SEARCH_DEBOUNCE_MS = 300;
+const TAG_FILTER_APPLY_DEBOUNCE_MS = 240;
 
 export default function TextureWardrobePage() {
 	const { t } = useTranslation();
@@ -52,6 +60,15 @@ export default function TextureWardrobePage() {
 	const [activeTab, setActiveTab] = useState<MinecraftTextureType>("skin");
 	const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 	const [dragActive, setDragActive] = useState(false);
+	const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+	const [draftTagIds, setDraftTagIds] = useState<number[]>([]);
+	const [tagFilterOpen, setTagFilterOpen] = useState(false);
+	const [tagSearchMethod, setTagSearchMethod] =
+		useState<TextureTagSearchMethod>("all");
+	const tagFilterTriggerRef = useRef<HTMLDivElement | null>(null);
+	const tagFilterPopoverRef = useRef<HTMLDivElement | null>(null);
+	const [editTagIds, setEditTagIds] = useState<number[]>([]);
+	const [editTagQuery, setEditTagQuery] = useState("");
 	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
 	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const {
@@ -59,6 +76,8 @@ export default function TextureWardrobePage() {
 		deleteDialogOpen,
 		deleteTexture,
 		dialogOpen,
+		editDialogOpen,
+		editTexture,
 		file,
 		loading,
 		model,
@@ -70,6 +89,7 @@ export default function TextureWardrobePage() {
 		textureTotal,
 		textures,
 		textureType,
+		uploadName,
 		visibility,
 	} = state;
 
@@ -78,27 +98,53 @@ export default function TextureWardrobePage() {
 	const libraryTextureType: MinecraftTextureType =
 		activeTab === "cape" ? "cape" : "skin";
 
-	const loadData = useCallback(
+	const loadProfiles = useCallback(async () => {
+		try {
+			const nextProfiles = await yggdrasilService.listProfiles();
+			dispatch({ type: "profilesSuccess", profiles: nextProfiles.items });
+		} catch (nextError) {
+			toast.error(formatUnknownError(nextError));
+		}
+	}, [dispatch]);
+
+	const tagPager = useTextureTagPager({
+		loadPage: yggdrasilService.listTextureLibraryTagsPage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+		retainedTagIds: [...draftTagIds, ...editTagIds],
+	});
+	const {
+		addTags,
+		ensureLoaded: ensureTagsLoaded,
+		hasMore: hasMoreTags,
+		loadMore: loadMoreTags,
+		loading: tagLoading,
+		search: searchTags,
+		tags,
+	} = tagPager;
+
+	const loadTextures = useCallback(
 		async (
 			nextOffset = textureOffset,
 			nextType = libraryTextureType,
 			nextQuery = debouncedQuery,
+			nextTagIds = selectedTagIds,
+			nextTagSearchMethod = tagSearchMethod,
 		) => {
 			dispatch({ type: "loading", value: true });
 			const keyword = nextQuery.trim();
+			const tagIds = Array.from(new Set(nextTagIds));
 			try {
-				const [nextProfiles, nextTextures] = await Promise.all([
-					yggdrasilService.listProfiles(),
-					yggdrasilService.listWardrobeTextures({
-						limit: texturePageSize,
-						offset: nextOffset,
-						texture_type: nextType,
-						keyword: keyword || undefined,
-					}),
-				]);
+				const nextTextures = await yggdrasilService.listWardrobeTextures({
+					limit: texturePageSize,
+					offset: nextOffset,
+					texture_type: nextType,
+					keyword: keyword || undefined,
+					tag_ids: tagIds.length > 0 ? tagIds : undefined,
+					tag_search_method:
+						tagIds.length > 0 ? nextTagSearchMethod : undefined,
+				});
 				dispatch({
-					type: "loadSuccess",
-					profiles: nextProfiles.items,
+					type: "texturesSuccess",
 					textureTotal: nextTextures.total,
 					textures: nextTextures.items,
 				});
@@ -113,6 +159,8 @@ export default function TextureWardrobePage() {
 			debouncedQuery,
 			dispatch,
 			libraryTextureType,
+			selectedTagIds,
+			tagSearchMethod,
 			textureOffset,
 			texturePageSize,
 		],
@@ -127,8 +175,24 @@ export default function TextureWardrobePage() {
 	}, [query]);
 
 	useEffect(() => {
-		void loadData();
-	}, [loadData]);
+		if (tagFilterOpen || editDialogOpen) {
+			ensureTagsLoaded();
+		}
+	}, [editDialogOpen, ensureTagsLoaded, tagFilterOpen]);
+
+	useEffect(() => {
+		void loadTextures();
+	}, [loadTextures]);
+
+	useEffect(() => {
+		const timer = window.setTimeout(() => {
+			setTextureOffset(0);
+			setSelectedTagIds((current) =>
+				sameNumberArray(current, draftTagIds) ? current : draftTagIds,
+			);
+		}, TAG_FILTER_APPLY_DEBOUNCE_MS);
+		return () => window.clearTimeout(timer);
+	}, [draftTagIds]);
 
 	const visibleTextures = textures;
 	const searchBusy =
@@ -155,6 +219,11 @@ export default function TextureWardrobePage() {
 		);
 	}, [profiles, profileQuery]);
 
+	const selectedTags = useMemo(
+		() => tags.filter((tag) => draftTagIds.includes(tag.id)),
+		[tags, draftTagIds],
+	);
+
 	async function uploadTexture(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!file) return;
@@ -165,17 +234,19 @@ export default function TextureWardrobePage() {
 				textureType,
 				model,
 				file,
+				name: uploadName,
 				visibility,
 			});
 			setTextureOffset(0);
 			dispatch({ type: "prependTexture", value: uploaded });
 			dispatch({ type: "activeTexture", value: uploaded });
 			dispatch({ type: "file", value: null });
+			dispatch({ type: "uploadName", value: "" });
 			setActiveTab(uploaded.texture_type);
 			setUploadDialogOpen(false);
 			setDragActive(false);
 			toast.success(t("wardrobe.uploadSuccess"));
-			await loadData(0, uploaded.texture_type, debouncedQuery);
+			await loadTextures(0, uploaded.texture_type, debouncedQuery);
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
@@ -205,6 +276,7 @@ export default function TextureWardrobePage() {
 	function openUploadDialog(nextType = libraryTextureType) {
 		dispatch({ type: "textureType", value: nextType });
 		dispatch({ type: "file", value: null });
+		dispatch({ type: "uploadName", value: "" });
 		setDragActive(false);
 		setUploadDialogOpen(true);
 	}
@@ -231,6 +303,9 @@ export default function TextureWardrobePage() {
 			value: (current) => current || profiles[0]?.id || "",
 		});
 		dispatch({ type: "dialogOpen", value: true });
+		if (profiles.length === 0) {
+			void loadProfiles();
+		}
 	}
 
 	async function bindTexture() {
@@ -261,6 +336,77 @@ export default function TextureWardrobePage() {
 		dispatch({ type: "deleteDialogOpen", value: true });
 	}
 
+	function openEditDialog(texture: MinecraftWardrobeTextureMetadata) {
+		dispatch({ type: "editTexture", value: texture });
+		addTags(texture.tags);
+		setEditTagIds(texture.tags.map((tag) => tag.id));
+		setEditTagQuery("");
+		dispatch({ type: "editDialogOpen", value: true });
+	}
+
+	function clearUploadDialogStateAfterClose() {
+		if (uploadDialogOpen) return;
+		dispatch({ type: "file", value: null });
+		dispatch({ type: "uploadName", value: "" });
+		setDragActive(false);
+	}
+
+	function clearEditDialogStateAfterClose() {
+		if (editDialogOpen) return;
+		dispatch({ type: "editTexture", value: null });
+		setEditTagIds([]);
+		setEditTagQuery("");
+	}
+
+	function clearBindDialogStateAfterClose() {
+		if (dialogOpen) return;
+		dispatch({ type: "profileQuery", value: "" });
+	}
+
+	function clearDeleteDialogStateAfterClose() {
+		if (deleteDialogOpen) return;
+		dispatch({ type: "deleteTexture", value: null });
+	}
+
+	async function updateWardrobeTexture(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!editTexture) return;
+		const form = new FormData(event.currentTarget);
+		const nextName = String(form.get("name") ?? "").trim();
+		const nextVisibility = String(
+			form.get("visibility") || editTexture.visibility,
+		);
+		dispatch({ type: "submitting", value: true });
+		try {
+			const updated = await yggdrasilService.updateWardrobeTexture(
+				editTexture.id,
+				{
+					display_name: nextName || null,
+					visibility:
+						nextVisibility === "public" || nextVisibility === "private"
+							? nextVisibility
+							: editTexture.visibility,
+				},
+			);
+			const tagged = await yggdrasilService.replaceWardrobeTextureTags(
+				editTexture.id,
+				{
+					tag_ids: Array.from(new Set(editTagIds)),
+				},
+			);
+			dispatch({
+				type: "replaceTexture",
+				value: { ...updated, tags: tagged.tags },
+			});
+			dispatch({ type: "editDialogOpen", value: false });
+			toast.success(t("wardrobe.editSuccess"));
+		} catch (nextError) {
+			toast.error(formatUnknownError(nextError));
+		} finally {
+			dispatch({ type: "submitting", value: false });
+		}
+	}
+
 	async function deleteWardrobeTexture() {
 		if (!deleteTexture) return;
 		dispatch({ type: "submitting", value: true });
@@ -272,7 +418,7 @@ export default function TextureWardrobePage() {
 			}
 			toast.success(t("wardrobe.deleteSuccess"));
 			dispatch({ type: "deleteDialogOpen", value: false });
-			await loadData();
+			await loadTextures();
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
@@ -284,6 +430,25 @@ export default function TextureWardrobePage() {
 		setActiveTab(tab);
 		setTextureOffset(0);
 		dispatch({ type: "textureType", value: tab });
+		dispatch({ type: "activeTexture", value: null });
+	}
+
+	function toggleEditTag(tagId: number) {
+		setEditTagIds((current) =>
+			current.includes(tagId)
+				? current.filter((id) => id !== tagId)
+				: [...current, tagId],
+		);
+	}
+
+	function clearTagFilter() {
+		setDraftTagIds([]);
+		dispatch({ type: "activeTexture", value: null });
+	}
+
+	function changeTagSearchMethod(nextMethod: TextureTagSearchMethod) {
+		setTagSearchMethod(nextMethod);
+		setTextureOffset(0);
 		dispatch({ type: "activeTexture", value: null });
 	}
 
@@ -347,11 +512,32 @@ export default function TextureWardrobePage() {
 									}
 								/>
 							</div>
+							<TextureTagFilterPopover
+								open={tagFilterOpen}
+								popoverRef={tagFilterPopoverRef}
+								selectedIds={draftTagIds}
+								selectedTags={selectedTags}
+								searchMethod={tagSearchMethod}
+								hasMore={hasMoreTags}
+								loading={tagLoading}
+								tags={tags}
+								testId="wardrobe-tag-filter-popover"
+								triggerRef={tagFilterTriggerRef}
+								onClear={clearTagFilter}
+								onLoadMore={loadMoreTags}
+								onOpenChange={setTagFilterOpen}
+								onSearchQueryChange={searchTags}
+								onSearchMethodChange={changeTagSearchMethod}
+								onSelectedIdsChange={(nextIds) => {
+									setDraftTagIds(nextIds);
+									dispatch({ type: "activeTexture", value: null });
+								}}
+							/>
 							<Button
 								type="button"
 								variant="outline"
 								size="sm"
-								onClick={() => void loadData()}
+								onClick={() => void loadTextures()}
 								disabled={loading || submitting}
 							>
 								{loading ? t("common.loading") : t("common.refresh")}
@@ -442,17 +628,33 @@ export default function TextureWardrobePage() {
 					onDelete={() => {
 						if (previewTexture) openDeleteDialog(previewTexture);
 					}}
+					onEdit={() => {
+						if (previewTexture) openEditDialog(previewTexture);
+					}}
 				/>
 			</div>
 
 			<Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-				<DialogContent keepMounted className="sm:max-w-lg">
+				<DialogContent
+					keepMounted
+					className="sm:max-w-lg"
+					onAnimationEnd={clearUploadDialogStateAfterClose}
+				>
 					<TextureUploadForm
 						description={t("wardrobe.uploadDescription")}
 						dragActive={dragActive}
 						file={file}
 						fileInputId="wardrobe-texture-file"
 						model={model}
+						name={uploadName}
+						nameLabel={t("wardrobe.textureName")}
+						namePlaceholder={
+							previewTexture
+								? t("wardrobe.textureNamePlaceholder", {
+										name: previewTexture.name,
+									})
+								: t("wardrobe.textureNamePlaceholderFallback")
+						}
 						submitLabel={t("common.upload")}
 						submittingLabel={t("wardrobe.uploading")}
 						submitting={submitting}
@@ -467,10 +669,14 @@ export default function TextureWardrobePage() {
 						onModelChange={(nextModel) =>
 							dispatch({ type: "model", value: nextModel })
 						}
+						onNameChange={(nextName) =>
+							dispatch({ type: "uploadName", value: nextName })
+						}
 						onSubmit={uploadTexture}
 						onTextureTypeChange={(nextType) => {
 							dispatch({ type: "textureType", value: nextType });
 							dispatch({ type: "file", value: null });
+							dispatch({ type: "uploadName", value: "" });
 							setDragActive(false);
 						}}
 						onVisibilityChange={(nextVisibility) =>
@@ -481,10 +687,118 @@ export default function TextureWardrobePage() {
 			</Dialog>
 
 			<Dialog
+				open={editDialogOpen}
+				onOpenChange={(open) =>
+					dispatch({ type: "editDialogOpen", value: open })
+				}
+			>
+				<DialogContent
+					keepMounted
+					onAnimationEnd={clearEditDialogStateAfterClose}
+				>
+					<form
+						key={editTexture?.id ?? "empty-edit-texture"}
+						className="grid gap-4"
+						onSubmit={updateWardrobeTexture}
+					>
+						<DialogHeader>
+							<DialogTitle>{t("wardrobe.editDialogTitle")}</DialogTitle>
+							<DialogDescription>
+								{editTexture
+									? t("wardrobe.editDialogDescription", {
+											name: editTexture.name,
+										})
+									: t("wardrobe.editDialogFallback")}
+							</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-3">
+							<div className="grid gap-1.5">
+								<label
+									htmlFor="wardrobe-edit-texture-name"
+									className="text-sm font-medium"
+								>
+									{t("wardrobe.textureName")}
+								</label>
+								<Input
+									id="wardrobe-edit-texture-name"
+									name="name"
+									defaultValue={editTexture?.display_name ?? ""}
+									maxLength={96}
+									placeholder={
+										editTexture
+											? t("wardrobe.textureNamePlaceholder", {
+													name: editTexture.name,
+												})
+											: t("wardrobe.textureNamePlaceholderFallback")
+									}
+								/>
+							</div>
+							<div className="grid gap-1.5">
+								<div className="text-sm font-medium">
+									{t("wardrobe.visibility.label")}
+								</div>
+								<div className="grid grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
+									{(["private", "public"] as const).map((option) => (
+										<label
+											key={option}
+											className="relative grid h-8 cursor-pointer place-items-center overflow-hidden rounded-md px-3 text-sm font-medium transition-colors has-checked:bg-primary has-checked:text-primary-foreground has-checked:shadow-xs has-focus-visible:ring-3 has-focus-visible:ring-ring/35"
+										>
+											<input
+												key={`${editTexture?.id ?? "none"}-${option}`}
+												type="radio"
+												name="visibility"
+												value={option}
+												defaultChecked={editTexture?.visibility === option}
+												className="sr-only"
+											/>
+											{t(`wardrobe.visibility.${option}`)}
+										</label>
+									))}
+								</div>
+							</div>
+							<div className="grid gap-1.5">
+								<TextureTagSelector
+									disabled={submitting}
+									hasMore={hasMoreTags}
+									loading={tagLoading}
+									query={editTagQuery}
+									selectedIds={editTagIds}
+									tags={tags}
+									onLoadMore={loadMoreTags}
+									onQueryChange={setEditTagQuery}
+									onSearchQueryChange={searchTags}
+									onToggle={toggleEditTag}
+								/>
+							</div>
+						</div>
+						<DialogFooter>
+							<DialogClose
+								render={
+									<Button
+										type="button"
+										variant="outline"
+										disabled={submitting}
+									/>
+								}
+							>
+								{t("common.cancel")}
+							</DialogClose>
+							<Button type="submit" disabled={!editTexture || submitting}>
+								{submitting ? t("wardrobe.saving") : t("common.save")}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
 				open={dialogOpen}
 				onOpenChange={(open) => dispatch({ type: "dialogOpen", value: open })}
 			>
-				<DialogContent keepMounted>
+				<DialogContent
+					keepMounted
+					onAnimationEnd={clearBindDialogStateAfterClose}
+				>
 					<DialogHeader>
 						<DialogTitle>{t("wardrobe.bindDialogTitle")}</DialogTitle>
 						<DialogDescription>
@@ -574,7 +888,10 @@ export default function TextureWardrobePage() {
 					dispatch({ type: "deleteDialogOpen", value: open })
 				}
 			>
-				<DialogContent keepMounted>
+				<DialogContent
+					keepMounted
+					onAnimationEnd={clearDeleteDialogStateAfterClose}
+				>
 					<DialogHeader>
 						<DialogTitle>{t("wardrobe.deleteDialogTitle")}</DialogTitle>
 						<DialogDescription>
@@ -664,9 +981,20 @@ function TextureCard({
 			<div className="grid gap-1.5 border-t border-border/70 bg-muted/30 p-2.5">
 				<div className="flex min-w-0 items-center justify-between gap-2">
 					<div className="truncate text-xs font-semibold">{label}</div>
-					<span className="rounded-md bg-background/80 px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
-						{t(`wardrobe.type.${texture.texture_type}`)}
-					</span>
+					<div className="flex shrink-0 items-center gap-1">
+						<span className="rounded-md bg-background/80 px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+							{t(`wardrobe.type.${texture.texture_type}`)}
+						</span>
+						<Badge
+							variant="outline"
+							className={cn(
+								"h-5 rounded-md px-1.5 text-[0.6875rem]",
+								textureVisibilityBadgeClass(texture.visibility),
+							)}
+						>
+							{t(`wardrobe.visibility.${texture.visibility}`)}
+						</Badge>
+					</div>
 				</div>
 				<div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.6875rem] text-muted-foreground">
 					<span>
@@ -675,6 +1003,7 @@ function TextureCard({
 					<span>{formatBytes(texture.file_size)}</span>
 					<span>{date}</span>
 				</div>
+				{texture.tags.length > 0 ? <TextureTags tags={texture.tags} /> : null}
 			</div>
 		</button>
 	);
@@ -683,11 +1012,13 @@ function TextureCard({
 function PreviewPanel({
 	onBind,
 	onDelete,
+	onEdit,
 	texture,
 	total,
 }: {
 	onBind: () => void;
 	onDelete: () => void;
+	onEdit: () => void;
 	texture: MinecraftWardrobeTextureMetadata | null;
 	total: number;
 }) {
@@ -722,6 +1053,15 @@ function PreviewPanel({
 						<Button type="button" disabled={!texture} onClick={onBind}>
 							{t("wardrobe.bindToProfile")}
 						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={!texture}
+							onClick={onEdit}
+						>
+							<Icon name="PencilSimple" className="mr-2 size-4" />
+							{t("wardrobe.editAction")}
+						</Button>
 					</div>
 					<Button
 						type="button"
@@ -750,19 +1090,12 @@ function TexturePreview({
 	});
 
 	return (
-		<div
-			className={cn(
-				"grid place-items-center bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0] p-4",
-				compact ? "aspect-[4/3]" : "aspect-[4/5]",
-			)}
-		>
-			<img
-				src={texture.url}
-				alt={alt}
-				crossOrigin="anonymous"
-				className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
-			/>
-		</div>
+		<MinecraftTextureImagePreview
+			alt={alt}
+			aspect={compact ? "wide" : "portrait"}
+			previewUrl={texture.preview_url}
+			textureUrl={texture.url}
+		/>
 	);
 }
 
@@ -775,6 +1108,7 @@ function TextureSummary({
 
 	return (
 		<div className="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
+			<div className="min-w-0 truncate font-semibold">{texture.name}</div>
 			<div className="flex flex-wrap items-center gap-2">
 				<Badge variant="secondary" className="rounded-md">
 					{t(`wardrobe.type.${texture.texture_type}`)}
@@ -790,8 +1124,177 @@ function TextureSummary({
 				<Badge variant="outline" className="rounded-md">
 					{formatBytes(texture.file_size)}
 				</Badge>
+				<Badge
+					variant="outline"
+					className={cn(
+						"rounded-md",
+						textureVisibilityBadgeClass(texture.visibility),
+					)}
+				>
+					{t(`wardrobe.visibility.${texture.visibility}`)}
+				</Badge>
 			</div>
+			{texture.tags.length > 0 ? <TextureTags tags={texture.tags} /> : null}
 		</div>
+	);
+}
+
+function TextureTags({ tags }: { tags: MinecraftTextureTagInfo[] }) {
+	return (
+		<div className="flex flex-wrap gap-1">
+			{tags.map((tag) => (
+				<span
+					key={tag.id}
+					className="rounded-md border px-1.5 py-0.5 text-[0.6875rem] font-medium"
+					style={{
+						borderColor: `${tag.color}55`,
+						color: tag.color,
+					}}
+				>
+					{tag.name}
+				</span>
+			))}
+		</div>
+	);
+}
+
+function TextureTagSelector({
+	disabled,
+	hasMore,
+	loading,
+	onLoadMore,
+	onQueryChange,
+	onSearchQueryChange,
+	onToggle,
+	query,
+	selectedIds,
+	tags,
+}: {
+	disabled: boolean;
+	hasMore: boolean;
+	loading: boolean;
+	onLoadMore: () => void;
+	onQueryChange: (query: string) => void;
+	onSearchQueryChange: (query: string) => void;
+	onToggle: (tagId: number) => void;
+	query: string;
+	selectedIds: number[];
+	tags: MinecraftTextureTagInfo[];
+}) {
+	const { t } = useTranslation();
+	const hasQuery = query.trim().length > 0;
+
+	useEffect(() => {
+		const timer = window.setTimeout(() => {
+			onSearchQueryChange(query.trim());
+		}, 180);
+		return () => window.clearTimeout(timer);
+	}, [onSearchQueryChange, query]);
+
+	function maybeLoadMore(event: UIEvent<HTMLDivElement>) {
+		if (loading || !hasMore) return;
+		const target = event.currentTarget;
+		if (target.scrollHeight - target.scrollTop - target.clientHeight < 56) {
+			onLoadMore();
+		}
+	}
+
+	return (
+		<div className="grid gap-1.5">
+			<div className="flex items-center justify-between gap-2">
+				<label
+					htmlFor="wardrobe-edit-texture-tag-search"
+					className="text-sm font-medium"
+				>
+					{t("wardrobe.tags")}
+				</label>
+				{selectedIds.length > 0 ? (
+					<span className="text-xs text-muted-foreground">
+						{t("wardrobe.selectedTags", { count: selectedIds.length })}
+					</span>
+				) : null}
+			</div>
+			{tags.length > 0 || loading || hasQuery ? (
+				<>
+					<div className="relative">
+						<Icon
+							name="MagnifyingGlass"
+							className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+						/>
+						<Input
+							id="wardrobe-edit-texture-tag-search"
+							type="search"
+							value={query}
+							placeholder={t("wardrobe.tagSearchPlaceholder")}
+							className="pl-8"
+							disabled={disabled}
+							onChange={(event) => onQueryChange(event.currentTarget.value)}
+						/>
+					</div>
+					{tags.length > 0 ? (
+						<div
+							className="max-h-52 overflow-y-auto rounded-lg border border-border/70 bg-muted/20 p-2"
+							onScroll={maybeLoadMore}
+						>
+							<div className="grid gap-1">
+								{tags.map((tag) => (
+									<label
+										key={tag.id}
+										className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-background/70 has-disabled:cursor-not-allowed has-disabled:opacity-60"
+									>
+										<input
+											type="checkbox"
+											checked={selectedIds.includes(tag.id)}
+											disabled={disabled}
+											className="size-4 rounded border-border"
+											onChange={() => onToggle(tag.id)}
+										/>
+										<span
+											aria-hidden="true"
+											className="size-2.5 rounded-full"
+											style={{ backgroundColor: tag.color }}
+										/>
+										<span className="truncate">{tag.name}</span>
+									</label>
+								))}
+								{loading ? (
+									<div className="px-2 py-1 text-xs text-muted-foreground">
+										{t("common.loading")}
+									</div>
+								) : null}
+							</div>
+						</div>
+					) : (
+						<div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-sm text-muted-foreground">
+							{loading
+								? t("common.loading")
+								: hasQuery
+									? t("wardrobe.noTagSearchResults")
+									: t("wardrobe.noAvailableTags")}
+						</div>
+					)}
+				</>
+			) : (
+				<div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-sm text-muted-foreground">
+					{t("wardrobe.noAvailableTags")}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function textureVisibilityBadgeClass(
+	visibility: MinecraftWardrobeTextureMetadata["visibility"],
+) {
+	return visibility === "public"
+		? "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/35 dark:bg-emerald-400/10 dark:text-emerald-300"
+		: "border-border/80 bg-muted/70 text-muted-foreground";
+}
+
+function sameNumberArray(left: number[], right: number[]) {
+	return (
+		left.length === right.length &&
+		left.every((value, index) => value === right[index])
 	);
 }
 
@@ -894,7 +1397,7 @@ function WardrobeEmptyState({
 }
 
 function textureLabel(texture: MinecraftWardrobeTextureMetadata) {
-	return texture.hash.slice(0, 16);
+	return texture.name;
 }
 
 function formatBytes(value: number) {

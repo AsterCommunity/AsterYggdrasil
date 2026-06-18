@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { firstAdminPathForScopes, OPERATOR_SCOPES } from "@/lib/operatorScopes";
 import {
 	readStorageItem,
 	removeStorageItem,
@@ -17,6 +18,7 @@ import type {
 	AdminUserInfo,
 	AuthTokenResponse,
 	AuthUserInfo,
+	OperatorScope,
 	RegisterResponse,
 	UpdateAvatarSourceRequest,
 	UpdateProfileRequest,
@@ -29,6 +31,7 @@ type CachedAuthUser = Pick<
 	| "email_verified"
 	| "id"
 	| "must_change_password"
+	| "operator_scopes"
 	| "pending_email"
 	| "profile"
 	| "role"
@@ -45,6 +48,10 @@ type AuthState = {
 	isAuthStale: boolean;
 	isAuthenticated: boolean;
 	isAdmin: boolean;
+	isOperator: boolean;
+	operatorScopes: OperatorScope[];
+	canAccessAdminShell: boolean;
+	hasOperatorScope: (scope: OperatorScope) => boolean;
 	hydrate: () => Promise<void>;
 	setup: (
 		username: string,
@@ -56,8 +63,13 @@ type AuthState = {
 		username: string,
 		email: string,
 		password: string,
+		captcha?: CaptchaSubmission,
 	) => Promise<RegisterResponse>;
-	login: (identifier: string, password: string) => Promise<void>;
+	login: (
+		identifier: string,
+		password: string,
+		captcha?: CaptchaSubmission,
+	) => Promise<void>;
 	changePassword: (
 		currentPassword: string,
 		newPassword: string,
@@ -66,6 +78,7 @@ type AuthState = {
 		token: string,
 		username: string,
 		password: string,
+		captcha?: CaptchaSubmission,
 	) => Promise<AuthUserInfo>;
 	loginWithPasskey: (flowId: string, credential: unknown) => Promise<void>;
 	refreshUser: () => Promise<void>;
@@ -78,6 +91,11 @@ type AuthState = {
 	refresh: () => Promise<void>;
 	logout: () => Promise<void>;
 	clear: () => void;
+};
+
+type CaptchaSubmission = {
+	challengeId: string;
+	answer: string;
 };
 
 let inFlightHydrate: Promise<void> | null = null;
@@ -118,6 +136,13 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 				: false,
 		pending_email:
 			typeof source.pending_email === "string" ? source.pending_email : null,
+		operator_scopes: Array.isArray(source.operator_scopes)
+			? (source.operator_scopes.filter(
+					(value): value is OperatorScope =>
+						typeof value === "string" &&
+						OPERATOR_SCOPES.includes(value as OperatorScope),
+				) as OperatorScope[])
+			: [],
 		profile: source.profile ?? defaultUserProfile(),
 		username: source.username,
 		role: source.role,
@@ -285,6 +310,7 @@ function syncAdminUser(
 			pending_email: adminUser.pending_email,
 			profile: adminUser.profile,
 			must_change_password: adminUser.must_change_password,
+			operator_scopes: adminUser.operator_scopes,
 			role: adminUser.role,
 			status: adminUser.status,
 			username: adminUser.username,
@@ -303,9 +329,17 @@ function clearLegacyTokenStorage() {
 }
 
 function deriveAuthFlags(user: AuthUserInfo | null) {
+	const operatorScopes = user?.operator_scopes ?? [];
+	const isAdmin = user?.role === "admin";
+	const isOperator = user?.role === "operator";
 	return {
 		isAuthenticated: Boolean(user),
-		isAdmin: user?.role === "admin",
+		isAdmin,
+		isOperator,
+		operatorScopes,
+		canAccessAdminShell:
+			isAdmin ||
+			(isOperator && firstAdminPathForScopes(operatorScopes) != null),
 	};
 }
 
@@ -327,6 +361,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	isAuthStale: Boolean(initialUser),
 	isAuthenticated: initialFlags.isAuthenticated,
 	isAdmin: initialFlags.isAdmin,
+	isOperator: initialFlags.isOperator,
+	operatorScopes: initialFlags.operatorScopes,
+	canAccessAdminShell: initialFlags.canAccessAdminShell,
+	hasOperatorScope(scope) {
+		const state = get();
+		return state.isAdmin || state.operatorScopes.includes(scope);
+	},
 	async hydrate() {
 		if (inFlightHydrate) return inFlightHydrate;
 
@@ -379,8 +420,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		});
 		await syncUserAfterTokenResponse(set, response);
 	},
-	async register(username, email, password) {
-		const response = await authService.register({ username, email, password });
+	async register(username, email, password, captcha) {
+		const response = await authService.register({
+			username,
+			email,
+			password,
+			captcha_challenge_id: captcha?.challengeId,
+			captcha_answer: captcha?.answer,
+		});
 		if (response.requires_activation) {
 			clearPersistedAuth();
 			set({
@@ -396,8 +443,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		await syncUserAfterTokenResponse(set, response);
 		return response;
 	},
-	async login(identifier, password) {
-		const response = await authService.login({ identifier, password });
+	async login(identifier, password, captcha) {
+		const response = await authService.login({
+			identifier,
+			password,
+			captcha_challenge_id: captcha?.challengeId,
+			captcha_answer: captcha?.answer,
+		});
 		await syncUserAfterTokenResponse(set, response);
 	},
 	async changePassword(currentPassword, newPassword) {
@@ -407,10 +459,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		});
 		await syncUserAfterTokenResponse(set, response);
 	},
-	async acceptInvitation(token, username, password) {
+	async acceptInvitation(token, username, password, captcha) {
 		return await authService.acceptInvitation(token, {
 			username,
 			password,
+			captcha_challenge_id: captcha?.challengeId,
+			captcha_answer: captcha?.answer,
 		});
 	},
 	async loginWithPasskey(flowId, credential) {

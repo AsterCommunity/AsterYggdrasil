@@ -1,13 +1,15 @@
 //! Administrator user management service.
 
 use crate::api::pagination::{AdminUserSortBy, OffsetPage, SortOrder};
-use crate::db::repository::{minecraft_profile_repo, user_repo, yggdrasil_token_repo};
+use crate::db::repository::{
+    minecraft_profile_repo, user_operator_scope_repo, user_repo, yggdrasil_token_repo,
+};
 use crate::entities::user;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth_service, texture_service, yggdrasil_service};
-use crate::types::{UserRole, UserStatus};
+use crate::types::{OperatorScope, UserRole, UserStatus};
 use crate::utils::email::normalize_email;
 use crate::utils::hash::hash_password;
 use crate::utils::numbers::u64_to_usize;
@@ -33,6 +35,7 @@ pub struct AdminUserInfo {
     pub email: String,
     pub pending_email: Option<String>,
     pub role: UserRole,
+    pub operator_scopes: Vec<OperatorScope>,
     pub status: UserStatus,
     pub must_change_password: bool,
     pub session_version: i64,
@@ -72,6 +75,7 @@ pub struct AdminUpdateUserInput {
     pub email: Option<String>,
     pub password: Option<String>,
     pub role: Option<UserRole>,
+    pub operator_scopes: Option<Vec<OperatorScope>>,
     pub status: Option<UserStatus>,
     pub must_change_password: Option<bool>,
 }
@@ -116,6 +120,54 @@ fn generate_temporary_password() -> String {
         bytes.swap(index, swap_index);
     }
     bytes.into_iter().map(char::from).collect()
+}
+
+fn normalize_role_and_scopes(
+    requested_role: UserRole,
+    requested_scopes: Option<Vec<OperatorScope>>,
+) -> (UserRole, Vec<OperatorScope>) {
+    match requested_scopes {
+        Some(scopes) => match requested_role {
+            UserRole::Admin => (UserRole::Operator, scopes),
+            UserRole::Operator => (UserRole::Operator, scopes),
+            UserRole::User => (UserRole::User, Vec::new()),
+        },
+        None => match requested_role {
+            UserRole::Admin => (UserRole::Admin, Vec::new()),
+            UserRole::User => (UserRole::User, Vec::new()),
+            UserRole::Operator => (UserRole::Operator, Vec::new()),
+        },
+    }
+}
+
+fn normalize_update_role_and_scopes(
+    existing_role: UserRole,
+    requested_role: Option<UserRole>,
+    requested_scopes: Option<Vec<OperatorScope>>,
+    existing_scopes: Vec<OperatorScope>,
+) -> (UserRole, Option<Vec<OperatorScope>>) {
+    let base_role = requested_role.unwrap_or(existing_role);
+    match requested_scopes {
+        Some(scopes) => match base_role {
+            UserRole::Admin => (UserRole::Operator, Some(scopes)),
+            UserRole::Operator => (UserRole::Operator, Some(scopes)),
+            UserRole::User => (UserRole::User, Some(Vec::new())),
+        },
+        None => match base_role {
+            UserRole::Admin => (UserRole::Admin, Some(Vec::new())),
+            UserRole::User => (UserRole::User, Some(Vec::new())),
+            UserRole::Operator => {
+                if requested_role == Some(UserRole::Operator) && existing_role != UserRole::Operator
+                {
+                    (UserRole::Operator, Some(Vec::new()))
+                } else if existing_role == UserRole::Operator {
+                    (UserRole::Operator, Some(existing_scopes))
+                } else {
+                    (UserRole::Operator, Some(Vec::new()))
+                }
+            }
+        },
+    }
 }
 
 fn validate_identity_input(username: &str, email: &str, password: &str) -> Result<String> {
@@ -187,6 +239,7 @@ pub async fn create_user<S>(
     email: &str,
     password: Option<&str>,
     role: UserRole,
+    operator_scopes: Option<Vec<OperatorScope>>,
     status: UserStatus,
     must_change_password: Option<bool>,
 ) -> Result<CreateAdminUserOutput>
@@ -211,15 +264,23 @@ where
     let password_hash = hash_password(password)?;
     let must_change_password =
         generated_password.is_some() || must_change_password.unwrap_or(false);
-    let user = user_repo::create_with_options(
-        state.writer_db(),
-        username.trim(),
-        &email,
-        &password_hash,
-        role,
-        status,
-        must_change_password,
-    )
+    let (role, operator_scopes) = normalize_role_and_scopes(role, operator_scopes);
+    let user = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let user = user_repo::create_with_options(
+            txn,
+            username.trim(),
+            &email,
+            &password_hash,
+            role,
+            status,
+            must_change_password,
+        )
+        .await?;
+        if role == UserRole::Operator {
+            user_operator_scope_repo::replace_for_user(txn, user.id, &operator_scopes).await?;
+        }
+        Ok(user)
+    })
     .await?;
     let users = hydrate_users(state, vec![user]).await?;
     tracing::debug!(username, "admin user created");
@@ -245,6 +306,7 @@ where
         email,
         password,
         role,
+        operator_scopes,
         status,
         must_change_password,
     } = input;
@@ -258,16 +320,21 @@ where
         must_change_password_changed = must_change_password.is_some(),
         "updating admin user"
     );
-    if id == SUPER_ADMIN_USER_ID && (role.is_some() || status.is_some()) {
-        let existing = user_repo::find_by_id(state.reader_db(), id).await?;
+    let existing = user_repo::find_by_id(state.reader_db(), id).await?;
+    if id == SUPER_ADMIN_USER_ID
+        && (role.is_some() || status.is_some() || operator_scopes.is_some())
+    {
         let role_changed = role.is_some_and(|next| next != existing.role);
         let status_changed = status.is_some_and(|next| next != existing.status);
-        if role_changed || status_changed {
+        if role_changed || status_changed || operator_scopes.is_some() {
             return Err(AsterError::auth_forbidden(
-                "super administrator role and status cannot be changed",
+                "super administrator role, status, and permissions cannot be changed",
             ));
         }
     }
+    let existing_scopes = user_operator_scope_repo::list_for_user(state.reader_db(), id).await?;
+    let (normalized_role, normalized_operator_scopes) =
+        normalize_update_role_and_scopes(existing.role, role, operator_scopes, existing_scopes);
 
     let normalized_username = username
         .map(|value| {
@@ -285,19 +352,26 @@ where
     let bump_session_version = password_hash.is_some()
         || status == Some(UserStatus::Disabled)
         || must_change_password.is_some();
-    let user = user_repo::update_admin(
-        state.writer_db(),
-        id,
-        user_repo::AdminUpdateUserInput {
-            username: normalized_username,
-            email: normalized_email,
-            password_hash,
-            role,
-            status,
-            must_change_password,
-            bump_session_version,
-        },
-    )
+    let user = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+        let user = user_repo::update_admin(
+            txn,
+            id,
+            user_repo::AdminUpdateUserInput {
+                username: normalized_username,
+                email: normalized_email,
+                password_hash,
+                role: Some(normalized_role),
+                status,
+                must_change_password,
+                bump_session_version,
+            },
+        )
+        .await?;
+        if let Some(scopes) = normalized_operator_scopes.as_deref() {
+            user_operator_scope_repo::replace_for_user(txn, id, scopes).await?;
+        }
+        Ok(user)
+    })
     .await?;
     let users = hydrate_users(state, vec![user]).await?;
     tracing::debug!(user_id = id, "admin user updated");
@@ -385,6 +459,8 @@ where
     let profile_counts = user_repo::count_profiles_by_user_ids(state.reader_db(), &ids).await?;
     let active_session_counts =
         user_repo::count_active_sessions_by_user_ids(state.reader_db(), &ids).await?;
+    let operator_scope_map =
+        user_operator_scope_repo::list_for_user_ids(state.reader_db(), &ids).await?;
     let profile_infos =
         profile_service::get_profile_info_map(state, &users, AvatarAudience::AdminUser).await?;
     Ok(users
@@ -395,6 +471,14 @@ where
             email: user.email,
             pending_email: user.pending_email,
             role: user.role,
+            operator_scopes: if user.role == UserRole::Operator {
+                operator_scope_map
+                    .get(&user.id)
+                    .cloned()
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            },
             status: user.status,
             must_change_password: user.must_change_password,
             session_version: user.session_version,
@@ -554,6 +638,7 @@ mod tests {
                 texture_model: MinecraftTextureModel::Default,
                 visibility: MinecraftTextureVisibility::Private,
                 is_wardrobe_item,
+                display_name: None,
             },
         )
         .await
@@ -657,6 +742,7 @@ mod tests {
             " NEW-USER@EXAMPLE.COM ",
             None,
             UserRole::User,
+            None,
             UserStatus::Active,
             None,
         )
@@ -693,6 +779,7 @@ mod tests {
                 email: Some("renamed@example.com".to_string()),
                 password: Some("new-password".to_string()),
                 role: Some(UserRole::Admin),
+                operator_scopes: None,
                 status: Some(UserStatus::Disabled),
                 must_change_password: Some(true),
             },
@@ -724,6 +811,7 @@ mod tests {
                 email: None,
                 password: None,
                 role: Some(UserRole::Admin),
+                operator_scopes: None,
                 status: Some(UserStatus::Disabled),
                 must_change_password: None,
             },
@@ -732,6 +820,284 @@ mod tests {
         .unwrap_err();
 
         assert!(error.message().contains("super administrator"));
+    }
+
+    #[tokio::test]
+    async fn create_user_normalizes_operator_scopes_by_role() {
+        let ctx = test_context().await;
+        let _super_admin = insert_user(&ctx.state, "root-user").await;
+
+        let operator = create_user(
+            &ctx.state,
+            "operator-user",
+            "operator@example.com",
+            Some("operator-password"),
+            UserRole::Operator,
+            Some(vec![
+                OperatorScope::Users,
+                OperatorScope::TextureLibrary,
+                OperatorScope::Users,
+            ]),
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(operator.user.role, UserRole::Operator);
+        assert_eq!(
+            operator.user.operator_scopes,
+            vec![OperatorScope::TextureLibrary, OperatorScope::Users]
+        );
+
+        let admin_with_scopes = create_user(
+            &ctx.state,
+            "scoped-admin",
+            "scoped-admin@example.com",
+            Some("scoped-admin-password"),
+            UserRole::Admin,
+            Some(vec![OperatorScope::Audit]),
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(admin_with_scopes.user.role, UserRole::Operator);
+        assert_eq!(
+            admin_with_scopes.user.operator_scopes,
+            vec![OperatorScope::Audit]
+        );
+
+        let user_with_scopes = create_user(
+            &ctx.state,
+            "scoped-user",
+            "scoped-user@example.com",
+            Some("scoped-user-password"),
+            UserRole::User,
+            Some(vec![OperatorScope::Tasks]),
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(user_with_scopes.user.role, UserRole::User);
+        assert!(user_with_scopes.user.operator_scopes.is_empty());
+        assert!(
+            user_operator_scope_repo::list_for_user(
+                ctx.state.reader_db(),
+                user_with_scopes.user.id
+            )
+            .await
+            .unwrap()
+            .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn update_user_normalizes_scope_changes_and_preserves_operator_scopes() {
+        let ctx = test_context().await;
+        let _super_admin = insert_user(&ctx.state, "root-user").await;
+        let target = create_user(
+            &ctx.state,
+            "target-user",
+            "target@example.com",
+            Some("target-password"),
+            UserRole::Admin,
+            None,
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap()
+        .user;
+
+        let downgraded = update_user(
+            &ctx.state,
+            target.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: None,
+                operator_scopes: Some(vec![OperatorScope::TextureLibrary]),
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(downgraded.role, UserRole::Operator);
+        assert_eq!(
+            downgraded.operator_scopes,
+            vec![OperatorScope::TextureLibrary]
+        );
+
+        let promoted = update_user(
+            &ctx.state,
+            target.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: Some(UserRole::Admin),
+                operator_scopes: None,
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(promoted.role, UserRole::Admin);
+        assert!(promoted.operator_scopes.is_empty());
+        assert!(
+            user_operator_scope_repo::list_for_user(ctx.state.reader_db(), target.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
+        let downgraded_again = update_user(
+            &ctx.state,
+            target.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: Some(UserRole::Admin),
+                operator_scopes: Some(vec![OperatorScope::Audit]),
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(downgraded_again.role, UserRole::Operator);
+        assert_eq!(downgraded_again.operator_scopes, vec![OperatorScope::Audit]);
+
+        let renamed_operator = update_user(
+            &ctx.state,
+            target.id,
+            AdminUpdateUserInput {
+                username: Some("renamed-operator".to_string()),
+                email: None,
+                password: None,
+                role: None,
+                operator_scopes: None,
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(renamed_operator.role, UserRole::Operator);
+        assert_eq!(renamed_operator.operator_scopes, vec![OperatorScope::Audit]);
+
+        let demoted_user = update_user(
+            &ctx.state,
+            target.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: Some(UserRole::User),
+                operator_scopes: Some(vec![OperatorScope::Tasks]),
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(demoted_user.role, UserRole::User);
+        assert!(demoted_user.operator_scopes.is_empty());
+        assert!(
+            user_operator_scope_repo::list_for_user(ctx.state.reader_db(), target.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn update_user_rejects_super_admin_scope_changes_even_when_role_is_unchanged() {
+        let ctx = test_context().await;
+        let super_admin = insert_user(&ctx.state, "root-user").await;
+        assert_eq!(super_admin.id, SUPER_ADMIN_USER_ID);
+
+        let error = update_user(
+            &ctx.state,
+            super_admin.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: None,
+                operator_scopes: Some(Vec::new()),
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.message().contains("super administrator"));
+    }
+
+    #[tokio::test]
+    async fn auth_user_info_includes_operator_scopes_only_for_operator() {
+        let ctx = test_context().await;
+        let _super_admin = insert_user(&ctx.state, "root-user").await;
+        let operator = create_user(
+            &ctx.state,
+            "auth-operator",
+            "auth-operator@example.com",
+            Some("auth-operator-password"),
+            UserRole::Operator,
+            Some(vec![OperatorScope::TextureLibrary]),
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap()
+        .user;
+        let user = create_user(
+            &ctx.state,
+            "auth-user",
+            "auth-user@example.com",
+            Some("auth-user-password"),
+            UserRole::User,
+            Some(vec![OperatorScope::Users]),
+            UserStatus::Active,
+            None,
+        )
+        .await
+        .unwrap()
+        .user;
+
+        let operator_model = user_repo::find_by_id(ctx.state.reader_db(), operator.id)
+            .await
+            .unwrap();
+        let operator_info = auth_service::auth_user_info(&ctx.state, operator_model)
+            .await
+            .unwrap();
+        assert_eq!(
+            operator_info.operator_scopes,
+            vec![OperatorScope::TextureLibrary]
+        );
+
+        let user_model = user_repo::find_by_id(ctx.state.reader_db(), user.id)
+            .await
+            .unwrap();
+        let user_info = auth_service::auth_user_info(&ctx.state, user_model)
+            .await
+            .unwrap();
+        assert!(user_info.operator_scopes.is_empty());
     }
 
     #[tokio::test]

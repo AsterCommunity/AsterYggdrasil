@@ -8,6 +8,7 @@ pub const CONFIG_CATEGORY_AUTH_SESSION: &str = "auth.session";
 pub const CONFIG_CATEGORY_AUTH_REGISTRATION: &str = "auth.registration";
 pub const CONFIG_CATEGORY_AUTH_RECOVERY: &str = "auth.recovery";
 pub const CONFIG_CATEGORY_AUTH_LOGIN: &str = "auth.login";
+pub const CONFIG_CATEGORY_AUTH_CAPTCHA: &str = "auth.captcha";
 pub const CONFIG_CATEGORY_AUTH_EMAIL_POLICY: &str = "auth.email_policy";
 pub const CONFIG_CATEGORY_USER_AVATAR: &str = "user.avatar";
 pub const CONFIG_CATEGORY_NETWORK_CORS: &str = "network.cors";
@@ -21,6 +22,7 @@ pub const CONFIG_CATEGORY_YGGDRASIL_METADATA: &str = "yggdrasil.metadata";
 pub const CONFIG_CATEGORY_YGGDRASIL_AUTH: &str = "yggdrasil.auth";
 pub const CONFIG_CATEGORY_YGGDRASIL_TEXTURES: &str = "yggdrasil.textures";
 pub const CONFIG_CATEGORY_YGGDRASIL_SIGNING: &str = "yggdrasil.signing";
+pub const CONFIG_CATEGORY_TEXTURE_PREVIEW: &str = "texture.preview";
 
 pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_SITE_PUBLIC,
@@ -29,6 +31,7 @@ pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_AUTH_REGISTRATION,
     CONFIG_CATEGORY_AUTH_RECOVERY,
     CONFIG_CATEGORY_AUTH_LOGIN,
+    CONFIG_CATEGORY_AUTH_CAPTCHA,
     CONFIG_CATEGORY_AUTH_EMAIL_POLICY,
     CONFIG_CATEGORY_USER_AVATAR,
     CONFIG_CATEGORY_NETWORK_CORS,
@@ -42,6 +45,7 @@ pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_YGGDRASIL_AUTH,
     CONFIG_CATEGORY_YGGDRASIL_TEXTURES,
     CONFIG_CATEGORY_YGGDRASIL_SIGNING,
+    CONFIG_CATEGORY_TEXTURE_PREVIEW,
 ];
 
 pub const PUBLIC_SITE_URL_KEY: &str = "public_site_url";
@@ -66,6 +70,17 @@ pub const AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS_KEY: &str =
     "auth_password_reset_request_cooldown_secs";
 pub const AUTH_EMAIL_CODE_LOGIN_ENABLED_KEY: &str = "auth_email_code_login_enabled";
 pub const AUTH_PASSKEY_LOGIN_ENABLED_KEY: &str = "auth_passkey_login_enabled";
+pub const AUTH_CAPTCHA_ENABLED_KEY: &str = "auth_captcha_enabled";
+pub const AUTH_CAPTCHA_LOGIN_REQUIRED_KEY: &str = "auth_captcha_login_required";
+pub const AUTH_CAPTCHA_REGISTER_REQUIRED_KEY: &str = "auth_captcha_register_required";
+pub const AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY: &str =
+    "auth_captcha_invitation_accept_required";
+pub const AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY: &str =
+    "auth_captcha_register_activation_resend_required";
+pub const AUTH_CAPTCHA_PRESET_KEY: &str = "auth_captcha_preset";
+pub const AUTH_CAPTCHA_TTL_SECS_KEY: &str = "auth_captcha_ttl_secs";
+pub const AUTH_CAPTCHA_LENGTH_KEY: &str = "auth_captcha_length";
+pub const AUTH_CAPTCHA_MAX_ATTEMPTS_KEY: &str = "auth_captcha_max_attempts";
 pub const AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK_KEY: &str =
     "auth_email_code_login_allow_totp_fallback";
 pub const AUTH_EMAIL_CODE_LOGIN_TTL_SECS_KEY: &str = "auth_email_code_login_ttl_secs";
@@ -146,6 +161,24 @@ pub const YGGDRASIL_PUBLIC_BASE_URL_KEY: &str = "yggdrasil_public_base_url";
 pub const YGGDRASIL_TEXTURE_PUBLIC_BASE_URL_KEY: &str = "yggdrasil_texture_public_base_url";
 pub const YGGDRASIL_SIGNATURE_PUBLIC_KEY_KEY: &str = "yggdrasil_signature_public_key";
 pub const YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY: &str = "yggdrasil_signature_private_key";
+
+pub const TEXTURE_PREVIEW_ENGINE_KEY: &str = "texture_preview_engine";
+pub const TEXTURE_PREVIEW_PROFILE_KEY: &str = "texture_preview_profile";
+pub const TEXTURE_PREVIEW_WIDTH_KEY: &str = "texture_preview_width";
+pub const TEXTURE_PREVIEW_HEIGHT_KEY: &str = "texture_preview_height";
+pub const TEXTURE_PREVIEW_BACKGROUND_KEY: &str = "texture_preview_background";
+pub const TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY: &str = "texture_preview_show_outer_layer";
+pub const TEXTURE_PREVIEW_3D_SCALE_KEY: &str = "texture_preview_3d_scale";
+pub const TEXTURE_PREVIEW_3D_PITCH_KEY: &str = "texture_preview_3d_pitch";
+pub const TEXTURE_PREVIEW_3D_FRONT_YAW_KEY: &str = "texture_preview_3d_front_yaw";
+pub const TEXTURE_PREVIEW_3D_BACK_YAW_KEY: &str = "texture_preview_3d_back_yaw";
+pub const TEXTURE_PREVIEW_3D_SPACING_KEY: &str = "texture_preview_3d_spacing";
+pub const TEXTURE_PREVIEW_3D_X_OFFSET_KEY: &str = "texture_preview_3d_x_offset";
+pub const TEXTURE_PREVIEW_3D_Y_OFFSET_KEY: &str = "texture_preview_3d_y_offset";
+pub const TEXTURE_PREVIEW_3D_CENTER_Y_KEY: &str = "texture_preview_3d_center_y";
+pub const TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY: &str = "texture_preview_3d_supersampling";
+pub const TEXTURE_PREVIEW_2D_PADDING_KEY: &str = "texture_preview_2d_padding";
+pub const TEXTURE_PREVIEW_2D_SPACING_KEY: &str = "texture_preview_2d_spacing";
 
 pub const DEPRECATED_AVATAR_DIR_KEY: &str = "avatar_dir";
 
@@ -380,6 +413,105 @@ pub static ALL_CONFIGS: &[ConfigDef] = &[
         is_sensitive: false,
         category: CONFIG_CATEGORY_AUTH_LOGIN,
         description: "Enable passkey login when passkey plumbing is provided by the project",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_ENABLED_KEY,
+        label_i18n_key: "settings_item_auth_captcha_enabled_label",
+        description_i18n_key: "settings_item_auth_captcha_enabled_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "false".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Enable visual captcha challenges for selected public authentication flows",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_LOGIN_REQUIRED_KEY,
+        label_i18n_key: "settings_item_auth_captcha_login_required_label",
+        description_i18n_key: "settings_item_auth_captcha_login_required_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "true".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Require captcha verification for local password login when captcha is enabled",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_REGISTER_REQUIRED_KEY,
+        label_i18n_key: "settings_item_auth_captcha_register_required_label",
+        description_i18n_key: "settings_item_auth_captcha_register_required_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "true".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Require captcha verification for public self-registration when captcha is enabled",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY,
+        label_i18n_key: "settings_item_auth_captcha_invitation_accept_required_label",
+        description_i18n_key: "settings_item_auth_captcha_invitation_accept_required_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "true".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Require captcha verification when accepting a user invitation",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY,
+        label_i18n_key: "settings_item_auth_captcha_register_activation_resend_required_label",
+        description_i18n_key: "settings_item_auth_captcha_register_activation_resend_required_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "true".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Require captcha verification before resending registration activation email",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_PRESET_KEY,
+        label_i18n_key: "settings_item_auth_captcha_preset_label",
+        description_i18n_key: "settings_item_auth_captcha_preset_desc",
+        value_type: SystemConfigValueType::StringEnum,
+        default_fn: || "balanced".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Captcha rendering preset controlling distortion and visual noise",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_TTL_SECS_KEY,
+        label_i18n_key: "settings_item_auth_captcha_ttl_secs_label",
+        description_i18n_key: "settings_item_auth_captcha_ttl_secs_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "120".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Captcha challenge lifetime in seconds",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_LENGTH_KEY,
+        label_i18n_key: "settings_item_auth_captcha_length_label",
+        description_i18n_key: "settings_item_auth_captcha_length_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "5".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Number of characters in generated captcha challenges",
+    },
+    ConfigDef {
+        key: AUTH_CAPTCHA_MAX_ATTEMPTS_KEY,
+        label_i18n_key: "settings_item_auth_captcha_max_attempts_label",
+        description_i18n_key: "settings_item_auth_captcha_max_attempts_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "3".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_AUTH_CAPTCHA,
+        description: "Maximum answer attempts before a captcha challenge is consumed",
     },
     ConfigDef {
         key: AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK_KEY,
@@ -1029,6 +1161,193 @@ pub static ALL_CONFIGS: &[ConfigDef] = &[
         description: "PEM RSA private key used to sign Yggdrasil texture properties. Rotate via config action; new profile/hasJoined responses are signed with the current key",
     },
     ConfigDef {
+        key: TEXTURE_PREVIEW_ENGINE_KEY,
+        label_i18n_key: "settings_item_texture_preview_engine_label",
+        description_i18n_key: "settings_item_texture_preview_engine_desc",
+        value_type: SystemConfigValueType::StringEnum,
+        default_fn: || "skin-3d".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "Texture preview render engine: skin-3d or skin-2d",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_PROFILE_KEY,
+        label_i18n_key: "settings_item_texture_preview_profile_label",
+        description_i18n_key: "settings_item_texture_preview_profile_desc",
+        value_type: SystemConfigValueType::StringEnum,
+        default_fn: || "default".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview quality profile: fast, default, or quality",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_WIDTH_KEY,
+        label_i18n_key: "settings_item_texture_preview_width_label",
+        description_i18n_key: "settings_item_texture_preview_width_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "430".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "Rendered texture preview width in pixels",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_HEIGHT_KEY,
+        label_i18n_key: "settings_item_texture_preview_height_label",
+        description_i18n_key: "settings_item_texture_preview_height_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "430".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "Rendered texture preview height in pixels",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_BACKGROUND_KEY,
+        label_i18n_key: "settings_item_texture_preview_background_label",
+        description_i18n_key: "settings_item_texture_preview_background_desc",
+        value_type: SystemConfigValueType::String,
+        default_fn: || "transparent".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "Texture preview background: transparent, none, white, black, #RRGGBB, or #RRGGBBAA",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY,
+        label_i18n_key: "settings_item_texture_preview_show_outer_layer_label",
+        description_i18n_key: "settings_item_texture_preview_show_outer_layer_desc",
+        value_type: SystemConfigValueType::Boolean,
+        default_fn: || "true".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "Whether texture previews render skin second-layer regions",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_SCALE_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_scale_label",
+        description_i18n_key: "settings_item_texture_preview_3d_scale_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "11.5".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview orthographic scale",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_PITCH_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_pitch_label",
+        description_i18n_key: "settings_item_texture_preview_3d_pitch_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "30".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview camera pitch in degrees",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_FRONT_YAW_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_front_yaw_label",
+        description_i18n_key: "settings_item_texture_preview_3d_front_yaw_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "-45".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview front view yaw in degrees",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_BACK_YAW_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_back_yaw_label",
+        description_i18n_key: "settings_item_texture_preview_3d_back_yaw_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "135".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview back view yaw in degrees",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_SPACING_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_spacing_label",
+        description_i18n_key: "settings_item_texture_preview_3d_spacing_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "35".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview spacing between front and back views",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_X_OFFSET_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_x_offset_label",
+        description_i18n_key: "settings_item_texture_preview_3d_x_offset_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "0".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview horizontal offset in pixels",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_Y_OFFSET_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_y_offset_label",
+        description_i18n_key: "settings_item_texture_preview_3d_y_offset_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "-24".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview vertical offset in pixels",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_CENTER_Y_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_center_y_label",
+        description_i18n_key: "settings_item_texture_preview_3d_center_y_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "0.56".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview vertical center anchor ratio",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY,
+        label_i18n_key: "settings_item_texture_preview_3d_supersampling_label",
+        description_i18n_key: "settings_item_texture_preview_3d_supersampling_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "2".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "3D texture preview supersampling factor from 1 to 4",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_2D_PADDING_KEY,
+        label_i18n_key: "settings_item_texture_preview_2d_padding_label",
+        description_i18n_key: "settings_item_texture_preview_2d_padding_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "24".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "2D texture preview padding in pixels",
+    },
+    ConfigDef {
+        key: TEXTURE_PREVIEW_2D_SPACING_KEY,
+        label_i18n_key: "settings_item_texture_preview_2d_spacing_label",
+        description_i18n_key: "settings_item_texture_preview_2d_spacing_desc",
+        value_type: SystemConfigValueType::Number,
+        default_fn: || "35".to_string(),
+        requires_restart: false,
+        is_sensitive: false,
+        category: CONFIG_CATEGORY_TEXTURE_PREVIEW,
+        description: "2D texture preview spacing between front and back views",
+    },
+    ConfigDef {
         key: MAIL_OUTBOX_DISPATCH_INTERVAL_SECS_KEY,
         label_i18n_key: "settings_item_mail_outbox_dispatch_interval_secs_label",
         description_i18n_key: "settings_item_mail_outbox_dispatch_interval_secs_desc",
@@ -1216,6 +1535,10 @@ mod tests {
         assert_eq!(
             by_key[YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY],
             CONFIG_CATEGORY_YGGDRASIL_SIGNING
+        );
+        assert_eq!(
+            by_key[TEXTURE_PREVIEW_ENGINE_KEY],
+            CONFIG_CATEGORY_TEXTURE_PREVIEW
         );
         assert_eq!(
             by_key[MAIL_OUTBOX_DISPATCH_INTERVAL_SECS_KEY],

@@ -1,6 +1,5 @@
 //! Administrator user management API routes.
 
-use crate::api::cache::conditional_bytes_response;
 use crate::api::dto::{
     AdminUserListQuery, CreateAdminUserReq, CreateUserInvitationReq, UpdateAdminUserReq,
     validate_request,
@@ -14,7 +13,6 @@ use crate::runtime::AppState;
 use crate::services::admin_user_service;
 use crate::services::audit_service;
 use crate::services::auth_service::AuthUserInfo;
-use crate::services::profile_service;
 use crate::services::user_invitation_service;
 use crate::types::{UserRole, UserStatus};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
@@ -121,6 +119,7 @@ pub async fn create_user(
         &body.email,
         body.password.as_deref(),
         body.role.unwrap_or(UserRole::User),
+        body.operator_scopes.clone(),
         body.status.unwrap_or(UserStatus::Active),
         body.must_change_password,
     )
@@ -338,6 +337,7 @@ pub async fn update_user(
             email: body.email.clone(),
             password: body.password.clone(),
             role: body.role,
+            operator_scopes: body.operator_scopes.clone(),
             status: body.status,
             must_change_password: body.must_change_password,
         },
@@ -452,43 +452,4 @@ pub async fn delete_user(
         "admin deleted user"
     );
     Ok(HttpResponse::Ok().json(ApiResponse::ok(output)))
-}
-
-#[api_docs_macros::path(
-    get,
-    path = "/api/v1/admin/users/{id}/avatar/{size}",
-    tag = "admin",
-    operation_id = "admin_get_user_avatar",
-    params(
-        ("id" = i64, Path, description = "User ID"),
-        ("size" = u32, Path, description = "Avatar size (512 or 1024)")
-    ),
-    responses(
-        (status = 200, description = "Avatar image (WebP)"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-        (status = 404, description = "Avatar not found"),
-    ),
-    security(("bearer" = [])),
-)]
-pub async fn get_user_avatar(
-    state: web::Data<AppState>,
-    req: HttpRequest,
-    path: web::Path<(i64, u32)>,
-) -> Result<HttpResponse> {
-    let (user_id, size) = path.into_inner();
-    tracing::debug!(user_id, size, "admin loading user avatar");
-    let bytes = profile_service::get_avatar_bytes(state.get_ref(), user_id, size).await?;
-    tracing::debug!(
-        user_id,
-        size,
-        bytes = bytes.len(),
-        "admin loaded user avatar"
-    );
-    Ok(conditional_bytes_response(
-        &req,
-        bytes,
-        profile_service::AVATAR_CONTENT_TYPE,
-        profile_service::AVATAR_CACHE_CONTROL,
-    ))
 }

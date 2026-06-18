@@ -24,6 +24,11 @@ export const loginSuccessPathWarmupLoaders = [
 		load: () => import("@/pages/account/MinecraftProfilesPage"),
 	},
 	{
+		key: "route:texture-library",
+		label: "PublicTextureLibraryPage",
+		load: () => import("@/pages/PublicTextureLibraryPage"),
+	},
+	{
 		key: "route:wardrobe",
 		label: "TextureWardrobePage",
 		load: () => import("@/pages/account/TextureWardrobePage"),
@@ -47,6 +52,11 @@ export const userRouteWarmupLoaders = [
 		key: "route:profiles",
 		label: "MinecraftProfilesPage",
 		load: () => import("@/pages/account/MinecraftProfilesPage"),
+	},
+	{
+		key: "route:texture-library",
+		label: "PublicTextureLibraryPage",
+		load: () => import("@/pages/PublicTextureLibraryPage"),
 	},
 	{
 		key: "route:wardrobe",

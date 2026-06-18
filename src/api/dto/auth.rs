@@ -28,6 +28,8 @@ pub struct RegisterReq {
     pub email: String,
     #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
     pub password: String,
+    pub captcha_challenge_id: Option<String>,
+    pub captcha_answer: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -35,6 +37,8 @@ pub struct RegisterReq {
 pub struct ResendRegisterActivationReq {
     #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
     pub identifier: String,
+    pub captcha_challenge_id: Option<String>,
+    pub captcha_answer: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -76,6 +80,8 @@ pub struct AcceptUserInvitationReq {
     pub username: String,
     #[validate(custom(function = "crate::api::dto::validation::validate_auth_password"))]
     pub password: String,
+    pub captcha_challenge_id: Option<String>,
+    pub captcha_answer: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -94,6 +100,8 @@ pub struct LoginReq {
     pub identifier: String,
     #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
     pub password: String,
+    pub captcha_challenge_id: Option<String>,
+    pub captcha_answer: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -126,6 +134,16 @@ pub struct UpdateAvatarSourceReq {
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct CheckResp {
     pub initialized: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct PublicCaptchaPolicyResp {
+    pub enabled: bool,
+    pub login_required: bool,
+    pub register_required: bool,
+    pub invitation_accept_required: bool,
+    pub register_activation_resend_required: bool,
 }
 
 #[derive(Debug, Serialize)]

@@ -3,11 +3,17 @@ export const publicPaths = {
 	login: "/login",
 	register: "/register",
 	resetPassword: "/reset-password",
+	textureLibrary: "/textures",
+	textureLibraryDetail: "/textures/:textureId",
 	invite: "/invite/:token",
 	init: "/init",
 	tos: "/tos",
 	privacy: "/privacy",
 } as const;
+
+export function publicTexturePath(textureId: number | string) {
+	return `/textures/${encodeURIComponent(String(textureId))}`;
+}
 
 export const accountPaths = {
 	home: "/account",
@@ -25,6 +31,7 @@ export const adminPaths = {
 	users: "/admin/users",
 	userInvitations: "/admin/users/invitations",
 	externalAuth: "/admin/external-auth",
+	textureLibrary: "/admin/texture-library",
 	audit: "/admin/audit",
 	tasks: "/admin/tasks",
 	settings: "/admin/settings",

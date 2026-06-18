@@ -137,20 +137,27 @@ export default function PublicConnectPage() {
 									</Link>
 								)}
 								<Link
-									to={accountPaths.home}
+									to={publicPaths.textureLibrary}
 									className={cn(
 										buttonVariants({ variant: "outline", size: "lg" }),
 										"h-12 min-w-40 rounded-lg border-black/12 bg-white/70 px-5 text-[#102118] backdrop-blur hover:border-black/18 hover:bg-white/85 dark:border-white/22 dark:bg-white/7 dark:text-white dark:hover:border-white/38 dark:hover:bg-white/13",
 									)}
 								>
-									<Icon
-										name={isAuthenticated ? "Gauge" : "Info"}
-										className="size-5"
-									/>
-									{isAuthenticated
-										? t("home.consoleAction")
-										: t("home.secondaryAction")}
+									<Icon name="Images" className="size-5" />
+									{t("home.textureLibraryAction")}
 								</Link>
+								{isAuthenticated ? (
+									<Link
+										to={accountPaths.home}
+										className={cn(
+											buttonVariants({ variant: "outline", size: "lg" }),
+											"h-12 min-w-40 rounded-lg border-black/12 bg-white/70 px-5 text-[#102118] backdrop-blur hover:border-black/18 hover:bg-white/85 dark:border-white/22 dark:bg-white/7 dark:text-white dark:hover:border-white/38 dark:hover:bg-white/13",
+										)}
+									>
+										<Icon name="Gauge" className="size-5" />
+										{t("home.consoleAction")}
+									</Link>
+								) : null}
 							</div>
 							<div className="mt-10 grid max-w-3xl gap-4 sm:grid-cols-3">
 								{featureKeys.map((feature, index) => (

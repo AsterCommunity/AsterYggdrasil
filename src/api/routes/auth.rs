@@ -22,7 +22,8 @@ use crate::config::auth_runtime::RuntimeAuthPolicy;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{
-    audit_service, auth_service, passkey_service, profile_service, user_invitation_service,
+    audit_service, auth_service, captcha_service, passkey_service, profile_service,
+    user_invitation_service,
 };
 use crate::types::VerificationPurpose;
 use crate::utils::numbers::u64_to_i64;
@@ -40,6 +41,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
             .route("/check", web::get().to(check))
+            .service(
+                web::scope("/captcha")
+                    .route("/policy", web::get().to(captcha_policy))
+                    .route("", web::post().to(issue_captcha)),
+            )
             .route("/setup", web::post().to(setup))
             .route("/register", web::post().to(register))
             .route(
@@ -117,6 +123,42 @@ pub async fn check(state: web::Data<AppState>) -> Result<HttpResponse> {
         crate::db::repository::user_repo::count_all(state.get_ref().reader_db()).await? > 0;
     tracing::debug!(initialized, "auth check request completed");
     Ok(HttpResponse::Ok().json(ApiResponse::ok(CheckResp { initialized })))
+}
+
+#[api_docs_macros::path(
+    get,
+    path = "/api/v1/auth/captcha/policy",
+    tag = "auth",
+    operation_id = "get_captcha_policy",
+    responses(
+        (status = 200, description = "Public captcha requirement policy", body = inline(ApiResponse<crate::api::dto::PublicCaptchaPolicyResp>)),
+    ),
+)]
+pub async fn captcha_policy(state: web::Data<AppState>) -> Result<HttpResponse> {
+    let policy = captcha_service::policy(state.get_ref());
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::ok(crate::api::dto::PublicCaptchaPolicyResp {
+            enabled: policy.enabled,
+            login_required: policy.login_required(),
+            register_required: policy.register_required(),
+            invitation_accept_required: policy.invitation_accept_required(),
+            register_activation_resend_required: policy.register_activation_resend_required(),
+        })),
+    )
+}
+
+#[api_docs_macros::path(
+    post,
+    path = "/api/v1/auth/captcha",
+    tag = "auth",
+    operation_id = "issue_captcha",
+    responses(
+        (status = 200, description = "Captcha challenge issued", body = inline(ApiResponse<captcha_service::CaptchaChallengeResponse>)),
+    ),
+)]
+pub async fn issue_captcha(state: web::Data<AppState>) -> Result<HttpResponse> {
+    let challenge = captcha_service::issue_challenge(state.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(challenge)))
 }
 
 pub(super) fn authenticated_response_with_body<T: Serialize>(
@@ -267,6 +309,13 @@ pub async fn register(
         "auth register request received"
     );
     validate_request(&*body)?;
+    captcha_service::verify_if_required(
+        state.get_ref(),
+        captcha_service::CaptchaRequirement::Register,
+        body.captcha_challenge_id.as_deref(),
+        body.captcha_answer.as_deref(),
+    )
+    .await?;
     let data = auth_service::register(
         state.get_ref(),
         &body.username,
@@ -311,6 +360,13 @@ pub async fn resend_register_activation(
     body: web::Json<ResendRegisterActivationReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
+    captcha_service::verify_if_required(
+        state.get_ref(),
+        captcha_service::CaptchaRequirement::RegisterActivationResend,
+        body.captcha_challenge_id.as_deref(),
+        body.captcha_answer.as_deref(),
+    )
+    .await?;
     auth_service::resend_register_activation(state.get_ref(), &body.identifier).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ActionMessageResp {
         message: "If the account can be reactivated, an activation email will be sent".to_string(),
@@ -615,6 +671,13 @@ pub async fn accept_user_invitation(
     body: web::Json<AcceptUserInvitationReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
+    captcha_service::verify_if_required(
+        state.get_ref(),
+        captcha_service::CaptchaRequirement::InvitationAccept,
+        body.captcha_challenge_id.as_deref(),
+        body.captcha_answer.as_deref(),
+    )
+    .await?;
     let user = user_invitation_service::accept_invitation(
         state.get_ref(),
         &path,
@@ -660,6 +723,13 @@ pub async fn login(
         "auth login request received"
     );
     validate_request(&*body)?;
+    captcha_service::verify_if_required(
+        state.get_ref(),
+        captcha_service::CaptchaRequirement::Login,
+        body.captcha_challenge_id.as_deref(),
+        body.captcha_answer.as_deref(),
+    )
+    .await?;
     let data = auth_service::login(state.get_ref(), &body.identifier, &body.password, &req).await?;
     tracing::debug!(user_id = data.user.id, "auth login request completed");
     authenticated_response(state.get_ref(), data)

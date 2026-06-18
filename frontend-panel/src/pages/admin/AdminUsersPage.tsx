@@ -143,6 +143,7 @@ function useAdminUsersPageController() {
 		() => [
 			{ label: t("admin.users.allRoles"), value: "__all__" },
 			{ label: t("admin.users.role.admin"), value: "admin" },
+			{ label: t("admin.users.role.operator"), value: "operator" },
 			{ label: t("admin.users.role.user"), value: "user" },
 		],
 		[t],

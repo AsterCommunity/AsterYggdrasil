@@ -8,6 +8,7 @@ import { adminMinecraftProfileService } from "@/services/adminService";
 import type {
 	AdminUserInfo,
 	MinecraftTextureMetadata,
+	OperatorScope,
 	UpdateAdminUserRequest,
 	UserRole,
 	UserStatus,
@@ -39,6 +40,7 @@ type UserDetailDraftState = {
 	confirmPasswordError?: string;
 	revokingSessions: boolean;
 	savingForcePasswordChange: boolean;
+	operatorScopes: OperatorScope[];
 	role: UserRole;
 	savingPassword: boolean;
 	savingProfile: boolean;
@@ -58,6 +60,7 @@ type UserDetailDraftAction =
 			errors: { confirmPassword?: string; password?: string };
 	  }
 	| { type: "set_role"; value: UserRole }
+	| { type: "set_operator_scopes"; value: OperatorScope[] }
 	| { type: "set_status"; value: UserStatus }
 	| { type: "set_username"; value: string };
 
@@ -75,6 +78,7 @@ function createUserDraftState(user: AdminUserInfo): UserDetailDraftState {
 		password: "",
 		revokingSessions: false,
 		savingForcePasswordChange: false,
+		operatorScopes: user.operator_scopes ?? [],
 		role: user.role,
 		savingPassword: false,
 		savingProfile: false,
@@ -132,6 +136,11 @@ function userDetailDraftReducer(
 				...state,
 				role: action.value,
 			};
+		case "set_operator_scopes":
+			return {
+				...state,
+				operatorScopes: action.value,
+			};
 		case "set_status":
 			return {
 				...state,
@@ -150,6 +159,7 @@ function userDetailDraftKey(user: AdminUserInfo) {
 		user.id,
 		user.username,
 		user.email,
+		(user.operator_scopes ?? []).join(","),
 		user.role,
 		user.status,
 		user.active_session_count,
@@ -212,6 +222,7 @@ export function UserDetailPanel({
 		confirmPassword,
 		confirmPasswordError,
 		email,
+		operatorScopes,
 		password,
 		passwordError,
 		revokingSessions,
@@ -227,6 +238,9 @@ export function UserDetailPanel({
 		username.trim() !== user.username ||
 		email.trim() !== user.email ||
 		(!roleStatusLocked && role !== user.role) ||
+		(!roleStatusLocked &&
+			role === "operator" &&
+			operatorScopes.join(",") !== (user.operator_scopes ?? []).join(",")) ||
 		(!roleStatusLocked && status !== user.status);
 	const profileInvalid = !username.trim() || !email.trim();
 	const busy =
@@ -312,6 +326,14 @@ export function UserDetailPanel({
 		if (nextUsername !== user.username) data.username = nextUsername;
 		if (nextEmail !== user.email) data.email = nextEmail;
 		if (!roleStatusLocked && role !== user.role) data.role = role;
+		if (
+			!roleStatusLocked &&
+			role === "operator" &&
+			(operatorScopes.join(",") !== (user.operator_scopes ?? []).join(",") ||
+				role !== user.role)
+		) {
+			data.operator_scopes = operatorScopes;
+		}
 		if (!roleStatusLocked && status !== user.status) data.status = status;
 
 		await runPanelAction(
@@ -391,6 +413,7 @@ export function UserDetailPanel({
 						<div className="grid gap-5">
 							<UserDetailAccountSection
 								email={email}
+								operatorScopes={operatorScopes}
 								role={role}
 								roleStatusLocked={roleStatusLocked}
 								savingProfile={savingProfile}
@@ -398,6 +421,9 @@ export function UserDetailPanel({
 								username={username}
 								onEmailChange={(value) =>
 									dispatch({ type: "set_email", value })
+								}
+								onOperatorScopesChange={(value) =>
+									dispatch({ type: "set_operator_scopes", value })
 								}
 								onRoleChange={(value) => dispatch({ type: "set_role", value })}
 								onStatusChange={(value) =>

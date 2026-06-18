@@ -500,6 +500,12 @@ mod tests {
             "value"
         );
         assert_eq!(
+            SystemConfigValue::String("value".to_string())
+                .to_storage_for_type(SystemConfigValueType::StringEnum)
+                .unwrap(),
+            "value"
+        );
+        assert_eq!(
             SystemConfigValue::StringArray(vec!["a".to_string(), "b".to_string()])
                 .to_storage_for_type(SystemConfigValueType::StringArray)
                 .unwrap(),

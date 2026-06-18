@@ -14,22 +14,25 @@ import {
 } from "@/components/ui/tooltip";
 import type { AppliedBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import type { OperatorScope } from "@/types/api";
 
 export function ShellSidebar({
 	branding,
 	desktopCollapsed,
 	isAdmin,
+	operatorScopes,
 	mobileOpen,
 	onMobileClose,
 }: {
 	branding: AppliedBranding;
 	desktopCollapsed: boolean;
 	isAdmin: boolean;
+	operatorScopes: readonly OperatorScope[];
 	mobileOpen: boolean;
 	onMobileClose: () => void;
 }) {
 	const { t } = useTranslation();
-	const navSections = getShellNavSections(isAdmin);
+	const navSections = getShellNavSections({ isAdmin, operatorScopes });
 
 	return (
 		<>

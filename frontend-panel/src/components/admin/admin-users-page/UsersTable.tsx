@@ -264,12 +264,16 @@ export function RoleBadge({ userRole }: { userRole: AdminUserInfo["role"] }) {
 				"rounded-md",
 				userRole === "admin"
 					? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
-					: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
+					: userRole === "operator"
+						? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+						: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
 			)}
 		>
 			{userRole === "admin"
 				? t("admin.users.role.admin")
-				: t("admin.users.role.user")}
+				: userRole === "operator"
+					? t("admin.users.role.operator")
+					: t("admin.users.role.user")}
 		</Badge>
 	);
 }

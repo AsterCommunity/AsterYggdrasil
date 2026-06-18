@@ -95,8 +95,8 @@ const ownerUser = {
 	profile: {
 		avatar: {
 			source: "custom",
-			url_1024: "/api/v1/users/1/avatar/1024",
-			url_512: "/api/v1/users/1/avatar/512",
+			url_1024: "/admin/avatars/users/1/1024",
+			url_512: "/admin/avatars/users/1/512",
 			version: 1,
 		},
 		display_name: "Owner Display",
@@ -233,7 +233,7 @@ describe("AdminMinecraftProfilePage rename workflow", () => {
 		await screen.findByRole("heading", { level: 1, name: "AdminOld" });
 		expect(adminUserServiceMock.get).toHaveBeenCalledWith(1);
 		expect(
-			document.querySelector('img[src*="/api/v1/users/1/avatar/512"]'),
+			document.querySelector('img[src*="/api/v1/admin/avatars/users/1/512"]'),
 		).toBeInTheDocument();
 		expect(screen.getByText("Owner Display")).toBeInTheDocument();
 		expect(screen.getByText("@owner · #1")).toBeInTheDocument();

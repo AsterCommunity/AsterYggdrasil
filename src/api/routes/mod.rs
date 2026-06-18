@@ -8,6 +8,8 @@ pub mod frontend;
 pub mod health;
 pub mod profiles;
 pub mod public;
+pub mod texture_library;
+pub mod texture_preview;
 pub mod wardrobe;
 pub mod yggdrasil;
 
@@ -20,6 +22,8 @@ pub fn configure_api(cfg: &mut web::ServiceConfig) {
         .configure(account::configure)
         .configure(profiles::configure)
         .configure(wardrobe::configure)
+        .configure(texture_library::configure)
+        .configure(texture_preview::configure)
         .configure(public::configure)
         .service(admin::routes(
             &crate::config::get_config().rate_limit,

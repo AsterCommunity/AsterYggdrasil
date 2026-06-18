@@ -14,6 +14,7 @@ export type PreviewMotion = "idle" | "walk";
 export type MinecraftPreviewProps = {
 	capeUrl?: string | null;
 	className?: string;
+	compactHeader?: boolean;
 	emptyDescription?: string;
 	emptyTitle?: string;
 	failedDescription?: string;
@@ -32,6 +33,7 @@ export type MinecraftPreviewProps = {
 export function MinecraftPreview({
 	capeUrl,
 	className,
+	compactHeader = false,
 	emptyDescription = "PNG skins render here with rotation and idle animation.",
 	emptyTitle = "Upload a skin to preview",
 	failedDescription = "The texture URL could not be loaded by the 3D viewer.",
@@ -155,14 +157,21 @@ export function MinecraftPreview({
 				className,
 			)}
 		>
-			<div className="flex min-h-12 flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+			<div
+				className={cn(
+					"flex min-h-12 gap-3 border-b border-border/70 px-4 py-3",
+					compactHeader
+						? "flex-row items-center justify-between"
+						: "flex-col sm:flex-row sm:items-center sm:justify-between",
+				)}
+			>
 				<div className="min-w-0">
-					<div className="text-sm font-semibold">{label}</div>
-					<div className="text-xs text-muted-foreground">
+					<div className="truncate text-sm font-semibold">{label}</div>
+					<div className="truncate text-xs text-muted-foreground">
 						{playerName || noSkinLabel}
 					</div>
 				</div>
-				<div className="flex w-fit rounded-lg border border-border/70 bg-muted/30 p-1">
+				<div className="flex w-fit shrink-0 rounded-lg border border-border/70 bg-muted/30 p-1">
 					<Button
 						type="button"
 						size="sm"

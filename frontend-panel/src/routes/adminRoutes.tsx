@@ -22,6 +22,9 @@ const AdminAboutPage = lazyWithPreload(
 const AdminExternalAuthPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminExternalAuthPage"),
 );
+const AdminTextureLibraryPage = lazyWithPreload(
+	() => import("@/pages/admin/AdminTextureLibraryPage"),
+);
 const AdminUsersPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminUsersPage"),
 );
@@ -69,6 +72,10 @@ export const adminRoutes = [
 					{
 						path: adminPaths.externalAuth,
 						element: <AdminExternalAuthPage />,
+					},
+					{
+						path: adminPaths.textureLibrary,
+						element: <AdminTextureLibraryPage />,
 					},
 					{
 						path: adminPaths.tasks,

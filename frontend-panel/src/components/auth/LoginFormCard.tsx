@@ -9,6 +9,7 @@ import {
 	authPrimaryButtonClassName,
 	authSecondaryButtonClassName,
 } from "@/components/auth/AuthFormPrimitives";
+import { CaptchaField } from "@/components/auth/CaptchaField";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -54,7 +55,14 @@ export type LoginFormCardProps = {
 	passwordScore: number;
 	passwordStrengthLabel: string;
 	allowUserRegistration: boolean;
+	captchaAnswer: string;
+	captchaImageBase64: string | null;
+	captchaLoadError: string | null;
+	captchaLoading: boolean;
+	captchaRequired: boolean;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+	onCaptchaAnswerChange: (value: string) => void;
+	onCaptchaRefresh: () => void;
 	onIdentifierChange: (value: string) => void;
 	onUsernameChange: (value: string) => void;
 	onEmailChange: (value: string) => void;
@@ -94,6 +102,7 @@ export function LoginFormCard(props: LoginFormCardProps) {
 				)}
 				<LoginPasswordField {...props} />
 				{usesAccountCreationForm ? <RegistrationFields {...props} /> : null}
+				<CaptchaPanel {...props} />
 				<Button
 					type="submit"
 					disabled={submitDisabled}
@@ -114,6 +123,30 @@ export function LoginFormCard(props: LoginFormCardProps) {
 				) : null}
 			</form>
 		</AuthFormCard>
+	);
+}
+
+function CaptchaPanel({
+	captchaAnswer,
+	captchaImageBase64,
+	captchaLoadError,
+	captchaLoading,
+	captchaRequired,
+	loading,
+	onCaptchaAnswerChange,
+	onCaptchaRefresh,
+}: LoginFormCardProps) {
+	if (!captchaRequired) return null;
+	return (
+		<CaptchaField
+			answer={captchaAnswer}
+			disabled={loading}
+			imageBase64={captchaImageBase64}
+			loading={captchaLoading}
+			loadError={captchaLoadError}
+			onAnswerChange={onCaptchaAnswerChange}
+			onRefresh={onCaptchaRefresh}
+		/>
 	);
 }
 

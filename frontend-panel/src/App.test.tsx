@@ -276,9 +276,7 @@ describe("frontend entry routes", () => {
 			"href",
 			"/login",
 		);
-		expect(
-			screen.getByRole("link", { name: "Learn more" }),
-		).toBeInTheDocument();
+		expect(screen.queryByText("Learn more")).not.toBeInTheDocument();
 		expect(screen.getByText("Safe and reliable")).toBeInTheDocument();
 		expect(screen.getByText("Skin management")).toBeInTheDocument();
 		expect(screen.getByText("Fast and stable")).toBeInTheDocument();
@@ -666,11 +664,13 @@ describe("frontend entry routes", () => {
 			"/account",
 			"/account/profiles",
 			"/account/wardrobe",
+			"/textures",
 			"/account/audit",
 			"/account/settings",
 			"/admin",
 			"/admin/users",
 			"/admin/external-auth",
+			"/admin/texture-library",
 			"/admin/audit",
 			"/admin/tasks",
 			"/admin/settings",

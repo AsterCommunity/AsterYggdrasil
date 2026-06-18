@@ -83,6 +83,9 @@ define_error_codes! {
     AuthPendingActivation => "auth.pending_activation",
     AuthPasswordChangeRequired => "auth.password_change_required",
     AuthPasskeyLoginDisabled => "auth.passkey_login_disabled",
+    AuthCaptchaRequired => "auth.captcha_required",
+    AuthCaptchaInvalid => "auth.captcha_invalid",
+    AuthCaptchaExpired => "auth.captcha_expired",
     ContactVerificationInvalid => "auth.contact_verification_invalid",
     ContactVerificationExpired => "auth.contact_verification_expired",
     AuthInvitationInvalid => "auth.invitation_invalid",
@@ -157,6 +160,13 @@ define_error_codes! {
     WardrobeTextureNotFound => "wardrobe.texture_not_found",
     WardrobeTextureTypeMismatch => "wardrobe.texture_type_mismatch",
     WardrobeTextureDeleteConflict => "wardrobe.texture_delete_conflict",
+    WardrobeTextureNameInvalid => "wardrobe.texture_name_invalid",
+    WardrobeTextureNameTaken => "wardrobe.texture_name_taken",
+    TextureLibraryTagNotFound => "texture_library.tag_not_found",
+    TextureLibraryTagNameInvalid => "texture_library.tag_name_invalid",
+    TextureLibraryTagColorInvalid => "texture_library.tag_color_invalid",
+    TextureLibraryTagNameTaken => "texture_library.tag_name_taken",
+    TextureLibraryTextureNotFound => "texture_library.texture_not_found",
 
     // Passkey / WebAuthn errors.
     PasskeyNameInvalid => "passkey.name_invalid",

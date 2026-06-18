@@ -1,5 +1,7 @@
 //! Admin API DTOs.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -14,7 +16,7 @@ use crate::services::external_auth_service::{
 };
 use crate::types::{
     BackgroundTaskKind, BackgroundTaskStatus, ExternalAuthKind, ExternalAuthProviderOptions,
-    NullablePatch, SystemConfigVisibility, UserRole, UserStatus,
+    NullablePatch, OperatorScope, SystemConfigVisibility, UserRole, UserStatus,
 };
 
 #[derive(Debug, Deserialize)]
@@ -28,8 +30,7 @@ pub struct SetConfigReq {
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct ExecuteConfigActionReq {
     pub action: ConfigActionType,
-    #[validate(email(message = "target_email must be a valid email address"))]
-    pub target_email: Option<String>,
+    pub values: Option<BTreeMap<String, SystemConfigValue>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,6 +110,7 @@ pub struct CreateAdminUserReq {
     pub password: Option<String>,
     pub must_change_password: Option<bool>,
     pub role: Option<UserRole>,
+    pub operator_scopes: Option<Vec<OperatorScope>>,
     pub status: Option<UserStatus>,
 }
 
@@ -129,6 +131,7 @@ pub struct UpdateAdminUserReq {
     #[validate(custom(function = "crate::api::dto::validation::validate_optional_auth_password"))]
     pub password: Option<String>,
     pub role: Option<UserRole>,
+    pub operator_scopes: Option<Vec<OperatorScope>>,
     pub status: Option<UserStatus>,
     pub must_change_password: Option<bool>,
 }

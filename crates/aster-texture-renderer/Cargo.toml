@@ -1,0 +1,21 @@
+[package]
+name = "aster-texture-renderer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+readme = "README.md"
+
+[dependencies]
+image = { version = "0.25.10", default-features = false, features = ["png", "webp"] }
+
+[dev-dependencies]
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
+
+[lib]
+name = "aster_texture_renderer"
+doctest = false
+
+[[example]]
+name = "render_skin_preview"
+path = "examples/render_skin_preview.rs"

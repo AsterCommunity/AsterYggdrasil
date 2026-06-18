@@ -3,7 +3,10 @@ use tokio_util::io::ReaderStream;
 
 use crate::db::repository::minecraft_profile_texture_repo;
 use crate::entities::{minecraft_profile, minecraft_texture};
-use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
+use crate::types::{
+    MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureType,
+    MinecraftTextureVisibility,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
@@ -41,6 +44,7 @@ pub struct MinecraftTextureMetadata {
     pub file_size: i64,
     pub mime_type: String,
     pub url: String,
+    pub preview_url: Option<String>,
     pub source: MinecraftTextureMetadataSource,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -52,15 +56,65 @@ pub struct MinecraftTextureMetadata {
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
 pub struct MinecraftWardrobeTextureMetadata {
     pub id: i64,
+    pub name: String,
+    pub display_name: Option<String>,
     pub hash: String,
     pub texture_type: MinecraftTextureType,
     pub texture_model: MinecraftTextureModel,
     pub visibility: MinecraftTextureVisibility,
+    pub library_status: MinecraftTextureLibraryStatus,
+    pub tags: Vec<MinecraftTextureTagInfo>,
     pub width: i32,
     pub height: i32,
     pub file_size: i64,
     pub mime_type: String,
     pub url: String,
+    pub preview_url: Option<String>,
+    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+pub struct MinecraftTextureUploaderInfo {
+    pub public_uuid: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+pub struct PublicTextureLibraryTextureMetadata {
+    pub id: i64,
+    pub name: String,
+    pub display_name: Option<String>,
+    pub hash: String,
+    pub texture_type: MinecraftTextureType,
+    pub texture_model: MinecraftTextureModel,
+    pub visibility: MinecraftTextureVisibility,
+    pub library_status: MinecraftTextureLibraryStatus,
+    pub tags: Vec<MinecraftTextureTagInfo>,
+    pub uploader: Option<MinecraftTextureUploaderInfo>,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: i64,
+    pub mime_type: String,
+    pub url: String,
+    pub preview_url: Option<String>,
+    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+pub struct MinecraftTextureTagInfo {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub sort_order: i32,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]

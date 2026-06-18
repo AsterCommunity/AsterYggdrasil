@@ -23,6 +23,7 @@ const fullUser = {
 	email: "steve@example.com",
 	email_verified: false,
 	must_change_password: false,
+	operator_scopes: [],
 	pending_email: null,
 	role: "admin",
 	status: "active",
@@ -80,6 +81,7 @@ describe("authStore persistence", () => {
 			email_verified: false,
 			id: 7,
 			must_change_password: false,
+			operator_scopes: [],
 			pending_email: null,
 			username: "steve",
 			role: "admin",
@@ -379,6 +381,9 @@ describe("authStore persistence", () => {
 				},
 			},
 			profile_count: 1,
+			pending_email: null,
+			must_change_password: false,
+			operator_scopes: [],
 			role: "admin",
 			session_version: 3,
 			status: "active",
@@ -402,6 +407,47 @@ describe("authStore persistence", () => {
 		);
 	});
 
+	it("derives scoped operator access from the current user", async () => {
+		authServiceMock.me.mockResolvedValue({
+			...fullUser,
+			role: "operator",
+			operator_scopes: ["texture_library"],
+		});
+		const { useAuthStore } = await loadStore();
+
+		await useAuthStore.getState().login("steve", "password");
+
+		expect(useAuthStore.getState()).toMatchObject({
+			isAdmin: false,
+			isOperator: true,
+			canAccessAdminShell: true,
+			operatorScopes: ["texture_library"],
+		});
+		expect(useAuthStore.getState().hasOperatorScope("texture_library")).toBe(
+			true,
+		);
+		expect(useAuthStore.getState().hasOperatorScope("users")).toBe(false);
+	});
+
+	it("drops unknown operator scopes from cached users", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: 7,
+				username: "steve",
+				role: "operator",
+				status: "active",
+				operator_scopes: ["texture_library", "not_real"],
+				profile: fullUser.profile,
+			}),
+		);
+
+		const { useAuthStore } = await loadStore();
+
+		expect(useAuthStore.getState().operatorScopes).toEqual(["texture_library"]);
+		expect(useAuthStore.getState().canAccessAdminShell).toBe(true);
+	});
+
 	it("ignores admin updates for other users", async () => {
 		const { useAuthStore } = await loadStore();
 
@@ -412,6 +458,9 @@ describe("authStore persistence", () => {
 			email: "other@example.com",
 			email_verified_at: null,
 			id: 99,
+			pending_email: null,
+			must_change_password: false,
+			operator_scopes: [],
 			profile: fullUser.profile,
 			profile_count: 0,
 			role: "user",

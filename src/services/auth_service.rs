@@ -7,7 +7,8 @@ use crate::api::error_code::AsterErrorCode;
 use crate::api::pagination::OffsetPage;
 use crate::config::site_url::{PUBLIC_SITE_URL_KEY, normalize_public_site_url_config_value};
 use crate::db::repository::{
-    auth_session_repo, contact_verification_token_repo, system_config_repo, user_repo,
+    auth_session_repo, contact_verification_token_repo, system_config_repo,
+    user_operator_scope_repo, user_repo,
 };
 use crate::entities::{auth_session, contact_verification_token, user};
 use crate::errors::{AsterError, MapAsterErr, Result};
@@ -17,7 +18,8 @@ use crate::services::{
     audit_service, mail_outbox_service, mail_service, mail_template::MailTemplatePayload,
 };
 use crate::types::{
-    AvatarSource, TokenType, UserRole, UserStatus, VerificationChannel, VerificationPurpose,
+    AvatarSource, OperatorScope, TokenType, UserRole, UserStatus, VerificationChannel,
+    VerificationPurpose,
 };
 use crate::utils::email::normalize_email;
 use crate::utils::hash::{self, hash_password, verify_password};
@@ -42,6 +44,7 @@ pub struct AuthUserInfo {
     pub email_verified: bool,
     pub pending_email: Option<String>,
     pub role: UserRole,
+    pub operator_scopes: Vec<OperatorScope>,
     pub status: UserStatus,
     pub must_change_password: bool,
     pub profile: UserProfileInfo,
@@ -56,6 +59,7 @@ impl From<user::Model> for AuthUserInfo {
             email_verified: value.email_verified_at.is_some(),
             pending_email: value.pending_email,
             role: value.role,
+            operator_scopes: Vec::new(),
             status: value.status,
             must_change_password: value.must_change_password,
             profile: default_user_profile_info(),
@@ -80,6 +84,7 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     let profile = profile_service::get_profile_info(state, &user, AvatarAudience::SelfUser).await?;
+    let operator_scopes = auth_user_operator_scopes(state, &user).await?;
     Ok(AuthUserInfo {
         id: user.id,
         username: user.username,
@@ -87,10 +92,32 @@ where
         email_verified: user.email_verified_at.is_some(),
         pending_email: user.pending_email,
         role: user.role,
+        operator_scopes,
         status: user.status,
         must_change_password: user.must_change_password,
         profile,
     })
+}
+
+pub async fn auth_request_user_info<S>(state: &S, user: user::Model) -> Result<AuthUserInfo>
+where
+    S: DatabaseRuntimeState,
+{
+    let operator_scopes = auth_user_operator_scopes(state, &user).await?;
+    Ok(AuthUserInfo {
+        operator_scopes,
+        ..AuthUserInfo::from(user)
+    })
+}
+
+async fn auth_user_operator_scopes<S>(state: &S, user: &user::Model) -> Result<Vec<OperatorScope>>
+where
+    S: DatabaseRuntimeState,
+{
+    if user.role != UserRole::Operator {
+        return Ok(Vec::new());
+    }
+    user_operator_scope_repo::list_for_user(state.reader_db(), user.id).await
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]

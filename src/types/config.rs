@@ -15,6 +15,8 @@ pub enum SystemConfigValueType {
     Multiline,
     #[sea_orm(string_value = "string_array")]
     StringArray,
+    #[sea_orm(string_value = "string_enum")]
+    StringEnum,
     #[sea_orm(string_value = "string_enum_set")]
     StringEnumSet,
     #[sea_orm(string_value = "number")]
@@ -29,6 +31,7 @@ impl SystemConfigValueType {
             Self::String => "string",
             Self::Multiline => "multiline",
             Self::StringArray => "string_array",
+            Self::StringEnum => "string_enum",
             Self::StringEnumSet => "string_enum_set",
             Self::Number => "number",
             Self::Boolean => "boolean",
@@ -40,6 +43,7 @@ impl SystemConfigValueType {
             "string" => Some(Self::String),
             "multiline" => Some(Self::Multiline),
             "string_array" => Some(Self::StringArray),
+            "string_enum" => Some(Self::StringEnum),
             "string_enum_set" => Some(Self::StringEnumSet),
             "number" => Some(Self::Number),
             "boolean" => Some(Self::Boolean),

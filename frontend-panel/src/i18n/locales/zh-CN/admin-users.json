@@ -44,6 +44,9 @@
 			"email": "邮箱",
 			"password": "密码",
 			"roleLabel": "角色",
+			"operatorScopesLabel": "可管理区域",
+			"operatorScopesDescription": "operator 只能访问已开启的后台区域。管理员始终拥有全部权限，不能裁剪权限。",
+			"adminScopePolicy": "管理员始终拥有全部后台权限。如果需要裁剪权限，请将账号设置为 operator。",
 			"statusLabel": "状态",
 			"allRoles": "全部角色",
 			"allStatuses": "全部状态",
@@ -91,7 +94,18 @@
 			"sessionsRevoked": "已注销 {{count}} 个会话",
 			"role": {
 				"admin": "管理员",
+				"operator": "操作员",
 				"user": "用户"
+			},
+			"operatorScope": {
+				"overview": "后台概览",
+				"users": "用户管理",
+				"profiles": "角色档案",
+				"texture_library": "材质库",
+				"audit": "审计日志",
+				"tasks": "后台任务",
+				"settings": "系统设置",
+				"external_auth": "外部登录"
 			},
 			"status": {
 				"active": "活跃",

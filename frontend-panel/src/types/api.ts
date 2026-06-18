@@ -80,6 +80,7 @@ export type ApiResponse<T = unknown> = {
 };
 
 export type PublicBranding = components["schemas"]["PublicBranding"];
+export type PublicCaptchaConfig = components["schemas"]["PublicCaptchaConfig"];
 export type PublicYggdrasilConfig =
 	components["schemas"]["PublicYggdrasilConfig"];
 export type PublicFrontendConfig =
@@ -126,6 +127,7 @@ export type AdminOverviewTrendPoint =
 	components["schemas"]["AdminOverviewTrendPoint"];
 export type UserInvitationStatus =
 	components["schemas"]["UserInvitationStatus"];
+export type OperatorScope = components["schemas"]["OperatorScope"];
 export type PublicUserInvitationInfo =
 	components["schemas"]["PublicUserInvitationInfo"];
 export type AcceptUserInvitationRequest =
@@ -155,6 +157,10 @@ export type BackgroundTaskKind = components["schemas"]["BackgroundTaskKind"];
 export type BackgroundTaskStatus =
 	components["schemas"]["BackgroundTaskStatus"];
 export type CheckResp = components["schemas"]["CheckResp"];
+export type CaptchaChallengeResponse =
+	components["schemas"]["CaptchaChallengeResponse"];
+export type PublicCaptchaPolicyResponse =
+	components["schemas"]["PublicCaptchaPolicyResp"];
 export type ConfigSchemaItem = components["schemas"]["ConfigSchemaItem"];
 export type ConfigActionType = components["schemas"]["ConfigActionType"];
 export type ConfigListQuery = OperationQuery<"list_config">;
@@ -204,16 +210,50 @@ export type MinecraftTextureModel =
 	components["schemas"]["MinecraftTextureModel"];
 export type MinecraftTextureMetadata =
 	components["schemas"]["MinecraftTextureMetadata"];
+export type MinecraftTextureTagInfo =
+	components["schemas"]["MinecraftTextureTagInfo"];
 export type MinecraftTextureType =
 	components["schemas"]["MinecraftTextureType"];
 export type MinecraftTextureVisibility =
 	components["schemas"]["MinecraftTextureVisibility"];
+export type TextureTagSearchMethod =
+	components["schemas"]["TextureTagSearchMethod"];
 export type MinecraftWardrobeTextureMetadata =
 	components["schemas"]["MinecraftWardrobeTextureMetadata"];
 export type MinecraftWardrobeTextureQuery =
 	OperationQuery<"list_current_user_wardrobe_textures">;
 export type MinecraftWardrobeTexturePage =
 	OperationData<"list_current_user_wardrobe_textures">;
+export type MinecraftTextureTagList =
+	OperationData<"list_current_user_texture_library_tags">["items"];
+export type MinecraftTextureTagPage =
+	OperationData<"list_current_user_texture_library_tags">;
+export type MinecraftTextureTagQuery =
+	OperationQuery<"list_current_user_texture_library_tags">;
+export type PublicTextureLibraryTagPage =
+	OperationData<"list_public_texture_library_tags">;
+export type PublicTextureLibraryTagQuery =
+	OperationQuery<"list_public_texture_library_tags">;
+export type AdminTextureLibraryTagPage =
+	OperationData<"admin_list_texture_library_tags">;
+export type AdminTextureLibraryTagQuery =
+	OperationQuery<"admin_list_texture_library_tags">;
+export type CreateMinecraftTextureTagRequest =
+	OperationRequestBody<"admin_create_texture_library_tag">;
+export type UpdateMinecraftTextureTagRequest =
+	OperationRequestBody<"admin_update_texture_library_tag">;
+export type ReplaceWardrobeTextureTagsRequest =
+	OperationRequestBody<"replace_current_user_wardrobe_texture_tags">;
+export type PublicTextureLibraryQuery =
+	OperationQuery<"list_public_texture_library_textures">;
+export type PublicTextureLibraryPage =
+	OperationData<"list_public_texture_library_textures">;
+export type PublicTextureLibraryTextureMetadata =
+	OperationData<"get_public_texture_library_texture">;
+export type CopyPublicTextureRequest =
+	OperationRequestBody<"copy_public_texture_library_texture_to_wardrobe">;
+export type UpdateWardrobeTextureRequest =
+	OperationRequestBody<"update_current_user_wardrobe_texture">;
 export type CreateMinecraftProfileRequest =
 	components["schemas"]["CreateMinecraftProfileReq"];
 export type RenameMinecraftProfileRequest =

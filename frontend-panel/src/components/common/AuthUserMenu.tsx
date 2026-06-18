@@ -10,6 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
+import { firstAdminPathForScopes } from "@/lib/operatorScopes";
 import { cn } from "@/lib/utils";
 import { accountPaths, adminPaths, publicPaths } from "@/routes/routePaths";
 import type { AuthUserInfo } from "@/types/api";
@@ -32,6 +33,11 @@ export function AuthUserMenu({
 	const displayName = user.profile?.display_name?.trim() || userName;
 	const avatar = user.profile?.avatar;
 	const isAdmin = user.role === "admin";
+	const firstOperatorAdminPath =
+		user.role === "operator"
+			? firstAdminPathForScopes(user.operator_scopes ?? [])
+			: null;
+	const adminEntryPath = isAdmin ? adminPaths.settings : firstOperatorAdminPath;
 	const isAdminScope = scope === "admin";
 	const isAppScope = scope !== "public";
 
@@ -61,12 +67,12 @@ export function AuthUserMenu({
 				<span className="hidden min-w-0 max-w-28 truncate text-sm font-semibold sm:block">
 					{displayName}
 				</span>
-				{isAdmin ? (
+				{isAdmin || firstOperatorAdminPath ? (
 					<Badge
 						variant="outline"
 						className="hidden border-border/50 bg-background/70 px-1.5 py-0 text-[11px] text-muted-foreground md:inline-flex"
 					>
-						admin
+						{isAdmin ? "admin" : "operator"}
 					</Badge>
 				) : null}
 				<Icon
@@ -106,9 +112,9 @@ export function AuthUserMenu({
 							<Icon name="Gauge" className="size-4 text-muted-foreground" />
 							{t("nav.account")}
 						</DropdownMenuItem>
-						{isAdmin ? (
+						{adminEntryPath ? (
 							<DropdownMenuItem
-								render={<Link to={adminPaths.settings} />}
+								render={<Link to={adminEntryPath} />}
 								className="flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent focus:bg-accent"
 							>
 								<Icon name="Shield" className="size-4 text-muted-foreground" />

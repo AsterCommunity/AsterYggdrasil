@@ -50,6 +50,8 @@ pub enum Relation {
     ContactVerificationTokens,
     #[sea_orm(has_many = "super::yggdrasil_token::Entity")]
     YggdrasilTokens,
+    #[sea_orm(has_many = "super::user_operator_scope::Entity")]
+    UserOperatorScopes,
 }
 
 impl Related<super::auth_session::Entity> for Entity {
@@ -91,6 +93,12 @@ impl Related<super::contact_verification_token::Entity> for Entity {
 impl Related<super::yggdrasil_token::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::YggdrasilTokens.def()
+    }
+}
+
+impl Related<super::user_operator_scope::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserOperatorScopes.def()
     }
 }
 

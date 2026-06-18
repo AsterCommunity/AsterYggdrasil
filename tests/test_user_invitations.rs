@@ -561,6 +561,41 @@ async fn test_invitations_require_admin_but_accept_when_public_registration_disa
 }
 
 #[actix_web::test]
+async fn test_invitation_accept_respects_captcha_policy() {
+    let state = common::setup().await;
+    let db = state.writer_db().clone();
+    let app = create_test_app!(state.clone());
+    let (admin_token, _) = register_and_login!(app);
+    state.runtime_config.apply(common::system_config_model(
+        auth_runtime::AUTH_CAPTCHA_ENABLED_KEY,
+        "true",
+    ));
+
+    let invitation = create_invitation!(app, admin_token, "captcha-invite@example.com");
+    let token = extract_invitation_token(&invitation);
+
+    let (status, body) =
+        accept_invitation_with_status!(app, &token, "captcha_invited", "password123");
+    assert_eq!(status, 400);
+    assert_eq!(body["code"], "auth.captcha_required");
+    let row = latest_invitation_row(&db, "captcha-invite@example.com").await;
+    assert_eq!(row.status, UserInvitationStatus::Pending);
+    assert!(row.accepted_user_id.is_none());
+
+    state.runtime_config.apply(common::system_config_model(
+        auth_runtime::AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY,
+        "false",
+    ));
+    let invitation = create_invitation!(app, admin_token, "captcha-switch@example.com");
+    let token = extract_invitation_token(&invitation);
+
+    let (status, body) =
+        accept_invitation_with_status!(app, &token, "captcha_switch", "password123");
+    assert_eq!(status, 201);
+    assert_eq!(body["data"]["email"], "captcha-switch@example.com");
+}
+
+#[actix_web::test]
 async fn test_invitation_respects_local_email_policy_on_create_and_accept() {
     let state = common::setup().await;
     let db = state.writer_db().clone();

@@ -94,6 +94,54 @@ macro_rules! admin_create_user_with_body {
     }};
 }
 
+async fn admin_create_user_with_payload<S, B, E>(
+    app: &S,
+    admin_token: &str,
+    payload: serde_json::Value,
+) -> Value
+where
+    S: actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse<B>,
+            Error = E,
+        >,
+    B: MessageBody,
+    E: std::fmt::Debug,
+{
+    let req = test::TestRequest::post()
+        .uri("/api/v1/admin/users")
+        .insert_header(("Cookie", common::access_cookie_header(admin_token)))
+        .insert_header(common::csrf_header_for(admin_token))
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(payload)
+        .to_request();
+    let resp = test::call_service(app, req).await;
+    assert_eq!(resp.status(), 201, "admin create user should return 201");
+    test::read_body_json(resp).await
+}
+
+async fn current_user_id<S, B, E>(app: &S, access_token: &str) -> i64
+where
+    S: actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse<B>,
+            Error = E,
+        >,
+    B: MessageBody,
+    E: std::fmt::Debug,
+{
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/me")
+        .insert_header(common::bearer_header(access_token))
+        .to_request();
+    let resp = test::call_service(app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    body["data"]["id"]
+        .as_i64()
+        .expect("current user id should exist")
+}
+
 fn access_and_csrf_cookie_header(access_token: &str, csrf_token: &str) -> String {
     format!("aster_access={access_token}; aster_csrf={csrf_token}")
 }
@@ -561,6 +609,198 @@ async fn register_skips_activation_when_activation_is_disabled() {
     let sender = aster_yggdrasil::services::mail_service::memory_sender_ref(&state.mail_sender)
         .expect("test state should use memory mail sender");
     assert!(sender.messages().is_empty());
+}
+
+#[actix_web::test]
+async fn auth_captcha_policy_and_challenge_are_public() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_ENABLED_KEY,
+        "true",
+    ));
+    let app = create_test_app!(state);
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/auth/captcha/policy")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["enabled"], true);
+    assert_eq!(body["data"]["login_required"], true);
+    assert_eq!(body["data"]["register_required"], true);
+    assert_eq!(body["data"]["invitation_accept_required"], true);
+    assert_eq!(body["data"]["register_activation_resend_required"], true);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/captcha")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert!(
+        body["data"]["challenge_id"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert_eq!(body["data"]["mime"], "image/jpeg");
+    assert_eq!(body["data"]["expires_in"], 120);
+    assert!(
+        body["data"]["image_base64"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("data:image/jpeg;base64,"))
+    );
+}
+
+#[actix_web::test]
+async fn auth_captcha_blocks_password_flows_when_required() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_ENABLED_KEY,
+        "true",
+    ));
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/login")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "identifier": "admin",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::AuthCaptchaRequired.as_str());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/captcha")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let challenge_id = body["data"]["challenge_id"]
+        .as_str()
+        .expect("captcha challenge id should be present");
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/login")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "identifier": "admin",
+            "password": "password1234",
+            "captcha_challenge_id": challenge_id,
+            "captcha_answer": "definitely-wrong"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::AuthCaptchaInvalid.as_str());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "captcha-user",
+            "email": "captcha@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::AuthCaptchaRequired.as_str());
+}
+
+#[actix_web::test]
+async fn auth_captcha_disabled_keeps_password_flows_compatible() {
+    let state = common::setup().await;
+    state.runtime_config.apply(common::system_config_model(
+        aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+        "false",
+    ));
+    let app = create_test_app!(state);
+    let _ = setup_admin!(app);
+
+    let login_token = login_user!(app, "admin", "password1234");
+    assert!(!login_token.is_empty());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "no-captcha-user",
+            "email": "no-captcha@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["requires_activation"], false);
+}
+
+#[actix_web::test]
+async fn auth_captcha_respects_password_flow_switches() {
+    let state = common::setup().await;
+    for (key, value) in [
+        (
+            aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_ENABLED_KEY,
+            "true",
+        ),
+        (
+            aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_LOGIN_REQUIRED_KEY,
+            "false",
+        ),
+        (
+            aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_REGISTER_REQUIRED_KEY,
+            "false",
+        ),
+        (
+            aster_yggdrasil::config::auth_runtime::AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY,
+            "false",
+        ),
+        (
+            aster_yggdrasil::config::auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
+            "true",
+        ),
+    ] {
+        state
+            .runtime_config
+            .apply(common::system_config_model(key, value));
+    }
+    let app = create_test_app!(state.clone());
+    let _ = setup_admin!(app);
+
+    let login_token = login_user!(app, "admin", "password1234");
+    assert!(!login_token.is_empty());
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "username": "switch-user",
+            "email": "switch@example.com",
+            "password": "password1234"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["requires_activation"], true);
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register/resend")
+        .peer_addr("127.0.0.1:12345".parse().unwrap())
+        .set_json(serde_json::json!({
+            "identifier": "switch@example.com"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
 }
 
 #[actix_web::test]
@@ -2628,8 +2868,12 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 304);
 
+    let admin_avatar_url = format!(
+        "/api/v1/admin/avatars/users/{}/1024",
+        current_user_id(&app, &token).await
+    );
     let req = test::TestRequest::get()
-        .uri("/api/v1/admin/users/1/avatar/1024")
+        .uri(&admin_avatar_url)
         .insert_header(common::bearer_header(&token))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -2647,7 +2891,7 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
     assert_eq!(decoded.dimensions(), (1024, 1024));
 
     let req = test::TestRequest::get()
-        .uri("/api/v1/admin/users/1/avatar/1024")
+        .uri(&admin_avatar_url)
         .insert_header(common::bearer_header(&token))
         .insert_header((header::IF_NONE_MATCH, admin_avatar_etag))
         .to_request();
@@ -2682,6 +2926,107 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn admin_user_avatar_media_requires_users_scope() {
+    let state = common::setup().await;
+    let app = create_test_app!(state);
+    let admin_token = setup_admin!(app);
+
+    let boundary = "avatar-scope-boundary";
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/profile/avatar/upload")
+        .insert_header(common::bearer_header(&admin_token))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={boundary}"),
+        ))
+        .set_payload(multipart_file_body(
+            boundary,
+            "avatar.png",
+            "image/png",
+            &png(320, 320),
+        ))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let admin_user_id = current_user_id(&app, &admin_token).await;
+    let avatar_url = format!("/api/v1/admin/avatars/users/{admin_user_id}/512");
+
+    admin_create_user_with_payload(
+        &app,
+        &admin_token,
+        serde_json::json!({
+            "username": "users-operator",
+            "email": "users-operator@example.com",
+            "password": "password123",
+            "role": "operator",
+            "operator_scopes": ["users"]
+        }),
+    )
+    .await;
+    let (users_operator_token, _, _) = login_session!(app, "users-operator", "password123");
+
+    admin_create_user_with_payload(
+        &app,
+        &admin_token,
+        serde_json::json!({
+            "username": "texture-operator",
+            "email": "texture-operator@example.com",
+            "password": "password123",
+            "role": "operator",
+            "operator_scopes": ["texture_library"]
+        }),
+    )
+    .await;
+    let (texture_operator_token, _, _) = login_session!(app, "texture-operator", "password123");
+
+    admin_create_user_with_payload(
+        &app,
+        &admin_token,
+        serde_json::json!({
+            "username": "plain-user",
+            "email": "plain-user@example.com",
+            "password": "password123"
+        }),
+    )
+    .await;
+    let (plain_user_token, _, _) = login_session!(app, "plain-user", "password123");
+
+    let req = test::TestRequest::get()
+        .uri(&avatar_url)
+        .insert_header(common::bearer_header(&users_operator_token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::get()
+        .uri(&avatar_url)
+        .insert_header(common::bearer_header(&texture_operator_token))
+        .to_request();
+    let error = test::try_call_service(&app, req)
+        .await
+        .expect_err("operator without users scope should be rejected");
+    assert!(error.to_string().contains("admin permission required"));
+
+    let req = test::TestRequest::get()
+        .uri(&avatar_url)
+        .insert_header(common::bearer_header(&plain_user_token))
+        .to_request();
+    let error = test::try_call_service(&app, req)
+        .await
+        .expect_err("plain user should be rejected");
+    assert!(error.to_string().contains("admin permission required"));
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/admin/users")
+        .insert_header(common::bearer_header(&texture_operator_token))
+        .to_request();
+    let error = test::try_call_service(&app, req)
+        .await
+        .expect_err("operator without users scope should not list users");
+    assert!(error.to_string().contains("admin permission required"));
 }
 
 #[actix_web::test]

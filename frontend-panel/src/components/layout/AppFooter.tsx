@@ -7,6 +7,11 @@ import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
 
 const footerLinks = [
 	{ id: "account", to: accountPaths.home, label: "nav.account" },
+	{
+		id: "texture-library",
+		to: publicPaths.textureLibrary,
+		label: "nav.textureLibrary",
+	},
 	{ id: "tos", to: publicPaths.tos, label: "nav.tos" },
 	{ id: "privacy", to: publicPaths.privacy, label: "nav.privacy" },
 ] as const;

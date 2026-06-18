@@ -11,6 +11,7 @@ import {
 	authEntryMainClassName,
 	authPrimaryButtonClassName,
 } from "@/components/auth/AuthFormPrimitives";
+import { CaptchaField } from "@/components/auth/CaptchaField";
 import { LoginEntryFooter } from "@/components/auth/LoginEntryFooter";
 import { LoginHero } from "@/components/auth/LoginHero";
 import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter";
@@ -18,6 +19,7 @@ import { DateTimeText } from "@/components/common/DateTimeText";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { useCaptchaChallenge } from "@/hooks/useCaptchaChallenge";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
 	confirmPasswordRequiredSchema,
@@ -170,8 +172,12 @@ export default function InvitePage() {
 	const { token = "" } = useParams();
 	const [state, dispatch] = useReducer(reducer, initialState);
 	const branding = useFrontendConfigStore((store) => store.branding);
+	const captchaConfig = useFrontendConfigStore((store) => store.captcha);
 	const navigate = useNavigate();
 	usePageTitle(t("invite.pageTitle"));
+	const captchaRequired =
+		captchaConfig.enabled && captchaConfig.invitation_accept_required;
+	const captcha = useCaptchaChallenge(captchaRequired);
 
 	const brandTitle = branding.title || t("brand.name");
 	const passwordScore = getPasswordScore(state.password);
@@ -187,7 +193,9 @@ export default function InvitePage() {
 			username: state.username,
 			password: state.password,
 			confirmPassword: state.confirmPassword,
-		}).success;
+		}).success &&
+		(!captchaRequired ||
+			(Boolean(captcha.challengeId) && captcha.answer.trim().length > 0));
 	const submitDisabled = state.loading || state.submitting || !canSubmit;
 
 	useEffect(() => {
@@ -234,11 +242,16 @@ export default function InvitePage() {
 			await authService.acceptInvitation(token, {
 				username: validation.data.username,
 				password: validation.data.password,
+				captcha_challenge_id: captchaRequired
+					? (captcha.challengeId ?? "")
+					: undefined,
+				captcha_answer: captchaRequired ? captcha.answer : undefined,
 			});
 			toast.success(t("invite.accepted"));
 			navigate(publicPaths.login);
 		} catch (error) {
 			toast.error(formatUnknownError(error));
+			if (captchaRequired) void captcha.refresh();
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}
@@ -311,7 +324,14 @@ export default function InvitePage() {
 					passwordScore={passwordScore}
 					passwordStrengthLabel={t(passwordStrengthKey)}
 					submitDisabled={submitDisabled}
+					captchaAnswer={captcha.answer}
+					captchaImageBase64={captcha.imageBase64}
+					captchaLoadError={captcha.error}
+					captchaLoading={captcha.loading}
+					captchaRequired={captchaRequired}
 					onBackToLogin={() => navigate(publicPaths.login)}
+					onCaptchaAnswerChange={captcha.setAnswer}
+					onCaptchaRefresh={() => void captcha.refresh()}
 					onSubmit={submit}
 					onUsernameChange={changeUsername}
 					onPasswordChange={changePassword}
@@ -326,7 +346,14 @@ export default function InvitePage() {
 }
 
 function InviteCard({
+	captchaAnswer,
+	captchaImageBase64,
+	captchaLoadError,
+	captchaLoading,
+	captchaRequired,
 	onBackToLogin,
+	onCaptchaAnswerChange,
+	onCaptchaRefresh,
 	onConfirmPasswordChange,
 	onPasswordChange,
 	onSubmit,
@@ -337,7 +364,14 @@ function InviteCard({
 	state,
 	submitDisabled,
 }: {
+	captchaAnswer: string;
+	captchaImageBase64: string | null;
+	captchaLoadError: string | null;
+	captchaLoading: boolean;
+	captchaRequired: boolean;
 	onBackToLogin: () => void;
+	onCaptchaAnswerChange: (value: string) => void;
+	onCaptchaRefresh: () => void;
 	onConfirmPasswordChange: (value: string) => void;
 	onPasswordChange: (value: string) => void;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -374,6 +408,13 @@ function InviteCard({
 					passwordScore={passwordScore}
 					passwordStrengthLabel={passwordStrengthLabel}
 					submitDisabled={submitDisabled}
+					captchaAnswer={captchaAnswer}
+					captchaImageBase64={captchaImageBase64}
+					captchaLoadError={captchaLoadError}
+					captchaLoading={captchaLoading}
+					captchaRequired={captchaRequired}
+					onCaptchaAnswerChange={onCaptchaAnswerChange}
+					onCaptchaRefresh={onCaptchaRefresh}
 					onSubmit={onSubmit}
 					onUsernameChange={onUsernameChange}
 					onPasswordChange={onPasswordChange}
@@ -413,6 +454,13 @@ function InviteErrorPanel({
 }
 
 function InviteForm({
+	captchaAnswer,
+	captchaImageBase64,
+	captchaLoadError,
+	captchaLoading,
+	captchaRequired,
+	onCaptchaAnswerChange,
+	onCaptchaRefresh,
 	onConfirmPasswordChange,
 	onPasswordChange,
 	onSubmit,
@@ -423,6 +471,13 @@ function InviteForm({
 	state,
 	submitDisabled,
 }: {
+	captchaAnswer: string;
+	captchaImageBase64: string | null;
+	captchaLoadError: string | null;
+	captchaLoading: boolean;
+	captchaRequired: boolean;
+	onCaptchaAnswerChange: (value: string) => void;
+	onCaptchaRefresh: () => void;
 	onConfirmPasswordChange: (value: string) => void;
 	onPasswordChange: (value: string) => void;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -480,6 +535,17 @@ function InviteForm({
 				value={passwordStrengthLabel}
 				score={passwordScore}
 			/>
+			{captchaRequired ? (
+				<CaptchaField
+					answer={captchaAnswer}
+					disabled={disabled}
+					imageBase64={captchaImageBase64}
+					loading={captchaLoading}
+					loadError={captchaLoadError}
+					onAnswerChange={onCaptchaAnswerChange}
+					onRefresh={onCaptchaRefresh}
+				/>
+			) : null}
 			<Button
 				type="submit"
 				className={authPrimaryButtonClassName}

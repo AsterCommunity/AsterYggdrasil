@@ -15,6 +15,7 @@ use crate::config::local_email_policy;
 use crate::config::mail;
 use crate::config::operations;
 use crate::config::site_url;
+use crate::config::texture_preview;
 use crate::config::yggdrasil;
 use crate::entities::system_config;
 use crate::errors::{AsterError, Result};
@@ -80,7 +81,9 @@ pub fn validate_value_type(value_type: SystemConfigValueType, value: &str) -> Re
                 ))
             })?;
         }
-        SystemConfigValueType::String | SystemConfigValueType::Multiline => {}
+        SystemConfigValueType::String
+        | SystemConfigValueType::StringEnum
+        | SystemConfigValueType::Multiline => {}
     }
     Ok(())
 }
@@ -102,6 +105,13 @@ where
         auth_runtime::AUTH_REGISTER_ACTIVATION_ENABLED_KEY => {
             auth_runtime::normalize_register_activation_enabled_config_value(value)
         }
+        auth_runtime::AUTH_CAPTCHA_ENABLED_KEY
+        | auth_runtime::AUTH_CAPTCHA_LOGIN_REQUIRED_KEY
+        | auth_runtime::AUTH_CAPTCHA_REGISTER_REQUIRED_KEY
+        | auth_runtime::AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY
+        | auth_runtime::AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY => {
+            auth_runtime::normalize_auth_bool_config_value(key, value)
+        }
         auth_runtime::AUTH_EMAIL_CODE_LOGIN_ENABLED_KEY
         | auth_runtime::AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK_KEY
         | auth_runtime::AUTH_PASSKEY_LOGIN_ENABLED_KEY => {
@@ -115,9 +125,19 @@ where
         | auth_runtime::AUTH_PASSWORD_RESET_TTL_SECS_KEY
         | auth_runtime::AUTH_EMAIL_CODE_LOGIN_TTL_SECS_KEY
         | auth_runtime::AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS_KEY
+        | auth_runtime::AUTH_CAPTCHA_TTL_SECS_KEY
         | auth_runtime::AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS_KEY
         | auth_runtime::AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY => {
             auth_runtime::normalize_token_ttl_config_value(key, value)
+        }
+        auth_runtime::AUTH_CAPTCHA_LENGTH_KEY => {
+            auth_runtime::normalize_captcha_length_config_value(value)
+        }
+        auth_runtime::AUTH_CAPTCHA_PRESET_KEY => {
+            auth_runtime::normalize_captcha_preset_config_value(value)
+        }
+        auth_runtime::AUTH_CAPTCHA_MAX_ATTEMPTS_KEY => {
+            auth_runtime::normalize_captcha_max_attempts_config_value(value)
         }
         local_email_policy::AUTH_LOCAL_EMAIL_ALLOWLIST_KEY
         | local_email_policy::AUTH_LOCAL_EMAIL_BLOCKLIST_KEY => {
@@ -193,6 +213,25 @@ where
         | yggdrasil::YGGDRASIL_SIGNATURE_PUBLIC_KEY_KEY => {
             yggdrasil::normalize_yggdrasil_config_value(key, value)
         }
+        texture_preview::TEXTURE_PREVIEW_ENGINE_KEY
+        | texture_preview::TEXTURE_PREVIEW_PROFILE_KEY
+        | texture_preview::TEXTURE_PREVIEW_WIDTH_KEY
+        | texture_preview::TEXTURE_PREVIEW_HEIGHT_KEY
+        | texture_preview::TEXTURE_PREVIEW_BACKGROUND_KEY
+        | texture_preview::TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_SCALE_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_PITCH_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_FRONT_YAW_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_BACK_YAW_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_SPACING_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_X_OFFSET_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_Y_OFFSET_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_CENTER_Y_KEY
+        | texture_preview::TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY
+        | texture_preview::TEXTURE_PREVIEW_2D_PADDING_KEY
+        | texture_preview::TEXTURE_PREVIEW_2D_SPACING_KEY => {
+            texture_preview::normalize_texture_preview_config_value(key, value)
+        }
         branding::BRANDING_TITLE_KEY => branding::normalize_title_config_value(value),
         branding::BRANDING_DESCRIPTION_KEY => branding::normalize_description_config_value(value),
         branding::BRANDING_FAVICON_URL_KEY => branding::normalize_favicon_url_config_value(value),
@@ -266,6 +305,7 @@ mod tests {
         assert!(validate_value_type(SystemConfigValueType::StringArray, r#""a""#).is_err());
         assert!(validate_value_type(SystemConfigValueType::StringEnumSet, r#"["a"]"#).is_ok());
         assert!(validate_value_type(SystemConfigValueType::StringEnumSet, r#""a""#).is_err());
+        assert!(validate_value_type(SystemConfigValueType::StringEnum, "a").is_ok());
         assert!(validate_value_type(SystemConfigValueType::String, "anything").is_ok());
         assert!(validate_value_type(SystemConfigValueType::Multiline, "line\nline").is_ok());
     }

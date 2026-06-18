@@ -1,6 +1,9 @@
 //! AsterYggdrasil database migrations.
 #![deny(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::unreachable, clippy::expect_used)
+)]
 
 pub use sea_orm_migration::prelude::*;
 
@@ -12,6 +15,8 @@ mod m20260616_000001_yggdrasil_token_temporary_invalidation;
 mod m20260618_000001_auth_email_registration_and_invitations;
 mod m20260618_000002_add_user_must_change_password;
 mod m20260618_000003_audit_log_activity_indexes;
+mod m20260618_000004_texture_library_metadata;
+mod m20260618_000005_operator_scopes;
 mod time;
 
 pub struct Migrator;
@@ -37,6 +42,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260618_000001_auth_email_registration_and_invitations::Migration),
             Box::new(m20260618_000002_add_user_must_change_password::Migration),
             Box::new(m20260618_000003_audit_log_activity_indexes::Migration),
+            Box::new(m20260618_000004_texture_library_metadata::Migration),
+            Box::new(m20260618_000005_operator_scopes::Migration),
         ]
     }
 }

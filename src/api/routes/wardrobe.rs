@@ -3,9 +3,10 @@
 use actix_multipart::Multipart;
 use actix_web::{HttpRequest, HttpResponse, web};
 use futures::StreamExt;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use validator::Validate;
 
+use crate::api::dto::textures::{ReplaceWardrobeTextureTagsReq, UpdateWardrobeTextureReq};
 use crate::api::dto::validate_request;
 use crate::api::error_code::AsterErrorCode;
 use crate::api::pagination::{LimitOffsetQuery, OffsetPage};
@@ -14,7 +15,13 @@ use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service};
-use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
+use crate::types::{
+    MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility, NullablePatch,
+    TextureTagSearchMethod,
+};
+
+const TEXTURE_TAG_FILTER_LIMIT: usize = 16;
+const DEFAULT_TEXTURE_TAG_PAGE_SIZE: u64 = 30;
 
 #[derive(Debug, Clone, Default, Deserialize, Validate)]
 #[cfg_attr(
@@ -25,15 +32,58 @@ pub struct WardrobeTextureListQuery {
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
     pub texture_type: Option<MinecraftTextureType>,
+    #[serde(default, deserialize_with = "deserialize_tag_id_sequence")]
+    #[validate(length(max = 16, message = "tag_ids must not contain more than 16 items"))]
+    pub tag_ids: Vec<i64>,
+    #[serde(default)]
+    pub tag_search_method: TextureTagSearchMethod,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Validate)]
+#[cfg_attr(
+    all(debug_assertions, feature = "openapi"),
+    derive(utoipa::IntoParams, utoipa::ToSchema)
+)]
+pub struct TextureLibraryTagListQuery {
+    #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
+    pub keyword: Option<String>,
+}
+
+fn deserialize_tag_id_sequence<'de, D>(deserializer: D) -> std::result::Result<Vec<i64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = Option::<String>::deserialize(deserializer)?;
+    let Some(raw) = raw else {
+        return Ok(Vec::new());
+    };
+    raw.split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            value.parse::<i64>().map_err(|_| {
+                serde::de::Error::custom("tag_ids must be a comma-separated integer sequence")
+            })
+        })
+        .collect()
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/wardrobe")
+            .route("/tags", web::get().to(list_texture_library_tags))
             .route("/textures", web::get().to(list_wardrobe_textures))
             .route(
                 "/textures/{texture_type}",
                 web::post().to(upload_wardrobe_texture),
+            )
+            .route(
+                "/textures/{texture_id}",
+                web::patch().to(update_wardrobe_texture),
+            )
+            .route(
+                "/textures/{texture_id}/tags",
+                web::put().to(replace_wardrobe_texture_tags),
             )
             .route(
                 "/textures/{texture_id}",
@@ -65,6 +115,7 @@ pub async fn list_wardrobe_textures(
     let limit = page.limit_or(50, 100);
     let offset = page.offset();
     let texture_type = query.texture_type;
+    let tag_ids = normalize_tag_filter_ids(&query.tag_ids)?;
     let keyword = query
         .keyword
         .as_deref()
@@ -76,6 +127,8 @@ pub async fn list_wardrobe_textures(
         limit,
         offset,
         texture_type = ?texture_type,
+        tag_count = tag_ids.len(),
+        tag_search_method = query.tag_search_method.as_str(),
         has_keyword = keyword.is_some(),
         "listing current user wardrobe textures"
     );
@@ -86,15 +139,15 @@ pub async fn list_wardrobe_textures(
         offset,
         WardrobeTextureListFilter {
             texture_type,
+            tag_ids,
+            tag_search_method: query.tag_search_method,
             keyword,
         },
     )
     .await?;
-    let textures = page
-        .items
-        .iter()
-        .map(|texture| texture_service::wardrobe_texture_metadata(state.get_ref(), texture))
-        .collect::<Vec<_>>();
+    let textures =
+        texture_service::wardrobe_texture_metadata_by_texture_ids(state.get_ref(), &page.items)
+            .await?;
     tracing::debug!(
         user_id = user.id,
         returned = textures.len(),
@@ -107,6 +160,156 @@ pub async fn list_wardrobe_textures(
         page.limit,
         page.offset,
     ))))
+}
+
+fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
+    if tag_ids.len() > TEXTURE_TAG_FILTER_LIMIT {
+        return Err(AsterError::validation_error_code(
+            AsterErrorCode::ValidationFailed,
+            "tag_ids must not contain more than 16 items",
+        ));
+    }
+
+    let mut normalized = Vec::with_capacity(tag_ids.len());
+    for tag_id in tag_ids {
+        if *tag_id <= 0 {
+            return Err(AsterError::validation_error_code(
+                AsterErrorCode::ValidationFailed,
+                "tag_ids must contain positive integers",
+            ));
+        }
+        if !normalized.contains(tag_id) {
+            normalized.push(*tag_id);
+        }
+    }
+    Ok(normalized)
+}
+
+#[api_docs_macros::path(
+    get,
+    path = "/api/v1/wardrobe/tags",
+    tag = "profiles",
+    operation_id = "list_current_user_texture_library_tags",
+    params(LimitOffsetQuery, TextureLibraryTagListQuery),
+    responses(
+        (status = 200, description = "Administrator-managed texture library tags", body = inline(ApiResponse<OffsetPage<texture_service::MinecraftTextureTagInfo>>)),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn list_texture_library_tags(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    page: web::Query<LimitOffsetQuery>,
+    query: web::Query<TextureLibraryTagListQuery>,
+) -> Result<HttpResponse> {
+    validate_request(&*query)?;
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let limit = page.limit_or(DEFAULT_TEXTURE_TAG_PAGE_SIZE, 100);
+    let offset = page.offset();
+    let keyword = query
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    tracing::debug!(
+        user_id = user.id,
+        limit,
+        offset,
+        has_keyword = keyword.is_some(),
+        "listing administrator-managed texture library tags"
+    );
+    let page = texture_service::list_texture_library_tags_paginated(
+        state.get_ref(),
+        limit,
+        offset,
+        keyword,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
+}
+
+#[api_docs_macros::path(
+    patch,
+    path = "/api/v1/wardrobe/textures/{texture_id}",
+    tag = "profiles",
+    operation_id = "update_current_user_wardrobe_texture",
+    request_body = UpdateWardrobeTextureReq,
+    params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
+    responses(
+        (status = 200, description = "Updated wardrobe texture", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 400, description = "Invalid texture metadata"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Wardrobe texture not found"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn update_wardrobe_texture(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<i64>,
+    body: web::Json<UpdateWardrobeTextureReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let texture_id = path.into_inner();
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    tracing::debug!(
+        user_id = user.id,
+        texture_id,
+        display_name_present = body.display_name.is_some(),
+        visibility_present = body.visibility.is_some(),
+        "updating current user wardrobe texture metadata"
+    );
+    let texture = texture_service::update_wardrobe_texture_metadata(
+        state.get_ref(),
+        user.id,
+        texture_id,
+        body.display_name.clone(),
+        body.visibility,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
+}
+
+#[api_docs_macros::path(
+    put,
+    path = "/api/v1/wardrobe/textures/{texture_id}/tags",
+    tag = "profiles",
+    operation_id = "replace_current_user_wardrobe_texture_tags",
+    request_body = ReplaceWardrobeTextureTagsReq,
+    params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
+    responses(
+        (status = 200, description = "Updated wardrobe texture tags", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 400, description = "Invalid tag list"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Wardrobe texture or tag not found"),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn replace_wardrobe_texture_tags(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    path: web::Path<i64>,
+    body: web::Json<ReplaceWardrobeTextureTagsReq>,
+) -> Result<HttpResponse> {
+    validate_request(&*body)?;
+    let texture_id = path.into_inner();
+    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    tracing::debug!(
+        user_id = user.id,
+        texture_id,
+        tag_count = body.tag_ids.len(),
+        "replacing current user wardrobe texture tags"
+    );
+    let texture = texture_service::replace_wardrobe_texture_tags(
+        state.get_ref(),
+        user.id,
+        texture_id,
+        &body.tag_ids,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
 #[api_docs_macros::path(
@@ -160,6 +363,18 @@ pub async fn upload_wardrobe_texture(
     .map_err(texture_error_to_api_error);
     cleanup_upload_file(&upload.file_path).await;
     let stored = stored?;
+    let response_texture = if let Some(display_name) = upload.display_name {
+        texture_service::update_wardrobe_texture_metadata(
+            state.get_ref(),
+            user.id,
+            stored.texture.id,
+            Some(NullablePatch::Value(display_name)),
+            None,
+        )
+        .await?
+    } else {
+        texture_service::wardrobe_texture_metadata(state.get_ref(), &stored.texture)
+    };
     tracing::debug!(
         user_id = user.id,
         texture_id = stored.texture.id,
@@ -191,12 +406,7 @@ pub async fn upload_wardrobe_texture(
     )
     .await;
 
-    Ok(
-        HttpResponse::Ok().json(ApiResponse::ok(texture_service::wardrobe_texture_metadata(
-            state.get_ref(),
-            &stored.texture,
-        ))),
-    )
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(response_texture)))
 }
 
 #[api_docs_macros::path(
@@ -275,6 +485,7 @@ pub async fn delete_wardrobe_texture(
 struct ReceivedTextureUpload {
     texture_model: MinecraftTextureModel,
     visibility: MinecraftTextureVisibility,
+    display_name: Option<String>,
     file_path: std::path::PathBuf,
 }
 
@@ -288,6 +499,7 @@ async fn receive_texture_upload(
     );
     let mut texture_model = MinecraftTextureModel::Default;
     let mut visibility = MinecraftTextureVisibility::Private;
+    let mut display_name = None;
     let mut file_path = None;
     let mut field_count = 0_u64;
     tracing::debug!(
@@ -330,6 +542,10 @@ async fn receive_texture_upload(
                     visibility = ?visibility,
                     "parsed wardrobe texture visibility field"
                 );
+            }
+            Some("name") | Some("display_name") => {
+                tracing::debug!(field_count, "reading wardrobe texture display name field");
+                display_name = Some(read_small_text_field(&mut field).await?);
             }
             Some("file") => {
                 if !is_png_field(&field) {
@@ -379,11 +595,13 @@ async fn receive_texture_upload(
         texture_type = ?texture_type,
         texture_model = ?texture_model,
         visibility = ?visibility,
+        has_display_name = display_name.is_some(),
         "received wardrobe texture multipart payload"
     );
     Ok(ReceivedTextureUpload {
         texture_model,
         visibility,
+        display_name,
         file_path,
     })
 }

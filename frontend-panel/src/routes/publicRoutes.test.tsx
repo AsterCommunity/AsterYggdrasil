@@ -52,6 +52,18 @@ vi.mock("@/pages/PublicConnectPage", () => ({
 	),
 }));
 
+vi.mock("@/pages/PublicTextureLibraryPage", () => ({
+	default: () => (
+		<div data-testid="public-texture-library-page">texture library route</div>
+	),
+}));
+
+vi.mock("@/pages/PublicTextureDetailPage", () => ({
+	default: () => (
+		<div data-testid="public-texture-detail-page">texture detail route</div>
+	),
+}));
+
 vi.mock("@/pages/TermsPage", () => ({
 	default: () => <div data-testid="terms-page">terms route</div>,
 }));
@@ -127,6 +139,8 @@ describe("fixed public routes", () => {
 	it("keeps the fixed public route paths explicit", () => {
 		expect(publicRoutes.map((route) => route.path)).toEqual([
 			publicPaths.home,
+			publicPaths.textureLibrary,
+			publicPaths.textureLibraryDetail,
 			publicPaths.tos,
 			publicPaths.privacy,
 		]);
@@ -141,6 +155,8 @@ describe("fixed public routes", () => {
 
 	it.each([
 		[publicPaths.home, "public-connect-page"],
+		[publicPaths.textureLibrary, "public-texture-library-page"],
+		["/textures/21", "public-texture-detail-page"],
 		[publicPaths.tos, "terms-page"],
 		[publicPaths.privacy, "privacy-page"],
 		[publicPaths.login, "login-page"],
@@ -167,6 +183,8 @@ describe("fixed public routes", () => {
 
 	it.each([
 		publicPaths.home,
+		publicPaths.textureLibrary,
+		"/textures/21",
 		publicPaths.tos,
 		publicPaths.privacy,
 		publicPaths.login,
@@ -183,6 +201,9 @@ describe("fixed public routes", () => {
 			publicPaths.init,
 		);
 		expect(screen.queryByTestId("public-connect-page")).not.toBeInTheDocument();
+		expect(
+			screen.queryByTestId("public-texture-library-page"),
+		).not.toBeInTheDocument();
 		expect(screen.queryByTestId("terms-page")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("privacy-page")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();

@@ -26,6 +26,7 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 			set: vi.fn(),
 			templateVariables: vi.fn(),
 			sendTestEmail: vi.fn(),
+			previewCaptcha: vi.fn(),
 			rotateYggdrasilSignatureKey: vi.fn(),
 		},
 	};
@@ -229,6 +230,7 @@ describe("AdminSettingsPage", () => {
 		vi.mocked(adminConfigService.set).mockReset();
 		vi.mocked(adminConfigService.templateVariables).mockReset();
 		vi.mocked(adminConfigService.sendTestEmail).mockReset();
+		vi.mocked(adminConfigService.previewCaptcha).mockReset();
 		vi.mocked(adminConfigService.rotateYggdrasilSignatureKey).mockReset();
 	});
 

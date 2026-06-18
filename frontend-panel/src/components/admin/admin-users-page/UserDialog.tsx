@@ -21,12 +21,22 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { emailSchema, passwordSchema, usernameSchema } from "@/lib/validation";
-import type { CreateAdminUserRequest, UserRole, UserStatus } from "@/types/api";
+import type {
+	CreateAdminUserRequest,
+	OperatorScope,
+	UserRole,
+	UserStatus,
+} from "@/types/api";
+import {
+	AdminScopePolicyNote,
+	OperatorScopeSelector,
+} from "./OperatorScopeSelector";
 import { RoleBadge, StatusBadge } from "./UsersTable";
 
 type UserForm = {
 	email: string;
 	mustChangePassword: boolean;
+	operatorScopes: OperatorScope[];
 	password: string;
 	role: UserRole;
 	status: UserStatus;
@@ -40,6 +50,7 @@ type UserFormErrors = Partial<
 const emptyForm: UserForm = {
 	email: "",
 	mustChangePassword: false,
+	operatorScopes: [],
 	password: "",
 	role: "user",
 	status: "active",
@@ -101,6 +112,7 @@ function UserDialogForm({
 	const [errors, setErrors] = useState<UserFormErrors>({});
 	const roleOptions = [
 		{ label: t("admin.users.role.user"), value: "user" },
+		{ label: t("admin.users.role.operator"), value: "operator" },
 		{ label: t("admin.users.role.admin"), value: "admin" },
 	];
 	const statusOptions = [
@@ -154,6 +166,8 @@ function UserDialogForm({
 			password: next.password || null,
 			must_change_password: form.mustChangePassword,
 			role: form.role,
+			operator_scopes:
+				form.role === "operator" ? form.operatorScopes : undefined,
 			status: form.status,
 			username: next.username,
 		});
@@ -241,6 +255,11 @@ function UserDialogForm({
 									<RoleBadge userRole="user" />
 								</span>
 							</SelectItem>
+							<SelectItem value="operator">
+								<span className="flex items-center gap-2">
+									<RoleBadge userRole="operator" />
+								</span>
+							</SelectItem>
 							<SelectItem value="admin">
 								<span className="flex items-center gap-2">
 									<RoleBadge userRole="admin" />
@@ -249,6 +268,21 @@ function UserDialogForm({
 						</SelectContent>
 					</Select>
 				</Field>
+				{form.role === "operator" ? (
+					<div className="md:col-span-2">
+						<OperatorScopeSelector
+							value={form.operatorScopes}
+							onChange={(operatorScopes) =>
+								setForm((current) => ({ ...current, operatorScopes }))
+							}
+						/>
+					</div>
+				) : null}
+				{form.role === "admin" ? (
+					<div className="md:col-span-2">
+						<AdminScopePolicyNote />
+					</div>
+				) : null}
 				<Field label={t("admin.users.statusLabel")}>
 					<Select
 						items={statusOptions}

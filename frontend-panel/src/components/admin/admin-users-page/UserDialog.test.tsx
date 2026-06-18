@@ -95,4 +95,14 @@ describe("UserDialog", () => {
 			expect.objectContaining({ must_change_password: true }),
 		);
 	});
+
+	it("offers the operator role option for scoped admin access", async () => {
+		renderDialog();
+
+		fireEvent.click(screen.getAllByRole("combobox")[0]);
+
+		expect(
+			await screen.findByRole("option", { name: "Operator" }),
+		).toBeInTheDocument();
+	});
 });

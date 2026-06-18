@@ -58,7 +58,7 @@ fn gravatar_url(email: &str, size: u32, base_url: &str) -> String {
 fn avatar_api_path(user_id: i64, version: i32, size: u32, audience: AvatarAudience) -> String {
     match audience {
         AvatarAudience::SelfUser => format!("/auth/profile/avatar/{size}?v={version}"),
-        AvatarAudience::AdminUser => format!("/admin/users/{user_id}/avatar/{size}?v={version}"),
+        AvatarAudience::AdminUser => format!("/admin/avatars/users/{user_id}/{size}?v={version}"),
     }
 }
 

@@ -13,6 +13,7 @@ function user(overrides: Partial<AdminUserInfo> = {}): AdminUserInfo {
 		username: "alex",
 		email: "alex@example.com",
 		pending_email: null,
+		operator_scopes: [],
 		role: "user",
 		status: "active",
 		must_change_password: false,
@@ -93,6 +94,13 @@ describe("UsersTableRow", () => {
 		expect(screen.getByText("fallback")).toBeInTheDocument();
 		expect(screen.getByText("fallback@example.com")).toBeInTheDocument();
 		expect(screen.getByText("FA")).toBeInTheDocument();
+	});
+
+	it("renders the operator role badge distinctly", () => {
+		renderRow(user({ role: "operator" }));
+
+		expect(screen.getByText("Operator")).toBeInTheDocument();
+		expect(screen.queryByText("User")).not.toBeInTheDocument();
 	});
 
 	it("opens details from row keyboard and click interactions", () => {

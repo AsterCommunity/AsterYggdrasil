@@ -92,3 +92,47 @@ impl MinecraftTextureVisibility {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(24))")]
+#[serde(rename_all = "snake_case")]
+pub enum MinecraftTextureLibraryStatus {
+    #[sea_orm(string_value = "private")]
+    Private,
+    #[sea_orm(string_value = "pending_review")]
+    PendingReview,
+    #[sea_orm(string_value = "published")]
+    Published,
+    #[sea_orm(string_value = "rejected")]
+    Rejected,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum TextureTagSearchMethod {
+    #[default]
+    All,
+    Any,
+}
+
+impl TextureTagSearchMethod {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Any => "any",
+        }
+    }
+}
+
+impl MinecraftTextureLibraryStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Private => "private",
+            Self::PendingReview => "pending_review",
+            Self::Published => "published",
+            Self::Rejected => "rejected",
+        }
+    }
+}

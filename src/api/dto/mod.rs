@@ -22,10 +22,13 @@ pub use auth::{
     AcceptUserInvitationReq, ActionMessageResp, ChangePasswordReq, CheckResp,
     ContactVerificationConfirmQuery, LoginReq, LogoutReq, LogoutResp, PasskeyLoginFinishReq,
     PasskeyLoginStartReq, PasskeyRegisterFinishReq, PasskeyRegisterStartReq,
-    PasswordResetConfirmReq, PasswordResetRequestReq, PatchPasskeyReq, RefreshReq, RegisterReq,
-    RequestEmailChangeReq, ResendRegisterActivationReq, SetupReq, UpdateAvatarSourceReq,
-    UpdateProfileReq,
+    PasswordResetConfirmReq, PasswordResetRequestReq, PatchPasskeyReq, PublicCaptchaPolicyResp,
+    RefreshReq, RegisterReq, RequestEmailChangeReq, ResendRegisterActivationReq, SetupReq,
+    UpdateAvatarSourceReq, UpdateProfileReq,
 };
 pub use external_auth::{ExternalAuthCallbackQuery, StartExternalAuthReq};
-pub use textures::BindMinecraftTextureReq;
+pub use textures::{
+    BindMinecraftTextureReq, CopyPublicTextureReq, CreateMinecraftTextureTagReq,
+    ReplaceWardrobeTextureTagsReq, UpdateMinecraftTextureTagReq, UpdateWardrobeTextureReq,
+};
 pub(crate) use validation::validate_request;

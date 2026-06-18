@@ -1,5 +1,6 @@
 import {
 	type Dispatch,
+	useCallback,
 	useEffect,
 	useMemo,
 	useReducer,
@@ -243,6 +244,7 @@ const categoryOrder = [
 	"network",
 	"mail",
 	"yggdrasil",
+	"texture",
 	"runtime",
 	"audit",
 ] as const;
@@ -253,6 +255,12 @@ const categoryMeta: Record<string, CategoryMeta> = {
 		icon: "Key",
 		labelKey: "settings_category_yggdrasil",
 		descriptionKey: "settings_category_yggdrasil_desc",
+	},
+	texture: {
+		id: "texture",
+		icon: "Images",
+		labelKey: "settings_category_texture",
+		descriptionKey: "settings_category_texture_desc",
 	},
 	auth: {
 		id: "auth",
@@ -939,6 +947,9 @@ function SettingsGroup({
 				</div>
 			) : (
 				<div className="divide-y divide-border/70 dark:divide-white/10">
+					{category === "auth.captcha" ? (
+						<CaptchaPreviewPanel configs={configs} drafts={drafts} />
+					) : null}
 					{configs.map((config) => (
 						<SettingRow
 							key={config.key}
@@ -1083,6 +1094,97 @@ function getSettingsGroupAction({
 	}
 
 	return null;
+}
+
+function CaptchaPreviewPanel({
+	configs,
+	drafts,
+}: {
+	configs: SystemConfig[];
+	drafts: Record<string, DraftValue>;
+}) {
+	const { t } = useTranslation();
+	const [imageBase64, setImageBase64] = useState<string | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const previewValues = useMemo(
+		() => buildCaptchaPreviewValues(configs, drafts),
+		[configs, drafts],
+	);
+	const previewValuesRef = useRef(previewValues);
+
+	useEffect(() => {
+		previewValuesRef.current = previewValues;
+	}, [previewValues]);
+
+	const refresh = useCallback(async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			const result = await adminConfigService.previewCaptcha(
+				previewValuesRef.current,
+			);
+			setImageBase64(result.value ?? null);
+		} catch (nextError) {
+			setImageBase64(null);
+			setError(formatError(nextError));
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		void refresh();
+	}, [refresh]);
+
+	return (
+		<div className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(16rem,0.72fr)_minmax(0,1fr)] lg:items-start">
+			<div className="min-w-0">
+				<div className="flex flex-wrap items-center gap-2">
+					<Label className="text-sm font-semibold">
+						{t("settings_auth_captcha_preview_label")}
+					</Label>
+				</div>
+				<p className="mt-1 text-sm leading-6 text-muted-foreground">
+					{t("settings_auth_captcha_preview_desc")}
+				</p>
+			</div>
+			<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+				<div className="flex h-16 w-full max-w-[13.5rem] items-center justify-start overflow-hidden bg-transparent">
+					{loading ? (
+						<Icon
+							name="Spinner"
+							className="size-5 animate-spin text-muted-foreground"
+						/>
+					) : imageBase64 ? (
+						<img
+							src={imageBase64}
+							alt={t("login.captchaImageAlt")}
+							className="h-full max-w-full object-contain"
+							draggable={false}
+						/>
+					) : (
+						<span className="text-xs text-muted-foreground">
+							{error ?? t("login.captchaUnavailable")}
+						</span>
+					)}
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={loading}
+					onClick={() => void refresh()}
+				>
+					<Icon
+						name={loading ? "Spinner" : "RefreshCw"}
+						className={cn("size-4", loading && "animate-spin")}
+					/>
+					{t("settings_auth_captcha_preview_refresh")}
+				</Button>
+			</div>
+		</div>
+	);
 }
 
 function MailTemplateVariablesDialog({
@@ -1349,6 +1451,15 @@ function SettingControl({
 	if (config.value_type === "number") {
 		return <NumberControl config={config} draft={draft} onChange={onChange} />;
 	}
+	if (config.value_type === "string_enum") {
+		return (
+			<StringEnumControl
+				draft={draft}
+				options={schema?.options ?? []}
+				onChange={onChange}
+			/>
+		);
+	}
 	if (config.value_type === "string_enum_set") {
 		return (
 			<EnumSetControl
@@ -1511,10 +1622,11 @@ function EnumSetControl({
 	const { t } = useTranslation();
 	const [filter, setFilter] = useState("");
 	const selected = new Set(draft.array);
+	const normalizedFilter = filter.trim().toLowerCase();
 	const visibleOptions = options.filter((option) =>
 		`${option.value} ${translateOrFallback(t, option.label_i18n_key, option.value)}`
 			.toLowerCase()
-			.includes(filter.trim().toLowerCase()),
+			.includes(normalizedFilter),
 	);
 
 	return (
@@ -1544,8 +1656,11 @@ function EnumSetControl({
 							size="xs"
 							onClick={() => {
 								const next = new Set(selected);
-								if (active) next.delete(option.value);
-								else next.add(option.value);
+								if (active) {
+									next.delete(option.value);
+								} else {
+									next.add(option.value);
+								}
 								onChange({ ...draft, array: Array.from(next).sort() });
 							}}
 							className={cn(
@@ -1560,6 +1675,46 @@ function EnumSetControl({
 					);
 				})}
 			</div>
+		</div>
+	);
+}
+
+function StringEnumControl({
+	draft,
+	onChange,
+	options,
+}: {
+	draft: DraftValue;
+	onChange: (draft: DraftValue) => void;
+	options: NonNullable<ConfigSchemaItem["options"]>;
+}) {
+	const { t } = useTranslation();
+	const selected = draft.text.trim();
+
+	return (
+		<div className="flex max-h-72 flex-wrap gap-2 overflow-auto rounded-lg border border-border/70 bg-muted/15 p-2 dark:border-white/10">
+			{options.map((option) => {
+				const active = selected === option.value;
+				return (
+					<Button
+						key={option.value}
+						type="button"
+						variant={active ? "default" : "outline"}
+						size="xs"
+						onClick={() =>
+							onChange({ ...draft, text: option.value, array: [] })
+						}
+						className={cn(
+							"max-w-full whitespace-normal",
+							active
+								? "dark:border-emerald-400/40 dark:bg-emerald-400/20 dark:text-emerald-100"
+								: "text-muted-foreground",
+						)}
+					>
+						{translateOrFallback(t, option.label_i18n_key, option.value)}
+					</Button>
+				);
+			})}
 		</div>
 	);
 }
@@ -2047,6 +2202,21 @@ function buildSetConfigRequest(
 	}
 
 	return { value };
+}
+
+function buildCaptchaPreviewValues(
+	configs: SystemConfig[],
+	drafts: Record<string, DraftValue>,
+): Record<string, SystemConfigValue> {
+	return Object.fromEntries(
+		configs.map((config) => [
+			config.key,
+			draftToValue(
+				config.value_type,
+				drafts[config.key] ?? configToDraft(config),
+			),
+		]),
+	);
 }
 
 function getTimeConfigBaseUnit(

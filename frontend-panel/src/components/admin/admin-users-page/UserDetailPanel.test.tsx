@@ -26,6 +26,7 @@ const user = {
 	email_verified_at: null,
 	id: 7,
 	must_change_password: false,
+	operator_scopes: [],
 	profile: {
 		avatar: { source: "none", url_1024: null, url_512: null, version: 0 },
 		display_name: "Alex",
@@ -98,8 +99,8 @@ describe("UserDetailPanel", () => {
 			profile: {
 				avatar: {
 					source: "custom",
-					url_1024: "/api/v1/users/7/avatar/1024",
-					url_512: "/api/v1/users/7/avatar/512",
+					url_1024: "/admin/avatars/users/7/1024",
+					url_512: "/admin/avatars/users/7/512",
 					version: 2,
 				},
 				display_name: "ESAP",
@@ -110,7 +111,7 @@ describe("UserDetailPanel", () => {
 
 		expect(screen.getByRole("img", { name: "ESAP" })).toHaveAttribute(
 			"src",
-			expect.stringContaining("/api/v1/users/7/avatar/512"),
+			expect.stringContaining("/api/v1/admin/avatars/users/7/512"),
 		);
 		expect(screen.getByText("@alex · alex@example.com")).toBeInTheDocument();
 		expect(
@@ -319,6 +320,20 @@ describe("UserDetailPanel", () => {
 		fireEvent.click(saveButton);
 
 		expect(onUpdate).toHaveBeenCalledWith(7, { username: "alex_next" });
+	});
+
+	it("saves operator scope changes without rewriting unchanged profile fields", async () => {
+		const { onUpdate } = renderPanel({
+			role: "operator",
+			operator_scopes: ["users"],
+		});
+
+		fireEvent.click(screen.getByRole("switch", { name: "材质库" }));
+		fireEvent.click(screen.getByRole("button", { name: "保存更改" }));
+
+		expect(onUpdate).toHaveBeenCalledWith(7, {
+			operator_scopes: ["users", "texture_library"],
+		});
 	});
 
 	it("locks super admin role and status controls", () => {

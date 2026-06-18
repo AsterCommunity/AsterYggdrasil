@@ -1,14 +1,23 @@
+use std::collections::{BTreeSet, HashMap};
+
 use tokio_util::io::ReaderStream;
 
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
-use crate::db::repository::{minecraft_profile_texture_repo, minecraft_texture_repo};
-use crate::entities::{minecraft_profile, minecraft_texture};
+use crate::db::repository::{
+    minecraft_profile_texture_repo, minecraft_texture_repo, minecraft_texture_tag_repo,
+    user_profile_repo, user_repo,
+};
+use crate::entities::{
+    minecraft_profile, minecraft_texture, minecraft_texture_tag, user, user_profile,
+};
 use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
 
 use super::{
-    MinecraftTextureMetadata, MinecraftTextureMetadataSource, MinecraftWardrobeTextureMetadata,
-    TEXTURE_CACHE_CONTROL, TextureBlob, TextureDownload, default_skin, is_valid_texture_hash,
+    MinecraftTextureMetadata, MinecraftTextureMetadataSource, MinecraftTextureTagInfo,
+    MinecraftTextureUploaderInfo, MinecraftWardrobeTextureMetadata,
+    PublicTextureLibraryTextureMetadata, TEXTURE_CACHE_CONTROL, TextureBlob, TextureDownload,
+    default_skin, is_valid_texture_hash,
 };
 
 pub async fn texture_by_hash<S: DatabaseRuntimeState>(
@@ -153,6 +162,12 @@ where
             &texture.texture.hash,
             &texture.texture.storage_key,
         ),
+        preview_url: super::current_texture_preview_url(
+            state.runtime_config(),
+            &texture.texture.hash,
+            texture.binding.texture_type,
+            texture.texture.texture_model,
+        ),
         source: MinecraftTextureMetadataSource::Bound,
         created_at: texture.binding.created_at,
         updated_at: texture.binding.updated_at,
@@ -190,6 +205,12 @@ where
         file_size,
         mime_type: "image/png".to_string(),
         url: crate::services::yggdrasil_signature::texture_base_url(&policy, skin.hash),
+        preview_url: super::current_texture_preview_url(
+            state.runtime_config(),
+            skin.hash,
+            crate::types::MinecraftTextureType::Skin,
+            skin.model,
+        ),
         source: MinecraftTextureMetadataSource::Default,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
@@ -203,13 +224,28 @@ pub fn wardrobe_texture_metadata<S>(
 where
     S: RuntimeConfigRuntimeState,
 {
+    wardrobe_texture_metadata_with_tags(state, texture, Vec::new())
+}
+
+pub fn wardrobe_texture_metadata_with_tags<S>(
+    state: &S,
+    texture: &minecraft_texture::Model,
+    tags: Vec<minecraft_texture_tag::Model>,
+) -> MinecraftWardrobeTextureMetadata
+where
+    S: RuntimeConfigRuntimeState,
+{
     let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
     MinecraftWardrobeTextureMetadata {
         id: texture.id,
+        name: texture_display_name(texture),
+        display_name: texture.display_name.clone(),
         hash: texture.hash.clone(),
         texture_type: texture.texture_type,
         texture_model: texture.texture_model,
         visibility: texture.visibility,
+        library_status: texture.library_status,
+        tags: tags.into_iter().map(texture_tag_info).collect(),
         width: texture.width,
         height: texture.height,
         file_size: texture.file_size,
@@ -219,7 +255,177 @@ where
             &texture.hash,
             &texture.storage_key,
         ),
+        preview_url: super::current_texture_preview_url(
+            state.runtime_config(),
+            &texture.hash,
+            texture.texture_type,
+            texture.texture_model,
+        ),
         created_at: texture.created_at,
         updated_at: texture.updated_at,
+    }
+}
+
+fn texture_display_name(texture: &minecraft_texture::Model) -> String {
+    texture
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| texture.hash.chars().take(16).collect())
+}
+
+pub async fn wardrobe_texture_metadata_by_texture_ids<S>(
+    state: &S,
+    textures: &[minecraft_texture::Model],
+) -> Result<Vec<MinecraftWardrobeTextureMetadata>>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let texture_ids = textures
+        .iter()
+        .map(|texture| texture.id)
+        .collect::<Vec<_>>();
+    let mut tags_by_texture =
+        minecraft_texture_tag_repo::list_for_texture_ids(state.reader_db(), &texture_ids).await?;
+    Ok(textures
+        .iter()
+        .map(|texture| {
+            wardrobe_texture_metadata_with_tags(
+                state,
+                texture,
+                tags_by_texture.remove(&texture.id).unwrap_or_default(),
+            )
+        })
+        .collect())
+}
+
+pub async fn public_texture_library_metadata_by_texture_ids<S>(
+    state: &S,
+    textures: &[minecraft_texture::Model],
+) -> Result<Vec<PublicTextureLibraryTextureMetadata>>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let texture_ids = textures
+        .iter()
+        .map(|texture| texture.id)
+        .collect::<Vec<_>>();
+    let user_ids = textures
+        .iter()
+        .map(|texture| texture.user_id)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let mut tags_by_texture =
+        minecraft_texture_tag_repo::list_for_texture_ids(state.reader_db(), &texture_ids).await?;
+    let users = user_repo::find_by_ids(state.reader_db(), &user_ids).await?;
+    let profiles = user_profile_repo::find_by_user_ids(state.reader_db(), &user_ids).await?;
+    let users_by_id = users
+        .into_iter()
+        .map(|user| (user.id, user))
+        .collect::<HashMap<_, _>>();
+
+    Ok(textures
+        .iter()
+        .map(|texture| {
+            public_texture_library_metadata_with_tags(
+                state,
+                texture,
+                tags_by_texture.remove(&texture.id).unwrap_or_default(),
+                users_by_id.get(&texture.user_id),
+                profiles.get(&texture.user_id),
+            )
+        })
+        .collect())
+}
+
+pub async fn public_texture_library_metadata<S>(
+    state: &S,
+    texture: &minecraft_texture::Model,
+) -> Result<PublicTextureLibraryTextureMetadata>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let tags = minecraft_texture_tag_repo::list_for_texture(state.reader_db(), texture.id).await?;
+    let uploader = user_repo::find_by_id(state.reader_db(), texture.user_id).await?;
+    let uploader_profile =
+        user_profile_repo::find_by_user_id(state.reader_db(), texture.user_id).await?;
+    Ok(public_texture_library_metadata_with_tags(
+        state,
+        texture,
+        tags,
+        Some(&uploader),
+        uploader_profile.as_ref(),
+    ))
+}
+
+fn public_texture_library_metadata_with_tags<S>(
+    state: &S,
+    texture: &minecraft_texture::Model,
+    tags: Vec<minecraft_texture_tag::Model>,
+    uploader: Option<&user::Model>,
+    uploader_profile: Option<&user_profile::Model>,
+) -> PublicTextureLibraryTextureMetadata
+where
+    S: RuntimeConfigRuntimeState,
+{
+    let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+    PublicTextureLibraryTextureMetadata {
+        id: texture.id,
+        name: texture_display_name(texture),
+        display_name: texture.display_name.clone(),
+        hash: texture.hash.clone(),
+        texture_type: texture.texture_type,
+        texture_model: texture.texture_model,
+        visibility: texture.visibility,
+        library_status: texture.library_status,
+        tags: tags.into_iter().map(texture_tag_info).collect(),
+        uploader: uploader.map(|user| texture_uploader_info(user, uploader_profile)),
+        width: texture.width,
+        height: texture.height,
+        file_size: texture.file_size,
+        mime_type: texture.mime_type.clone(),
+        url: crate::services::yggdrasil_signature::texture_object_url(
+            &policy,
+            &texture.hash,
+            &texture.storage_key,
+        ),
+        preview_url: super::current_texture_preview_url(
+            state.runtime_config(),
+            &texture.hash,
+            texture.texture_type,
+            texture.texture_model,
+        ),
+        created_at: texture.created_at,
+        updated_at: texture.updated_at,
+    }
+}
+
+fn texture_uploader_info(
+    user: &user::Model,
+    profile: Option<&user_profile::Model>,
+) -> MinecraftTextureUploaderInfo {
+    let name = profile
+        .and_then(|profile| profile.display_name.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&user.username)
+        .to_owned();
+    MinecraftTextureUploaderInfo {
+        public_uuid: user.public_uuid.clone(),
+        name,
+    }
+}
+
+pub fn texture_tag_info(tag: minecraft_texture_tag::Model) -> MinecraftTextureTagInfo {
+    MinecraftTextureTagInfo {
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        sort_order: tag.sort_order,
+        created_at: tag.created_at,
+        updated_at: tag.updated_at,
     }
 }

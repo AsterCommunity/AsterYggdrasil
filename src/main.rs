@@ -1,6 +1,9 @@
 //! AsterYggdrasil service entrypoint.
 #![deny(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::unreachable, clippy::expect_used)
+)]
 
 use actix_web::{App, HttpServer, middleware, web};
 use tokio_util::sync::CancellationToken;

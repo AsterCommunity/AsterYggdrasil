@@ -51,6 +51,7 @@ import {
 	PiGridFour,
 	PiHardDrive,
 	PiHouse,
+	PiImages,
 	PiInfo,
 	PiKey,
 	PiLaptop,
@@ -157,6 +158,7 @@ export type IconName =
 	| "HardDrive"
 	| "House"
 	| "Info"
+	| "Images"
 	| "Key"
 	| "Laptop"
 	| "Link"
@@ -180,6 +182,7 @@ export type IconName =
 	| "Power"
 	| "Presentation"
 	| "Queue"
+	| "RefreshCw"
 	| "Repeat"
 	| "RepeatOnce"
 	| "Scale"
@@ -262,6 +265,7 @@ const iconMap: Record<IconName, ComponentType<{ className?: string }>> = {
 	HardDrive: PiHardDrive,
 	House: PiHouse,
 	Info: PiInfo,
+	Images: PiImages,
 	Key: PiKey,
 	Laptop: PiLaptop,
 	Link: PiLink,
@@ -285,6 +289,7 @@ const iconMap: Record<IconName, ComponentType<{ className?: string }>> = {
 	Power: PiPower,
 	Presentation: PiPresentation,
 	Queue: PiQueue,
+	RefreshCw: PiArrowsClockwise,
 	Repeat: PiRepeat,
 	RepeatOnce: PiRepeatOnce,
 	Scale: LuScale,

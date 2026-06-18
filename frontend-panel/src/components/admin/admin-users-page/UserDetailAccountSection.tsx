@@ -7,29 +7,37 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { UserRole, UserStatus } from "@/types/api";
+import type { OperatorScope, UserRole, UserStatus } from "@/types/api";
+import {
+	AdminScopePolicyNote,
+	OperatorScopeSelector,
+} from "./OperatorScopeSelector";
 import { UserDetailField } from "./UserDetailField";
 import { RoleBadge, StatusBadge } from "./UsersTable";
 
 export function UserDetailAccountSection({
 	email,
+	operatorScopes,
 	role,
 	roleStatusLocked,
 	savingProfile,
 	status,
 	username,
 	onEmailChange,
+	onOperatorScopesChange,
 	onRoleChange,
 	onStatusChange,
 	onUsernameChange,
 }: {
 	email: string;
+	operatorScopes: OperatorScope[];
 	role: UserRole;
 	roleStatusLocked: boolean;
 	savingProfile: boolean;
 	status: UserStatus;
 	username: string;
 	onEmailChange: (value: string) => void;
+	onOperatorScopesChange: (value: OperatorScope[]) => void;
 	onRoleChange: (value: UserRole) => void;
 	onStatusChange: (value: UserStatus) => void;
 	onUsernameChange: (value: string) => void;
@@ -74,13 +82,16 @@ export function UserDetailAccountSection({
 						>
 							<SelectValue>
 								{(value: UserRole | null) => (
-									<RoleBadge userRole={value === "admin" ? "admin" : "user"} />
+									<RoleBadge userRole={value ?? "user"} />
 								)}
 							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="user">
 								<RoleBadge userRole="user" />
+							</SelectItem>
+							<SelectItem value="operator">
+								<RoleBadge userRole="operator" />
 							</SelectItem>
 							<SelectItem value="admin">
 								<RoleBadge userRole="admin" />
@@ -115,6 +126,20 @@ export function UserDetailAccountSection({
 						</SelectContent>
 					</Select>
 				</UserDetailField>
+				{role === "operator" ? (
+					<div className="md:col-span-2">
+						<OperatorScopeSelector
+							disabled={savingProfile || roleStatusLocked}
+							value={operatorScopes}
+							onChange={onOperatorScopesChange}
+						/>
+					</div>
+				) : null}
+				{role === "admin" ? (
+					<div className="md:col-span-2">
+						<AdminScopePolicyNote />
+					</div>
+				) : null}
 			</div>
 		</section>
 	);

@@ -57,6 +57,7 @@ export function AppLayout({ scope }: { scope?: ShellScope }) {
 	const navigate = useNavigate();
 	const user = useAuthStore((state) => state.user);
 	const isAdmin = useAuthStore((state) => state.isAdmin);
+	const operatorScopes = useAuthStore((state) => state.operatorScopes);
 	const logout = useAuthStore((state) => state.logout);
 	const branding = useFrontendConfigStore((state) => state.branding);
 	const pathname = location.pathname;
@@ -138,6 +139,7 @@ export function AppLayout({ scope }: { scope?: ShellScope }) {
 					branding={branding}
 					desktopCollapsed={!desktopSidebarExpanded}
 					isAdmin={isAdmin}
+					operatorScopes={operatorScopes}
 					mobileOpen={mobileSidebarOpen}
 					onMobileClose={handleMobileSidebarClose}
 				/>

@@ -3,6 +3,7 @@
 mod default_skin;
 mod error;
 mod maintenance;
+mod preview;
 mod processing;
 mod query;
 mod types;
@@ -20,27 +21,39 @@ pub use maintenance::{
     ObjectStorageConsistencyReport, OrphanTextureCleanupResult, check_object_storage_consistency,
     cleanup_orphan_texture_blobs,
 };
+pub use preview::{
+    TEXTURE_PREVIEW_CACHE_CONTROL, TexturePreviewBytes, current_texture_preview_url,
+    texture_preview_by_hash,
+};
 pub use processing::{TextureProcessingResult, process_texture_file, sanitize_png_texture};
 pub use query::{
-    default_skin_metadata, download_texture, download_texture_blob, texture_blob_by_hash,
-    texture_by_hash, texture_metadata, texture_metadata_for_profile, textures_for_profile,
-    wardrobe_texture_metadata,
+    default_skin_metadata, download_texture, download_texture_blob,
+    public_texture_library_metadata, public_texture_library_metadata_by_texture_ids,
+    texture_blob_by_hash, texture_by_hash, texture_metadata, texture_metadata_for_profile,
+    texture_tag_info, textures_for_profile, wardrobe_texture_metadata,
+    wardrobe_texture_metadata_by_texture_ids, wardrobe_texture_metadata_with_tags,
 };
 pub use types::{
     DeletedMinecraftTexture, MinecraftTextureMetadata, MinecraftTextureMetadataSource,
-    MinecraftWardrobeTextureMetadata, StoredTexture, StoredWardrobeTexture, TextureBlob,
+    MinecraftTextureTagInfo, MinecraftTextureUploaderInfo, MinecraftWardrobeTextureMetadata,
+    PublicTextureLibraryTextureMetadata, StoredTexture, StoredWardrobeTexture, TextureBlob,
     TextureDownload, WardrobeRegistrationResult,
 };
 
 use crate::api::pagination::OffsetPage;
 use crate::db::repository::{
     minecraft_profile_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
+    minecraft_texture_tag_repo,
 };
 use crate::entities::{minecraft_profile, minecraft_texture, yggdrasil_token};
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
-use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
+use crate::types::{
+    MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility, NullablePatch,
+};
 use futures::StreamExt;
+use serde::Serialize;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
@@ -65,6 +78,284 @@ pub fn parse_skin_model(
             "Invalid skin model.",
         )),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+pub struct MinecraftTextureTagMutationResult {
+    pub tag: MinecraftTextureTagInfo,
+}
+
+pub async fn list_texture_library_tags<S: DatabaseRuntimeState>(
+    state: &S,
+) -> Result<Vec<MinecraftTextureTagInfo>> {
+    let tags = minecraft_texture_tag_repo::list(state.reader_db()).await?;
+    Ok(tags.into_iter().map(texture_tag_info).collect())
+}
+
+pub async fn list_texture_library_tags_paginated<S: DatabaseRuntimeState>(
+    state: &S,
+    limit: u64,
+    offset: u64,
+    keyword: Option<String>,
+) -> Result<OffsetPage<MinecraftTextureTagInfo>> {
+    let page = minecraft_texture_tag_repo::list_paginated(
+        state.reader_db(),
+        limit,
+        offset,
+        minecraft_texture_tag_repo::MinecraftTextureTagListFilter { keyword },
+    )
+    .await?;
+    Ok(OffsetPage::new(
+        page.items.into_iter().map(texture_tag_info).collect(),
+        page.total,
+        page.limit,
+        page.offset,
+    ))
+}
+
+pub async fn create_texture_library_tag<S: DatabaseRuntimeState>(
+    state: &S,
+    name: &str,
+    color: &str,
+    sort_order: Option<i32>,
+) -> Result<MinecraftTextureTagInfo> {
+    let (name, normalized_name) = normalize_texture_tag_name(name)?;
+    let color = normalize_texture_tag_color(color)?;
+    if minecraft_texture_tag_repo::find_by_normalized_name(state.reader_db(), &normalized_name)
+        .await?
+        .is_some()
+    {
+        return Err(AsterError::validation_error_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTagNameTaken,
+            "texture library tag name already exists",
+        ));
+    }
+    let tag = minecraft_texture_tag_repo::create(
+        state.writer_db(),
+        minecraft_texture_tag_repo::CreateMinecraftTextureTag {
+            name: &name,
+            normalized_name: &normalized_name,
+            color: &color,
+            sort_order: sort_order.unwrap_or(0),
+        },
+    )
+    .await?;
+    Ok(texture_tag_info(tag))
+}
+
+pub async fn update_texture_library_tag<S: DatabaseRuntimeState>(
+    state: &S,
+    tag_id: i64,
+    name: Option<&str>,
+    color: Option<&str>,
+    sort_order: Option<i32>,
+) -> Result<MinecraftTextureTagInfo> {
+    let tag = minecraft_texture_tag_repo::find_by_id(state.reader_db(), tag_id)
+        .await?
+        .ok_or_else(|| {
+            AsterError::record_not_found_code(
+                crate::api::error_code::AsterErrorCode::TextureLibraryTagNotFound,
+                format!("texture library tag '{tag_id}'"),
+            )
+        })?;
+    let (name, normalized_name) = match name {
+        Some(name) => {
+            let (name, normalized_name) = normalize_texture_tag_name(name)?;
+            if let Some(existing) = minecraft_texture_tag_repo::find_by_normalized_name(
+                state.reader_db(),
+                &normalized_name,
+            )
+            .await?
+                && existing.id != tag.id
+            {
+                return Err(AsterError::validation_error_code(
+                    crate::api::error_code::AsterErrorCode::TextureLibraryTagNameTaken,
+                    "texture library tag name already exists",
+                ));
+            }
+            (Some(name), Some(normalized_name))
+        }
+        None => (None, None),
+    };
+    let color = color.map(normalize_texture_tag_color).transpose()?;
+    let tag = minecraft_texture_tag_repo::update(
+        state.writer_db(),
+        tag,
+        minecraft_texture_tag_repo::UpdateMinecraftTextureTag {
+            name,
+            normalized_name,
+            color,
+            sort_order,
+        },
+    )
+    .await?;
+    Ok(texture_tag_info(tag))
+}
+
+pub async fn delete_texture_library_tag<S: DatabaseRuntimeState>(
+    state: &S,
+    tag_id: i64,
+) -> Result<()> {
+    if !minecraft_texture_tag_repo::delete(state.writer_db(), tag_id).await? {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTagNotFound,
+            format!("texture library tag '{tag_id}'"),
+        ));
+    }
+    Ok(())
+}
+
+pub async fn update_wardrobe_texture_metadata<S>(
+    state: &S,
+    user_id: i64,
+    texture_id: i64,
+    display_name: Option<NullablePatch<String>>,
+    visibility: Option<MinecraftTextureVisibility>,
+) -> Result<MinecraftWardrobeTextureMetadata>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    if texture_id <= 0 {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
+            "invalid wardrobe texture id",
+        ));
+    }
+    let texture =
+        minecraft_texture_repo::find_by_id_for_user(state.reader_db(), texture_id, user_id)
+            .await?
+            .filter(|texture| texture.is_wardrobe_item)
+            .ok_or_else(|| {
+                AsterError::record_not_found_code(
+                    crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
+                    format!("wardrobe texture '{texture_id}'"),
+                )
+            })?;
+    let display_name = display_name
+        .map(normalize_texture_display_name_patch)
+        .transpose()?;
+    let updated = minecraft_texture_repo::update_wardrobe_metadata_for_user(
+        state.writer_db(),
+        texture,
+        user_id,
+        minecraft_texture_repo::UpdateWardrobeTextureMetadata {
+            display_name,
+            visibility,
+        },
+    )
+    .await?
+    .ok_or_else(|| {
+        AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
+            format!("wardrobe texture '{texture_id}'"),
+        )
+    })?;
+    let tags = minecraft_texture_tag_repo::list_for_texture(state.reader_db(), updated.id).await?;
+    Ok(wardrobe_texture_metadata_with_tags(state, &updated, tags))
+}
+
+pub async fn replace_wardrobe_texture_tags<S>(
+    state: &S,
+    user_id: i64,
+    texture_id: i64,
+    tag_ids: &[i64],
+) -> Result<MinecraftWardrobeTextureMetadata>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    if texture_id <= 0 {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
+            "invalid wardrobe texture id",
+        ));
+    }
+    let texture =
+        minecraft_texture_repo::find_by_id_for_user(state.reader_db(), texture_id, user_id)
+            .await?
+            .filter(|texture| texture.is_wardrobe_item)
+            .ok_or_else(|| {
+                AsterError::record_not_found_code(
+                    crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
+                    format!("wardrobe texture '{texture_id}'"),
+                )
+            })?;
+    let unique_tag_ids = normalize_texture_tag_ids(tag_ids)?;
+    let tags = minecraft_texture_tag_repo::find_by_ids(state.reader_db(), &unique_tag_ids).await?;
+    if tags.len() != unique_tag_ids.len() {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTagNotFound,
+            "one or more texture library tags were not found",
+        ));
+    }
+    minecraft_texture_tag_repo::replace_texture_tags(
+        state.writer_db(),
+        texture.id,
+        &unique_tag_ids,
+    )
+    .await?;
+    Ok(wardrobe_texture_metadata_with_tags(state, &texture, tags))
+}
+
+fn normalize_texture_display_name_patch(value: NullablePatch<String>) -> Result<Option<String>> {
+    match value {
+        NullablePatch::Absent => Ok(None),
+        NullablePatch::Null => Ok(None),
+        NullablePatch::Value(value) => normalize_texture_display_name(&value),
+    }
+}
+
+fn normalize_texture_display_name(value: &str) -> Result<Option<String>> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if value.chars().count() > 96 {
+        return Err(AsterError::validation_error_code(
+            crate::api::error_code::AsterErrorCode::WardrobeTextureNameInvalid,
+            "texture display name must not exceed 96 characters",
+        ));
+    }
+    Ok(Some(value.to_string()))
+}
+
+fn normalize_texture_tag_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
+    let mut unique = BTreeSet::new();
+    for tag_id in tag_ids {
+        if *tag_id <= 0 {
+            return Err(AsterError::record_not_found_code(
+                crate::api::error_code::AsterErrorCode::TextureLibraryTagNotFound,
+                "invalid texture library tag id",
+            ));
+        }
+        unique.insert(*tag_id);
+    }
+    Ok(unique.into_iter().collect())
+}
+
+fn normalize_texture_tag_name(value: &str) -> Result<(String, String)> {
+    let name = value.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err(AsterError::validation_error_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTagNameInvalid,
+            "texture library tag name must be 1-64 characters",
+        ));
+    }
+    Ok((name.to_string(), name.to_lowercase()))
+}
+
+fn normalize_texture_tag_color(value: &str) -> Result<String> {
+    let color = value.trim();
+    let valid = color.len() == 7
+        && color.starts_with('#')
+        && color[1..].chars().all(|ch| ch.is_ascii_hexdigit());
+    if !valid {
+        return Err(AsterError::validation_error_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTagColorInvalid,
+            "texture library tag color must be a #RRGGBB value",
+        ));
+    }
+    Ok(color.to_ascii_lowercase())
 }
 
 pub async fn write_multipart_texture_field_to_file(
@@ -470,6 +761,7 @@ where
             texture_model,
             visibility,
             is_wardrobe_item: true,
+            display_name: None,
         },
     )
     .await;
@@ -585,6 +877,141 @@ where
         "listed wardrobe textures page"
     );
     Ok(page)
+}
+
+pub async fn list_public_texture_library_paginated<S>(
+    state: &S,
+    limit: u64,
+    offset: u64,
+    filter: minecraft_texture_repo::WardrobeTextureListFilter,
+) -> Result<OffsetPage<minecraft_texture::Model>>
+where
+    S: DatabaseRuntimeState,
+{
+    let page = minecraft_texture_repo::list_public_wardrobe_paginated(
+        state.reader_db(),
+        limit,
+        offset,
+        filter,
+    )
+    .await?;
+    tracing::debug!(
+        returned = page.items.len(),
+        total = page.total,
+        limit = page.limit,
+        offset = page.offset,
+        "listed public texture library page"
+    );
+    Ok(page)
+}
+
+pub async fn get_public_texture_library_texture<S>(
+    state: &S,
+    texture_id: i64,
+) -> Result<PublicTextureLibraryTextureMetadata>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    if texture_id <= 0 {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTextureNotFound,
+            "invalid public texture id",
+        ));
+    }
+    let texture = minecraft_texture_repo::find_public_wardrobe_by_id(state.reader_db(), texture_id)
+        .await?
+        .ok_or_else(|| {
+            AsterError::record_not_found_code(
+                crate::api::error_code::AsterErrorCode::TextureLibraryTextureNotFound,
+                format!("public texture '{texture_id}'"),
+            )
+        })?;
+    public_texture_library_metadata(state, &texture).await
+}
+
+pub async fn copy_public_texture_to_wardrobe<S>(
+    state: &S,
+    user_id: i64,
+    texture_id: i64,
+    display_name: Option<NullablePatch<String>>,
+) -> Result<MinecraftWardrobeTextureMetadata>
+where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    if texture_id <= 0 {
+        return Err(AsterError::record_not_found_code(
+            crate::api::error_code::AsterErrorCode::TextureLibraryTextureNotFound,
+            "invalid public texture id",
+        ));
+    }
+    let source = minecraft_texture_repo::find_public_wardrobe_by_id(state.reader_db(), texture_id)
+        .await?
+        .ok_or_else(|| {
+            AsterError::record_not_found_code(
+                crate::api::error_code::AsterErrorCode::TextureLibraryTextureNotFound,
+                format!("public texture '{texture_id}'"),
+            )
+        })?;
+
+    if let Some(existing) = minecraft_texture_repo::find_wardrobe_by_fingerprint(
+        state.reader_db(),
+        user_id,
+        source.texture_type,
+        &source.hash,
+        source.texture_model,
+    )
+    .await?
+    {
+        let tags =
+            minecraft_texture_tag_repo::list_for_texture(state.reader_db(), existing.id).await?;
+        return Ok(wardrobe_texture_metadata_with_tags(state, &existing, tags));
+    }
+
+    let display_name = match display_name {
+        Some(value) => normalize_texture_display_name_patch(value)?,
+        None => source.display_name.clone(),
+    };
+    if let Some(display_name) = display_name.as_deref()
+        && minecraft_texture_repo::find_wardrobe_by_display_name(
+            state.reader_db(),
+            user_id,
+            display_name,
+        )
+        .await?
+        .is_some()
+    {
+        return Err(AsterError::validation_error_code(
+            crate::api::error_code::AsterErrorCode::WardrobeTextureNameTaken,
+            "wardrobe texture name already exists",
+        ));
+    }
+
+    let copied = minecraft_texture_repo::create_wardrobe_copy(
+        state.writer_db(),
+        &source,
+        user_id,
+        MinecraftTextureVisibility::Private,
+        display_name.as_deref(),
+    )
+    .await?;
+    let source_tags =
+        minecraft_texture_tag_repo::list_for_texture(state.reader_db(), source.id).await?;
+    let tag_ids = source_tags.iter().map(|tag| tag.id).collect::<Vec<_>>();
+    if !tag_ids.is_empty() {
+        minecraft_texture_tag_repo::replace_texture_tags(state.writer_db(), copied.id, &tag_ids)
+            .await?;
+    }
+    tracing::debug!(
+        user_id,
+        source_texture_id = source.id,
+        copied_texture_id = copied.id,
+        "copied public texture to current user wardrobe"
+    );
+    Ok(wardrobe_texture_metadata_with_tags(
+        state,
+        &copied,
+        source_tags,
+    ))
 }
 
 pub async fn delete_wardrobe_texture<S>(

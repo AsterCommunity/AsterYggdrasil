@@ -37,16 +37,20 @@ where
     S: DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     let storage_keys = state.object_storage().list_keys("").await?;
+    let texture_storage_keys = storage_keys
+        .into_iter()
+        .filter(|storage_key| !storage_key.starts_with("texture-previews/"))
+        .collect::<Vec<_>>();
     let mut result = OrphanTextureCleanupResult {
         scanned: crate::utils::numbers::usize_to_u64(
-            storage_keys.len(),
+            texture_storage_keys.len(),
             "orphan texture cleanup scanned count",
         )?,
         deleted: 0,
         skipped: 0,
     };
 
-    for storage_key in storage_keys {
+    for storage_key in texture_storage_keys {
         let references = count_object_storage_references(state, &storage_key).await?;
         if references > 0 {
             result.skipped += 1;

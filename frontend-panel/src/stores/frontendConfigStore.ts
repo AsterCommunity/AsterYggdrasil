@@ -14,11 +14,19 @@ import {
 import { frontendConfigService } from "@/services/frontendConfigService";
 import type {
 	PublicBranding,
+	PublicCaptchaConfig,
 	PublicFrontendConfig,
 	PublicYggdrasilConfig,
 } from "@/types/api";
 
 const FRONTEND_CONFIG_REVALIDATE_INTERVAL_MS = 30_000;
+const DEFAULT_CAPTCHA_CONFIG: PublicCaptchaConfig = {
+	enabled: false,
+	invitation_accept_required: false,
+	login_required: false,
+	register_activation_resend_required: false,
+	register_required: false,
+};
 
 interface CachedFrontendConfigPayload {
 	config: PublicFrontendConfig;
@@ -29,6 +37,7 @@ interface FrontendConfigState {
 	allowUserRegistration: boolean;
 	passkeyLoginEnabled: boolean;
 	branding: AppliedBranding;
+	captcha: PublicCaptchaConfig;
 	config: PublicFrontendConfig | null;
 	isLoaded: boolean;
 	yggdrasil: PublicYggdrasilConfig | null;
@@ -89,14 +98,37 @@ function isPublicYggdrasilConfig(
 	);
 }
 
+function isPublicCaptchaConfig(value: unknown): value is PublicCaptchaConfig {
+	return (
+		isRecord(value) &&
+		typeof value.enabled === "boolean" &&
+		typeof value.login_required === "boolean" &&
+		typeof value.register_required === "boolean" &&
+		typeof value.invitation_accept_required === "boolean" &&
+		typeof value.register_activation_resend_required === "boolean"
+	);
+}
+
 function isFrontendConfig(value: unknown): value is PublicFrontendConfig {
 	return (
 		isRecord(value) &&
 		typeof value.version === "number" &&
 		Number.isFinite(value.version) &&
 		isPublicBranding(value.branding) &&
+		(value.captcha === undefined || isPublicCaptchaConfig(value.captcha)) &&
 		isPublicYggdrasilConfig(value.yggdrasil)
 	);
+}
+
+function normalizeFrontendConfig(
+	config: PublicFrontendConfig,
+): PublicFrontendConfig {
+	return {
+		...config,
+		captcha: isPublicCaptchaConfig(config.captcha)
+			? config.captcha
+			: DEFAULT_CAPTCHA_CONFIG,
+	};
 }
 
 function readCachedFrontendConfig(): CachedFrontendConfigPayload | null {
@@ -111,7 +143,7 @@ function readCachedFrontendConfig(): CachedFrontendConfigPayload | null {
 		}
 
 		return {
-			config: parsed.config,
+			config: normalizeFrontendConfig(parsed.config),
 			cachedAt:
 				typeof parsed.cachedAt === "number" && Number.isFinite(parsed.cachedAt)
 					? parsed.cachedAt
@@ -135,15 +167,17 @@ function clearCachedFrontendConfig() {
 }
 
 function applyFrontendConfig(config: PublicFrontendConfig) {
-	const branding = resolveBranding(config.branding);
+	const normalizedConfig = normalizeFrontendConfig(config);
+	const branding = resolveBranding(normalizedConfig.branding);
 	applyBranding(branding);
 	return {
-		allowUserRegistration: config.branding.allow_user_registration,
-		passkeyLoginEnabled: publicPasskeyLoginEnabled(config.branding),
+		allowUserRegistration: normalizedConfig.branding.allow_user_registration,
+		passkeyLoginEnabled: publicPasskeyLoginEnabled(normalizedConfig.branding),
 		branding,
-		config,
+		captcha: normalizedConfig.captcha,
+		config: normalizedConfig,
 		isLoaded: true,
-		yggdrasil: config.yggdrasil,
+		yggdrasil: normalizedConfig.yggdrasil,
 	};
 }
 
@@ -153,6 +187,7 @@ function fallbackState() {
 		allowUserRegistration: true,
 		passkeyLoginEnabled: true,
 		branding: DEFAULT_BRANDING,
+		captcha: DEFAULT_CAPTCHA_CONFIG,
 		config: null,
 		isLoaded: true,
 		yggdrasil: null,
@@ -179,6 +214,7 @@ export const useFrontendConfigStore = create<FrontendConfigState>(
 			initialCachedConfig?.branding ?? null,
 		),
 		branding: initialBranding,
+		captcha: initialCachedConfig?.captcha ?? DEFAULT_CAPTCHA_CONFIG,
 		config: initialCachedConfig,
 		isLoaded: initialCachedConfig !== null,
 		yggdrasil: initialCachedConfig?.yggdrasil ?? null,
@@ -190,6 +226,7 @@ export const useFrontendConfigStore = create<FrontendConfigState>(
 				allowUserRegistration: true,
 				passkeyLoginEnabled: true,
 				branding: DEFAULT_BRANDING,
+				captcha: DEFAULT_CAPTCHA_CONFIG,
 				config: null,
 				isLoaded: false,
 				yggdrasil: null,

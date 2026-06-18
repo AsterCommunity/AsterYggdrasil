@@ -1,6 +1,9 @@
 //! User-owned Minecraft texture asset entity.
 
-use crate::types::{MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility};
+use crate::types::{
+    MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureType,
+    MinecraftTextureVisibility,
+};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -27,6 +30,8 @@ pub struct Model {
     pub texture_model: MinecraftTextureModel,
     pub visibility: MinecraftTextureVisibility,
     pub is_wardrobe_item: bool,
+    pub display_name: Option<String>,
+    pub library_status: MinecraftTextureLibraryStatus,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: DateTimeUtc,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
@@ -43,6 +48,8 @@ pub enum Relation {
     User,
     #[sea_orm(has_many = "super::minecraft_profile_texture::Entity")]
     MinecraftProfileTextures,
+    #[sea_orm(has_many = "super::minecraft_texture_tag_binding::Entity")]
+    MinecraftTextureTagBindings,
 }
 
 impl Related<super::user::Entity> for Entity {
@@ -54,6 +61,12 @@ impl Related<super::user::Entity> for Entity {
 impl Related<super::minecraft_profile_texture::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::MinecraftProfileTextures.def()
+    }
+}
+
+impl Related<super::minecraft_texture_tag_binding::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MinecraftTextureTagBindings.def()
     }
 }
 

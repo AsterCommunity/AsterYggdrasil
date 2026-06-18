@@ -23,12 +23,16 @@ export type TextureUploadFormProps = {
 	file: File | null;
 	fileInputId: string;
 	model: MinecraftTextureModel;
+	name?: string;
+	nameLabel?: ReactNode;
+	namePlaceholder?: string;
 	onCancel: () => void;
 	onDragEnter: (event: DragEvent<HTMLLabelElement>) => void;
 	onDragLeave: () => void;
 	onDrop: (event: DragEvent<HTMLLabelElement>) => void;
 	onFileChange: (file: File | null) => void | Promise<void>;
 	onModelChange: (model: MinecraftTextureModel) => void;
+	onNameChange?: (name: string) => void;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 	onTextureTypeChange: (type: MinecraftTextureType) => void;
 	onVisibilityChange: (visibility: MinecraftTextureVisibility) => void;
@@ -49,12 +53,16 @@ export function TextureUploadForm({
 	file,
 	fileInputId,
 	model,
+	name,
+	nameLabel,
+	namePlaceholder,
 	onCancel,
 	onDragEnter,
 	onDragLeave,
 	onDrop,
 	onFileChange,
 	onModelChange,
+	onNameChange,
 	onSubmit,
 	onTextureTypeChange,
 	onVisibilityChange,
@@ -117,6 +125,20 @@ export function TextureUploadForm({
 						},
 					]}
 				/>
+				{onNameChange ? (
+					<div className="grid gap-1.5">
+						<Label htmlFor={`${fileInputId}-name`}>
+							{nameLabel ?? t("wardrobe.textureName")}
+						</Label>
+						<Input
+							id={`${fileInputId}-name`}
+							value={name ?? ""}
+							maxLength={96}
+							placeholder={namePlaceholder}
+							onChange={(event) => onNameChange(event.currentTarget.value)}
+						/>
+					</div>
+				) : null}
 				<Label
 					htmlFor={fileInputId}
 					className={cn(

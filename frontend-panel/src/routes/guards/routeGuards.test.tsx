@@ -8,11 +8,14 @@ import { GuestOnlyGate } from "@/routes/guards/GuestOnlyGate";
 
 const authState = vi.hoisted(() => ({
 	checking: false,
+	canAccessAdminShell: false,
 	errorCode: null as string | null,
+	hasOperatorScope: vi.fn(),
 	hydrate: vi.fn(),
 	isAdmin: false,
 	isAuthenticated: false,
 	isAuthStale: false,
+	operatorScopes: [] as string[],
 	user: null as { must_change_password?: boolean; role?: string } | null,
 }));
 
@@ -38,12 +41,17 @@ function renderAuthenticatedRoute(initialEntry: string) {
 	);
 }
 
-function renderAdminRoute() {
+function renderAdminRoute(initialEntry = "/admin") {
 	return render(
-		<MemoryRouter initialEntries={["/admin"]}>
+		<MemoryRouter initialEntries={[initialEntry]}>
 			<Routes>
 				<Route path="/admin" element={<AdminOnlyGate />}>
 					<Route index element={<div>admin route</div>} />
+					<Route path="users" element={<div>admin users route</div>} />
+					<Route
+						path="minecraft-profiles/:uuid"
+						element={<div>admin profile route</div>}
+					/>
 				</Route>
 				<Route path="/force-password-change" element={<div>force route</div>} />
 			</Routes>
@@ -66,12 +74,18 @@ function renderGuestRoute() {
 describe("route guards", () => {
 	beforeEach(() => {
 		authState.checking = false;
+		authState.canAccessAdminShell = false;
 		authState.errorCode = null;
+		authState.hasOperatorScope.mockReset();
+		authState.hasOperatorScope.mockImplementation((scope: string) =>
+			authState.operatorScopes.includes(scope),
+		);
 		authState.hydrate.mockReset();
 		authState.hydrate.mockResolvedValue(undefined);
 		authState.isAdmin = false;
 		authState.isAuthenticated = false;
 		authState.isAuthStale = false;
+		authState.operatorScopes = [];
 		authState.user = null;
 	});
 
@@ -105,6 +119,7 @@ describe("route guards", () => {
 
 	it("redirects admin routes while forced password change is required", async () => {
 		authState.isAdmin = true;
+		authState.canAccessAdminShell = true;
 		authState.isAuthenticated = true;
 		authState.user = { must_change_password: true, role: "admin" };
 
@@ -112,6 +127,42 @@ describe("route guards", () => {
 
 		expect(await screen.findByText("force route")).toBeInTheDocument();
 		expect(screen.queryByText("admin route")).not.toBeInTheDocument();
+	});
+
+	it("allows operator admin routes when the matching scope is present", async () => {
+		authState.canAccessAdminShell = true;
+		authState.isAuthenticated = true;
+		authState.operatorScopes = ["overview"];
+		authState.user = { must_change_password: false, role: "operator" };
+
+		renderAdminRoute();
+
+		expect(await screen.findByText("admin route")).toBeInTheDocument();
+	});
+
+	it("blocks operator admin routes when the matching scope is missing", async () => {
+		authState.canAccessAdminShell = true;
+		authState.isAuthenticated = true;
+		authState.operatorScopes = ["texture_library"];
+		authState.user = { must_change_password: false, role: "operator" };
+
+		renderAdminRoute("/admin/users");
+
+		expect(
+			await screen.findByText("Admin access required"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("admin users route")).not.toBeInTheDocument();
+	});
+
+	it("allows operator minecraft profile detail routes with profiles scope", async () => {
+		authState.canAccessAdminShell = true;
+		authState.isAuthenticated = true;
+		authState.operatorScopes = ["profiles"];
+		authState.user = { must_change_password: false, role: "operator" };
+
+		renderAdminRoute("/admin/minecraft-profiles/profile-uuid");
+
+		expect(await screen.findByText("admin profile route")).toBeInTheDocument();
 	});
 
 	it("points authenticated guest-only pages to password change when required", async () => {

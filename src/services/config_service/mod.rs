@@ -13,8 +13,9 @@ pub use actions::{
     YGGDRASIL_CONFIG_ACTION_KEY, execute_action_with_audit,
 };
 pub use public::{
-    PUBLIC_CONFIG_CACHE_CONTROL, PublicBranding, PublicFrontendConfig, PublicYggdrasilConfig,
-    get_public_branding, get_public_frontend_config, get_public_yggdrasil_config,
+    PUBLIC_CONFIG_CACHE_CONTROL, PublicBranding, PublicCaptchaConfig, PublicFrontendConfig,
+    PublicYggdrasilConfig, get_public_branding, get_public_captcha_config,
+    get_public_frontend_config, get_public_yggdrasil_config,
 };
 pub use schema::{ConfigSchemaItem, ConfigSchemaOption, get_schema};
 pub use system::{

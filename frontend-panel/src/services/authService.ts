@@ -5,6 +5,7 @@ import type {
 	AuthSessionQuery,
 	AuthTokenResponse,
 	AuthUserInfo,
+	CaptchaChallengeResponse,
 	ChangePasswordRequest,
 	CheckResp,
 	LoginRequest,
@@ -22,6 +23,7 @@ import type {
 	PasswordResetConfirmRequest,
 	PasswordResetRequest,
 	PatchPasskeyRequest,
+	PublicCaptchaPolicyResponse,
 	PublicUserInvitationInfo,
 	RegisterRequest,
 	RegisterResponse,
@@ -231,6 +233,9 @@ function removeCachedPasskey(id: number) {
 
 export const authService = {
 	check: () => api.get<CheckResp>("/auth/check"),
+	captchaPolicy: () =>
+		api.get<PublicCaptchaPolicyResponse>("/auth/captcha/policy"),
+	issueCaptcha: () => api.post<CaptchaChallengeResponse>("/auth/captcha"),
 	setup: async (data: SetupRequest) => {
 		invalidateAuthServiceCaches();
 		return api.post<

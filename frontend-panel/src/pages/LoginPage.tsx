@@ -11,6 +11,7 @@ import {
 } from "@/components/auth/LoginFormCard";
 import { LoginHero } from "@/components/auth/LoginHero";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
+import { useCaptchaChallenge } from "@/hooks/useCaptchaChallenge";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
 	clearContactVerificationRedirectSearch,
@@ -247,7 +248,15 @@ function useLoginPageController() {
 	const passkeyLoginEnabled = useFrontendConfigStore(
 		(state) => state.passkeyLoginEnabled,
 	);
+	const captchaConfig = useFrontendConfigStore((state) => state.captcha);
 	const navigate = useNavigate();
+	const isRegister = locationPathname === publicPaths.register;
+	const captchaRequired =
+		captchaConfig.enabled &&
+		(isRegister
+			? captchaConfig.register_required
+			: captchaConfig.login_required);
+	const captcha = useCaptchaChallenge(captchaRequired);
 
 	useEffect(() => {
 		void import("@/lib/pwaWarmup").then(({ warmupLoginSuccessPath }) => {
@@ -399,6 +408,12 @@ function useLoginPageController() {
 					validation.data.username,
 					validation.data.email,
 					validation.data.password,
+					captchaRequired
+						? {
+								answer: captcha.answer,
+								challengeId: captcha.challengeId ?? "",
+							}
+						: undefined,
 				);
 				if (response.requires_activation) {
 					toast.success(t("login.registerActivationSent"));
@@ -409,6 +424,7 @@ function useLoginPageController() {
 				navigate(accountPaths.home);
 			} catch (nextError) {
 				toast.error(formatUnknownError(nextError));
+				if (captchaRequired) void captcha.refresh();
 			} finally {
 				dispatch({ type: "loading", value: false });
 			}
@@ -428,11 +444,21 @@ function useLoginPageController() {
 		dispatch({ type: "errors", value: {} });
 		dispatch({ type: "loading", value: true });
 		try {
-			await login(validation.data.identifier, validation.data.password);
+			await login(
+				validation.data.identifier,
+				validation.data.password,
+				captchaRequired
+					? {
+							answer: captcha.answer,
+							challengeId: captcha.challengeId ?? "",
+						}
+					: undefined,
+			);
 			toast.success(t("login.loginSuccess"));
 			navigate(accountPaths.home);
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
+			if (captchaRequired) void captcha.refresh();
 		} finally {
 			dispatch({ type: "loading", value: false });
 		}
@@ -484,7 +510,6 @@ function useLoginPageController() {
 		}
 	}
 
-	const isRegister = locationPathname === publicPaths.register;
 	const usesAccountCreationForm = isRegister;
 	const passwordScore = getPasswordScore(password);
 	const passwordStrengthKey =
@@ -513,7 +538,10 @@ function useLoginPageController() {
 				acceptedTerms,
 			}).success
 		: loginFormSchema.safeParse({ identifier, password }).success;
-	const submitDisabled = loading || !canSubmit;
+	const captchaReady =
+		!captchaRequired ||
+		(Boolean(captcha.challengeId) && captcha.answer.trim().length > 0);
+	const submitDisabled = loading || !canSubmit || !captchaReady;
 	const brandTitle = branding.title || t("brand.name");
 	const visibleProviders = providers.slice(0, 3);
 	const showPasskeyLogin = !usesAccountCreationForm && passkeyLoginEnabled;
@@ -544,7 +572,14 @@ function useLoginPageController() {
 		passwordScore,
 		passwordStrengthLabel: t(passwordStrengthKey),
 		allowUserRegistration,
+		captchaAnswer: captcha.answer,
+		captchaImageBase64: captcha.imageBase64,
+		captchaLoadError: captcha.error,
+		captchaLoading: captcha.loading,
+		captchaRequired,
 		onSubmit: submit,
+		onCaptchaAnswerChange: captcha.setAnswer,
+		onCaptchaRefresh: () => void captcha.refresh(),
 		onIdentifierChange: changeIdentifier,
 		onUsernameChange: changeUsername,
 		onEmailChange: changeEmail,

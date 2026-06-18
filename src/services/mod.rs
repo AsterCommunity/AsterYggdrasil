@@ -4,6 +4,7 @@ pub mod admin_overview_service;
 pub mod admin_user_service;
 pub mod audit_service;
 pub mod auth_service;
+pub mod captcha_service;
 pub mod config_service;
 pub mod external_auth_service;
 pub mod health_service;

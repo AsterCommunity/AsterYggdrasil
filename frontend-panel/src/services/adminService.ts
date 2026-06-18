@@ -9,6 +9,8 @@ import type {
 	AdminTaskCleanupRequest,
 	AdminTaskListQuery,
 	AdminTaskPage,
+	AdminTextureLibraryTagPage,
+	AdminTextureLibraryTagQuery,
 	AdminUserInvitationInfo,
 	AdminUserInvitationPage,
 	AdminUserListQuery,
@@ -19,6 +21,7 @@ import type {
 	ConfigSchemaItem,
 	CreateAdminUserRequest,
 	CreateExternalAuthProviderRequest,
+	CreateMinecraftTextureTagRequest,
 	CreateUserInvitationRequest,
 	ExecuteConfigActionRequest,
 	ExecuteConfigActionResponse,
@@ -35,10 +38,12 @@ import type {
 	SetConfigResponse,
 	SystemConfig,
 	SystemConfigPage,
+	SystemConfigValue,
 	SystemInfoResponse,
 	TemplateVariableGroup,
 	UpdateAdminUserRequest,
 	UpdateExternalAuthProviderRequest,
+	UpdateMinecraftTextureTagRequest,
 	YggdrasilProfilePage,
 } from "@/types/api";
 import { api } from "./http";
@@ -48,6 +53,8 @@ type AdminExternalAuthProviderPath =
 	OperationPath<"admin_get_external_auth_provider">;
 type AdminRetryTaskPath = OperationPath<"admin_retry_task">;
 type AdminUserPath = OperationPath<"admin_get_user">;
+type AdminTextureLibraryTagPath =
+	OperationPath<"admin_update_texture_library_tag">;
 
 export const adminAuditService = {
 	list: (params: AdminAuditLogQuery = {}) =>
@@ -104,7 +111,17 @@ export const adminConfigService = {
 			OperationRequestBody<"execute_config_action">
 		>("/admin/config/mail/action", {
 			action: "send_test_email",
-			target_email: targetEmail?.trim() || null,
+			values: {
+				target_email: targetEmail?.trim() || "",
+			},
+		}),
+	previewCaptcha: (values: Record<string, SystemConfigValue>) =>
+		api.post<
+			ExecuteConfigActionResponse,
+			OperationRequestBody<"execute_config_action">
+		>("/admin/config/auth_captcha/action", {
+			action: "preview_captcha",
+			values,
 		}),
 	rotateYggdrasilSignatureKey: () =>
 		api.post<
@@ -136,6 +153,31 @@ export const adminTaskService = {
 		),
 	retry: (id: AdminRetryTaskPath["id"]) =>
 		api.post<OperationData<"admin_retry_task">>(`/admin/tasks/${id}/retry`),
+};
+
+export const adminTextureLibraryService = {
+	listTags: (params: AdminTextureLibraryTagQuery = {}) =>
+		api.get<AdminTextureLibraryTagPage>(
+			withQuery("/admin/texture-library/tags", {
+				limit: params.limit,
+				offset: params.offset,
+			}),
+		),
+	createTag: (data: CreateMinecraftTextureTagRequest) =>
+		api.post<
+			OperationData<"admin_create_texture_library_tag">,
+			OperationRequestBody<"admin_create_texture_library_tag">
+		>("/admin/texture-library/tags", data),
+	updateTag: (
+		tagId: AdminTextureLibraryTagPath["tag_id"],
+		data: UpdateMinecraftTextureTagRequest,
+	) =>
+		api.patch<
+			OperationData<"admin_update_texture_library_tag">,
+			OperationRequestBody<"admin_update_texture_library_tag">
+		>(`/admin/texture-library/tags/${tagId}`, data),
+	deleteTag: (tagId: AdminTextureLibraryTagPath["tag_id"]) =>
+		api.delete<void>(`/admin/texture-library/tags/${tagId}`),
 };
 
 export const adminMinecraftProfileService = {
