@@ -20,6 +20,23 @@ pub async fn find_all(db: &DatabaseConnection) -> Result<Vec<external_auth_provi
         .map_err(AsterError::from)
 }
 
+pub async fn find_by_ids(
+    db: &DatabaseConnection,
+    ids: &[i64],
+) -> Result<Vec<external_auth_provider::Model>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    ExternalAuthProvider::find()
+        .filter(external_auth_provider::Column::Id.is_in(ids.iter().copied()))
+        .order_by_asc(external_auth_provider::Column::DisplayName)
+        .order_by_asc(external_auth_provider::Column::Id)
+        .all(db)
+        .await
+        .map_err(AsterError::from)
+}
+
 pub async fn find_paginated(
     db: &DatabaseConnection,
     limit: u64,

@@ -48,10 +48,11 @@ pub async fn list_links_paginated(
         .iter()
         .map(|identity| identity.provider_id)
         .collect::<std::collections::BTreeSet<_>>();
-    let providers = external_auth_provider_repo::find_all(state.writer_db()).await?;
+    let provider_ids = provider_ids.into_iter().collect::<Vec<_>>();
+    let providers =
+        external_auth_provider_repo::find_by_ids(state.writer_db(), &provider_ids).await?;
     let provider_lookup = providers
         .into_iter()
-        .filter(|provider| provider_ids.contains(&provider.id))
         .map(|provider| (provider.id, provider))
         .collect::<std::collections::HashMap<_, _>>();
     let items = page
