@@ -11,6 +11,7 @@ Current-user APIs:
 ```text
 GET    /api/v1/profiles/minecraft
 POST   /api/v1/profiles/minecraft
+PUT    /api/v1/profiles/minecraft/{uuid}/name
 GET    /api/v1/profiles/minecraft/{uuid}/textures
 PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
 DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
@@ -22,6 +23,7 @@ Admin APIs:
 ```text
 GET    /api/v1/admin/minecraft-profiles
 GET    /api/v1/admin/minecraft-profiles/{uuid}
+PUT    /api/v1/admin/minecraft-profiles/{uuid}/name
 GET    /api/v1/admin/users/{user_id}/minecraft-profiles
 GET    /api/v1/admin/minecraft-profiles/{uuid}/textures
 DELETE /api/v1/admin/minecraft-profiles/{uuid}/textures/{skin|cape}

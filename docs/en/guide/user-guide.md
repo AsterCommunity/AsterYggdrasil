@@ -30,6 +30,7 @@ Current-user profile APIs:
 ```text
 GET    /api/v1/profiles/minecraft
 POST   /api/v1/profiles/minecraft
+PUT    /api/v1/profiles/minecraft/{uuid}/name
 GET    /api/v1/profiles/minecraft/{uuid}/textures
 DELETE /api/v1/profiles/minecraft/{uuid}
 ```

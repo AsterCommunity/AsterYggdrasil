@@ -152,7 +152,8 @@ Upload contracts:
 - Skin dimensions may be integer multiples of `64x32` or `64x64`.
 - Cape dimensions may be integer multiples of `64x32` or `22x17`. Legacy `22x17` capes are padded with transparency to the standard `64x32` ratio.
 - The server decodes PNG, validates pixel limits, re-encodes a clean PNG, then computes the SHA-256 hash from processed bytes.
-- Public reads use hash URLs and include texture-service-provided `Cache-Control` and `Content-Length`.
+- Public reads use hash URLs and include texture-service-provided `Cache-Control`, `ETag`, and `Content-Length`; matching `If-None-Match` requests return `304`.
+- `/textures/{hash}` serves both database-backed textures and the embedded Steve/Alex default skin hashes. Profiles without a bound skin automatically receive a default skin in their `textures` property.
 
 authlib-injector explicitly expects texture upload/delete missing or invalid tokens to return `401`. Do not normalize this into the ordinary Yggdrasil invalid-token `403 ForbiddenOperationException` behavior.
 
@@ -243,6 +244,8 @@ Decoded `textures` property `value` JSON:
 | `textures.SKIN.url` | string | Public skin PNG URL. Its host must be covered by metadata `skinDomains`. |
 | `textures.SKIN.metadata.model` | string? | Skin model. `slim` means slim arms; default model omits metadata. |
 | `textures.CAPE.url` | string | Public cape PNG URL. |
+
+If a profile has no bound skin, the current implementation adds an embedded default skin. The default model is selected stably from the profile UUID low bit: even uses Steve/default, odd uses Alex/slim. Default skins are also served through `/api/yggdrasil/textures/{hash}`.
 
 `uploadableTextures.value` comes from the profile's upload capability state, for example `skin,cape`, `skin`, or `cape`. It tells authlib-injector clients which texture types can be uploaded for that profile through protocol endpoints.
 

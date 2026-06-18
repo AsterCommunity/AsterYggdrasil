@@ -33,11 +33,15 @@ The frontend currently includes:
 - `/` public connection page with authlib-injector setup information.
 - `/init` first administrator setup.
 - `/login` and `/register` account entry with external auth and passkey login.
-- `/dashboard` workbench.
-- `/dashboard/profiles` Minecraft profile and launcher/texture workflow.
-- `/dashboard/wardrobe` current-user texture library.
-- `/dashboard/settings` personal settings, sessions, and passkeys.
-- `/dashboard/admin/*` config, users, Minecraft profiles, external auth, audit, task, and about pages.
+- `/reset-password` and `/invite/:token` password-reset and invitation registration entry points.
+- `/force-password-change` forced password-change entry.
+- `/account` account workbench.
+- `/account/profiles` Minecraft profile and launcher/texture workflow.
+- `/account/wardrobe` current-user texture library.
+- `/account/audit` current-user audit log.
+- `/account/settings` personal settings, sessions, and passkeys; `/settings/security` remains as a compatibility route for the old security settings entry.
+- `/admin/*` config, users, user invitations, Minecraft profiles, external auth, audit, task, and about pages.
+- `/tos` and `/privacy` legal pages.
 
 ## Backend Extension Path
 
@@ -175,9 +179,10 @@ Use:
 - `src/services/` for API wrappers.
 - `src/types/api.generated.ts` for generated API types and `src/types/api.ts` for re-exports and aliases.
 - `src/lib/presentation.ts` for stable audit/task display formatting.
-- `src/pages/app/` for signed-in user pages.
+- `src/pages/account/` for signed-in account pages.
 - `src/pages/admin/` for administrator pages.
 - `src/components/yggdrasil/` for launcher, Minecraft preview, copy field, and other Yggdrasil/Minecraft components.
+- `src/components/account/` for account-domain page composition.
 - `src/components/admin/`, `src/components/common/`, and `src/components/layout/` for admin and shared UI composition.
 
 Admin screens should stay dense, predictable, and operational. Profile and wardrobe pages should follow real Minecraft workflows, not template feature cards or file-drive management patterns.

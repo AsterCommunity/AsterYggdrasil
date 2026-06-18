@@ -2,6 +2,8 @@
 
 This page covers production deployment concerns for AsterYggdrasil as a Minecraft skin site and Yggdrasil authentication server.
 
+If you have not mapped the launch checklist yet, start with [Deployment Overview](/en/deployment/). This page focuses on what to mount and configure for Docker.
+
 ## Persistent Data
 
 Runtime state inside the container should be mounted at `/data`. Persist at least:

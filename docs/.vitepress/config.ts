@@ -83,24 +83,44 @@ export default withMermaid(
 					},
 					nav: [
 						{ text: "首页", link: "/" },
+						{ text: "快速开始", link: "/guide/getting-started" },
+						{ text: "使用指南", link: "/guide/" },
+						{ text: "接入", link: "/guide/launcher-setup" },
+						{ text: "部署", link: "/deployment/" },
 						{ text: "关于", link: "/guide/about" },
-						{ text: "用户手册", link: "/guide/user-guide" },
-						{ text: "接入", link: "/guide/yggdrasil-api" },
-						{ text: "部署", link: "/deployment/docker" },
 						{ text: `v${version}`, link: "https://github.com/AsterCommunity/AsterYggdrasil" },
 					],
 					sidebar: [
 						{
-							text: "运行 AsterYggdrasil",
+							text: "开始",
 							items: [
 								{ text: "概览", link: "/" },
-								{ text: "关于", link: "/guide/about" },
+								{ text: "使用指南总览", link: "/guide/" },
 								{ text: "快速开始", link: "/guide/getting-started" },
+							],
+						},
+						{
+							text: "玩家使用",
+							items: [
 								{ text: "用户手册", link: "/guide/user-guide" },
-								{ text: "Yggdrasil API", link: "/guide/yggdrasil-api" },
-								{ text: "启动器登录", link: "/guide/launcher-login" },
 								{ text: "玩家档案", link: "/guide/profiles" },
 								{ text: "材质处理", link: "/guide/yggdrasil-textures" },
+								{ text: "常见问题速查", link: "/guide/faq" },
+							],
+						},
+						{
+							text: "接入协议",
+							items: [
+								{ text: "启动器填写", link: "/guide/launcher-setup" },
+								{ text: "启动器登录", link: "/guide/launcher-login" },
+								{ text: "Yggdrasil API", link: "/guide/yggdrasil-api" },
+								{ text: "故障排查", link: "/guide/troubleshooting" },
+							],
+						},
+						{
+							text: "管理维护",
+							items: [
+								{ text: "管理员指南", link: "/guide/admin-guide" },
 								{ text: "配置和密钥", link: "/guide/configuration" },
 								{ text: "材质存储", link: "/guide/storage" },
 								{ text: "审计与后台任务", link: "/guide/audit-tasks" },
@@ -108,7 +128,17 @@ export default withMermaid(
 						},
 						{
 							text: "部署",
-							items: [{ text: "Docker", link: "/deployment/docker" }],
+							items: [
+								{ text: "部署总览", link: "/deployment/" },
+								{ text: "Docker", link: "/deployment/docker" },
+							],
+						},
+						{
+							text: "项目参考",
+							items: [
+								{ text: "关于", link: "/guide/about" },
+								{ text: "文档贡献说明", link: "/guide/docs-contributing" },
+							],
 						},
 					],
 				},
@@ -122,24 +152,44 @@ export default withMermaid(
 				themeConfig: {
 					nav: [
 						{ text: "Home", link: "/en/" },
+						{ text: "Getting Started", link: "/en/guide/getting-started" },
+						{ text: "Guides", link: "/en/guide/" },
+						{ text: "Integration", link: "/en/guide/launcher-setup" },
+						{ text: "Deployment", link: "/en/deployment/" },
 						{ text: "About", link: "/en/guide/about" },
-						{ text: "User Guide", link: "/en/guide/user-guide" },
-						{ text: "Integration", link: "/en/guide/yggdrasil-api" },
-						{ text: "Deployment", link: "/en/deployment/docker" },
 						{ text: `v${version}`, link: "https://github.com/AsterCommunity/AsterYggdrasil" },
 					],
 					sidebar: [
 						{
-							text: "Run AsterYggdrasil",
+							text: "Start",
 							items: [
 								{ text: "Overview", link: "/en/" },
-								{ text: "About", link: "/en/guide/about" },
+								{ text: "Guides Overview", link: "/en/guide/" },
 								{ text: "Getting Started", link: "/en/guide/getting-started" },
+							],
+						},
+						{
+							text: "Player Usage",
+							items: [
 								{ text: "User Guide", link: "/en/guide/user-guide" },
-								{ text: "Yggdrasil API", link: "/en/guide/yggdrasil-api" },
-								{ text: "Launcher Login", link: "/en/guide/launcher-login" },
 								{ text: "Minecraft Profiles", link: "/en/guide/profiles" },
 								{ text: "Textures", link: "/en/guide/yggdrasil-textures" },
+								{ text: "FAQ", link: "/en/guide/faq" },
+							],
+						},
+						{
+							text: "Protocol Integration",
+							items: [
+								{ text: "Launcher Setup", link: "/en/guide/launcher-setup" },
+								{ text: "Launcher Login", link: "/en/guide/launcher-login" },
+								{ text: "Yggdrasil API", link: "/en/guide/yggdrasil-api" },
+								{ text: "Troubleshooting", link: "/en/guide/troubleshooting" },
+							],
+						},
+						{
+							text: "Admin Maintenance",
+							items: [
+								{ text: "Admin Guide", link: "/en/guide/admin-guide" },
 								{ text: "Config and Keys", link: "/en/guide/configuration" },
 								{ text: "Texture Storage", link: "/en/guide/storage" },
 								{ text: "Audit and Tasks", link: "/en/guide/audit-tasks" },
@@ -147,7 +197,17 @@ export default withMermaid(
 						},
 						{
 							text: "Deployment",
-							items: [{ text: "Docker", link: "/en/deployment/docker" }],
+							items: [
+								{ text: "Deployment Overview", link: "/en/deployment/" },
+								{ text: "Docker", link: "/en/deployment/docker" },
+							],
+						},
+						{
+							text: "Project Reference",
+							items: [
+								{ text: "About", link: "/en/guide/about" },
+								{ text: "Docs Contributing", link: "/en/guide/docs-contributing" },
+							],
 						},
 					],
 				},

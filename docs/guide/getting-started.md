@@ -1,6 +1,6 @@
 # 快速开始
 
-这一页只做一件事：把 AsterYggdrasil 在本机跑起来，并确认 Yggdrasil metadata、账号、profile 和材质路径都是真能工作的。
+这一页用于把 AsterYggdrasil 在本机跑起来，并确认 Yggdrasil metadata、账号、profile 和材质路径可以正常工作。
 
 如果你已经准备好正式上线，可以先跑完这一页，再去看 [Docker 部署](/deployment/docker)。先把本地链路跑通，能减少后续排查公开 URL、反向代理和启动器接入问题的成本。
 
@@ -85,7 +85,7 @@ GET /api/yggdrasil/
 X-Authlib-Injector-API-Location: /api/yggdrasil/
 ```
 
-支持 ALI 的启动器可以只填写站点地址，再自动发现真正的 Yggdrasil API 根路径。反向代理上线时别把这个响应头删掉。
+支持 ALI 的启动器可以只填写站点地址，再自动发现真正的 Yggdrasil API 根路径。反向代理上线时应保留这个响应头。
 
 ## 4. 创建 Minecraft profile
 
@@ -94,6 +94,7 @@ X-Authlib-Injector-API-Location: /api/yggdrasil/
 ```text
 POST /api/v1/profiles/minecraft
 GET  /api/v1/profiles/minecraft
+PUT  /api/v1/profiles/minecraft/{uuid}/name
 ```
 
 profile name 支持通过用户或管理员 API 受控改名。改名会保留 UUID、材质绑定和审计链路，并临时失效已绑定该 profile 的 Yggdrasil token，让启动器通过 refresh 获取新名称。不要直接改数据库。

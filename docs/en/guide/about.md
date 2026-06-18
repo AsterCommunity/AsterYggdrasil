@@ -42,7 +42,7 @@ If you need a polished, finished commercial-grade skin-site frontend today, the 
 
 If you need multi-node object storage, S3/MinIO texture storage, multi-primary high availability, or a mature ban system, wait or plan to build that work. The production texture storage backend today is local. The S3 config shape is reserved, but the backend is not implemented yet.
 
-If you only want Mojang official online mode, this is not that project. AsterYggdrasil targets self-hosted Yggdrasil/authlib-injector integration.
+If your target is Mojang official online mode, AsterYggdrasil is not designed for that scenario. It targets self-hosted Yggdrasil/authlib-injector integration.
 
 ## Current Boundaries
 

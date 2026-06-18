@@ -94,6 +94,7 @@ After logging into the site account, users can create Minecraft profiles. A prof
 ```text
 POST /api/v1/profiles/minecraft
 GET  /api/v1/profiles/minecraft
+PUT  /api/v1/profiles/minecraft/{uuid}/name
 ```
 
 Profile names support controlled renames through the user or administrator APIs. A rename keeps the UUID, texture bindings, and audit trail, then temporarily invalidates bound Yggdrasil tokens so launchers can refresh into the new name. Do not edit names directly in the database.

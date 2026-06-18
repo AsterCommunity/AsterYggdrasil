@@ -152,7 +152,8 @@ metadata 使用 `Cache-Control: no-cache, no-store, must-revalidate`。签名密
 - skin 尺寸允许 `64x32` 或 `64x64` 的整数倍。
 - cape 尺寸允许 `64x32` 或 `22x17` 的整数倍；旧式 `22x17` cape 会补透明到标准 `64x32` 比例。
 - 服务端会解码 PNG、校验像素数、重编码为干净 PNG，再按处理后内容计算 SHA-256 hash。
-- 公开读取走 hash URL，带 texture service 给出的 `Cache-Control` 和 `Content-Length`。
+- 公开读取走 hash URL，带 texture service 给出的 `Cache-Control`、`ETag` 和 `Content-Length`；`If-None-Match` 命中时返回 `304`。
+- `/textures/{hash}` 除了数据库里的材质，也能读取内置 Steve/Alex 默认皮肤 hash。未绑定 skin 的 profile 在 `textures` property 中会自动补一个基于 profile UUID 稳定选择的默认 skin。
 
 authlib-injector 明确要求材质上传/删除缺失或错误 token 返回 `401`。这和普通 Yggdrasil token 错误多用 `403 ForbiddenOperationException` 不一样，别顺手统一掉。
 
@@ -243,6 +244,8 @@ authlib-injector 明确要求材质上传/删除缺失或错误 token 返回 `40
 | `textures.SKIN.url` | string | 公开 skin PNG URL。URL 的 host 必须被 metadata `skinDomains` 覆盖。 |
 | `textures.SKIN.metadata.model` | string? | skin 模型。`slim` 表示细手臂；默认模型不需要 metadata。 |
 | `textures.CAPE.url` | string | 公开 cape PNG URL。 |
+
+如果 profile 没有绑定 skin，当前实现会补内置默认皮肤。默认模型由 profile UUID 最低位稳定决定：偶数使用 Steve/default，奇数使用 Alex/slim。默认皮肤也通过 `/api/yggdrasil/textures/{hash}` 公开读取。
 
 `uploadableTextures` 的 `value` 当前来自 profile 记录里的可上传能力，例如 `skin,cape`、`skin`、`cape`。它告诉 authlib-injector 客户端这个 profile 可通过协议上传哪些材质。
 
