@@ -19,4 +19,5 @@ pub mod task_service;
 pub mod texture_service;
 pub mod user_invitation_service;
 pub mod yggdrasil_service;
+pub mod yggdrasil_session_forward_service;
 pub mod yggdrasil_signature;

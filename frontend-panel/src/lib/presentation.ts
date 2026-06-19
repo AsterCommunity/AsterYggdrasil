@@ -42,15 +42,21 @@ const AUDIT_ACTION_LABELS = {
 	admin_create_external_auth_provider: "External auth provider created",
 	admin_create_invitation: "Invitation created",
 	admin_create_user: "User created",
+	admin_create_yggdrasil_session_forward_server:
+		"Yggdrasil session forwarding server created",
 	admin_delete_config: "Config deleted",
 	admin_delete_external_auth_provider: "External auth provider deleted",
 	admin_delete_user: "User deleted",
+	admin_delete_yggdrasil_session_forward_server:
+		"Yggdrasil session forwarding server deleted",
 	admin_disable_user: "User disabled",
 	admin_revoke_invitation: "Invitation revoked",
 	admin_revoke_user_sessions: "User sessions revoked",
 	admin_test_external_auth_provider: "External auth provider tested",
 	admin_update_external_auth_provider: "External auth provider updated",
 	admin_update_user: "User updated",
+	admin_update_yggdrasil_session_forward_server:
+		"Yggdrasil session forwarding server updated",
 	config_action_execute: "Config action executed",
 	config_delete: "Config deleted",
 	config_update: "Config updated",
@@ -102,6 +108,7 @@ const AUDIT_ACTION_LABELS = {
 	yggdrasil_invalidate_token: "Yggdrasil token invalidated",
 	yggdrasil_join_server: "Yggdrasil server join",
 	yggdrasil_refresh_token: "Yggdrasil token refreshed",
+	yggdrasil_session_forward_check: "Yggdrasil session forwarding check",
 	yggdrasil_signout: "Yggdrasil signout",
 } as const satisfies Record<AuditAction, string>;
 
@@ -136,6 +143,9 @@ const AUDIT_DETAIL_LABELS = {
 	task_retry_scheduled: "Retry queued",
 	tasks_cleanup_finished: "Cleanup finished",
 	user_login_identifier: "Login identifier",
+	yggdrasil_session_forward_checked: "Yggdrasil session forwarding checked",
+	yggdrasil_session_forward_server_changed:
+		"Yggdrasil session forwarding server changed",
 } as const;
 
 type AuditDetailCode = keyof typeof AUDIT_DETAIL_LABELS;
@@ -512,13 +522,18 @@ export function auditActionBadgeClass(action: AuditAction | string) {
 	) {
 		return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300";
 	}
-	if (value.includes("login") || value.includes("test")) {
+	if (
+		value.includes("check") ||
+		value.includes("login") ||
+		value.includes("test")
+	) {
 		return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300";
 	}
 	if (
 		value.includes("create") ||
 		value.includes("register") ||
-		value.includes("setup")
+		value.includes("setup") ||
+		value.includes("update")
 	) {
 		return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-300";
 	}

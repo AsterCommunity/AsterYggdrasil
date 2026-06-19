@@ -17,6 +17,7 @@ pub mod system_info;
 pub mod tasks;
 pub mod texture_library;
 pub mod users;
+pub mod yggdrasil;
 
 pub use audit_logs::list_audit_logs;
 pub use avatars::get_user_avatar;
@@ -47,6 +48,10 @@ pub use texture_library::{
 pub use users::{
     create_user, create_user_invitation, delete_user, get_user, list_user_invitations, list_users,
     revoke_user_invitation, revoke_user_sessions, update_user,
+};
+pub use yggdrasil::{
+    create_session_forward_server, delete_session_forward_server, get_session_forward_server,
+    list_session_forward_servers, update_session_forward_server,
 };
 
 pub fn routes(
@@ -222,6 +227,30 @@ pub fn routes(
                             "/providers/{id}/test",
                             web::post().to(test_external_auth_provider),
                         ),
+                )
+                .service(
+                    web::scope("/yggdrasil")
+                        .wrap(RequireAdminOrScope::new(OperatorScope::Settings))
+                        .route(
+                            "/session-forward-servers",
+                            web::get().to(list_session_forward_servers),
+                        )
+                        .route(
+                            "/session-forward-servers",
+                            web::post().to(create_session_forward_server),
+                        )
+                        .route(
+                            "/session-forward-servers/{id}",
+                            web::get().to(get_session_forward_server),
+                        )
+                        .route(
+                            "/session-forward-servers/{id}",
+                            web::patch().to(update_session_forward_server),
+                        )
+                        .route(
+                            "/session-forward-servers/{id}",
+                            web::delete().to(delete_session_forward_server),
+                        ),
                 ),
         )
 }
@@ -259,6 +288,7 @@ mod tests {
             "/admin/avatars/users/1/512",
             "/admin/minecraft-profiles",
             "/admin/external-auth/providers",
+            "/admin/yggdrasil/session-forward-servers",
         ] {
             assert!(route_is_registered(path).await, "{path}");
         }

@@ -1,13 +1,24 @@
 use actix_web::HttpRequest;
+use base64::Engine;
+use chrono::Utc;
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::time::Duration;
+use validator::Validate;
 
-use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile};
+use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
 use crate::cache::CacheExt;
-use crate::db::repository::minecraft_profile_repo;
+use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
+use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
+use crate::entities::yggdrasil_session_forward_server;
 use crate::runtime::{
     AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
+    YggdrasilSessionForwardRuntimeState,
 };
-use crate::services::audit_service;
+use crate::services::{audit_service, yggdrasil_signature};
+use crate::types::{YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardProviderKind};
 use crate::utils::hash::sha256_hex;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
@@ -16,6 +27,9 @@ use super::token::active_token;
 
 const JOIN_CACHE_TTL_SECS: u64 = 30;
 const JOIN_CACHE_PREFIX: &str = "yggdrasil:join:";
+const DEFAULT_FORWARD_TIMEOUT_MS: u64 = 1500;
+const MIN_FORWARD_TIMEOUT_MS: u64 = 100;
+const MAX_FORWARD_TIMEOUT_MS: u64 = 10_000;
 
 pub async fn join<S>(
     state: &S,
@@ -120,6 +134,29 @@ pub async fn has_joined<S>(
     username: &str,
     server_id: &str,
     ip: Option<&str>,
+    request_info: audit_service::AuditRequestInfo,
+) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
+where
+    S: DatabaseRuntimeState
+        + AppConfigRuntimeState
+        + RuntimeConfigRuntimeState
+        + CacheRuntimeState
+        + YggdrasilSessionForwardRuntimeState,
+{
+    let servers = yggdrasil_session_forward_server_repo::list_enabled_ordered(state.reader_db())
+        .await
+        .map_err(YggdrasilError::from)?;
+    if servers.is_empty() {
+        return local_has_joined(state, username, server_id, ip).await;
+    }
+    orchestrated_has_joined(state, servers, username, server_id, ip, &request_info).await
+}
+
+async fn local_has_joined<S>(
+    state: &S,
+    username: &str,
+    server_id: &str,
+    ip: Option<&str>,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState + CacheRuntimeState,
@@ -179,6 +216,613 @@ where
     ))
 }
 
+async fn orchestrated_has_joined<S>(
+    state: &S,
+    servers: Vec<yggdrasil_session_forward_server::Model>,
+    username: &str,
+    server_id: &str,
+    ip: Option<&str>,
+    request_info: &audit_service::AuditRequestInfo,
+) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
+where
+    S: DatabaseRuntimeState
+        + AppConfigRuntimeState
+        + RuntimeConfigRuntimeState
+        + CacheRuntimeState
+        + YggdrasilSessionForwardRuntimeState,
+{
+    let server_id_hash = sha256_hex(server_id.as_bytes());
+    for upstream in weighted_forward_order(servers) {
+        let checked_at = Utc::now();
+        tracing::debug!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            provider_kind = %upstream.provider_kind.as_str(),
+            endpoint_kind = %upstream.endpoint_kind.as_str(),
+            server_id_hash = %server_id_hash,
+            username,
+            has_ip = ip.is_some(),
+            "checking yggdrasil hasJoined upstream"
+        );
+        let result = match upstream.provider_kind {
+            YggdrasilSessionForwardProviderKind::Local => {
+                local_has_joined(state, username, server_id, ip)
+                    .await
+                    .map_err(|error| error.protocol_message())
+            }
+            YggdrasilSessionForwardProviderKind::Remote => {
+                query_forward_server(
+                    state.yggdrasil_session_forward_http_client(),
+                    &upstream,
+                    username,
+                    server_id,
+                    ip,
+                )
+                .await
+            }
+        };
+        match result {
+            Ok(Some(mut profile)) => {
+                if upstream.texture_forward_enabled {
+                    match rewrite_forwarded_texture_urls(state, &upstream, &mut profile).await {
+                        Ok(rewritten_count) => {
+                            tracing::debug!(
+                                upstream_id = upstream.id,
+                                upstream_name = %upstream.display_name,
+                                profile_uuid = %profile.id,
+                                rewritten_count,
+                                "finished forwarded yggdrasil texture URL rewrite"
+                            );
+                        }
+                        Err(error) => {
+                            tracing::warn!(
+                                error = %error,
+                                upstream_id = upstream.id,
+                                upstream_name = %upstream.display_name,
+                                "failed to rewrite forwarded yggdrasil texture URLs"
+                            );
+                        }
+                    }
+                }
+                if let Err(error) = yggdrasil_session_forward_server_repo::mark_success(
+                    state.writer_db(),
+                    upstream.id,
+                    checked_at,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        error = %error,
+                        upstream_id = upstream.id,
+                        "failed to record yggdrasil session forward success"
+                    );
+                }
+                tracing::debug!(
+                    upstream_id = upstream.id,
+                    upstream_name = %upstream.display_name,
+                    profile_uuid = %profile.id,
+                    server_id_hash = %server_id_hash,
+                    "yggdrasil hasJoined forwarded profile matched"
+                );
+                log_forward_check(
+                    state,
+                    request_info,
+                    username,
+                    &server_id_hash,
+                    &upstream,
+                    "matched",
+                    Some(&profile.id),
+                    None,
+                )
+                .await;
+                return Ok(Some(profile));
+            }
+            Ok(None) => {
+                if let Err(error) = yggdrasil_session_forward_server_repo::mark_success(
+                    state.writer_db(),
+                    upstream.id,
+                    checked_at,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        error = %error,
+                        upstream_id = upstream.id,
+                        "failed to record yggdrasil session forward no-match check"
+                    );
+                }
+                tracing::debug!(
+                    upstream_id = upstream.id,
+                    upstream_name = %upstream.display_name,
+                    server_id_hash = %server_id_hash,
+                    "yggdrasil hasJoined upstream returned no matching session"
+                );
+                log_forward_check(
+                    state,
+                    request_info,
+                    username,
+                    &server_id_hash,
+                    &upstream,
+                    "no_match",
+                    None,
+                    None,
+                )
+                .await;
+            }
+            Err(error) => {
+                if let Err(record_error) = yggdrasil_session_forward_server_repo::mark_failure(
+                    state.writer_db(),
+                    upstream.id,
+                    checked_at,
+                    &error,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        error = %record_error,
+                        upstream_id = upstream.id,
+                        "failed to record yggdrasil session forward failure"
+                    );
+                }
+                tracing::warn!(
+                    upstream_id = upstream.id,
+                    upstream_name = %upstream.display_name,
+                    error = %error,
+                    server_id_hash = %server_id_hash,
+                    "yggdrasil hasJoined upstream failed"
+                );
+                log_forward_check(
+                    state,
+                    request_info,
+                    username,
+                    &server_id_hash,
+                    &upstream,
+                    "failed",
+                    None,
+                    Some(&error),
+                )
+                .await;
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+async fn log_forward_check<S>(
+    state: &S,
+    request_info: &audit_service::AuditRequestInfo,
+    username: &str,
+    server_id_hash: &str,
+    upstream: &yggdrasil_session_forward_server::Model,
+    result: &str,
+    profile_uuid: Option<&str>,
+    error: Option<&str>,
+) where
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    let ctx = request_info.to_context(0);
+    audit_service::log_with_details(
+        state,
+        &ctx,
+        audit_service::AuditAction::YggdrasilSessionForwardCheck,
+        audit_service::AuditEntityType::YggdrasilSession,
+        Some(upstream.id),
+        Some(&upstream.display_name),
+        || {
+            audit_service::details(audit_service::YggdrasilSessionForwardCheckAuditDetails {
+                username,
+                server_id_hash,
+                upstream_id: upstream.id,
+                upstream_name: &upstream.display_name,
+                provider_kind: upstream.provider_kind.as_str(),
+                endpoint_kind: upstream.endpoint_kind.as_str(),
+                result,
+                texture_forward_enabled: upstream.texture_forward_enabled,
+                profile_uuid,
+                error,
+            })
+        },
+    )
+    .await;
+}
+
+async fn rewrite_forwarded_texture_urls<S>(
+    state: &S,
+    upstream: &yggdrasil_session_forward_server::Model,
+    profile: &mut YggdrasilProfile,
+) -> std::result::Result<usize, String>
+where
+    S: AppConfigRuntimeState + RuntimeConfigRuntimeState + CacheRuntimeState,
+{
+    let Some(properties) = profile.properties.as_mut() else {
+        tracing::debug!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            profile_uuid = %profile.id,
+            "forwarded yggdrasil texture rewrite skipped because profile has no properties"
+        );
+        return Ok(0);
+    };
+    let Some(textures_property) = properties
+        .iter_mut()
+        .find(|property| property.name == "textures")
+    else {
+        tracing::debug!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            profile_uuid = %profile.id,
+            property_count = properties.len(),
+            "forwarded yggdrasil texture rewrite skipped because profile has no textures property"
+        );
+        return Ok(0);
+    };
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(&textures_property.value)
+        .map_err(|error| format!("textures property is not valid base64: {error}"))?;
+    let mut payload: Value = serde_json::from_slice(&decoded)
+        .map_err(|error| format!("textures property is not valid JSON: {error}"))?;
+    let Some(textures) = payload.get_mut("textures").and_then(Value::as_object_mut) else {
+        tracing::debug!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            profile_uuid = %profile.id,
+            "forwarded yggdrasil texture rewrite skipped because textures payload has no textures object"
+        );
+        return Ok(0);
+    };
+
+    let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+    let Some(public_base_url) = policy.public_base_urls.first() else {
+        return Err("public base URL is required for forwarded texture proxy URLs".to_string());
+    };
+
+    let mut rewritten_count = 0;
+    for (texture_type, texture) in textures.iter_mut() {
+        let Some(url_value) = texture.get_mut("url") else {
+            tracing::debug!(
+                upstream_id = upstream.id,
+                upstream_name = %upstream.display_name,
+                profile_uuid = %profile.id,
+                texture_type,
+                "forwarded yggdrasil texture rewrite skipped texture without url"
+            );
+            continue;
+        };
+        let Some(original_url) = url_value.as_str() else {
+            tracing::debug!(
+                upstream_id = upstream.id,
+                upstream_name = %upstream.display_name,
+                profile_uuid = %profile.id,
+                texture_type,
+                "forwarded yggdrasil texture rewrite skipped texture with non-string url"
+            );
+            continue;
+        };
+        let original_url = original_url.to_string();
+        let texture_hash = forwarded_texture_hash(&original_url);
+        let ticket = encode_forwarded_texture_ticket(
+            state,
+            ForwardedTextureTicket {
+                s: upstream.id,
+                h: texture_hash.clone(),
+                u: original_url.clone(),
+            },
+        )
+        .map_err(|error| format!("failed to sign forwarded texture ticket: {error}"))?;
+        let forwarded_url = format!(
+            "{}/sessionserver/session/minecraft/forwardedTextures/{}/{}/{}",
+            public_base_url.trim_end_matches('/'),
+            upstream.id,
+            texture_hash,
+            ticket
+        );
+        let forwarded_host = reqwest::Url::parse(&forwarded_url)
+            .ok()
+            .and_then(|url| url.host_str().map(|host| host.to_ascii_lowercase()));
+        let forwarded_host_allowed = forwarded_host.as_ref().is_some_and(|host| {
+            policy
+                .skin_domains
+                .iter()
+                .any(|domain| skin_domain_matches_host(domain, host))
+        });
+        tracing::warn!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            profile_uuid = %profile.id,
+            texture_type,
+            texture_hash = %texture_hash,
+            forwarded_host = forwarded_host.as_deref().unwrap_or("invalid"),
+            forwarded_host_allowed,
+            forwarded_texture_path = %reqwest::Url::parse(&forwarded_url)
+                .ok()
+                .map(|url| url.path().to_string())
+                .unwrap_or_else(|| "/sessionserver/session/minecraft/forwardedTextures/<invalid>".to_string()),
+            "rewrote forwarded yggdrasil texture URL"
+        );
+        *url_value = Value::String(forwarded_url);
+        rewritten_count += 1;
+    }
+
+    if rewritten_count == 0 {
+        tracing::debug!(
+            upstream_id = upstream.id,
+            upstream_name = %upstream.display_name,
+            profile_uuid = %profile.id,
+            texture_count = textures.len(),
+            "forwarded yggdrasil texture rewrite found no texture URLs"
+        );
+        return Ok(0);
+    }
+
+    let encoded = serde_json::to_vec(&payload)
+        .map(|payload| base64::engine::general_purpose::STANDARD.encode(payload))
+        .map_err(|error| format!("failed to serialize rewritten textures property: {error}"))?;
+    let signature = yggdrasil_signature::sign_texture_property(&policy, &encoded)
+        .map_err(|error| error.to_string())?;
+    let Some(signature) = signature else {
+        return Err(
+            "forwarded texture URL rewrite requires a configured Yggdrasil signature private key"
+                .to_string(),
+        );
+    };
+    tracing::warn!(
+        upstream_id = upstream.id,
+        upstream_name = %upstream.display_name,
+        profile_uuid = %profile.id,
+        value_hash = %sha256_hex(encoded.as_bytes()),
+        signature_len = signature.len(),
+        "re-signed forwarded yggdrasil textures property"
+    );
+    *textures_property = YggdrasilProfileProperty {
+        name: textures_property.name.clone(),
+        value: encoded,
+        signature: Some(signature),
+    };
+    Ok(rewritten_count)
+}
+
+fn skin_domain_matches_host(domain: &str, host: &str) -> bool {
+    domain
+        .strip_prefix('.')
+        .is_some_and(|suffix| host.ends_with(suffix))
+        || domain == host
+}
+
+async fn query_forward_server(
+    client: &reqwest::Client,
+    upstream: &yggdrasil_session_forward_server::Model,
+    username: &str,
+    server_id: &str,
+    ip: Option<&str>,
+) -> std::result::Result<Option<YggdrasilProfile>, String> {
+    let base_url = upstream
+        .base_url
+        .as_deref()
+        .ok_or_else(|| "remote upstream base URL is missing".to_string())?;
+    let mut url = reqwest::Url::parse(base_url)
+        .map_err(|error| format!("invalid upstream base URL: {error}"))?;
+    {
+        let mut path = url.path().trim_end_matches('/').to_string();
+        path.push_str(session_forward_has_joined_path(upstream.endpoint_kind));
+        url.set_path(&path);
+        let mut query = url.query_pairs_mut();
+        query.append_pair("username", username);
+        query.append_pair("serverId", server_id);
+        if let Some(ip) = ip {
+            query.append_pair("ip", ip);
+        }
+    }
+    tracing::debug!(
+        upstream_id = upstream.id,
+        upstream_name = %upstream.display_name,
+        endpoint_kind = %upstream.endpoint_kind.as_str(),
+        upstream_origin = %url.origin().ascii_serialization(),
+        upstream_has_joined_path = %url.path(),
+        username,
+        server_id_hash = %sha256_hex(server_id.as_bytes()),
+        has_ip = ip.is_some(),
+        "querying yggdrasil hasJoined upstream"
+    );
+
+    let timeout = Duration::from_millis(normalize_forward_timeout_ms(upstream.timeout_ms));
+    let response = client
+        .get(url)
+        .timeout(timeout)
+        .send()
+        .await
+        .map_err(|error| format!("request failed: {error}"))?;
+    let status = response.status();
+    if status == reqwest::StatusCode::NO_CONTENT || status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        return Err(format!("upstream returned HTTP {status}"));
+    }
+
+    let profile = response
+        .json::<YggdrasilProfile>()
+        .await
+        .map_err(|error| format!("invalid profile JSON: {error}"))?;
+    profile
+        .validate()
+        .map_err(|error| format!("invalid profile body: {error}"))?;
+    Ok(Some(profile))
+}
+
+fn session_forward_has_joined_path(kind: YggdrasilSessionForwardEndpointKind) -> &'static str {
+    match kind {
+        YggdrasilSessionForwardEndpointKind::AuthlibInjector => {
+            "/sessionserver/session/minecraft/hasJoined"
+        }
+        YggdrasilSessionForwardEndpointKind::MojangSession => "/session/minecraft/hasJoined",
+    }
+}
+
+pub async fn forwarded_texture_url<S>(
+    state: &S,
+    upstream_id: i64,
+    texture_hash: &str,
+    ticket: &str,
+) -> std::result::Result<Option<String>, YggdrasilError>
+where
+    S: AppConfigRuntimeState,
+{
+    if !is_forwarded_texture_hash(texture_hash) {
+        tracing::debug!("forwarded texture lookup rejected invalid texture hash");
+        return Ok(None);
+    }
+    let ticket = match decode_forwarded_texture_ticket(state, ticket) {
+        Ok(ticket) => ticket,
+        Err(error) => {
+            tracing::warn!(
+                upstream_id,
+                texture_hash,
+                error = %error,
+                "forwarded yggdrasil texture ticket was invalid"
+            );
+            return Ok(None);
+        }
+    };
+    if ticket.s != upstream_id || ticket.h != texture_hash {
+        tracing::warn!(
+            upstream_id,
+            texture_hash,
+            ticket_upstream_id = ticket.s,
+            ticket_texture_hash = %ticket.h,
+            "forwarded yggdrasil texture ticket did not match request path"
+        );
+        return Ok(None);
+    }
+    let parsed_url = match reqwest::Url::parse(&ticket.u) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") => url,
+        Ok(url) => {
+            tracing::warn!(
+                upstream_id,
+                texture_hash,
+                scheme = %url.scheme(),
+                "forwarded yggdrasil texture ticket rejected unsupported URL scheme"
+            );
+            return Ok(None);
+        }
+        Err(error) => {
+            tracing::warn!(
+                upstream_id,
+                texture_hash,
+                error = %error,
+                "forwarded yggdrasil texture ticket contained invalid URL"
+            );
+            return Ok(None);
+        }
+    };
+    Ok(Some(parsed_url.to_string()))
+}
+
+fn encode_forwarded_texture_ticket<S>(
+    state: &S,
+    ticket: ForwardedTextureTicket,
+) -> jsonwebtoken::errors::Result<String>
+where
+    S: AppConfigRuntimeState,
+{
+    encode(
+        &Header::new(Algorithm::HS256),
+        &ticket,
+        &EncodingKey::from_secret(state.config().auth.jwt_secret.as_bytes()),
+    )
+}
+
+fn decode_forwarded_texture_ticket<S>(
+    state: &S,
+    ticket: &str,
+) -> jsonwebtoken::errors::Result<ForwardedTextureTicket>
+where
+    S: AppConfigRuntimeState,
+{
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = false;
+    validation.required_spec_claims.clear();
+    decode::<ForwardedTextureTicket>(
+        ticket,
+        &DecodingKey::from_secret(state.config().auth.jwt_secret.as_bytes()),
+        &validation,
+    )
+    .map(|data| data.claims)
+}
+
+fn forwarded_texture_hash(url: &str) -> String {
+    reqwest::Url::parse(url)
+        .ok()
+        .and_then(|url| {
+            url.path_segments()
+                .and_then(|segments| {
+                    segments
+                        .rev()
+                        .find(|segment| is_forwarded_texture_hash(segment))
+                })
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| sha256_hex(url.as_bytes()))
+}
+
+fn is_forwarded_texture_hash(value: &str) -> bool {
+    matches!(value.len(), 32 | 40 | 64) && value.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn normalize_forward_timeout_ms(timeout_ms: i32) -> u64 {
+    let Ok(timeout_ms) = u64::try_from(timeout_ms) else {
+        return DEFAULT_FORWARD_TIMEOUT_MS;
+    };
+    timeout_ms.clamp(MIN_FORWARD_TIMEOUT_MS, MAX_FORWARD_TIMEOUT_MS)
+}
+
+fn weighted_forward_order(
+    servers: Vec<yggdrasil_session_forward_server::Model>,
+) -> Vec<yggdrasil_session_forward_server::Model> {
+    let mut ordered = Vec::with_capacity(servers.len());
+    let mut index = 0;
+    let mut servers = servers;
+    servers.sort_by_key(|server| (server.priority, server.id));
+
+    while index < servers.len() {
+        let priority = servers[index].priority;
+        let mut end = index + 1;
+        while end < servers.len() && servers[end].priority == priority {
+            end += 1;
+        }
+        ordered.extend(weighted_group_order(servers[index..end].to_vec()));
+        index = end;
+    }
+
+    ordered
+}
+
+fn weighted_group_order(
+    mut servers: Vec<yggdrasil_session_forward_server::Model>,
+) -> Vec<yggdrasil_session_forward_server::Model> {
+    let mut ordered = Vec::with_capacity(servers.len());
+    let mut rng = rand::rng();
+
+    while !servers.is_empty() {
+        let total_weight: i64 = servers
+            .iter()
+            .map(|server| i64::from(server.weight.max(1)))
+            .sum();
+        let mut ticket = rng.random_range(0..total_weight);
+        let mut selected_index = 0;
+        for (index, server) in servers.iter().enumerate() {
+            ticket -= i64::from(server.weight.max(1));
+            if ticket < 0 {
+                selected_index = index;
+                break;
+            }
+        }
+        ordered.push(servers.remove(selected_index));
+    }
+
+    ordered
+}
+
 fn join_cache_key(server_id: &str) -> String {
     format!("{JOIN_CACHE_PREFIX}{}", sha256_hex(server_id.as_bytes()))
 }
@@ -190,4 +834,11 @@ struct YggdrasilJoinSession {
     profile_name: String,
     server_id: String,
     ip_address: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ForwardedTextureTicket {
+    s: i64,
+    h: String,
+    u: String,
 }

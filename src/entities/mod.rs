@@ -21,4 +21,5 @@ pub mod user;
 pub mod user_invitation;
 pub mod user_operator_scope;
 pub mod user_profile;
+pub mod yggdrasil_session_forward_server;
 pub mod yggdrasil_token;

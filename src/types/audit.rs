@@ -85,6 +85,9 @@ define_audit_actions! {
     AdminUpdateExternalAuthProvider => "admin_update_external_auth_provider",
     AdminDeleteExternalAuthProvider => "admin_delete_external_auth_provider",
     AdminTestExternalAuthProvider => "admin_test_external_auth_provider",
+    AdminCreateYggdrasilSessionForwardServer => "admin_create_yggdrasil_session_forward_server",
+    AdminUpdateYggdrasilSessionForwardServer => "admin_update_yggdrasil_session_forward_server",
+    AdminDeleteYggdrasilSessionForwardServer => "admin_delete_yggdrasil_session_forward_server",
     MailSend => "mail_send",
     MailDeliveryFailed => "mail_delivery_failed",
     ExternalAuthProviderCreate => "external_auth_provider_create",
@@ -112,6 +115,7 @@ define_audit_actions! {
     YggdrasilInvalidateToken => "yggdrasil_invalidate_token",
     YggdrasilSignout => "yggdrasil_signout",
     YggdrasilJoinServer => "yggdrasil_join_server",
+    YggdrasilSessionForwardCheck => "yggdrasil_session_forward_check",
 }
 
 impl AsRef<str> for AuditAction {
@@ -127,7 +131,10 @@ impl AuditAction {
             Self::ConfigUpdate
             | Self::ConfigDelete
             | Self::ConfigActionExecute
-            | Self::AdminDeleteConfig => "config",
+            | Self::AdminDeleteConfig
+            | Self::AdminCreateYggdrasilSessionForwardServer
+            | Self::AdminUpdateYggdrasilSessionForwardServer
+            | Self::AdminDeleteYggdrasilSessionForwardServer => "config",
             Self::AdminCleanupTasks | Self::TaskRetry => "task",
             Self::UserRegister
             | Self::UserLogin
@@ -160,7 +167,8 @@ impl AuditAction {
             | Self::YggdrasilRefreshToken
             | Self::YggdrasilInvalidateToken
             | Self::YggdrasilSignout
-            | Self::YggdrasilJoinServer => "yggdrasil",
+            | Self::YggdrasilJoinServer
+            | Self::YggdrasilSessionForwardCheck => "yggdrasil",
             Self::AdminCreateUser
             | Self::AdminUpdateUser
             | Self::AdminDisableUser

@@ -6,15 +6,18 @@
 				"admin_create_external_auth_provider": "Created external auth provider",
 				"admin_create_invitation": "Created invitation",
 				"admin_create_user": "Created user",
+				"admin_create_yggdrasil_session_forward_server": "Created Yggdrasil session forwarding server",
 				"admin_delete_config": "Deleted config",
 				"admin_delete_external_auth_provider": "Deleted external auth provider",
 				"admin_delete_user": "Deleted user",
+				"admin_delete_yggdrasil_session_forward_server": "Deleted Yggdrasil session forwarding server",
 				"admin_disable_user": "Disabled user",
 				"admin_revoke_invitation": "Revoked invitation",
 				"admin_revoke_user_sessions": "Revoked user sessions",
 				"admin_test_external_auth_provider": "Tested external auth provider",
 				"admin_update_external_auth_provider": "Updated external auth provider",
 				"admin_update_user": "Updated user",
+				"admin_update_yggdrasil_session_forward_server": "Updated Yggdrasil session forwarding server",
 				"config_action_execute": "Executed config action",
 				"config_delete": "Deleted config",
 				"config_update": "Updated config",
@@ -66,6 +69,7 @@
 				"yggdrasil_invalidate_token": "Invalidated Yggdrasil token",
 				"yggdrasil_join_server": "Yggdrasil server join",
 				"yggdrasil_refresh_token": "Refreshed Yggdrasil token",
+				"yggdrasil_session_forward_check": "Yggdrasil session forwarding check",
 				"yggdrasil_signout": "Yggdrasil signout"
 			},
 			"entity": {
@@ -100,7 +104,9 @@
 				"minecraft_texture_report_changed": "Report #{{report_id}} for texture #{{texture_id}} changed to {{report_status}}, reason {{reason}}",
 				"task_retry_scheduled": "Retry {{kind}}, previous attempts {{previous_attempt_count}}",
 				"tasks_cleanup_finished": "Cleaned {{removed}} task records",
-				"user_login_identifier": "Login identifier: {{identifier}}"
+				"user_login_identifier": "Login identifier: {{identifier}}",
+				"yggdrasil_session_forward_checked": "Checked {{upstream_name}}, user {{username}}, result {{result}}, texture forwarding {{texture_forward_enabled}}",
+				"yggdrasil_session_forward_server_changed": "{{provider_kind}} {{endpoint_kind}}, enabled {{enabled}}, priority {{priority}}, weight {{weight}}, timeout {{timeout_ms}} ms, texture forwarding {{texture_forward_enabled}}"
 			}
 		}
 	}

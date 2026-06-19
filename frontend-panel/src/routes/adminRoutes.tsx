@@ -22,6 +22,9 @@ const AdminAboutPage = lazyWithPreload(
 const AdminExternalAuthPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminExternalAuthPage"),
 );
+const AdminYggdrasilForwardingPage = lazyWithPreload(
+	() => import("@/pages/admin/AdminYggdrasilForwardingPage"),
+);
 const AdminTextureLibraryPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminTextureLibraryPage"),
 );
@@ -78,6 +81,10 @@ export const adminRoutes = [
 					{
 						path: adminPaths.externalAuth,
 						element: <AdminExternalAuthPage />,
+					},
+					{
+						path: adminPaths.yggdrasilForwarding,
+						element: <AdminYggdrasilForwardingPage />,
 					},
 					{
 						path: adminPaths.textureLibrary,

@@ -32,6 +32,7 @@ For authlib-injector, launchers, or Minecraft servers, read:
 
 - [Launcher Setup](./launcher-setup): what address, account identifier, and javaagent parameter to use
 - [Launcher Login](./launcher-login): authenticate, refresh, selectedProfile, token lifecycle, and join/hasJoined
+- [Yggdrasil Forwarding](./yggdrasil-forwarding): point the server at AY and forward Yggdrasil-compatible site, Mojang, or other upstream session checks by priority
 - [Yggdrasil API](./yggdrasil-api): ALI, metadata, authserver, sessionserver, profile lookup, texture API, and protocol errors
 - [Textures](./yggdrasil-textures): texture property URLs, skinDomains, signatures, and caching concerns
 - [Troubleshooting](./troubleshooting): launcher login, server join, skin display, signature verification, and texture 404s

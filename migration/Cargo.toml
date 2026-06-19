@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 async-trait = "0.1"
-sea-orm-migration = { version = "2.0.0-rc.40", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls"] }
+sea-orm-migration = { version = "2.0.0-rc.41", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lib]

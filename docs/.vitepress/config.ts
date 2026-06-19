@@ -113,6 +113,7 @@ export default withMermaid(
 							items: [
 								{ text: "启动器填写", link: "/guide/launcher-setup" },
 								{ text: "启动器登录", link: "/guide/launcher-login" },
+								{ text: "Yggdrasil 转发", link: "/guide/yggdrasil-forwarding" },
 								{ text: "Yggdrasil API", link: "/guide/yggdrasil-api" },
 								{ text: "故障排查", link: "/guide/troubleshooting" },
 							],
@@ -182,6 +183,7 @@ export default withMermaid(
 							items: [
 								{ text: "Launcher Setup", link: "/en/guide/launcher-setup" },
 								{ text: "Launcher Login", link: "/en/guide/launcher-login" },
+								{ text: "Yggdrasil Forwarding", link: "/en/guide/yggdrasil-forwarding" },
 								{ text: "Yggdrasil API", link: "/en/guide/yggdrasil-api" },
 								{ text: "Troubleshooting", link: "/en/guide/troubleshooting" },
 							],

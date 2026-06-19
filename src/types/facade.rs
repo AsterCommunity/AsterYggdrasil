@@ -24,5 +24,6 @@ pub use super::user::{AvatarSource, OperatorScope, UserInvitationStatus, UserRol
 pub use super::yggdrasil::{
     MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureReportReason,
     MinecraftTextureReportStatus, MinecraftTextureType, MinecraftTextureVisibility,
-    TextureTagSearchMethod,
+    TextureTagSearchMethod, YggdrasilSessionForwardEndpointKind,
+    YggdrasilSessionForwardProviderKind, YggdrasilSessionForwardServerSortBy,
 };

@@ -239,6 +239,7 @@ const AUDIT_ACTION_TONES = {
 	admin_delete_config: "danger",
 	admin_delete_external_auth_provider: "danger",
 	admin_delete_user: "danger",
+	admin_delete_yggdrasil_session_forward_server: "danger",
 	admin_disable_user: "danger",
 	admin_revoke_invitation: "danger",
 	admin_revoke_user_sessions: "danger",
@@ -262,8 +263,10 @@ const AUDIT_ACTION_TONES = {
 	admin_create_external_auth_provider: "info",
 	admin_create_invitation: "info",
 	admin_create_user: "info",
+	admin_create_yggdrasil_session_forward_server: "info",
 	admin_update_external_auth_provider: "info",
 	admin_update_user: "info",
+	admin_update_yggdrasil_session_forward_server: "info",
 	config_action_execute: "info",
 	config_update: "info",
 	external_auth_provider_create: "info",
@@ -289,6 +292,7 @@ const AUDIT_ACTION_TONES = {
 	yggdrasil_authenticate: "warning",
 	yggdrasil_join_server: "warning",
 	yggdrasil_refresh_token: "warning",
+	yggdrasil_session_forward_check: "warning",
 } as const satisfies Partial<Record<AuditAction, AuditActionTone>>;
 
 const AUDIT_ACTION_TONE_CLASSES = {

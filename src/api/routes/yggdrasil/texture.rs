@@ -5,7 +5,7 @@ use futures::StreamExt;
 use crate::api::cache::{not_modified_response, request_etag_matches, weak_etag_for_sha256_hash};
 use crate::runtime::AppState;
 use crate::services::yggdrasil_service::{YggdrasilError, YggdrasilErrorKind};
-use crate::services::{audit_service, texture_service};
+use crate::services::{audit_service, texture_service, yggdrasil_service};
 use crate::types::MinecraftTextureType;
 
 use super::yggdrasil_error_response;
@@ -331,6 +331,127 @@ pub async fn texture_by_hash(
             download.size.to_string(),
         ))
         .streaming(download.stream)
+}
+
+#[api_docs_macros::path(
+    get,
+    path = "/api/yggdrasil/sessionserver/session/minecraft/forwardedTextures/{upstream_id}/{texture_hash}/{ticket}",
+    tag = "yggdrasil",
+    operation_id = "yggdrasil_forwarded_texture_by_hash",
+    params(
+        ("upstream_id" = i64, Path, description = "Forwarding server ID"),
+        ("texture_hash" = String, Path, description = "Forwarded texture hash"),
+        ("ticket" = String, Path, description = "Signed forwarded texture ticket"),
+    ),
+    responses(
+        (status = 200, description = "Forwarded texture PNG bytes", content_type = "image/png"),
+        (status = 404, description = "Forwarded texture ticket invalid or upstream texture missing"),
+        (status = 502, description = "Forwarded texture upstream failed"),
+    ),
+)]
+pub async fn forwarded_texture_by_hash(
+    state: web::Data<AppState>,
+    path: web::Path<(i64, String, String)>,
+) -> HttpResponse {
+    let (upstream_id, texture_hash, ticket) = path.into_inner();
+    tracing::debug!(
+        upstream_id,
+        texture_hash = %texture_hash,
+        "received forwarded yggdrasil texture request by hash"
+    );
+    let Some(url) = (match yggdrasil_service::forwarded_texture_url(
+        state.get_ref(),
+        upstream_id,
+        &texture_hash,
+        &ticket,
+    )
+    .await
+    {
+        Ok(url) => url,
+        Err(error) => return super::yggdrasil_error_response(error),
+    }) else {
+        tracing::debug!(
+            upstream_id,
+            texture_hash = %texture_hash,
+            "forwarded yggdrasil texture hash mapping was not found or expired"
+        );
+        return HttpResponse::NotFound().finish();
+    };
+    tracing::debug!(
+        upstream_id,
+        texture_hash = %texture_hash,
+        upstream_origin = reqwest::Url::parse(&url)
+            .ok()
+            .map(|url| url.origin().ascii_serialization())
+            .as_deref()
+            .unwrap_or("invalid"),
+        "forwarded yggdrasil texture hash mapping resolved"
+    );
+
+    proxy_forwarded_texture_url(state.get_ref(), &url, &texture_hash).await
+}
+
+async fn proxy_forwarded_texture_url(
+    state: &AppState,
+    url: &str,
+    texture_ref: &str,
+) -> HttpResponse {
+    let response = match state
+        .yggdrasil_session_forward_http_client()
+        .get(url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!(error = %error, texture_ref, "forwarded yggdrasil texture request failed");
+            return HttpResponse::BadGateway().finish();
+        }
+    };
+    if response.status().as_u16() == 404 {
+        return HttpResponse::NotFound().finish();
+    }
+    if !response.status().is_success() {
+        tracing::warn!(
+            status = %response.status(),
+            texture_ref,
+            "forwarded yggdrasil texture upstream returned failure"
+        );
+        return HttpResponse::BadGateway().finish();
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !content_type.starts_with("image/png") {
+        tracing::warn!(
+            content_type = %content_type,
+            texture_ref,
+            "forwarded yggdrasil texture upstream returned non-PNG content"
+        );
+        return HttpResponse::BadGateway().finish();
+    }
+    let bytes = match response.bytes().await {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            tracing::warn!(error = %error, texture_ref, "failed to read forwarded yggdrasil texture body");
+            return HttpResponse::BadGateway().finish();
+        }
+    };
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .insert_header((
+            actix_web::http::header::CACHE_CONTROL,
+            texture_service::TEXTURE_CACHE_CONTROL,
+        ))
+        .insert_header((
+            actix_web::http::header::CONTENT_LENGTH,
+            bytes.len().to_string(),
+        ))
+        .body(bytes)
 }
 
 struct ReceivedTextureUpload {

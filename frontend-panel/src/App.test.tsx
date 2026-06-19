@@ -732,6 +732,7 @@ describe("frontend entry routes", () => {
 			"/admin",
 			"/admin/users",
 			"/admin/external-auth",
+			"/admin/yggdrasil-forwarding",
 			"/admin/texture-library",
 			"/admin/audit",
 			"/admin/tasks",

@@ -453,6 +453,8 @@ mod tests {
             metrics: crate::metrics_core::NoopMetrics::arc(),
             started_at: AppState::new_started_at(),
             yggdrasil_rate_limiter: AppState::new_yggdrasil_rate_limiter(&config),
+            yggdrasil_session_forward_http_client:
+                AppState::new_yggdrasil_session_forward_http_client(),
             background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
         }
     }

@@ -85,6 +85,13 @@ export const adminNavItems: ShellNavItem[] = [
 		preload: () => import("@/pages/admin/AdminExternalAuthPage"),
 	},
 	{
+		to: adminPaths.yggdrasilForwarding,
+		labelKey: "admin.nav.yggdrasilForwarding",
+		icon: "Shuffle",
+		operatorScope: "settings",
+		preload: () => import("@/pages/admin/AdminYggdrasilForwardingPage"),
+	},
+	{
 		to: adminPaths.textureLibrary,
 		labelKey: "admin.nav.textureLibrary",
 		icon: "Images",

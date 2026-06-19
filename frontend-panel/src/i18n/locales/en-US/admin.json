@@ -8,6 +8,7 @@
 			"users": "Users",
 			"config": "Config",
 			"externalAuth": "External Auth",
+			"yggdrasilForwarding": "Yggdrasil Forwarding",
 			"textureLibrary": "Texture Library",
 			"audit": "Audit",
 			"tasks": "Tasks",
@@ -137,6 +138,55 @@
 			"sortOrder": "Sort order",
 			"update": "Update",
 			"userId": "User ID"
+		},
+		"yggdrasilForwarding": {
+			"title": "Yggdrasil Forwarding",
+			"description": "Orchestrate local and upstream Yggdrasil services for sessionserver hasJoined requests and control upstream texture proxying.",
+			"createAction": "Add forwarding server",
+			"saveAction": "Save",
+			"editAction": "Edit",
+			"deleteAction": "Delete",
+			"createTitle": "Add upstream Yggdrasil server",
+			"editTitle": "Edit Yggdrasil forwarding server",
+			"dialogDescription": "The remote base URL should point to the target Yggdrasil API root. In call order, lower priority values are tried first and same-priority servers are drawn by weight.",
+			"localEditDescription": "AY local service participates in the same ordering, but it does not use an HTTP self-call or require a base URL.",
+			"displayName": "Display name",
+			"baseUrl": "Base URL",
+			"server": "Server",
+			"order": "Order",
+			"state": "State",
+			"lastCheck": "Last check",
+			"actions": "Actions",
+			"priority": "Priority",
+			"weight": "Weight",
+			"timeout": "Timeout",
+			"timeoutMs": "Timeout (ms)",
+			"testing": "Testing",
+			"enabled": "Enabled",
+			"textureForward": "Texture proxy",
+			"localBaseUrl": "AY local session cache",
+			"neverChecked": "Never checked",
+			"emptyTitle": "No upstream forwarding servers",
+			"emptyDescription": "The default AY local service participates in ordering. Add upstream servers to orchestrate hasJoined requests by priority and weight.",
+			"createSuccess": "Forwarding server created",
+			"updateSuccess": "Forwarding server updated",
+			"deleteSuccess": "Forwarding server deleted",
+			"deleteTitle": "Delete this forwarding server?",
+			"deleteDescription": "After deleting {{name}}, hasJoined requests will no longer be forwarded to this server.",
+			"provider": {
+				"local": "Local",
+				"remote": "Remote"
+			},
+			"sort": {
+				"label": "Sort mode",
+				"call_order": "Call order",
+				"id": "ID order"
+			},
+			"health": {
+				"ok": "Last success",
+				"failed": "Last failure",
+				"pending": "Waiting"
+			}
 		},
 		"minecraftProfilePage": {
 			"title": "Minecraft profile",

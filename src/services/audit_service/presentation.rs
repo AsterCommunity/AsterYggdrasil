@@ -64,6 +64,13 @@ fn summary_message(
             copy_string_param(details, &mut params, "key");
             copy_string_param(details, &mut params, "slug");
         }
+        AuditAction::AdminCreateYggdrasilSessionForwardServer
+        | AuditAction::AdminUpdateYggdrasilSessionForwardServer
+        | AuditAction::AdminDeleteYggdrasilSessionForwardServer => {
+            copy_string_param(details, &mut params, "provider_kind");
+            copy_string_param(details, &mut params, "endpoint_kind");
+            copy_string_param(details, &mut params, "base_url");
+        }
         AuditAction::MinecraftProfileCreate
         | AuditAction::MinecraftProfileRename
         | AuditAction::MinecraftProfileDelete
@@ -82,7 +89,8 @@ fn summary_message(
         | AuditAction::YggdrasilRefreshToken
         | AuditAction::YggdrasilInvalidateToken
         | AuditAction::YggdrasilSignout
-        | AuditAction::YggdrasilJoinServer => {
+        | AuditAction::YggdrasilJoinServer
+        | AuditAction::YggdrasilSessionForwardCheck => {
             copy_string_param(details, &mut params, "profile_name");
             copy_string_param(details, &mut params, "profile_uuid");
             copy_string_param(details, &mut params, "old_profile_name");
@@ -94,6 +102,11 @@ fn summary_message(
             copy_string_param(details, &mut params, "report_status");
             copy_string_param(details, &mut params, "selected_profile_name");
             copy_string_param(details, &mut params, "selected_profile_uuid");
+            copy_string_param(details, &mut params, "username");
+            copy_string_param(details, &mut params, "upstream_name");
+            copy_string_param(details, &mut params, "provider_kind");
+            copy_string_param(details, &mut params, "endpoint_kind");
+            copy_string_param(details, &mut params, "result");
         }
         _ => {}
     }
@@ -206,6 +219,20 @@ fn detail_message(
             copy_param(details, &mut params, "enabled");
             Some(message("external_auth_provider_tested", params))
         }
+        AuditAction::AdminCreateYggdrasilSessionForwardServer
+        | AuditAction::AdminUpdateYggdrasilSessionForwardServer
+        | AuditAction::AdminDeleteYggdrasilSessionForwardServer => {
+            copy_param(details, &mut params, "provider_kind");
+            copy_param(details, &mut params, "endpoint_kind");
+            copy_param(details, &mut params, "base_url");
+            copy_param(details, &mut params, "builtin");
+            copy_param(details, &mut params, "enabled");
+            copy_param(details, &mut params, "priority");
+            copy_param(details, &mut params, "weight");
+            copy_param(details, &mut params, "timeout_ms");
+            copy_param(details, &mut params, "texture_forward_enabled");
+            Some(message("yggdrasil_session_forward_server_changed", params))
+        }
         AuditAction::MinecraftProfileCreate => {
             copy_param(details, &mut params, "profile_uuid");
             copy_param(details, &mut params, "profile_name");
@@ -303,6 +330,19 @@ fn detail_message(
             copy_param(details, &mut params, "profile_name");
             copy_param(details, &mut params, "server_id_hash");
             Some(message("yggdrasil_joined_server", params))
+        }
+        AuditAction::YggdrasilSessionForwardCheck => {
+            copy_param(details, &mut params, "username");
+            copy_param(details, &mut params, "server_id_hash");
+            copy_param(details, &mut params, "upstream_id");
+            copy_param(details, &mut params, "upstream_name");
+            copy_param(details, &mut params, "provider_kind");
+            copy_param(details, &mut params, "endpoint_kind");
+            copy_param(details, &mut params, "result");
+            copy_param(details, &mut params, "texture_forward_enabled");
+            copy_param(details, &mut params, "profile_uuid");
+            copy_param(details, &mut params, "error");
+            Some(message("yggdrasil_session_forward_checked", params))
         }
         _ => None,
     }

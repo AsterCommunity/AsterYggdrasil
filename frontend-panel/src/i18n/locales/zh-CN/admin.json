@@ -8,6 +8,7 @@
 			"users": "用户",
 			"config": "配置",
 			"externalAuth": "外部认证",
+			"yggdrasilForwarding": "Yggdrasil 转发",
 			"textureLibrary": "材质库",
 			"audit": "审计",
 			"tasks": "任务",
@@ -137,6 +138,55 @@
 			"sortOrder": "排序方向",
 			"update": "更新",
 			"userId": "用户 ID"
+		},
+		"yggdrasilForwarding": {
+			"title": "Yggdrasil 转发",
+			"description": "编排 sessionserver hasJoined 请求的本地与远端 Yggdrasil 服务，并控制远端材质代理。",
+			"createAction": "添加转发服务",
+			"saveAction": "保存",
+			"editAction": "编辑",
+			"deleteAction": "删除",
+			"createTitle": "添加远端 Yggdrasil 服务",
+			"editTitle": "编辑 Yggdrasil 转发服务",
+			"dialogDescription": "远端 base URL 应指向目标 Yggdrasil API 根路径；调用顺序中优先级数值越小越先尝试，同优先级按权重随机抽取。",
+			"localEditDescription": "AY 本地服务参与同一套排序，但不会通过 HTTP 自调用，也不需要 base URL。",
+			"displayName": "显示名称",
+			"baseUrl": "Base URL",
+			"server": "服务",
+			"order": "排序",
+			"state": "状态",
+			"lastCheck": "最近检查",
+			"actions": "操作",
+			"priority": "优先级",
+			"weight": "权重",
+			"timeout": "超时",
+			"timeoutMs": "超时（毫秒）",
+			"testing": "测试中",
+			"enabled": "启用",
+			"textureForward": "材质代理",
+			"localBaseUrl": "AY 本地会话缓存",
+			"neverChecked": "未检查",
+			"emptyTitle": "暂无远端转发服务",
+			"emptyDescription": "默认 AY 本地服务会参与排序。添加远端服务后，hasJoined 请求会按优先级和权重编排。",
+			"createSuccess": "转发服务已创建",
+			"updateSuccess": "转发服务已更新",
+			"deleteSuccess": "转发服务已删除",
+			"deleteTitle": "删除这个转发服务？",
+			"deleteDescription": "删除 {{name}} 后，hasJoined 请求将不再转发到这个服务。",
+			"provider": {
+				"local": "本地",
+				"remote": "远端"
+			},
+			"sort": {
+				"label": "排序方式",
+				"call_order": "调用顺序优先",
+				"id": "ID 顺序"
+			},
+			"health": {
+				"ok": "最近成功",
+				"failed": "最近失败",
+				"pending": "等待检查"
+			}
 		},
 		"minecraftProfilePage": {
 			"title": "Minecraft 角色档案",

@@ -31,6 +31,7 @@ export const adminPaths = {
 	users: "/admin/users",
 	userInvitations: "/admin/users/invitations",
 	externalAuth: "/admin/external-auth",
+	yggdrasilForwarding: "/admin/yggdrasil-forwarding",
 	textureLibrary: "/admin/texture-library",
 	textureLibraryDetail: "/admin/texture-library/:textureId",
 	textureLibraryReviews: "/admin/texture-library/reviews",

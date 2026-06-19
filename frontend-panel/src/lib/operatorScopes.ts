@@ -17,6 +17,7 @@ export const ADMIN_NAV_SCOPE_BY_PATH = {
 	[adminPaths.users]: "users",
 	[adminPaths.userInvitations]: "users",
 	[adminPaths.externalAuth]: "external_auth",
+	[adminPaths.yggdrasilForwarding]: "settings",
 	[adminPaths.textureLibrary]: "texture_library",
 	[adminPaths.textureLibraryReviews]: "texture_library",
 	[adminPaths.textureLibraryReports]: "texture_library",

@@ -7,6 +7,64 @@ use utoipa::ToSchema;
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
 #[serde(rename_all = "snake_case")]
+pub enum YggdrasilSessionForwardProviderKind {
+    #[sea_orm(string_value = "local")]
+    Local,
+    #[sea_orm(string_value = "remote")]
+    Remote,
+}
+
+impl YggdrasilSessionForwardProviderKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Remote => "remote",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(32))")]
+#[serde(rename_all = "snake_case")]
+pub enum YggdrasilSessionForwardEndpointKind {
+    #[sea_orm(string_value = "authlib_injector")]
+    AuthlibInjector,
+    #[sea_orm(string_value = "mojang_session")]
+    MojangSession,
+}
+
+impl YggdrasilSessionForwardEndpointKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::AuthlibInjector => "authlib_injector",
+            Self::MojangSession => "mojang_session",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum YggdrasilSessionForwardServerSortBy {
+    #[default]
+    CallOrder,
+    Id,
+}
+
+impl YggdrasilSessionForwardServerSortBy {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CallOrder => "call_order",
+            Self::Id => "id",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
+#[serde(rename_all = "snake_case")]
 pub enum MinecraftTextureModel {
     #[sea_orm(string_value = "default")]
     Default,

@@ -22,7 +22,7 @@ pub use profile::{
     create_profile, delete_profile_for_user, profile_info, profile_summary, rename_profile,
     rename_profile_for_user, validate_profile_name,
 };
-pub use session::{has_joined, join};
+pub use session::{forwarded_texture_url, has_joined, join};
 pub use token::{active_token_for_protocol, cleanup_expired_or_revoked_tokens};
 
 use crate::api::dto::yggdrasil::YggdrasilProfile;

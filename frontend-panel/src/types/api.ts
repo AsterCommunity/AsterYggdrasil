@@ -150,6 +150,20 @@ export type AdminExternalAuthProviderPage =
 	components["schemas"]["OffsetPage_AdminExternalAuthProviderInfo"];
 export type AdminExternalAuthProviderListQuery =
 	OperationQuery<"admin_list_external_auth_providers">;
+export type AdminYggdrasilSessionForwardServerInfo =
+	components["schemas"]["AdminYggdrasilSessionForwardServerInfo"];
+export type AdminYggdrasilSessionForwardServerPage =
+	OperationData<"admin_list_yggdrasil_session_forward_servers">;
+export type AdminYggdrasilSessionForwardServerQuery =
+	OperationQuery<"admin_list_yggdrasil_session_forward_servers">;
+export type CreateYggdrasilSessionForwardServerRequest =
+	OperationRequestBody<"admin_create_yggdrasil_session_forward_server">;
+export type UpdateYggdrasilSessionForwardServerRequest =
+	OperationRequestBody<"admin_update_yggdrasil_session_forward_server">;
+export type YggdrasilSessionForwardProviderKind =
+	components["schemas"]["YggdrasilSessionForwardProviderKind"];
+export type YggdrasilSessionForwardServerSortBy =
+	components["schemas"]["YggdrasilSessionForwardServerSortBy"];
 export type AdminTaskCleanupRequest =
 	components["schemas"]["AdminTaskCleanupReq"];
 export type AdminTaskListQuery = OperationQuery<"admin_list_tasks">;

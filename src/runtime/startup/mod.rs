@@ -92,6 +92,8 @@ mod tests {
             yggdrasil_rate_limiter: AppState::new_yggdrasil_rate_limiter(
                 &crate::config::Config::default(),
             ),
+            yggdrasil_session_forward_http_client:
+                AppState::new_yggdrasil_session_forward_http_client(),
             background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
         };
 

@@ -6,15 +6,18 @@
 				"admin_create_external_auth_provider": "创建外部认证提供方",
 				"admin_create_invitation": "创建邀请",
 				"admin_create_user": "创建用户",
+				"admin_create_yggdrasil_session_forward_server": "创建 Yggdrasil 会话转发服务",
 				"admin_delete_config": "删除配置",
 				"admin_delete_external_auth_provider": "删除外部认证提供方",
 				"admin_delete_user": "删除用户",
+				"admin_delete_yggdrasil_session_forward_server": "删除 Yggdrasil 会话转发服务",
 				"admin_disable_user": "禁用用户",
 				"admin_revoke_invitation": "撤销邀请",
 				"admin_revoke_user_sessions": "注销用户会话",
 				"admin_test_external_auth_provider": "测试外部认证提供方",
 				"admin_update_external_auth_provider": "更新外部认证提供方",
 				"admin_update_user": "更新用户",
+				"admin_update_yggdrasil_session_forward_server": "更新 Yggdrasil 会话转发服务",
 				"config_action_execute": "执行配置动作",
 				"config_delete": "删除配置",
 				"config_update": "更新配置",
@@ -66,6 +69,7 @@
 				"yggdrasil_invalidate_token": "Yggdrasil token 失效",
 				"yggdrasil_join_server": "Yggdrasil 加入服务器",
 				"yggdrasil_refresh_token": "Yggdrasil 刷新 token",
+				"yggdrasil_session_forward_check": "Yggdrasil 会话转发检查",
 				"yggdrasil_signout": "Yggdrasil 登出"
 			},
 			"entity": {
@@ -100,7 +104,9 @@
 				"minecraft_texture_report_changed": "材质 #{{texture_id}} 的举报 #{{report_id}} 状态改为 {{report_status}}，原因 {{reason}}",
 				"task_retry_scheduled": "重试 {{kind}}，此前已尝试 {{previous_attempt_count}} 次",
 				"tasks_cleanup_finished": "清理 {{removed}} 条任务记录",
-				"user_login_identifier": "登录标识：{{identifier}}"
+				"user_login_identifier": "登录标识：{{identifier}}",
+				"yggdrasil_session_forward_checked": "检查 {{upstream_name}}，用户 {{username}}，结果 {{result}}，材质转发 {{texture_forward_enabled}}",
+				"yggdrasil_session_forward_server_changed": "{{provider_kind}} {{endpoint_kind}}，启用 {{enabled}}，优先级 {{priority}}，权重 {{weight}}，超时 {{timeout_ms}} ms，材质转发 {{texture_forward_enabled}}"
 			}
 		}
 	}

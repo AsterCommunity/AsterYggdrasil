@@ -74,7 +74,7 @@ aster-texture-renderer = { path = "crates/aster-texture-renderer" }
 argon2 = "0.5.3"
 async-trait = "0.1"
 aws-credential-types = { version = "1.2.14", features = ["hardcoded-credentials"] }
-aws-sdk-s3 = { version = "1.136.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.137.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
 base64 = "0.22"
 captcha-rs = "0.5"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
@@ -98,11 +98,11 @@ parking_lot = "0.12"
 openidconnect = "4.0.1"
 prometheus = { version = "0.14", optional = true, default-features = false }
 rand = { version = "0.10.1", default-features = false, features = ["std", "std_rng", "thread_rng"] }
-redis = { version = "1.2.3", features = ["connection-manager", "tokio-comp", "tokio-rustls-comp"] }
+redis = { version = "1.2.4", features = ["connection-manager", "tokio-comp", "tokio-rustls-comp"] }
 reqwest = { version = "0.13", features = ["stream", "json"] }
 rsa = { version = "0.10.0-rc.18", features = ["sha1"] }
 rust-embed = "8"
-sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-rustls"] }
+sea-orm = { version = "2.0.0-rc.41", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-rustls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 sha1 = "0.11"

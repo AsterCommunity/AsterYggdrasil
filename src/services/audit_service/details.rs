@@ -182,6 +182,36 @@ pub struct YggdrasilJoinAuditDetails<'a> {
 }
 
 #[derive(Serialize)]
+pub struct YggdrasilSessionForwardServerAuditDetails<'a> {
+    pub provider_kind: &'a str,
+    pub endpoint_kind: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<&'a str>,
+    pub builtin: bool,
+    pub enabled: bool,
+    pub priority: i32,
+    pub weight: i32,
+    pub timeout_ms: i32,
+    pub texture_forward_enabled: bool,
+}
+
+#[derive(Serialize)]
+pub struct YggdrasilSessionForwardCheckAuditDetails<'a> {
+    pub username: &'a str,
+    pub server_id_hash: &'a str,
+    pub upstream_id: i64,
+    pub upstream_name: &'a str,
+    pub provider_kind: &'a str,
+    pub endpoint_kind: &'a str,
+    pub result: &'a str,
+    pub texture_forward_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_uuid: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<&'a str>,
+}
+
+#[derive(Serialize)]
 pub struct ExternalAuthProviderTestParamsAuditDetails<'a> {
     pub provider: &'a str,
     pub key: &'a str,

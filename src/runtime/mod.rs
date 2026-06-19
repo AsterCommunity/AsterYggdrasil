@@ -18,6 +18,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 
+const YGGDRASIL_SESSION_FORWARD_USER_AGENT: &str = concat!(
+    "AsterYggdrasil/",
+    env!("CARGO_PKG_VERSION"),
+    " yggdrasil-session-forward"
+);
+
 #[derive(Clone)]
 pub struct AppState {
     pub db_handles: DbHandles,
@@ -29,6 +35,7 @@ pub struct AppState {
     pub metrics: SharedMetricsRecorder,
     pub started_at: Instant,
     pub yggdrasil_rate_limiter: YggdrasilRateLimiter,
+    pub yggdrasil_session_forward_http_client: reqwest::Client,
     pub background_task_dispatch_wakeup: Arc<Notify>,
 }
 
@@ -43,6 +50,14 @@ impl AppState {
 
     pub fn new_yggdrasil_rate_limiter(config: &Config) -> YggdrasilRateLimiter {
         YggdrasilRateLimiter::from_config(&config.rate_limit)
+    }
+
+    pub fn new_yggdrasil_session_forward_http_client() -> reqwest::Client {
+        reqwest::ClientBuilder::new()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(YGGDRASIL_SESSION_FORWARD_USER_AGENT)
+            .build()
+            .expect("static Yggdrasil session forward HTTP client config should be valid")
     }
 
     pub fn writer_db(&self) -> &DatabaseConnection {
@@ -85,6 +100,10 @@ impl AppState {
         &self.yggdrasil_rate_limiter
     }
 
+    pub fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client {
+        &self.yggdrasil_session_forward_http_client
+    }
+
     pub fn background_task_dispatch_wakeup(&self) -> &Arc<Notify> {
         &self.background_task_dispatch_wakeup
     }
@@ -113,6 +132,10 @@ pub trait ObjectStorageRuntimeState {
 
 pub trait MetricsRuntimeState {
     fn metrics(&self) -> &SharedMetricsRecorder;
+}
+
+pub trait YggdrasilSessionForwardRuntimeState {
+    fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client;
 }
 
 pub trait SharedRuntimeState:
@@ -180,6 +203,12 @@ impl ObjectStorageRuntimeState for AppState {
 impl MetricsRuntimeState for AppState {
     fn metrics(&self) -> &SharedMetricsRecorder {
         self.metrics()
+    }
+}
+
+impl YggdrasilSessionForwardRuntimeState for AppState {
+    fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client {
+        self.yggdrasil_session_forward_http_client()
     }
 }
 

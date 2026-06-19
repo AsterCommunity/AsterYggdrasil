@@ -260,10 +260,6 @@ export default defineConfig(({ command }) => {
 							return "vendor-devicons";
 						}
 
-						if (packageName === "papaparse") {
-							return "preview-data";
-						}
-
 						if (packageName === "xml-formatter") {
 							return "preview-xml";
 						}

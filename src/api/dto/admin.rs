@@ -13,9 +13,13 @@ use crate::services::external_auth_service::{
     CreateExternalAuthProviderInput, ExternalAuthProviderTestParamsInput,
     UpdateExternalAuthProviderInput,
 };
+use crate::services::yggdrasil_session_forward_service::{
+    CreateYggdrasilSessionForwardServerInput, UpdateYggdrasilSessionForwardServerInput,
+};
 use crate::types::{
     BackgroundTaskKind, BackgroundTaskStatus, ExternalAuthKind, ExternalAuthProviderOptions,
     NullablePatch, OperatorScope, SystemConfigVisibility, UserRole, UserStatus,
+    YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardServerSortBy,
 };
 
 #[derive(Debug, Deserialize)]
@@ -306,6 +310,95 @@ impl From<ExternalAuthProviderTestParamsReq> for ExternalAuthProviderTestParamsI
             client_id: value.client_id,
             client_secret: value.client_secret,
             scopes: value.scopes,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(
+    all(debug_assertions, feature = "openapi"),
+    derive(IntoParams, ToSchema)
+)]
+pub struct AdminYggdrasilSessionForwardServerListQuery {
+    pub limit: Option<u64>,
+    pub offset: Option<u64>,
+    pub sort_by: Option<YggdrasilSessionForwardServerSortBy>,
+}
+
+impl AdminYggdrasilSessionForwardServerListQuery {
+    pub fn limit_or(&self, default: u64, max: u64) -> u64 {
+        self.limit
+            .map(|value| value.clamp(1, max))
+            .unwrap_or(default)
+    }
+
+    pub fn offset(&self) -> u64 {
+        self.offset.unwrap_or(0)
+    }
+
+    pub fn sort_by(&self) -> YggdrasilSessionForwardServerSortBy {
+        self.sort_by.unwrap_or_default()
+    }
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct CreateYggdrasilSessionForwardServerReq {
+    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
+    #[validate(length(max = 128, message = "display_name must not exceed 128 bytes"))]
+    pub display_name: String,
+    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
+    pub base_url: String,
+    pub endpoint_kind: Option<YggdrasilSessionForwardEndpointKind>,
+    pub enabled: Option<bool>,
+    pub priority: Option<i32>,
+    pub weight: Option<i32>,
+    pub timeout_ms: Option<i32>,
+    pub texture_forward_enabled: Option<bool>,
+}
+
+impl From<CreateYggdrasilSessionForwardServerReq> for CreateYggdrasilSessionForwardServerInput {
+    fn from(value: CreateYggdrasilSessionForwardServerReq) -> Self {
+        Self {
+            display_name: value.display_name,
+            base_url: value.base_url,
+            endpoint_kind: value.endpoint_kind,
+            enabled: value.enabled,
+            priority: value.priority,
+            weight: value.weight,
+            timeout_ms: value.timeout_ms,
+            texture_forward_enabled: value.texture_forward_enabled,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Validate)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct UpdateYggdrasilSessionForwardServerReq {
+    #[validate(length(max = 128, message = "display_name must not exceed 128 bytes"))]
+    pub display_name: Option<String>,
+    pub base_url: Option<String>,
+    pub endpoint_kind: Option<YggdrasilSessionForwardEndpointKind>,
+    pub enabled: Option<bool>,
+    pub priority: Option<i32>,
+    pub weight: Option<i32>,
+    pub timeout_ms: Option<i32>,
+    pub texture_forward_enabled: Option<bool>,
+}
+
+impl From<UpdateYggdrasilSessionForwardServerReq> for UpdateYggdrasilSessionForwardServerInput {
+    fn from(value: UpdateYggdrasilSessionForwardServerReq) -> Self {
+        Self {
+            display_name: value.display_name,
+            base_url: value.base_url,
+            endpoint_kind: value.endpoint_kind,
+            enabled: value.enabled,
+            priority: value.priority,
+            weight: value.weight,
+            timeout_ms: value.timeout_ms,
+            texture_forward_enabled: value.texture_forward_enabled,
         }
     }
 }

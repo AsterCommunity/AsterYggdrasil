@@ -676,6 +676,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/yggdrasil/session-forward-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_list_yggdrasil_session_forward_servers"];
+        put?: never;
+        post: operations["admin_create_yggdrasil_session_forward_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/yggdrasil/session-forward-servers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_get_yggdrasil_session_forward_server"];
+        put?: never;
+        post?: never;
+        delete: operations["admin_delete_yggdrasil_session_forward_server"];
+        options?: never;
+        head?: never;
+        patch: operations["admin_update_yggdrasil_session_forward_server"];
+        trace?: never;
+    };
     "/api/v1/auth/captcha": {
         parameters: {
             query?: never;
@@ -1812,6 +1844,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/yggdrasil/sessionserver/session/minecraft/forwardedTextures/{upstream_id}/{texture_hash}/{ticket}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["yggdrasil_forwarded_texture_by_hash"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/yggdrasil/sessionserver/session/minecraft/hasJoined": {
         parameters: {
             query?: never;
@@ -2132,6 +2180,36 @@ export interface components {
             role?: null | components["schemas"]["UserRole"];
             status?: null | components["schemas"]["UserStatus"];
         };
+        AdminYggdrasilSessionForwardServerInfo: {
+            base_url?: string | null;
+            builtin: boolean;
+            /** Format: date-time */
+            created_at: string;
+            deletable: boolean;
+            display_name: string;
+            enabled: boolean;
+            endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            last_checked_at?: string | null;
+            /** Format: date-time */
+            last_failure_at?: string | null;
+            last_failure_message?: string | null;
+            /** Format: date-time */
+            last_success_at?: string | null;
+            local: boolean;
+            /** Format: int32 */
+            priority: number;
+            provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+            texture_forward_enabled: boolean;
+            /** Format: int32 */
+            timeout_ms: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: int32 */
+            weight: number;
+        };
         ApiErrorInfo: {
             code: components["schemas"]["AsterErrorCode"];
             retryable?: boolean | null;
@@ -2139,7 +2217,7 @@ export interface components {
         /** @enum {string} */
         AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.captcha_required" | "auth.captcha_invalid" | "auth.captcha_expired" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "wardrobe.texture_name_invalid" | "wardrobe.texture_name_taken" | "texture_library.tag_not_found" | "texture_library.tag_name_invalid" | "texture_library.tag_color_invalid" | "texture_library.tag_name_taken" | "texture_library.texture_not_found" | "texture_library.disabled" | "texture_library.texture_not_public" | "texture_library.texture_not_pending" | "texture_library.texture_not_published" | "texture_library.review_note_invalid" | "texture_report.texture_not_reportable" | "texture_report.self_report_not_allowed" | "texture_report.pending_exists" | "texture_report.message_invalid" | "texture_report.not_found" | "texture_report.not_pending" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
         /** @enum {string} */
-        AuditAction: "system_setup" | "server_start" | "server_shutdown" | "config_update" | "config_delete" | "config_action_execute" | "user_register" | "user_login" | "user_logout" | "user_refresh_token" | "user_revoke_session" | "user_revoke_other_sessions" | "user_change_password" | "user_confirm_registration" | "user_request_email_change" | "user_resend_email_change" | "user_confirm_email_change" | "user_request_password_reset" | "user_confirm_password_reset" | "user_update_profile" | "user_passkey_register" | "user_passkey_rename" | "user_passkey_delete" | "user_passkey_login" | "admin_create_user" | "admin_update_user" | "admin_disable_user" | "admin_delete_user" | "admin_create_invitation" | "admin_revoke_invitation" | "admin_revoke_user_sessions" | "admin_delete_config" | "admin_cleanup_tasks" | "task_retry" | "admin_create_external_auth_provider" | "admin_update_external_auth_provider" | "admin_delete_external_auth_provider" | "admin_test_external_auth_provider" | "mail_send" | "mail_delivery_failed" | "external_auth_provider_create" | "external_auth_provider_update" | "external_auth_provider_delete" | "user_external_auth_login" | "user_external_auth_link" | "user_external_auth_unlink" | "minecraft_profile_create" | "minecraft_profile_rename" | "minecraft_profile_delete" | "minecraft_texture_upload" | "minecraft_texture_bind" | "minecraft_texture_delete" | "minecraft_texture_library_submit" | "minecraft_texture_library_withdraw" | "minecraft_texture_library_approve" | "minecraft_texture_library_reject" | "minecraft_texture_library_unpublish" | "minecraft_texture_report_create" | "minecraft_texture_report_accept" | "minecraft_texture_report_reject" | "yggdrasil_authenticate" | "yggdrasil_refresh_token" | "yggdrasil_invalidate_token" | "yggdrasil_signout" | "yggdrasil_join_server";
+        AuditAction: "system_setup" | "server_start" | "server_shutdown" | "config_update" | "config_delete" | "config_action_execute" | "user_register" | "user_login" | "user_logout" | "user_refresh_token" | "user_revoke_session" | "user_revoke_other_sessions" | "user_change_password" | "user_confirm_registration" | "user_request_email_change" | "user_resend_email_change" | "user_confirm_email_change" | "user_request_password_reset" | "user_confirm_password_reset" | "user_update_profile" | "user_passkey_register" | "user_passkey_rename" | "user_passkey_delete" | "user_passkey_login" | "admin_create_user" | "admin_update_user" | "admin_disable_user" | "admin_delete_user" | "admin_create_invitation" | "admin_revoke_invitation" | "admin_revoke_user_sessions" | "admin_delete_config" | "admin_cleanup_tasks" | "task_retry" | "admin_create_external_auth_provider" | "admin_update_external_auth_provider" | "admin_delete_external_auth_provider" | "admin_test_external_auth_provider" | "admin_create_yggdrasil_session_forward_server" | "admin_update_yggdrasil_session_forward_server" | "admin_delete_yggdrasil_session_forward_server" | "mail_send" | "mail_delivery_failed" | "external_auth_provider_create" | "external_auth_provider_update" | "external_auth_provider_delete" | "user_external_auth_login" | "user_external_auth_link" | "user_external_auth_unlink" | "minecraft_profile_create" | "minecraft_profile_rename" | "minecraft_profile_delete" | "minecraft_texture_upload" | "minecraft_texture_bind" | "minecraft_texture_delete" | "minecraft_texture_library_submit" | "minecraft_texture_library_withdraw" | "minecraft_texture_library_approve" | "minecraft_texture_library_reject" | "minecraft_texture_library_unpublish" | "minecraft_texture_report_create" | "minecraft_texture_report_accept" | "minecraft_texture_report_reject" | "yggdrasil_authenticate" | "yggdrasil_refresh_token" | "yggdrasil_invalidate_token" | "yggdrasil_signout" | "yggdrasil_join_server" | "yggdrasil_session_forward_check";
         /** @enum {string} */
         AuditEntityType: "system" | "system_config" | "user" | "invitation" | "auth_session" | "passkey" | "external_auth_provider" | "external_auth_identity" | "api_token" | "mail" | "task" | "minecraft_profile" | "minecraft_texture" | "yggdrasil_token" | "yggdrasil_session";
         AuditLogEntry: {
@@ -2402,6 +2480,19 @@ export interface components {
         };
         CreateUserInvitationReq: {
             email: string;
+        };
+        CreateYggdrasilSessionForwardServerReq: {
+            base_url: string;
+            display_name: string;
+            enabled?: boolean | null;
+            endpoint_kind?: null | components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+            /** Format: int32 */
+            priority?: number | null;
+            texture_forward_enabled?: boolean | null;
+            /** Format: int32 */
+            timeout_ms?: number | null;
+            /** Format: int32 */
+            weight?: number | null;
         };
         CreatedAtCursorQuery: {
             /** Format: date-time */
@@ -3233,6 +3324,44 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        OffsetPage_AdminYggdrasilSessionForwardServerInfo: {
+            items: {
+                base_url?: string | null;
+                builtin: boolean;
+                /** Format: date-time */
+                created_at: string;
+                deletable: boolean;
+                display_name: string;
+                enabled: boolean;
+                endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+                /** Format: int64 */
+                id: number;
+                /** Format: date-time */
+                last_checked_at?: string | null;
+                /** Format: date-time */
+                last_failure_at?: string | null;
+                last_failure_message?: string | null;
+                /** Format: date-time */
+                last_success_at?: string | null;
+                local: boolean;
+                /** Format: int32 */
+                priority: number;
+                provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                texture_forward_enabled: boolean;
+                /** Format: int32 */
+                timeout_ms: number;
+                /** Format: date-time */
+                updated_at: string;
+                /** Format: int32 */
+                weight: number;
+            }[];
+            /** Format: int64 */
+            limit: number;
+            /** Format: int64 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
         OffsetPage_AuditLogEntry: {
             items: {
                 action: components["schemas"]["AuditAction"];
@@ -3769,6 +3898,19 @@ export interface components {
             texture_model?: null | components["schemas"]["MinecraftTextureModel"];
             visibility?: null | components["schemas"]["MinecraftTextureVisibility"];
         };
+        UpdateYggdrasilSessionForwardServerReq: {
+            base_url?: string | null;
+            display_name?: string | null;
+            enabled?: boolean | null;
+            endpoint_kind?: null | components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+            /** Format: int32 */
+            priority?: number | null;
+            texture_forward_enabled?: boolean | null;
+            /** Format: int32 */
+            timeout_ms?: number | null;
+            /** Format: int32 */
+            weight?: number | null;
+        };
         UpdatedAtCursorQuery: {
             /** Format: int64 */
             after_id?: number | null;
@@ -3879,6 +4021,12 @@ export interface components {
             selectedProfile?: null | components["schemas"]["YggdrasilProfile"];
             user?: null | components["schemas"]["YggdrasilUser"];
         };
+        /** @enum {string} */
+        YggdrasilSessionForwardEndpointKind: "authlib_injector" | "mojang_session";
+        /** @enum {string} */
+        YggdrasilSessionForwardProviderKind: "local" | "remote";
+        /** @enum {string} */
+        YggdrasilSessionForwardServerSortBy: "call_order" | "id";
         YggdrasilSignoutReq: {
             password: string;
             username: string;
@@ -7462,6 +7610,384 @@ export interface operations {
                 content?: never;
             };
             /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_list_yggdrasil_session_forward_servers: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of forwarding servers to return */
+                limit?: number;
+                /** @description Offset of the first forwarding server */
+                offset?: number;
+                /** @description Forwarding server list sort mode */
+                sort_by?: components["schemas"]["YggdrasilSessionForwardServerSortBy"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Yggdrasil session forwarding servers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            items: {
+                                base_url?: string | null;
+                                builtin: boolean;
+                                /** Format: date-time */
+                                created_at: string;
+                                deletable: boolean;
+                                display_name: string;
+                                enabled: boolean;
+                                endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+                                /** Format: int64 */
+                                id: number;
+                                /** Format: date-time */
+                                last_checked_at?: string | null;
+                                /** Format: date-time */
+                                last_failure_at?: string | null;
+                                last_failure_message?: string | null;
+                                /** Format: date-time */
+                                last_success_at?: string | null;
+                                local: boolean;
+                                /** Format: int32 */
+                                priority: number;
+                                provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                                texture_forward_enabled: boolean;
+                                /** Format: int32 */
+                                timeout_ms: number;
+                                /** Format: date-time */
+                                updated_at: string;
+                                /** Format: int32 */
+                                weight: number;
+                            }[];
+                            /** Format: int64 */
+                            limit: number;
+                            /** Format: int64 */
+                            offset: number;
+                            /** Format: int64 */
+                            total: number;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_yggdrasil_session_forward_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateYggdrasilSessionForwardServerReq"];
+            };
+        };
+        responses: {
+            /** @description Yggdrasil session forwarding server created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            base_url?: string | null;
+                            builtin: boolean;
+                            /** Format: date-time */
+                            created_at: string;
+                            deletable: boolean;
+                            display_name: string;
+                            enabled: boolean;
+                            endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+                            /** Format: int64 */
+                            id: number;
+                            /** Format: date-time */
+                            last_checked_at?: string | null;
+                            /** Format: date-time */
+                            last_failure_at?: string | null;
+                            last_failure_message?: string | null;
+                            /** Format: date-time */
+                            last_success_at?: string | null;
+                            local: boolean;
+                            /** Format: int32 */
+                            priority: number;
+                            provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            texture_forward_enabled: boolean;
+                            /** Format: int32 */
+                            timeout_ms: number;
+                            /** Format: date-time */
+                            updated_at: string;
+                            /** Format: int32 */
+                            weight: number;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid Yggdrasil session forwarding server */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_yggdrasil_session_forward_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Yggdrasil session forwarding server ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Yggdrasil session forwarding server */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            base_url?: string | null;
+                            builtin: boolean;
+                            /** Format: date-time */
+                            created_at: string;
+                            deletable: boolean;
+                            display_name: string;
+                            enabled: boolean;
+                            endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+                            /** Format: int64 */
+                            id: number;
+                            /** Format: date-time */
+                            last_checked_at?: string | null;
+                            /** Format: date-time */
+                            last_failure_at?: string | null;
+                            last_failure_message?: string | null;
+                            /** Format: date-time */
+                            last_success_at?: string | null;
+                            local: boolean;
+                            /** Format: int32 */
+                            priority: number;
+                            provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            texture_forward_enabled: boolean;
+                            /** Format: int32 */
+                            timeout_ms: number;
+                            /** Format: date-time */
+                            updated_at: string;
+                            /** Format: int32 */
+                            weight: number;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Yggdrasil session forwarding server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_delete_yggdrasil_session_forward_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Yggdrasil session forwarding server ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Yggdrasil session forwarding server deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local Yggdrasil session forwarding server cannot be deleted */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Yggdrasil session forwarding server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_yggdrasil_session_forward_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Yggdrasil session forwarding server ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateYggdrasilSessionForwardServerReq"];
+            };
+        };
+        responses: {
+            /** @description Yggdrasil session forwarding server updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        data?: {
+                            base_url?: string | null;
+                            builtin: boolean;
+                            /** Format: date-time */
+                            created_at: string;
+                            deletable: boolean;
+                            display_name: string;
+                            enabled: boolean;
+                            endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+                            /** Format: int64 */
+                            id: number;
+                            /** Format: date-time */
+                            last_checked_at?: string | null;
+                            /** Format: date-time */
+                            last_failure_at?: string | null;
+                            last_failure_message?: string | null;
+                            /** Format: date-time */
+                            last_success_at?: string | null;
+                            local: boolean;
+                            /** Format: int32 */
+                            priority: number;
+                            provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            texture_forward_enabled: boolean;
+                            /** Format: int32 */
+                            timeout_ms: number;
+                            /** Format: date-time */
+                            updated_at: string;
+                            /** Format: int32 */
+                            weight: number;
+                        };
+                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Invalid Yggdrasil session forwarding server */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Yggdrasil session forwarding server not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11111,6 +11637,47 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MinecraftServicesPathError"];
                 };
+            };
+        };
+    };
+    yggdrasil_forwarded_texture_by_hash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Forwarding server ID */
+                upstream_id: number;
+                /** @description Forwarded texture hash */
+                texture_hash: string;
+                /** @description Signed forwarded texture ticket */
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forwarded texture PNG bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Forwarded texture ticket invalid or upstream texture missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forwarded texture upstream failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

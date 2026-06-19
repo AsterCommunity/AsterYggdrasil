@@ -3,7 +3,7 @@
 #[macro_use]
 mod common;
 
-use actix_web::{http::header, test};
+use actix_web::{App, HttpResponse, HttpServer, Responder, http::header, test, web};
 use aster_yggdrasil::api::middleware::yggdrasil_rate_limit::YggdrasilRateLimiter;
 use aster_yggdrasil::config::auth_runtime::AUTH_ALLOW_USER_REGISTRATION_KEY;
 use aster_yggdrasil::config::definitions::PUBLIC_SITE_URL_KEY;
@@ -20,21 +20,26 @@ use aster_yggdrasil::config::yggdrasil::{
 use aster_yggdrasil::config::{RateLimitConfig, RateLimitTier};
 use aster_yggdrasil::db::repository::{minecraft_profile_repo, system_config_repo, user_repo};
 use aster_yggdrasil::entities::{
-    audit_log, minecraft_profile_texture, minecraft_texture, yggdrasil_token,
+    audit_log, minecraft_profile_texture, minecraft_texture, yggdrasil_session_forward_server,
+    yggdrasil_token,
 };
 use aster_yggdrasil::errors::{AsterError, Result};
 use aster_yggdrasil::object_storage::{ObjectBlobMetadata, ObjectStorage};
 use aster_yggdrasil::services::{audit_service, profile_service};
-use aster_yggdrasil::types::{AvatarSource, MinecraftTextureModel};
+use aster_yggdrasil::types::{
+    AvatarSource, MinecraftTextureModel, YggdrasilSessionForwardProviderKind,
+};
 use aster_yggdrasil::utils::hash::sha256_hex;
 use base64::Engine;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 use serde_json::Value;
 use std::{
     io::Cursor,
     num::{NonZeroU32, NonZeroU64},
     path::Path,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tokio::io::AsyncRead;
 
@@ -44,6 +49,31 @@ const DEFAULT_ALEX_SKIN_HASH: &str =
     "394b483392052fb28d6271c736ba0df0394223c93b6348f1f1d135fdb7412daa";
 
 struct FailingObjectStorage;
+
+#[derive(Clone)]
+struct MockSessionForwardServer {
+    base_url: String,
+    root_url: String,
+    request_paths: Arc<Mutex<Vec<String>>>,
+    profile: Arc<Mutex<Option<Value>>>,
+    status: u16,
+    user_agents: Arc<Mutex<Vec<String>>>,
+    texture_bytes: Vec<u8>,
+}
+
+impl MockSessionForwardServer {
+    fn new(root_url: String, base_url: String, status: u16, profile: Option<Value>) -> Self {
+        Self {
+            base_url,
+            root_url,
+            request_paths: Arc::new(Mutex::new(Vec::new())),
+            profile: Arc::new(Mutex::new(profile)),
+            status,
+            user_agents: Arc::new(Mutex::new(Vec::new())),
+            texture_bytes: png_texture(64, 64),
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl ObjectStorage for FailingObjectStorage {
@@ -102,6 +132,76 @@ async fn setup_yggdrasil_with_strict_auth_rate_limit() -> aster_yggdrasil::runti
     };
     state.yggdrasil_rate_limiter = YggdrasilRateLimiter::from_config(&config);
     state
+}
+
+async fn start_mock_session_forward_server(
+    status: u16,
+    profile: Option<Value>,
+) -> (MockSessionForwardServer, actix_web::dev::ServerHandle) {
+    async fn has_joined(
+        provider: web::Data<MockSessionForwardServer>,
+        req: actix_web::HttpRequest,
+    ) -> impl Responder {
+        provider
+            .request_paths
+            .lock()
+            .expect("request paths lock should not be poisoned")
+            .push(req.path().to_string());
+        if let Some(user_agent) = req
+            .headers()
+            .get(header::USER_AGENT)
+            .and_then(|value| value.to_str().ok())
+        {
+            provider
+                .user_agents
+                .lock()
+                .expect("user agents lock should not be poisoned")
+                .push(user_agent.to_string());
+        }
+        let status = actix_web::http::StatusCode::from_u16(provider.status)
+            .expect("mock status should be valid");
+        if status == actix_web::http::StatusCode::OK {
+            return HttpResponse::Ok().json(
+                provider
+                    .profile
+                    .lock()
+                    .expect("profile lock should not be poisoned")
+                    .clone()
+                    .expect("mock profile should exist for 200 response"),
+            );
+        }
+        HttpResponse::build(status).finish()
+    }
+
+    async fn texture(provider: web::Data<MockSessionForwardServer>) -> impl Responder {
+        HttpResponse::Ok()
+            .content_type("image/png")
+            .body(provider.texture_bytes.clone())
+    }
+
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("listener should bind");
+    let addr = listener.local_addr().expect("listener addr should exist");
+    let root_url = format!("http://127.0.0.1:{}", addr.port());
+    let base_url = format!("{root_url}/api/yggdrasil");
+    let provider = MockSessionForwardServer::new(root_url, base_url, status, profile);
+    let app_provider = provider.clone();
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(app_provider.clone()))
+            .route(
+                "/api/yggdrasil/sessionserver/session/minecraft/hasJoined",
+                web::get().to(has_joined),
+            )
+            .route("/session/minecraft/hasJoined", web::get().to(has_joined))
+            .route("/textures/remote-skin", web::get().to(texture))
+    })
+    .workers(1)
+    .listen(listener)
+    .expect("mock session forward server should listen")
+    .run();
+    let handle = server.handle();
+    tokio::spawn(server);
+    (provider, handle)
 }
 
 async fn configure_yggdrasil_public_site_url(state: &aster_yggdrasil::runtime::AppState) {
@@ -5700,6 +5800,434 @@ async fn yggdrasil_join_works_when_cache_disabled_because_memory_fallback_is_use
 }
 
 #[actix_web::test]
+async fn yggdrasil_has_joined_forwards_to_ordered_upstreams_after_local_cache_miss() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let profile_id = "11111111111111111111111111111111";
+    let (miss_upstream, miss_handle) = start_mock_session_forward_server(204, None).await;
+    let (hit_upstream, hit_handle) = start_mock_session_forward_server(200, None).await;
+    let remote_textures_value = base64::engine::general_purpose::STANDARD.encode(
+        serde_json::to_vec(&serde_json::json!({
+            "timestamp": 1,
+            "profileId": profile_id,
+            "profileName": "RemoteUser",
+            "textures": {
+                "SKIN": {
+                    "url": format!("{}/textures/remote-skin", hit_upstream.base_url.trim_end_matches("/api/yggdrasil"))
+                }
+            }
+        }))
+        .expect("remote textures json should serialize"),
+    );
+    *hit_upstream
+        .profile
+        .lock()
+        .expect("profile lock should not be poisoned") = Some(serde_json::json!({
+        "id": profile_id,
+        "name": "RemoteUser",
+        "properties": [
+            {
+                "name": "textures",
+                "value": remote_textures_value,
+                "signature": "remote-signature"
+            }
+        ]
+    }));
+
+    let now = chrono::Utc::now();
+    let miss = yggdrasil_session_forward_server::ActiveModel {
+        display_name: Set("miss upstream".to_string()),
+        provider_kind: Set(YggdrasilSessionForwardProviderKind::Remote),
+        base_url: Set(Some(miss_upstream.base_url.clone())),
+        enabled: Set(true),
+        priority: Set(10),
+        weight: Set(1),
+        timeout_ms: Set(1500),
+        texture_forward_enabled: Set(false),
+        last_checked_at: Set(None),
+        last_success_at: Set(None),
+        last_failure_at: Set(None),
+        last_failure_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("miss upstream should insert");
+    let hit = yggdrasil_session_forward_server::ActiveModel {
+        display_name: Set("hit upstream".to_string()),
+        provider_kind: Set(YggdrasilSessionForwardProviderKind::Remote),
+        base_url: Set(Some(hit_upstream.base_url.clone())),
+        enabled: Set(true),
+        priority: Set(20),
+        weight: Set(1),
+        timeout_ms: Set(1500),
+        texture_forward_enabled: Set(true),
+        last_checked_at: Set(None),
+        last_success_at: Set(None),
+        last_failure_at: Set(None),
+        last_failure_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("hit upstream should insert");
+
+    let app = create_test_app!(state.clone());
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=RemoteUser&serverId=remote-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], profile_id);
+    assert_eq!(body["name"], "RemoteUser");
+    let req = test::TestRequest::get().uri("/api/yggdrasil/").to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let metadata: Value = test::read_body_json(resp).await;
+    let public_key_pem = metadata["signaturePublickey"]
+        .as_str()
+        .expect("metadata public key should be a string");
+    let textures_property = body["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|property| property["name"] == "textures")
+        .expect("textures property should exist");
+    let rewritten_value = textures_property["value"]
+        .as_str()
+        .expect("rewritten textures property should have value");
+    let rewritten_signature = textures_property["signature"]
+        .as_str()
+        .expect("rewritten textures property should be signed");
+    verify_property_signature(public_key_pem, rewritten_value, rewritten_signature);
+    let rewritten_textures = decode_textures_property(&body);
+    let forwarded_url = rewritten_textures["textures"]["SKIN"]["url"]
+        .as_str()
+        .expect("rewritten texture url should exist");
+    assert!(
+        forwarded_url.starts_with(
+            "http://localhost/api/yggdrasil/sessionserver/session/minecraft/forwardedTextures/"
+        ),
+        "forwarded texture URL should use this Yggdrasil API root"
+    );
+    let forwarded_path = forwarded_url
+        .strip_prefix("http://localhost")
+        .expect("forwarded URL should use configured test origin");
+    let forwarded_path_parts = forwarded_path.split('/').collect::<Vec<_>>();
+    assert_eq!(forwarded_path_parts[7], hit.id.to_string());
+    assert_eq!(forwarded_path_parts[8].len(), 64);
+    assert!(
+        forwarded_path_parts[8]
+            .chars()
+            .all(|ch| ch.is_ascii_hexdigit()),
+        "forwarded texture hash should be hex"
+    );
+    assert!(
+        !forwarded_url.contains("/textures/remote-skin"),
+        "upstream texture URL should not be exposed when texture forwarding is enabled"
+    );
+
+    let miss = yggdrasil_session_forward_server::Entity::find_by_id(miss.id)
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("miss upstream row should exist");
+    assert!(miss.last_checked_at.is_some());
+    assert!(miss.last_success_at.is_some());
+    assert!(miss.last_failure_at.is_none());
+
+    let hit = yggdrasil_session_forward_server::Entity::find_by_id(hit.id)
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("hit upstream row should exist");
+    assert!(hit.last_checked_at.is_some());
+    assert!(hit.last_success_at.is_some());
+    assert!(hit.last_failure_at.is_none());
+
+    audit_service::flush_global_audit_log_manager().await;
+    let miss_audit = audit_entry_by_entity_name(
+        &state,
+        audit_service::AuditAction::YggdrasilSessionForwardCheck,
+        "miss upstream",
+    )
+    .await;
+    assert_eq!(miss_audit.user_id, 0);
+    assert_eq!(miss_audit.entity_type, "yggdrasil_session");
+    let details: Value = serde_json::from_str(miss_audit.details.as_deref().unwrap()).unwrap();
+    assert_eq!(details["username"], "RemoteUser");
+    assert_eq!(details["upstream_id"], miss.id);
+    assert_eq!(details["upstream_name"], "miss upstream");
+    assert_eq!(details["provider_kind"], "remote");
+    assert_eq!(details["result"], "no_match");
+    assert!(details["server_id_hash"].as_str().unwrap().len() >= 32);
+
+    let hit_audit = audit_entry_by_entity_name(
+        &state,
+        audit_service::AuditAction::YggdrasilSessionForwardCheck,
+        "hit upstream",
+    )
+    .await;
+    let details: Value = serde_json::from_str(hit_audit.details.as_deref().unwrap()).unwrap();
+    assert_eq!(details["result"], "matched");
+    assert_eq!(details["profile_uuid"], profile_id);
+    assert_eq!(details["texture_forward_enabled"], true);
+
+    for upstream in [&miss_upstream, &hit_upstream] {
+        let user_agents = upstream
+            .user_agents
+            .lock()
+            .expect("user agents lock should not be poisoned");
+        assert!(
+            user_agents
+                .iter()
+                .any(|value| value.starts_with("AsterYggdrasil/")
+                    && value.ends_with(" yggdrasil-session-forward")),
+            "session forward requests should include AsterYggdrasil User-Agent"
+        );
+    }
+
+    let req = test::TestRequest::get().uri(forwarded_path).to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("image/png")
+    );
+    let bytes = test::read_body(resp).await;
+    assert!(!bytes.is_empty());
+
+    miss_handle.stop(true).await;
+    hit_handle.stop(true).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_has_joined_allows_remote_priority_before_local_ay() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state.clone());
+    let access = setup_admin!(app);
+    let local_profile_id = create_profile!(app, &access, "RankUser");
+    let login = ygg_login!(app, "admin@example.com", "rank-local-client");
+    let remote_profile_id = "22222222222222222222222222222222";
+    let (remote_upstream, remote_handle) = start_mock_session_forward_server(
+        200,
+        Some(serde_json::json!({
+            "id": remote_profile_id,
+            "name": "RankUser"
+        })),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/join")
+        .set_json(serde_json::json!({
+            "accessToken": login.access_token,
+            "selectedProfile": local_profile_id,
+            "serverId": "rank-server"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    let now = chrono::Utc::now();
+    let remote = yggdrasil_session_forward_server::ActiveModel {
+        display_name: Set("remote before AY".to_string()),
+        provider_kind: Set(YggdrasilSessionForwardProviderKind::Remote),
+        base_url: Set(Some(remote_upstream.base_url.clone())),
+        enabled: Set(true),
+        priority: Set(10),
+        weight: Set(1),
+        timeout_ms: Set(1500),
+        texture_forward_enabled: Set(false),
+        last_checked_at: Set(None),
+        last_success_at: Set(None),
+        last_failure_at: Set(None),
+        last_failure_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("remote upstream should insert");
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=RankUser&serverId=rank-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], remote_profile_id);
+    assert_eq!(body["name"], "RankUser");
+
+    let remote = yggdrasil_session_forward_server::Entity::find_by_id(remote.id)
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("remote upstream row should exist");
+    assert!(remote.last_success_at.is_some());
+
+    let local = yggdrasil_session_forward_server::Entity::find()
+        .filter(
+            yggdrasil_session_forward_server::Column::ProviderKind
+                .eq(YggdrasilSessionForwardProviderKind::Local),
+        )
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("local AY forward row should exist");
+    assert!(
+        local.last_checked_at.is_none(),
+        "local AY should not run after higher-priority remote success"
+    );
+
+    remote_handle.stop(true).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_has_joined_uses_mojang_session_endpoint_path() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state.clone());
+    let remote_profile_id = "33333333333333333333333333333333";
+    let (remote_upstream, remote_handle) = start_mock_session_forward_server(
+        200,
+        Some(serde_json::json!({
+            "id": remote_profile_id,
+            "name": "MojangPathUser"
+        })),
+    )
+    .await;
+
+    let now = chrono::Utc::now();
+    yggdrasil_session_forward_server::ActiveModel {
+        display_name: Set("mojang endpoint mock".to_string()),
+        provider_kind: Set(YggdrasilSessionForwardProviderKind::Remote),
+        endpoint_kind: Set(
+            aster_yggdrasil::types::YggdrasilSessionForwardEndpointKind::MojangSession,
+        ),
+        base_url: Set(Some(remote_upstream.root_url.clone())),
+        enabled: Set(true),
+        priority: Set(10),
+        weight: Set(1),
+        timeout_ms: Set(1500),
+        texture_forward_enabled: Set(false),
+        last_checked_at: Set(None),
+        last_success_at: Set(None),
+        last_failure_at: Set(None),
+        last_failure_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("mojang endpoint upstream should insert");
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=MojangPathUser&serverId=mojang-path-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], remote_profile_id);
+
+    let paths = remote_upstream
+        .request_paths
+        .lock()
+        .expect("request paths lock should not be poisoned");
+    assert!(
+        paths
+            .iter()
+            .any(|path| path == "/session/minecraft/hasJoined")
+    );
+    assert!(
+        !paths
+            .iter()
+            .any(|path| path == "/sessionserver/session/minecraft/hasJoined")
+    );
+
+    remote_handle.stop(true).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_has_joined_falls_back_to_local_ay_after_remote_no_match() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state.clone());
+    let access = setup_admin!(app);
+    let local_profile_id = create_profile!(app, &access, "FallbackUser");
+    let login = ygg_login!(app, "admin@example.com", "fallback-local-client");
+    let (remote_upstream, remote_handle) = start_mock_session_forward_server(204, None).await;
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/join")
+        .set_json(serde_json::json!({
+            "accessToken": login.access_token,
+            "selectedProfile": local_profile_id,
+            "serverId": "fallback-server"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    let now = chrono::Utc::now();
+    let remote = yggdrasil_session_forward_server::ActiveModel {
+        display_name: Set("remote miss before AY".to_string()),
+        provider_kind: Set(YggdrasilSessionForwardProviderKind::Remote),
+        base_url: Set(Some(remote_upstream.base_url.clone())),
+        enabled: Set(true),
+        priority: Set(10),
+        weight: Set(1),
+        timeout_ms: Set(1500),
+        texture_forward_enabled: Set(false),
+        last_checked_at: Set(None),
+        last_success_at: Set(None),
+        last_failure_at: Set(None),
+        last_failure_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("remote upstream should insert");
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=FallbackUser&serverId=fallback-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], local_profile_id);
+    assert_eq!(body["name"], "FallbackUser");
+
+    let remote = yggdrasil_session_forward_server::Entity::find_by_id(remote.id)
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("remote upstream row should exist");
+    assert!(remote.last_success_at.is_some());
+
+    let local = yggdrasil_session_forward_server::Entity::find()
+        .filter(
+            yggdrasil_session_forward_server::Column::ProviderKind
+                .eq(YggdrasilSessionForwardProviderKind::Local),
+        )
+        .one(state.writer_db())
+        .await
+        .unwrap()
+        .expect("local AY forward row should exist");
+    assert!(local.last_success_at.is_some());
+
+    remote_handle.stop(true).await;
+}
+
+#[actix_web::test]
 async fn yggdrasil_tokens_are_hashed_and_pruned_by_runtime_limit() {
     let state = setup_yggdrasil().await;
     let app = create_test_app!(state.clone());
@@ -5754,6 +6282,21 @@ async fn audit_entry(
 ) -> audit_log::Model {
     audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(action))
+        .one(state.writer_db())
+        .await
+        .expect("audit query should succeed")
+        .expect("audit entry should exist")
+}
+
+async fn audit_entry_by_entity_name(
+    state: &aster_yggdrasil::runtime::AppState,
+    action: audit_service::AuditAction,
+    entity_name: &str,
+) -> audit_log::Model {
+    audit_log::Entity::find()
+        .filter(audit_log::Column::Action.eq(action))
+        .filter(audit_log::Column::EntityName.eq(entity_name))
+        .order_by_desc(audit_log::Column::Id)
         .one(state.writer_db())
         .await
         .expect("audit query should succeed")

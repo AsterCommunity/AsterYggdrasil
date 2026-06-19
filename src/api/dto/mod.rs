@@ -15,9 +15,10 @@ pub mod yggdrasil;
 pub use account::{AccountAuditLogFilterQuery, AccountOverviewResp};
 pub use admin::{
     AdminMinecraftProfileListQuery, AdminTaskCleanupReq, AdminTaskListQuery, AdminUserListQuery,
-    CreateAdminUserReq, CreateExternalAuthProviderReq, CreateUserInvitationReq,
-    ExecuteConfigActionReq, ExecuteConfigActionResp, ExternalAuthProviderTestParamsReq,
-    RemovedCountResponse, SetConfigReq, UpdateAdminUserReq, UpdateExternalAuthProviderReq,
+    AdminYggdrasilSessionForwardServerListQuery, CreateAdminUserReq, CreateExternalAuthProviderReq,
+    CreateUserInvitationReq, CreateYggdrasilSessionForwardServerReq, ExecuteConfigActionReq,
+    ExecuteConfigActionResp, ExternalAuthProviderTestParamsReq, RemovedCountResponse, SetConfigReq,
+    UpdateAdminUserReq, UpdateExternalAuthProviderReq, UpdateYggdrasilSessionForwardServerReq,
 };
 pub use auth::{
     AcceptUserInvitationReq, ActionMessageResp, ChangePasswordReq, CheckResp,

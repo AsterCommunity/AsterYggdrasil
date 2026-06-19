@@ -23,6 +23,8 @@ pub async fn prepare_primary(config: Arc<Config>) -> Result<PreparedPrimaryRunti
         metrics: common.metrics,
         started_at: AppState::new_started_at(),
         yggdrasil_rate_limiter,
+        yggdrasil_session_forward_http_client: AppState::new_yggdrasil_session_forward_http_client(
+        ),
         background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
     };
 

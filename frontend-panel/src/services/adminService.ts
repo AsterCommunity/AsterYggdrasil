@@ -21,6 +21,9 @@ import type {
 	AdminUserListQuery,
 	AdminUserMinecraftProfileQuery,
 	AdminUserPage,
+	AdminYggdrasilSessionForwardServerInfo,
+	AdminYggdrasilSessionForwardServerPage,
+	AdminYggdrasilSessionForwardServerQuery,
 	AuditLogPage,
 	ConfigListQuery,
 	ConfigSchemaItem,
@@ -28,6 +31,7 @@ import type {
 	CreateExternalAuthProviderRequest,
 	CreateMinecraftTextureTagRequest,
 	CreateUserInvitationRequest,
+	CreateYggdrasilSessionForwardServerRequest,
 	ExecuteConfigActionRequest,
 	ExecuteConfigActionResponse,
 	ExternalAuthProviderKindInfo,
@@ -51,6 +55,7 @@ import type {
 	UpdateAdminUserRequest,
 	UpdateExternalAuthProviderRequest,
 	UpdateMinecraftTextureTagRequest,
+	UpdateYggdrasilSessionForwardServerRequest,
 	YggdrasilProfilePage,
 } from "@/types/api";
 import { api } from "./http";
@@ -65,6 +70,8 @@ type AdminTextureLibraryTagPath =
 type AdminTextureLibraryTexturePath =
 	OperationPath<"admin_get_texture_library_texture">;
 type AdminTextureReportPath = OperationPath<"admin_get_texture_library_report">;
+type AdminYggdrasilSessionForwardServerPath =
+	OperationPath<"admin_get_yggdrasil_session_forward_server">;
 
 export const adminAuditService = {
 	list: (params: AdminAuditLogQuery = {}) =>
@@ -389,4 +396,34 @@ export const adminExternalAuthService = {
 		api.post<ExternalAuthProviderTestResult>(
 			`/admin/external-auth/providers/${id}/test`,
 		),
+};
+
+export const adminYggdrasilSessionForwardService = {
+	list: (params: AdminYggdrasilSessionForwardServerQuery = {}) =>
+		api.get<AdminYggdrasilSessionForwardServerPage>(
+			withQuery("/admin/yggdrasil/session-forward-servers", {
+				limit: params.limit,
+				offset: params.offset,
+				sort_by: params.sort_by,
+			}),
+		),
+	get: (id: AdminYggdrasilSessionForwardServerPath["id"]) =>
+		api.get<AdminYggdrasilSessionForwardServerInfo>(
+			`/admin/yggdrasil/session-forward-servers/${id}`,
+		),
+	create: (data: CreateYggdrasilSessionForwardServerRequest) =>
+		api.post<
+			OperationData<"admin_create_yggdrasil_session_forward_server", 201>,
+			OperationRequestBody<"admin_create_yggdrasil_session_forward_server">
+		>("/admin/yggdrasil/session-forward-servers", data),
+	update: (
+		id: AdminYggdrasilSessionForwardServerPath["id"],
+		data: UpdateYggdrasilSessionForwardServerRequest,
+	) =>
+		api.patch<
+			AdminYggdrasilSessionForwardServerInfo,
+			OperationRequestBody<"admin_update_yggdrasil_session_forward_server">
+		>(`/admin/yggdrasil/session-forward-servers/${id}`, data),
+	delete: (id: AdminYggdrasilSessionForwardServerPath["id"]) =>
+		api.delete<void>(`/admin/yggdrasil/session-forward-servers/${id}`),
 };

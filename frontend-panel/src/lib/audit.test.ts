@@ -9,6 +9,7 @@ import {
 	formatAuditEntityType,
 	formatAuditSummary,
 	formatAuditTarget,
+	getAuditActionBadgeClass,
 } from "@/lib/audit";
 import type { AuditLogEntry } from "@/types/api";
 
@@ -121,6 +122,47 @@ describe("audit i18n helpers", () => {
 		expect(formatAuditAction(zh, "admin_create_invitation")).toBe("创建邀请");
 		expect(formatAuditEntityType(zh, "passkey")).toBe("Passkey");
 		expect(formatAuditEntityType(zh, "invitation")).toBe("邀请");
+	});
+
+	it("formats Yggdrasil session forwarding audit entries", async () => {
+		const en = await tFor("en-US");
+		const zh = await tFor("zh-CN");
+		const entry = {
+			action: "yggdrasil_session_forward_check",
+			entity_id: 3,
+			entity_name: "Yggdrasil compatible upstream",
+			entity_type: "yggdrasil_session",
+			presentation: {
+				detail: {
+					code: "yggdrasil_session_forward_checked",
+					params: {
+						result: "matched",
+						texture_forward_enabled: true,
+						upstream_name: "Yggdrasil compatible upstream",
+						username: "AptS_1548",
+					},
+				},
+			},
+		} satisfies AuditEntrySample;
+
+		expect(
+			formatAuditAction(en, "admin_update_yggdrasil_session_forward_server"),
+		).toBe("Updated Yggdrasil session forwarding server");
+		expect(formatAuditAction(zh, "yggdrasil_session_forward_check")).toBe(
+			"Yggdrasil 会话转发检查",
+		);
+		expect(formatAuditDetail(en, entry)).toBe(
+			"Checked Yggdrasil compatible upstream, user AptS_1548, result matched, texture forwarding true",
+		);
+		expect(formatAuditDetail(zh, entry)).toBe(
+			"检查 Yggdrasil compatible upstream，用户 AptS_1548，结果 matched，材质转发 true",
+		);
+		expect(
+			getAuditActionBadgeClass("yggdrasil_session_forward_check"),
+		).toContain("amber");
+		expect(
+			getAuditActionBadgeClass("admin_update_yggdrasil_session_forward_server"),
+		).toContain("sky");
 	});
 
 	it("formats Minecraft profile rename audit entries in Chinese", async () => {

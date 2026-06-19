@@ -23,4 +23,5 @@ pub mod user_invitation_repo;
 pub mod user_operator_scope_repo;
 pub mod user_profile_repo;
 pub mod user_repo;
+pub mod yggdrasil_session_forward_server_repo;
 pub mod yggdrasil_token_repo;

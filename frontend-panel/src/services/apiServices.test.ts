@@ -711,6 +711,81 @@ describe("admin services", () => {
 		);
 	});
 
+	it("manages Yggdrasil session forwarding servers through administrator APIs", async () => {
+		apiMock.get.mockResolvedValueOnce(offsetPage([], 20, 40, 0));
+		apiMock.get.mockResolvedValueOnce({
+			base_url: "https://remote.example.test/yggdrasil",
+			created_at: "2026-06-20T00:00:00Z",
+			deletable: true,
+			display_name: "Remote",
+			enabled: true,
+			id: 7,
+			last_checked_at: null,
+			last_failure_at: null,
+			last_failure_message: null,
+			last_success_at: null,
+			local: false,
+			priority: 50,
+			provider_kind: "remote",
+			texture_forward_enabled: true,
+			timeout_ms: 1500,
+			updated_at: "2026-06-20T00:00:00Z",
+			weight: 2,
+		});
+		const { adminYggdrasilSessionForwardService } = await import(
+			"./adminService"
+		);
+
+		await adminYggdrasilSessionForwardService.list({
+			limit: 20,
+			offset: 40,
+		});
+		await adminYggdrasilSessionForwardService.get(7);
+		await adminYggdrasilSessionForwardService.create({
+			base_url: "https://remote.example.test/yggdrasil",
+			display_name: "Remote",
+			enabled: true,
+			priority: 50,
+			texture_forward_enabled: true,
+			timeout_ms: 1500,
+			weight: 2,
+		});
+		await adminYggdrasilSessionForwardService.update(7, {
+			display_name: "Remote Primary",
+			priority: 20,
+		});
+		await adminYggdrasilSessionForwardService.delete(7);
+
+		expect(apiMock.get).toHaveBeenCalledWith(
+			"/admin/yggdrasil/session-forward-servers?limit=20&offset=40",
+		);
+		expect(apiMock.get).toHaveBeenCalledWith(
+			"/admin/yggdrasil/session-forward-servers/7",
+		);
+		expect(apiMock.post).toHaveBeenCalledWith(
+			"/admin/yggdrasil/session-forward-servers",
+			{
+				base_url: "https://remote.example.test/yggdrasil",
+				display_name: "Remote",
+				enabled: true,
+				priority: 50,
+				texture_forward_enabled: true,
+				timeout_ms: 1500,
+				weight: 2,
+			},
+		);
+		expect(apiMock.patch).toHaveBeenCalledWith(
+			"/admin/yggdrasil/session-forward-servers/7",
+			{
+				display_name: "Remote Primary",
+				priority: 20,
+			},
+		);
+		expect(apiMock.deleteRequest).toHaveBeenCalledWith(
+			"/admin/yggdrasil/session-forward-servers/7",
+		);
+	});
+
 	it("manages texture library moderation textures through administrator APIs", async () => {
 		apiMock.get.mockResolvedValueOnce(offsetPage([], 20, 0, 0));
 		apiMock.get.mockResolvedValueOnce({

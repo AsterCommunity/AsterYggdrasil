@@ -9,10 +9,13 @@ use crate::api::dto::yggdrasil::{
     YggdrasilProfileQuery, YggdrasilRefreshReq, YggdrasilSignoutReq, YggdrasilTokenReq,
 };
 use crate::runtime::AppState;
-use crate::services::yggdrasil_service::{self, YggdrasilError, YggdrasilErrorKind};
+use crate::services::{
+    audit_service::AuditRequestInfo,
+    yggdrasil_service::{self, YggdrasilError, YggdrasilErrorKind},
+};
 use actix_web::{HttpRequest, HttpResponse, web};
 
-pub use texture::{delete_texture, texture_by_hash, upload_texture};
+pub use texture::{delete_texture, forwarded_texture_by_hash, texture_by_hash, upload_texture};
 
 const YGGDRASIL_METADATA_CACHE_CONTROL: &str = "no-cache, no-store, must-revalidate";
 
@@ -31,6 +34,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/sessionserver/session/minecraft")
                 .route("/join", web::post().to(join))
                 .route("/hasJoined", web::get().to(has_joined))
+                .route(
+                    "/forwardedTextures/{upstream_id}/{texture_hash}/{ticket}",
+                    web::get().to(texture::forwarded_texture_by_hash),
+                )
                 .route("/profile/{uuid}", web::get().to(profile_by_uuid)),
         )
         .route("/api/profiles/minecraft", web::post().to(profiles_by_names))
@@ -434,6 +441,7 @@ pub async fn join(
 )]
 pub async fn has_joined(
     state: web::Data<AppState>,
+    req: actix_web::HttpRequest,
     query: web::Query<YggdrasilHasJoinedQuery>,
 ) -> HttpResponse {
     let query = query.into_inner();
@@ -458,6 +466,7 @@ pub async fn has_joined(
         &query.username,
         &query.server_id,
         query.ip.as_deref(),
+        AuditRequestInfo::from_request(&req),
     )
     .await
     {

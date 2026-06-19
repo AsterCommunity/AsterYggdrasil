@@ -788,6 +788,8 @@ pub async fn setup_with_memory_cache() -> AppState {
         yggdrasil_rate_limiter: aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(
             &base.config,
         ),
+        yggdrasil_session_forward_http_client:
+            aster_yggdrasil::runtime::AppState::new_yggdrasil_session_forward_http_client(),
         background_task_dispatch_wakeup:
             aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
     }
@@ -995,6 +997,8 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         metrics: aster_yggdrasil::metrics_core::NoopMetrics::arc(),
         started_at: aster_yggdrasil::runtime::AppState::new_started_at(),
         yggdrasil_rate_limiter,
+        yggdrasil_session_forward_http_client:
+            aster_yggdrasil::runtime::AppState::new_yggdrasil_session_forward_http_client(),
         background_task_dispatch_wakeup:
             aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
     }
