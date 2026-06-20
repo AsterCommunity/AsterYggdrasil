@@ -7,6 +7,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, Set,
 };
+use std::collections::HashSet;
 
 pub struct CreateYggdrasilToken<'a> {
     pub user_id: i64,
@@ -115,18 +116,8 @@ pub async fn revoke_by_access_hash<C: ConnectionTrait>(
 }
 
 pub async fn revoke_all_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<u64> {
-    let now = Utc::now();
-    let result = YggdrasilToken::update_many()
-        .col_expr(
-            yggdrasil_token::Column::RevokedAt,
-            sea_orm::sea_query::Expr::value(now),
-        )
-        .filter(yggdrasil_token::Column::UserId.eq(user_id))
-        .filter(yggdrasil_token::Column::RevokedAt.is_null())
-        .exec(db)
-        .await
-        .map_aster_err(AsterError::database_operation)?;
-    Ok(result.rows_affected)
+    let (rows_affected, _) = revoke_all_for_user_returning_hashes(db, user_id).await?;
+    Ok(rows_affected)
 }
 
 pub async fn revoke_all_for_user_returning_hashes<C: ConnectionTrait>(
@@ -134,30 +125,49 @@ pub async fn revoke_all_for_user_returning_hashes<C: ConnectionTrait>(
     user_id: i64,
 ) -> Result<(u64, Vec<String>)> {
     let before_hashes = list_active_hashes_for_user(db, user_id).await?;
-    let started_at = Utc::now();
-    let revoked_since = started_at - chrono::Duration::seconds(1);
-    let now = started_at;
+    let revoked_since = Utc::now() - chrono::Duration::seconds(10);
+    let already_revoked_hashes =
+        list_recent_revoked_hashes_for_user(db, user_id, revoked_since).await?;
+    let revoked_at = Utc::now();
     let result = YggdrasilToken::update_many()
         .col_expr(
             yggdrasil_token::Column::RevokedAt,
-            sea_orm::sea_query::Expr::value(now),
+            sea_orm::sea_query::Expr::value(revoked_at),
         )
         .filter(yggdrasil_token::Column::UserId.eq(user_id))
         .filter(yggdrasil_token::Column::RevokedAt.is_null())
         .exec(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
+    let recently_revoked_hashes =
+        list_recent_revoked_hashes_for_user(db, user_id, revoked_since).await?;
+    let already_revoked_hashes = already_revoked_hashes.into_iter().collect::<HashSet<_>>();
+    let mut hashes = before_hashes;
+    hashes.extend(
+        recently_revoked_hashes
+            .into_iter()
+            .filter(|hash| !already_revoked_hashes.contains(hash)),
+    );
+    hashes.sort();
+    hashes.dedup();
+    Ok((result.rows_affected, hashes))
+}
+
+async fn list_recent_revoked_hashes_for_user<C: ConnectionTrait>(
+    db: &C,
+    user_id: i64,
+    revoked_since: DateTime<Utc>,
+) -> Result<Vec<String>> {
     let tokens = YggdrasilToken::find()
         .filter(yggdrasil_token::Column::UserId.eq(user_id))
         .filter(yggdrasil_token::Column::RevokedAt.gte(revoked_since))
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    let mut hashes = before_hashes;
-    hashes.extend(tokens.into_iter().map(|token| token.access_token_hash));
-    hashes.sort();
-    hashes.dedup();
-    Ok((result.rows_affected, hashes))
+    Ok(tokens
+        .into_iter()
+        .map(|token| token.access_token_hash)
+        .collect())
 }
 
 pub async fn revoke_all_for_selected_profile<C: ConnectionTrait>(
@@ -376,6 +386,7 @@ mod tests {
         assert_eq!(revoked, 2);
         assert!(hashes.contains(&"active-1".to_string()));
         assert!(hashes.contains(&"active-2".to_string()));
+        assert!(!hashes.contains(&"already-revoked".to_string()));
         assert!(!hashes.contains(&"other-active".to_string()));
         assert!(
             super::find_by_access_hash(&db, "active-1")
