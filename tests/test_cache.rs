@@ -8,9 +8,8 @@ use testcontainers::{
     runners::AsyncRunner,
 };
 
-fn cache_config(enabled: bool, backend: &str, default_ttl: u64) -> CacheConfig {
+fn cache_config(backend: &str, default_ttl: u64) -> CacheConfig {
     CacheConfig {
-        enabled,
         backend: backend.to_string(),
         redis_url: String::new(),
         default_ttl,
@@ -18,8 +17,8 @@ fn cache_config(enabled: bool, backend: &str, default_ttl: u64) -> CacheConfig {
 }
 
 #[tokio::test]
-async fn create_cache_disabled_uses_memory_backend() {
-    let cache = create_cache(&cache_config(false, "memory", 60)).await;
+async fn unknown_cache_backend_uses_memory_backend() {
+    let cache = create_cache(&cache_config("unknown-backend", 60)).await;
 
     assert_eq!(cache.backend_name(), "memory");
     cache.health_check().await.unwrap();
@@ -46,7 +45,7 @@ async fn create_cache_disabled_uses_memory_backend() {
 
 #[tokio::test]
 async fn memory_cache_round_trips_json_and_ignores_invalid_json() {
-    let cache = create_cache(&cache_config(true, "memory", 60)).await;
+    let cache = create_cache(&cache_config("memory", 60)).await;
 
     assert_eq!(cache.backend_name(), "memory");
     cache.set("json", &vec!["alpha", "beta"], Some(60)).await;
@@ -61,7 +60,7 @@ async fn memory_cache_round_trips_json_and_ignores_invalid_json() {
 
 #[tokio::test]
 async fn memory_cache_delete_and_invalidate_prefix_remove_entries_and_reservations() {
-    let cache = create_cache(&cache_config(true, "unknown-backend", 60)).await;
+    let cache = create_cache(&cache_config("memory", 60)).await;
 
     cache.set_bytes("folder:1", b"one".to_vec(), Some(60)).await;
     cache.set_bytes("folder:2", b"two".to_vec(), Some(60)).await;
@@ -91,7 +90,7 @@ async fn memory_cache_delete_and_invalidate_prefix_remove_entries_and_reservatio
 
 #[tokio::test]
 async fn memory_cache_set_if_absent_is_atomic_for_concurrent_callers() {
-    let cache = create_cache(&cache_config(true, "memory", 60)).await;
+    let cache = create_cache(&cache_config("memory", 60)).await;
     let mut tasks = Vec::new();
 
     for i in 0..24 {
@@ -116,7 +115,7 @@ async fn memory_cache_set_if_absent_is_atomic_for_concurrent_callers() {
 
 #[tokio::test]
 async fn memory_cache_zero_ttl_entries_expire_immediately() {
-    let cache = create_cache(&cache_config(true, "memory", 60)).await;
+    let cache = create_cache(&cache_config("memory", 60)).await;
 
     cache.set_bytes("expired", b"value".to_vec(), Some(0)).await;
     assert_eq!(cache.get_bytes("expired").await, None);
@@ -137,7 +136,6 @@ async fn memory_cache_zero_ttl_entries_expire_immediately() {
 #[tokio::test]
 async fn redis_backend_with_invalid_url_falls_back_to_memory() {
     let cache = create_cache(&CacheConfig {
-        enabled: true,
         backend: "redis".to_string(),
         redis_url: "not a redis url".to_string(),
         default_ttl: 60,
@@ -164,7 +162,6 @@ async fn redis_cache_round_trips_against_real_redis_container() {
         .await
         .expect("resolve mapped Redis port");
     let cache = create_cache(&CacheConfig {
-        enabled: true,
         backend: "redis".to_string(),
         redis_url: format!("redis://127.0.0.1:{port}/0"),
         default_ttl: 60,

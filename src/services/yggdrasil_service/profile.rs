@@ -132,15 +132,13 @@ where
         return Ok(None);
     };
 
-    let token_hashes =
-        super::token::invalidate_token_cache_for_selected_profile(state, profile.id).await?;
+    super::token::invalidate_token_cache_for_selected_profile(state, profile.id).await?;
     let deleted_textures = texture_service::delete_all_textures_for_profile(state, &profile)
         .await
         .map_err(|error| AsterError::internal_error(error.protocol_message()))?;
     let revoked_token_count =
         yggdrasil_token_repo::revoke_all_for_selected_profile(state.writer_db(), profile.id)
             .await?;
-    super::token::invalidate_token_cache_hashes(state, &token_hashes).await;
     let deleted_profile = minecraft_profile_repo::delete_by_id(state.writer_db(), profile.id)
         .await?
         .unwrap_or_else(|| profile.clone());
@@ -246,6 +244,8 @@ where
         })
     })
     .await?;
+    // Clear the same cache entries again after commit so tokens repopulated
+    // during the rename transaction observe the temporary invalidation state.
     super::token::invalidate_token_cache_hashes(state, &token_hashes).await;
     crate::services::yggdrasil_service::invalidate_profile_name_summary_cache(
         state,

@@ -53,7 +53,6 @@ async fn test_state() -> AppState {
         },
         database: db_cfg,
         cache: crate::config::CacheConfig {
-            enabled: false,
             ..Default::default()
         },
         ..Default::default()

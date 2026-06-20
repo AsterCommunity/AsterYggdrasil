@@ -129,6 +129,37 @@ pub async fn revoke_all_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Re
     Ok(result.rows_affected)
 }
 
+pub async fn revoke_all_for_user_returning_hashes<C: ConnectionTrait>(
+    db: &C,
+    user_id: i64,
+) -> Result<(u64, Vec<String>)> {
+    let before_hashes = list_active_hashes_for_user(db, user_id).await?;
+    let started_at = Utc::now();
+    let revoked_since = started_at - chrono::Duration::seconds(1);
+    let now = started_at;
+    let result = YggdrasilToken::update_many()
+        .col_expr(
+            yggdrasil_token::Column::RevokedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(yggdrasil_token::Column::UserId.eq(user_id))
+        .filter(yggdrasil_token::Column::RevokedAt.is_null())
+        .exec(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?;
+    let tokens = YggdrasilToken::find()
+        .filter(yggdrasil_token::Column::UserId.eq(user_id))
+        .filter(yggdrasil_token::Column::RevokedAt.gte(revoked_since))
+        .all(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?;
+    let mut hashes = before_hashes;
+    hashes.extend(tokens.into_iter().map(|token| token.access_token_hash));
+    hashes.sort();
+    hashes.dedup();
+    Ok((result.rows_affected, hashes))
+}
+
 pub async fn revoke_all_for_selected_profile<C: ConnectionTrait>(
     db: &C,
     selected_profile_id: i64,
@@ -221,7 +252,10 @@ pub async fn prune_oldest_for_user<C: ConnectionTrait>(
 
 #[cfg(test)]
 mod tests {
-    use super::{CreateYggdrasilToken, create, delete_expired_or_revoked, revoke_by_access_hash};
+    use super::{
+        CreateYggdrasilToken, create, delete_expired_or_revoked,
+        revoke_all_for_user_returning_hashes, revoke_by_access_hash,
+    };
     use crate::config::DatabaseConfig;
     use crate::db::repository::user_repo;
     use crate::types::UserRole;
@@ -312,5 +346,73 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
+    }
+
+    #[tokio::test]
+    async fn revoke_all_for_user_returning_hashes_revokes_and_returns_user_hashes() {
+        let db = build_test_db().await;
+        let user_id = insert_user(&db).await;
+        let other_user_id = user_repo::create(
+            &db,
+            "other-ygg-token-user",
+            "other-ygg-token@example.com",
+            "password-hash",
+            UserRole::User,
+        )
+        .await
+        .expect("other user should insert")
+        .id;
+        let now = Utc::now();
+        insert_token(&db, user_id, "active-1", now + Duration::hours(1)).await;
+        insert_token(&db, user_id, "active-2", now + Duration::hours(1)).await;
+        insert_token(&db, user_id, "already-revoked", now + Duration::hours(1)).await;
+        insert_token(&db, other_user_id, "other-active", now + Duration::hours(1)).await;
+        revoke_by_access_hash(&db, "already-revoked").await.unwrap();
+
+        let (revoked, hashes) = revoke_all_for_user_returning_hashes(&db, user_id)
+            .await
+            .unwrap();
+
+        assert_eq!(revoked, 2);
+        assert!(hashes.contains(&"active-1".to_string()));
+        assert!(hashes.contains(&"active-2".to_string()));
+        assert!(!hashes.contains(&"other-active".to_string()));
+        assert!(
+            super::find_by_access_hash(&db, "active-1")
+                .await
+                .unwrap()
+                .expect("active-1 should still exist")
+                .revoked_at
+                .is_some()
+        );
+        assert!(
+            super::find_by_access_hash(&db, "active-2")
+                .await
+                .unwrap()
+                .expect("active-2 should still exist")
+                .revoked_at
+                .is_some()
+        );
+        assert!(
+            super::find_by_access_hash(&db, "other-active")
+                .await
+                .unwrap()
+                .expect("other token should still exist")
+                .revoked_at
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn revoke_all_for_user_returning_hashes_handles_user_without_tokens() {
+        let db = build_test_db().await;
+        let user_id = insert_user(&db).await;
+
+        let (revoked, hashes) = revoke_all_for_user_returning_hashes(&db, user_id)
+            .await
+            .unwrap();
+
+        assert_eq!(revoked, 0);
+        assert!(hashes.is_empty());
     }
 }

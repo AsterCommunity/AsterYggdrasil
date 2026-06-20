@@ -576,7 +576,6 @@ mod tests {
                 ..Default::default()
             },
             cache: crate::config::CacheConfig {
-                enabled: false,
                 ..Default::default()
             },
             ..Default::default()

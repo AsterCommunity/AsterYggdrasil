@@ -1529,7 +1529,6 @@ where
         .await
         .map_err(TextureError::from)?
         else {
-            invalidate_texture_asset_caches(state, &binding.texture).await;
             minecraft_texture_repo::mark_as_wardrobe_item(state.writer_db(), binding.texture)
                 .await
                 .map_err(TextureError::from)?;

@@ -179,9 +179,11 @@ pub(super) async fn invalidate_tokens<S>(state: &S, access_token_hashes: &[Strin
 where
     S: CacheRuntimeState,
 {
-    for access_token_hash in access_token_hashes {
-        invalidate_token(state, access_token_hash).await;
-    }
+    let keys = access_token_hashes
+        .iter()
+        .map(|access_token_hash| token_key(access_token_hash))
+        .collect::<Vec<_>>();
+    state.cache().delete_many(&keys).await;
 }
 
 pub(super) async fn invalidate_all_tokens<S>(state: &S)
@@ -192,7 +194,7 @@ where
 }
 
 fn profile_name_summary_key(name: &str) -> String {
-    format!("{PROFILE_NAME_SUMMARY_PREFIX}{name}")
+    format!("{PROFILE_NAME_SUMMARY_PREFIX}{}", name.to_ascii_lowercase())
 }
 
 fn profile_properties_prefix(profile_id: i64) -> String {
@@ -252,4 +254,109 @@ fn join_session_key(server_id: &str) -> String {
         "{JOIN_SESSION_PREFIX}{}",
         crate::utils::hash::sha256_hex(server_id.as_bytes())
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::{CacheBackend, create_cache};
+    use crate::config::CacheConfig;
+    use std::sync::Arc;
+
+    struct CacheState {
+        cache: Arc<dyn CacheBackend>,
+    }
+
+    impl crate::runtime::CacheRuntimeState for CacheState {
+        fn cache(&self) -> &Arc<dyn CacheBackend> {
+            &self.cache
+        }
+    }
+
+    async fn cache_state() -> CacheState {
+        CacheState {
+            cache: create_cache(&CacheConfig::default()).await,
+        }
+    }
+
+    #[tokio::test]
+    async fn profile_name_summary_cache_is_case_insensitive_for_ascii_names() {
+        let state = cache_state().await;
+        let profile = YggdrasilProfile {
+            id: "0123456789abcdef0123456789abcdef".to_string(),
+            name: "Steve".to_string(),
+            properties: None,
+        };
+
+        set_profile_name_summary(&state, &profile).await;
+
+        for name in ["Steve", "steve", "STEVE"] {
+            let cached = get_profile_name_summary(&state, name)
+                .await
+                .expect("profile summary should be cached case-insensitively");
+            assert_eq!(cached.id, profile.id);
+            assert_eq!(cached.name, profile.name);
+        }
+        invalidate_profile_name_summary(&state, "sTeVe").await;
+        assert!(get_profile_name_summary(&state, "Steve").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn profile_name_summary_key_preserves_ascii_safe_distinctions() {
+        assert_eq!(
+            profile_name_summary_key("Steve_1"),
+            profile_name_summary_key("steve_1")
+        );
+        assert_ne!(
+            profile_name_summary_key("Steve_1"),
+            profile_name_summary_key("Steve_2")
+        );
+    }
+
+    #[tokio::test]
+    async fn invalidate_tokens_deletes_all_token_entries_and_allows_empty_input() {
+        let state = cache_state().await;
+        let token = yggdrasil_token::Model {
+            id: 1,
+            user_id: 1,
+            access_token_hash: "hash-1".to_string(),
+            client_token: "client".to_string(),
+            selected_profile_id: None,
+            issued_at: chrono::Utc::now(),
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            revoked_at: None,
+            temporarily_invalidated_at: None,
+            user_agent: None,
+            ip_address: None,
+        };
+        set_token(&state, "hash-1", &token).await;
+        set_token(
+            &state,
+            "hash-2",
+            &yggdrasil_token::Model {
+                id: 2,
+                access_token_hash: "hash-2".to_string(),
+                ..token.clone()
+            },
+        )
+        .await;
+        set_token(
+            &state,
+            "keep",
+            &yggdrasil_token::Model {
+                id: 3,
+                access_token_hash: "keep".to_string(),
+                ..token.clone()
+            },
+        )
+        .await;
+
+        invalidate_tokens(&state, &[]).await;
+        assert!(get_token(&state, "hash-1").await.is_some());
+        invalidate_tokens(&state, &["hash-1".to_string(), "hash-2".to_string()]).await;
+
+        assert_eq!(get_token(&state, "hash-1").await, None);
+        assert_eq!(get_token(&state, "hash-2").await, None);
+        assert!(get_token(&state, "keep").await.is_some());
+    }
 }

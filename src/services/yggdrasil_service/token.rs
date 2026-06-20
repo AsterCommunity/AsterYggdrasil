@@ -257,7 +257,6 @@ where
                 tracing::debug!("yggdrasil token lookup missed");
                 return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
             };
-            super::cache::set_token(state, &access_token_hash, &token).await;
             token
         }
     };
@@ -271,6 +270,7 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
     }
+    super::cache::set_token(state, &access_token_hash, &token).await;
     if token.temporarily_invalidated_at.is_some() && !allow_temporarily_invalid {
         tracing::debug!(
             token_id = token.id,
@@ -352,12 +352,10 @@ pub(super) async fn revoke_all_for_user<S>(
 where
     S: CacheRuntimeState + DatabaseRuntimeState,
 {
-    let hashes = yggdrasil_token_repo::list_active_hashes_for_user(state.reader_db(), user_id)
-        .await
-        .map_err(YggdrasilError::from)?;
-    let revoked = yggdrasil_token_repo::revoke_all_for_user(state.writer_db(), user_id)
-        .await
-        .map_err(YggdrasilError::from)?;
+    let (revoked, hashes) =
+        yggdrasil_token_repo::revoke_all_for_user_returning_hashes(state.writer_db(), user_id)
+            .await
+            .map_err(YggdrasilError::from)?;
     invalidate_token_cache_hashes(state, &hashes).await;
     tracing::debug!(user_id, revoked, "revoked all yggdrasil tokens for user");
     Ok(())

@@ -30,7 +30,6 @@ backend = "local"
 local_root = "storage"
 
 [cache]
-enabled = true
 backend = "memory"
 ```
 

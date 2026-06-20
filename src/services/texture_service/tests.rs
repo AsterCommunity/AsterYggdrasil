@@ -46,7 +46,6 @@ async fn test_state(texture_root: String) -> AppState {
             ..Default::default()
         },
         cache: crate::config::CacheConfig {
-            enabled: false,
             ..Default::default()
         },
         ..Default::default()
