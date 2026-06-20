@@ -11,7 +11,9 @@ use crate::entities::{
     minecraft_profile, minecraft_texture, minecraft_texture_tag, user, user_profile,
 };
 use crate::errors::Result;
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::profile_service::{self, AvatarAudience};
 
 use super::{
@@ -34,25 +36,39 @@ pub async fn texture_by_hash<S: DatabaseRuntimeState>(
     Ok(texture)
 }
 
-pub async fn texture_blob_by_hash<S: DatabaseRuntimeState>(
-    state: &S,
-    hash: &str,
-) -> Result<Option<TextureBlob>> {
+pub async fn texture_blob_by_hash<S>(state: &S, hash: &str) -> Result<Option<TextureBlob>>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     if !is_valid_texture_hash(hash) {
         tracing::debug!(hash, "texture blob lookup skipped invalid hash");
         return Ok(None);
+    }
+    if let Some(blob) = super::cache::get_texture_blob_lookup(state, hash).await {
+        tracing::debug!(hash, "texture blob lookup cache hit");
+        return Ok(Some(blob));
     }
     let blob = minecraft_texture_repo::find_by_hash(state.reader_db(), hash)
         .await?
         .map(|texture| TextureBlob {
             storage_key: texture.storage_key,
         });
+    if let Some(blob) = blob.as_ref() {
+        super::cache::set_texture_blob_lookup(state, hash, blob).await;
+    }
     tracing::debug!(
         hash,
         found = blob.is_some(),
         "looked up texture blob by hash"
     );
     Ok(blob)
+}
+
+pub(crate) async fn invalidate_texture_blob_lookup_cache<S>(state: &S, hash: &str)
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_texture_blob_lookup(state, hash).await;
 }
 
 pub async fn download_texture<S: ObjectStorageRuntimeState>(
@@ -187,14 +203,6 @@ where
 {
     let skin = default_skin::for_profile_uuid(&profile.uuid);
     let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
-    let image = image::load_from_memory(skin.bytes).map_err(|error| {
-        crate::errors::AsterError::internal_error(format!(
-            "embedded default skin is not a valid PNG: {error}"
-        ))
-    })?;
-    let width = crate::utils::numbers::u32_to_i32(image.width(), "default skin width")?;
-    let height = crate::utils::numbers::u32_to_i32(image.height(), "default skin height")?;
-    let file_size = crate::utils::numbers::usize_to_i64(skin.bytes.len(), "default skin size")?;
     Ok(MinecraftTextureMetadata {
         id: 0,
         texture_id: 0,
@@ -207,9 +215,9 @@ where
         texture_type: crate::types::MinecraftTextureType::Skin,
         texture_model: skin.model,
         visibility: crate::types::MinecraftTextureVisibility::Public,
-        width,
-        height,
-        file_size,
+        width: skin.width,
+        height: skin.height,
+        file_size: skin.file_size,
         mime_type: "image/png".to_string(),
         url: crate::services::yggdrasil_signature::texture_base_url(&policy, skin.hash),
         preview_url: super::current_texture_preview_url(

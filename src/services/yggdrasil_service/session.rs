@@ -9,7 +9,6 @@ use std::time::Duration;
 use validator::Validate;
 
 use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
-use crate::cache::CacheExt;
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
 use crate::entities::yggdrasil_session_forward_server;
@@ -26,8 +25,6 @@ use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::properties;
 use super::token::active_token;
 
-const JOIN_CACHE_TTL_SECS: u64 = 30;
-const JOIN_CACHE_PREFIX: &str = "yggdrasil:join:";
 const DEFAULT_FORWARD_TIMEOUT_MS: u64 = 1500;
 const MIN_FORWARD_TIMEOUT_MS: u64 = 100;
 const MAX_FORWARD_TIMEOUT_MS: u64 = 10_000;
@@ -80,22 +77,14 @@ where
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
     }
 
-    let session = YggdrasilJoinSession {
+    let session = super::cache::YggdrasilJoinSession {
         profile_id: profile.id,
         profile_uuid: profile.uuid.clone(),
         profile_name: profile.name.clone(),
         server_id: body.server_id.clone(),
         ip_address: real_join_client_ip(state, req),
     };
-    state
-        .cache()
-        .as_ref()
-        .set(
-            &join_cache_key(&body.server_id),
-            &session,
-            Some(JOIN_CACHE_TTL_SECS),
-        )
-        .await;
+    super::cache::set_join_session(state, &body.server_id, &session).await;
     let ctx = audit_service::AuditContext::from_request(req, token.user_id);
     audit_service::log_with_details(
         state,
@@ -155,13 +144,43 @@ where
         + CacheRuntimeState
         + YggdrasilSessionForwardRuntimeState,
 {
-    let servers = yggdrasil_session_forward_server_repo::list_enabled_ordered(state.reader_db())
-        .await
-        .map_err(YggdrasilError::from)?;
+    let servers = enabled_session_forward_servers(state).await?;
     if servers.is_empty() {
         return local_has_joined(state, username, server_id, ip).await;
     }
     orchestrated_has_joined(state, servers, username, server_id, ip, &request_info).await
+}
+
+pub(crate) async fn invalidate_session_forward_server_cache<S>(state: &S)
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_session_forward_servers(state).await;
+}
+
+async fn enabled_session_forward_servers<S>(
+    state: &S,
+) -> std::result::Result<Vec<yggdrasil_session_forward_server::Model>, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    if let Some(servers) = super::cache::get_enabled_session_forward_servers(state).await {
+        tracing::debug!(
+            count = servers.len(),
+            "yggdrasil session forward server cache hit"
+        );
+        return Ok(servers);
+    }
+
+    let servers = yggdrasil_session_forward_server_repo::list_enabled_ordered(state.reader_db())
+        .await
+        .map_err(YggdrasilError::from)?;
+    super::cache::set_enabled_session_forward_servers(state, &servers).await;
+    tracing::debug!(
+        count = servers.len(),
+        "cached yggdrasil session forward server list"
+    );
+    Ok(servers)
 }
 
 async fn local_has_joined<S>(
@@ -180,12 +199,7 @@ where
         has_ip = ip.is_some(),
         "checking yggdrasil hasJoined"
     );
-    let Some(session) = state
-        .cache()
-        .as_ref()
-        .get::<YggdrasilJoinSession>(&join_cache_key(server_id))
-        .await
-    else {
+    let Some(session) = super::cache::get_join_session(state, server_id).await else {
         tracing::debug!(
             username,
             server_id_hash = %server_id_hash,
@@ -856,19 +870,6 @@ fn weighted_group_order(
     }
 
     ordered
-}
-
-fn join_cache_key(server_id: &str) -> String {
-    format!("{JOIN_CACHE_PREFIX}{}", sha256_hex(server_id.as_bytes()))
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct YggdrasilJoinSession {
-    profile_id: i64,
-    profile_uuid: String,
-    profile_name: String,
-    server_id: String,
-    ip_address: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

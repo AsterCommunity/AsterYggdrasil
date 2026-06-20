@@ -20,7 +20,6 @@ start_mode = "primary"
 url = "sqlite://asteryggdrasil.db?mode=rwc"
 
 [cache]
-enabled = true
 backend = "memory"
 
 [object_storage]

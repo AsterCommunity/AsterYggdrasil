@@ -23,7 +23,6 @@ mfa_secret_key = "replace-with-another-long-random-secret"
 bootstrap_insecure_cookies = false
 
 [cache]
-enabled = true
 backend = "memory"
 redis_url = ""
 default_ttl = 3600

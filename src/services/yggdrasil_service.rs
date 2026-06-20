@@ -1,6 +1,7 @@
 //! Yggdrasil authentication service.
 
 mod auth;
+mod cache;
 mod error;
 mod login;
 mod metadata;
@@ -22,17 +23,23 @@ pub use profile::{
     create_profile, delete_profile_for_user, profile_info, profile_summary, rename_profile,
     rename_profile_for_user, validate_profile_name,
 };
+pub(crate) use properties::invalidate_profile_properties_cache;
+pub(crate) use session::invalidate_session_forward_server_cache;
 pub use session::{forwarded_texture_url, has_joined, join};
 pub use token::{active_token_for_protocol, cleanup_expired_or_revoked_tokens};
+pub(crate) use token::{invalidate_token_cache_for_user, invalidate_token_cache_hashes};
 
 use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::db::repository::minecraft_profile_repo;
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 
-pub async fn profiles_by_names<S: DatabaseRuntimeState>(
+pub async fn profiles_by_names<S>(
     state: &S,
     names: &[String],
-) -> std::result::Result<Vec<YggdrasilProfile>, YggdrasilError> {
+) -> std::result::Result<Vec<YggdrasilProfile>, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     tracing::debug!(
         requested_count = names.len(),
         "resolving yggdrasil profiles by names"
@@ -46,15 +53,44 @@ pub async fn profiles_by_names<S: DatabaseRuntimeState>(
             YggdrasilErrorKind::TooManyProfilesRequested,
         ));
     }
-    let profiles = minecraft_profile_repo::list_by_names(state.reader_db(), names)
+
+    let mut summaries = Vec::new();
+    let mut missed_names = Vec::new();
+    for name in names {
+        if let Some(profile) = cache::get_profile_name_summary(state, name).await {
+            tracing::debug!(
+                profile_name = name,
+                "yggdrasil profile name summary cache hit"
+            );
+            summaries.push(profile);
+        } else {
+            missed_names.push(name.clone());
+        }
+    }
+
+    if missed_names.is_empty() {
+        tracing::debug!(
+            requested_count = names.len(),
+            matched_count = summaries.len(),
+            "resolved yggdrasil profiles by names from cache"
+        );
+        return Ok(summaries);
+    }
+
+    let profiles = minecraft_profile_repo::list_by_names(state.reader_db(), &missed_names)
         .await
         .map_err(YggdrasilError::from)?;
+    for profile in profiles.iter().map(profile_summary) {
+        cache::set_profile_name_summary(state, &profile).await;
+        summaries.push(profile);
+    }
     tracing::debug!(
         requested_count = names.len(),
+        cache_miss_count = missed_names.len(),
         matched_count = profiles.len(),
         "resolved yggdrasil profiles by names"
     );
-    Ok(profiles.iter().map(profile_summary).collect())
+    Ok(summaries)
 }
 
 pub async fn profile_by_uuid<S>(
@@ -63,7 +99,7 @@ pub async fn profile_by_uuid<S>(
     unsigned: bool,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(
         profile_uuid = uuid,
@@ -86,4 +122,11 @@ where
     Ok(Some(
         properties::profile_with_properties(state, &profile, !unsigned).await?,
     ))
+}
+
+pub(crate) async fn invalidate_profile_name_summary_cache<S>(state: &S, name: &str)
+where
+    S: CacheRuntimeState,
+{
+    cache::invalidate_profile_name_summary(state, name).await;
 }

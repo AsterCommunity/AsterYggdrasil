@@ -769,7 +769,6 @@ pub async fn setup() -> AppState {
 pub async fn setup_with_memory_cache() -> AppState {
     let base = setup().await;
     let cache_config = aster_yggdrasil::config::CacheConfig {
-        enabled: true,
         backend: "memory".to_string(),
         default_ttl: 60,
         ..Default::default()
@@ -959,7 +958,6 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
             ..Default::default()
         },
         cache: aster_yggdrasil::config::CacheConfig {
-            enabled: false,
             ..Default::default()
         },
         rate_limit: aster_yggdrasil::config::RateLimitConfig {

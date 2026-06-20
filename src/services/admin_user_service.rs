@@ -6,7 +6,9 @@ use crate::db::repository::{
 };
 use crate::entities::user;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth_service, texture_service, yggdrasil_service};
 use crate::types::{OperatorScope, UserRole, UserStatus};
@@ -416,7 +418,10 @@ where
 
 pub async fn delete_user<S>(state: &S, user_id: i64) -> Result<DeleteAdminUserOutput>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState
+        + DatabaseRuntimeState
+        + RuntimeConfigRuntimeState
+        + ObjectStorageRuntimeState,
 {
     if user_id == SUPER_ADMIN_USER_ID {
         return Err(AsterError::auth_forbidden(
@@ -448,8 +453,10 @@ where
             .len();
     let revoked_session_count =
         user_repo::revoke_sessions_for_user(state.writer_db(), user_id).await?;
+    let token_hashes = yggdrasil_service::invalidate_token_cache_for_user(state, user_id).await?;
     revoked_yggdrasil_token_count +=
         yggdrasil_token_repo::revoke_all_for_user(state.writer_db(), user_id).await?;
+    yggdrasil_service::invalidate_token_cache_hashes(state, &token_hashes).await;
     user_repo::delete_by_id(state.writer_db(), user_id).await?;
 
     tracing::debug!(
@@ -569,7 +576,6 @@ mod tests {
                 ..Default::default()
             },
             cache: crate::config::CacheConfig {
-                enabled: false,
                 ..Default::default()
             },
             ..Default::default()

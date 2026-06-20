@@ -345,7 +345,6 @@ mod tests {
         let config = std::sync::Arc::new(crate::config::Config {
             database: db_cfg,
             cache: crate::config::CacheConfig {
-                enabled: false,
                 ..Default::default()
             },
             ..Default::default()

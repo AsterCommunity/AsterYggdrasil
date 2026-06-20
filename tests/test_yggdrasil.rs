@@ -611,6 +611,55 @@ async fn yggdrasil_authenticate_validate_refresh_and_invalidate_flow() {
 }
 
 #[actix_web::test]
+async fn yggdrasil_token_cache_invalidates_after_single_token_revoke() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let _profile_id = create_profile!(app, &access, "TokenCacheRevoke");
+    let login = ygg_login!(app, "admin@example.com", "token-cache-revoke-client");
+
+    validate_ygg_token_status!(app, &login.access_token, "token-cache-revoke-client", 204);
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/authserver/invalidate")
+        .set_json(serde_json::json!({
+            "accessToken": login.access_token,
+            "clientToken": "token-cache-revoke-client"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    validate_ygg_token_status!(app, &login.access_token, "token-cache-revoke-client", 403);
+}
+
+#[actix_web::test]
+async fn yggdrasil_token_cache_invalidates_after_refresh_replaces_token() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let _access = setup_admin!(app);
+    let login = ygg_login!(app, "admin@example.com", "token-cache-refresh-client");
+
+    validate_ygg_token_status!(app, &login.access_token, "token-cache-refresh-client", 204);
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/authserver/refresh")
+        .set_json(serde_json::json!({
+            "accessToken": login.access_token,
+            "clientToken": "token-cache-refresh-client"
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let refreshed_access = body["accessToken"].as_str().unwrap().to_string();
+    assert_ne!(refreshed_access, login.access_token);
+
+    validate_ygg_token_status!(app, &login.access_token, "token-cache-refresh-client", 403);
+    validate_ygg_token_status!(app, &refreshed_access, "token-cache-refresh-client", 204);
+}
+
+#[actix_web::test]
 async fn yggdrasil_refresh_precondition_failure_keeps_original_token_valid() {
     let state = setup_yggdrasil().await;
     let app = create_test_app!(state.clone());
@@ -1604,11 +1653,12 @@ async fn minecraft_profile_duplicate_names_are_rejected_until_deleted() {
 
 #[actix_web::test]
 async fn minecraft_profile_rename_updates_name_and_temporarily_invalidates_bound_tokens() {
-    let state = setup_yggdrasil().await;
+    let state = setup_yggdrasil_with_memory_cache().await;
     let app = create_test_app!(state.clone());
     let access = setup_admin!(app);
     let profile_id = create_profile!(app, &access, "RenameOld");
     let login = ygg_login!(app, "admin@example.com", "rename-client");
+    validate_ygg_token_status!(app, &login.access_token, "rename-client", 204);
 
     let req = test::TestRequest::put()
         .uri(&format!("/api/v1/profiles/minecraft/{profile_id}/name"))
@@ -1700,6 +1750,53 @@ async fn minecraft_profile_rename_updates_name_and_temporarily_invalidates_bound
         item["presentation"]["detail"]["code"],
         "minecraft_profile_renamed"
     );
+}
+
+#[actix_web::test]
+async fn yggdrasil_profile_name_summary_cache_refreshes_after_rename() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(app, &access, "NameCacheOld");
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/api/profiles/minecraft")
+        .set_json(serde_json::json!(["NameCacheOld"]))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body.as_array().unwrap().len(), 1);
+    assert_eq!(body[0]["id"], profile_id);
+    assert_eq!(body[0]["name"], "NameCacheOld");
+
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/v1/profiles/minecraft/{profile_id}/name"))
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({ "name": "NameCacheNew" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/api/profiles/minecraft")
+        .set_json(serde_json::json!(["NameCacheOld"]))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body.as_array().unwrap().len(), 0);
+
+    let req = test::TestRequest::post()
+        .uri("/api/yggdrasil/api/profiles/minecraft")
+        .set_json(serde_json::json!(["NameCacheNew"]))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body.as_array().unwrap().len(), 1);
+    assert_eq!(body[0]["id"], profile_id);
+    assert_eq!(body[0]["name"], "NameCacheNew");
 }
 
 #[actix_web::test]
@@ -3272,6 +3369,100 @@ async fn yggdrasil_existing_skin_is_not_overwritten_by_default_skin() {
 }
 
 #[actix_web::test]
+async fn yggdrasil_profile_property_cache_refreshes_after_texture_upload_and_delete() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(&app, &access, "CacheSkin");
+    let login = ygg_login!(&app, "admin@example.com", "cache-skin-client");
+
+    let initial_textures = profile_textures!(app, &profile_id);
+    let default_hash = assert_default_skin_textures(&initial_textures, &profile_id, "CacheSkin");
+
+    let skin = png_texture_with_color(64, 64, image::Rgba([123, 45, 67, 255]));
+    let resp = upload_texture_req!(app, &login.access_token, &profile_id, "skin", None, &skin);
+    assert_eq!(resp.status(), 204);
+    let uploaded_hash = sha256_hex(&skin);
+    assert_ne!(uploaded_hash, default_hash);
+
+    let uploaded_textures = profile_textures!(app, &profile_id);
+    assert_eq!(
+        texture_hash_from_property(&uploaded_textures, "SKIN"),
+        uploaded_hash
+    );
+
+    let req = test::TestRequest::delete()
+        .uri(&format!(
+            "/api/yggdrasil/api/user/profile/{profile_id}/skin"
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", login.access_token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    let deleted_textures = profile_textures!(app, &profile_id);
+    let restored_default_hash =
+        assert_default_skin_textures(&deleted_textures, &profile_id, "CacheSkin");
+    assert_eq!(restored_default_hash, default_hash);
+}
+
+#[actix_web::test]
+async fn yggdrasil_profile_property_cache_refreshes_after_bound_wardrobe_model_update() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let profile_id = create_profile!(&app, &access, "CacheModel");
+
+    let skin = png_texture_with_color(64, 64, image::Rgba([41, 42, 43, 255]));
+    let resp = upload_wardrobe_texture_req!(app, &access, "skin", Some("slim"), &skin);
+    assert_eq!(resp.status(), 200);
+    let upload_body: Value = test::read_body_json(resp).await;
+    let wardrobe_texture_id = upload_body["data"]["id"].as_i64().unwrap();
+    let wardrobe_hash = upload_body["data"]["hash"].as_str().unwrap().to_string();
+
+    let req = test::TestRequest::put()
+        .uri(&format!(
+            "/api/v1/profiles/minecraft/{profile_id}/textures/skin"
+        ))
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({ "texture_id": wardrobe_texture_id }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let cached_textures = profile_textures!(app, &profile_id);
+    assert_eq!(
+        texture_hash_from_property(&cached_textures, "SKIN"),
+        wardrobe_hash
+    );
+    assert_eq!(
+        cached_textures["textures"]["SKIN"]["metadata"]["model"],
+        "slim"
+    );
+
+    let req = test::TestRequest::patch()
+        .uri(&format!("/api/v1/wardrobe/textures/{wardrobe_texture_id}"))
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({ "texture_model": "default" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let refreshed_textures = profile_textures!(app, &profile_id);
+    assert_eq!(
+        texture_hash_from_property(&refreshed_textures, "SKIN"),
+        wardrobe_hash
+    );
+    assert!(
+        refreshed_textures["textures"]["SKIN"]
+            .get("metadata")
+            .is_none()
+            || refreshed_textures["textures"]["SKIN"]["metadata"].is_null(),
+        "default skin model should not retain stale slim metadata"
+    );
+}
+
+#[actix_web::test]
 async fn texture_preview_responses_support_etag_revalidation() {
     let state = setup_yggdrasil().await;
     let app = create_test_app!(state);
@@ -3430,6 +3621,40 @@ async fn yggdrasil_embedded_default_skin_downloads_and_unknown_hashes_stay_404()
     assert_eq!(resp.status(), 404);
     let req = test::TestRequest::get()
         .uri("/api/yggdrasil/textures/not-a-valid-hash")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn yggdrasil_texture_blob_cache_invalidates_after_wardrobe_delete() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+
+    let skin = png_texture_with_color(64, 64, image::Rgba([91, 92, 93, 255]));
+    let resp = upload_wardrobe_texture_req!(app, &access, "skin", Some("default"), &skin);
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let texture_id = body["data"]["id"].as_i64().unwrap();
+    let texture_hash = body["data"]["hash"].as_str().unwrap().to_string();
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/yggdrasil/textures/{texture_hash}"))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(sha256_hex(&test::read_body(resp).await), texture_hash);
+
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/v1/wardrobe/textures/{texture_id}"))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/yggdrasil/textures/{texture_hash}"))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
@@ -6409,6 +6634,131 @@ async fn yggdrasil_has_joined_uses_mojang_session_endpoint_path() {
     };
     assert!(used_mojang_path);
     assert!(!used_authlib_path);
+
+    remote_handle.stop(true).await;
+}
+
+#[actix_web::test]
+async fn yggdrasil_session_forward_cache_invalidates_after_disable_and_delete() {
+    let state = setup_yggdrasil_with_memory_cache().await;
+    let app = create_test_app!(state);
+    let access = setup_admin!(app);
+    let remote_profile_id = "44444444444444444444444444444444";
+    let (remote_upstream, remote_handle) = start_mock_session_forward_server(
+        200,
+        Some(serde_json::json!({
+            "id": remote_profile_id,
+            "name": "ForwardCacheUser"
+        })),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/api/v1/admin/yggdrasil/session-forward-servers")
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({
+            "display_name": "Forward Cache Remote",
+            "base_url": remote_upstream.base_url.clone(),
+            "endpoint_kind": "authlib_injector",
+            "enabled": true,
+            "priority": 10,
+            "weight": 1,
+            "timeout_ms": 1500
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 201);
+    let body: Value = test::read_body_json(resp).await;
+    let remote_id = body["data"]["id"].as_i64().unwrap();
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ForwardCacheUser&serverId=forward-cache-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], remote_profile_id);
+    assert_eq!(
+        remote_upstream
+            .request_paths
+            .lock()
+            .expect("request paths lock should not be poisoned")
+            .len(),
+        1
+    );
+
+    let req = test::TestRequest::patch()
+        .uri(&format!(
+            "/api/v1/admin/yggdrasil/session-forward-servers/{remote_id}"
+        ))
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({ "enabled": false }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ForwardCacheUser&serverId=forward-cache-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+    assert_eq!(
+        remote_upstream
+            .request_paths
+            .lock()
+            .expect("request paths lock should not be poisoned")
+            .len(),
+        1,
+        "disabled forward server must not be reused from cached enabled-server list"
+    );
+
+    let req = test::TestRequest::patch()
+        .uri(&format!(
+            "/api/v1/admin/yggdrasil/session-forward-servers/{remote_id}"
+        ))
+        .insert_header(common::bearer_header(&access))
+        .set_json(serde_json::json!({ "enabled": true }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ForwardCacheUser&serverId=forward-cache-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        remote_upstream
+            .request_paths
+            .lock()
+            .expect("request paths lock should not be poisoned")
+            .len(),
+        2
+    );
+
+    let req = test::TestRequest::delete()
+        .uri(&format!(
+            "/api/v1/admin/yggdrasil/session-forward-servers/{remote_id}"
+        ))
+        .insert_header(common::bearer_header(&access))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ForwardCacheUser&serverId=forward-cache-server")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 204);
+    assert_eq!(
+        remote_upstream
+            .request_paths
+            .lock()
+            .expect("request paths lock should not be poisoned")
+            .len(),
+        2,
+        "deleted forward server must not be reused from cached enabled-server list"
+    );
 
     remote_handle.stop(true).await;
 }

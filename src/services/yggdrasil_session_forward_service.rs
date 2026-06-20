@@ -10,7 +10,7 @@ use crate::api::pagination::OffsetPage;
 use crate::db::repository::yggdrasil_session_forward_server_repo;
 use crate::entities::yggdrasil_session_forward_server;
 use crate::errors::{AsterError, Result};
-use crate::runtime::DatabaseRuntimeState;
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::audit_service;
 use crate::types::{
     YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardProviderKind,
@@ -135,7 +135,7 @@ pub async fn create_server<S>(
     input: CreateYggdrasilSessionForwardServerInput,
 ) -> Result<AdminYggdrasilSessionForwardServerInfo>
 where
-    S: DatabaseRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState,
 {
     let display_name = normalize_display_name(input.display_name)?;
     let base_url = normalize_base_url(input.base_url)?;
@@ -169,6 +169,7 @@ where
     };
 
     let server = yggdrasil_session_forward_server_repo::create(state.writer_db(), server).await?;
+    crate::services::yggdrasil_service::invalidate_session_forward_server_cache(state).await;
     Ok(server_to_admin(server))
 }
 
@@ -178,7 +179,7 @@ pub async fn update_server<S>(
     input: UpdateYggdrasilSessionForwardServerInput,
 ) -> Result<AdminYggdrasilSessionForwardServerInfo>
 where
-    S: DatabaseRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState,
 {
     let existing = yggdrasil_session_forward_server_repo::find_by_id(state.writer_db(), id).await?;
     let provider_kind = existing.provider_kind;
@@ -229,12 +230,13 @@ where
     active.updated_at = Set(Utc::now());
 
     let server = yggdrasil_session_forward_server_repo::update(state.writer_db(), active).await?;
+    crate::services::yggdrasil_service::invalidate_session_forward_server_cache(state).await;
     Ok(server_to_admin(server))
 }
 
 pub async fn delete_server<S>(state: &S, id: i64) -> Result<AdminYggdrasilSessionForwardServerInfo>
 where
-    S: DatabaseRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState,
 {
     let server = yggdrasil_session_forward_server_repo::find_by_id(state.writer_db(), id).await?;
     if server.builtin {
@@ -244,6 +246,7 @@ where
     }
     let info = server_to_admin(server);
     yggdrasil_session_forward_server_repo::delete(state.writer_db(), id).await?;
+    crate::services::yggdrasil_service::invalidate_session_forward_server_cache(state).await;
     Ok(info)
 }
 

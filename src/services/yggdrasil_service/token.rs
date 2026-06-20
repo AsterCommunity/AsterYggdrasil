@@ -5,7 +5,7 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
 use crate::entities::{minecraft_profile, yggdrasil_token};
 use crate::errors::Result;
-use crate::runtime::DatabaseRuntimeState;
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::ban_service;
 use crate::types::UserBanScope;
 use crate::utils::hash::sha256_hex;
@@ -25,7 +25,7 @@ async fn issue_token_in_connection<C: sea_orm::ConnectionTrait>(
     policy: &RuntimeYggdrasilPolicy,
     user_agent: Option<String>,
     ip_address: Option<String>,
-) -> Result<IssuedToken> {
+) -> Result<(IssuedToken, Vec<String>)> {
     let now = Utc::now();
     let token_ttl_days =
         crate::utils::numbers::u64_to_i64(policy.token_ttl_days, "yggdrasil token ttl days")?;
@@ -53,7 +53,8 @@ async fn issue_token_in_connection<C: sea_orm::ConnectionTrait>(
         },
     )
     .await?;
-    yggdrasil_token_repo::prune_oldest_for_user(db, user_id, policy.max_active_tokens).await?;
+    let pruned_hashes =
+        yggdrasil_token_repo::prune_oldest_for_user(db, user_id, policy.max_active_tokens).await?;
     tracing::debug!(
         user_id,
         token_id = token.id,
@@ -61,20 +62,26 @@ async fn issue_token_in_connection<C: sea_orm::ConnectionTrait>(
         "created yggdrasil token"
     );
 
-    Ok(IssuedToken {
-        token_id: token.id,
-        access_token,
-    })
+    Ok((
+        IssuedToken {
+            token_id: token.id,
+            access_token,
+        },
+        pruned_hashes,
+    ))
 }
 
-pub(super) async fn issue_token<S: DatabaseRuntimeState>(
+pub(super) async fn issue_token<S>(
     state: &S,
     user_id: i64,
     client_token: &str,
     selected_profile_id: Option<i64>,
     policy: &RuntimeYggdrasilPolicy,
     req: &HttpRequest,
-) -> std::result::Result<IssuedToken, YggdrasilError> {
+) -> std::result::Result<IssuedToken, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let user_agent = crate::services::auth_service::user_agent(req);
     let ip_address = crate::services::auth_service::peer_ip(req);
     tracing::debug!(
@@ -84,23 +91,26 @@ pub(super) async fn issue_token<S: DatabaseRuntimeState>(
         has_ip_address = ip_address.is_some(),
         "issuing yggdrasil token"
     );
-    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
-        issue_token_in_connection(
-            txn,
-            user_id,
-            client_token,
-            selected_profile_id,
-            policy,
-            user_agent.clone(),
-            ip_address.clone(),
-        )
+    let (issued, pruned_hashes) =
+        crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+            issue_token_in_connection(
+                txn,
+                user_id,
+                client_token,
+                selected_profile_id,
+                policy,
+                user_agent.clone(),
+                ip_address.clone(),
+            )
+            .await
+        })
         .await
-    })
-    .await
-    .map_err(YggdrasilError::from)
+        .map_err(YggdrasilError::from)?;
+    invalidate_token_cache_hashes(state, &pruned_hashes).await;
+    Ok(issued)
 }
 
-pub(super) async fn refresh_token<S: DatabaseRuntimeState>(
+pub(super) async fn refresh_token<S>(
     state: &S,
     old_access_token: &str,
     user_id: i64,
@@ -108,7 +118,10 @@ pub(super) async fn refresh_token<S: DatabaseRuntimeState>(
     selected_profile_id: Option<i64>,
     policy: &RuntimeYggdrasilPolicy,
     req: &HttpRequest,
-) -> std::result::Result<IssuedToken, YggdrasilError> {
+) -> std::result::Result<IssuedToken, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let user_agent = crate::services::auth_service::user_agent(req);
     let ip_address = crate::services::auth_service::peer_ip(req);
     let old_access_token_hash = sha256_hex(old_access_token.as_bytes());
@@ -149,10 +162,13 @@ pub(super) async fn refresh_token<S: DatabaseRuntimeState>(
     .await;
 
     match result {
-        Ok(issued) => {
+        Ok((issued, pruned_hashes)) => {
             crate::db::transaction::commit(txn)
                 .await
                 .map_err(YggdrasilError::from)?;
+            let mut hashes = pruned_hashes;
+            hashes.push(old_access_token_hash);
+            invalidate_token_cache_hashes(state, &hashes).await;
             tracing::debug!(
                 user_id,
                 token_id = issued.token_id,
@@ -174,51 +190,75 @@ pub(super) async fn refresh_token<S: DatabaseRuntimeState>(
     }
 }
 
-pub async fn active_token_for_protocol<S: DatabaseRuntimeState>(
+pub async fn active_token_for_protocol<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<yggdrasil_token::Model, YggdrasilError> {
+) -> std::result::Result<yggdrasil_token::Model, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     active_token(state, access_token, None).await
 }
 
-pub async fn cleanup_expired_or_revoked_tokens<S: DatabaseRuntimeState>(state: &S) -> Result<u64> {
+pub async fn cleanup_expired_or_revoked_tokens<S>(state: &S) -> Result<u64>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let removed =
         yggdrasil_token_repo::delete_expired_or_revoked(state.writer_db(), Utc::now()).await?;
+    super::cache::invalidate_all_tokens(state).await;
     tracing::debug!(removed, "cleaned up expired or revoked yggdrasil tokens");
     Ok(removed)
 }
 
-pub(super) async fn active_token<S: DatabaseRuntimeState>(
+pub(super) async fn active_token<S>(
     state: &S,
     access_token: &str,
     client_token: Option<&str>,
-) -> std::result::Result<yggdrasil_token::Model, YggdrasilError> {
+) -> std::result::Result<yggdrasil_token::Model, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     token_for_operation(state, access_token, client_token, false).await
 }
 
-pub(super) async fn refreshable_token<S: DatabaseRuntimeState>(
+pub(super) async fn refreshable_token<S>(
     state: &S,
     access_token: &str,
     client_token: Option<&str>,
-) -> std::result::Result<yggdrasil_token::Model, YggdrasilError> {
+) -> std::result::Result<yggdrasil_token::Model, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     token_for_operation(state, access_token, client_token, true).await
 }
 
-async fn token_for_operation<S: DatabaseRuntimeState>(
+async fn token_for_operation<S>(
     state: &S,
     access_token: &str,
     client_token: Option<&str>,
     allow_temporarily_invalid: bool,
-) -> std::result::Result<yggdrasil_token::Model, YggdrasilError> {
-    let Some(token) = yggdrasil_token_repo::find_by_access_hash(
-        state.reader_db(),
-        &sha256_hex(access_token.as_bytes()),
-    )
-    .await
-    .map_err(YggdrasilError::from)?
-    else {
-        tracing::debug!("yggdrasil token lookup missed");
-        return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
+) -> std::result::Result<yggdrasil_token::Model, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    let access_token_hash = sha256_hex(access_token.as_bytes());
+    let token = match super::cache::get_token(state, &access_token_hash).await {
+        Some(token) => {
+            tracing::debug!(token_id = token.id, "yggdrasil token cache hit");
+            token
+        }
+        None => {
+            let Some(token) =
+                yggdrasil_token_repo::find_by_access_hash(state.reader_db(), &access_token_hash)
+                    .await
+                    .map_err(YggdrasilError::from)?
+            else {
+                tracing::debug!("yggdrasil token lookup missed");
+                return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
+            };
+            token
+        }
     };
     if token.revoked_at.is_some() || token.expires_at <= Utc::now() {
         tracing::debug!(
@@ -230,6 +270,7 @@ async fn token_for_operation<S: DatabaseRuntimeState>(
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
     }
+    super::cache::set_token(state, &access_token_hash, &token).await;
     if token.temporarily_invalidated_at.is_some() && !allow_temporarily_invalid {
         tracing::debug!(
             token_id = token.id,
@@ -287,27 +328,78 @@ pub(super) async fn selected_profile_for_token<S: DatabaseRuntimeState>(
     Ok(Some(profile))
 }
 
-pub(super) async fn revoke_by_access_token<S: DatabaseRuntimeState>(
+pub(super) async fn revoke_by_access_token<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<(), YggdrasilError> {
-    let revoked = yggdrasil_token_repo::revoke_by_access_hash(
-        state.writer_db(),
-        &sha256_hex(access_token.as_bytes()),
-    )
-    .await
-    .map_err(YggdrasilError::from)?;
+) -> std::result::Result<(), YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    let access_token_hash = sha256_hex(access_token.as_bytes());
+    let revoked =
+        yggdrasil_token_repo::revoke_by_access_hash(state.writer_db(), &access_token_hash)
+            .await
+            .map_err(YggdrasilError::from)?;
+    invalidate_token_cache_by_hash(state, &access_token_hash).await;
     tracing::debug!(revoked, "revoked yggdrasil token by access hash");
     Ok(())
 }
 
-pub(super) async fn revoke_all_for_user<S: DatabaseRuntimeState>(
+pub(super) async fn revoke_all_for_user<S>(
     state: &S,
     user_id: i64,
-) -> std::result::Result<(), YggdrasilError> {
-    let revoked = yggdrasil_token_repo::revoke_all_for_user(state.writer_db(), user_id)
-        .await
-        .map_err(YggdrasilError::from)?;
+) -> std::result::Result<(), YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    let (revoked, hashes) =
+        yggdrasil_token_repo::revoke_all_for_user_returning_hashes(state.writer_db(), user_id)
+            .await
+            .map_err(YggdrasilError::from)?;
+    invalidate_token_cache_hashes(state, &hashes).await;
     tracing::debug!(user_id, revoked, "revoked all yggdrasil tokens for user");
     Ok(())
+}
+
+pub(crate) async fn invalidate_token_cache_by_hash<S>(state: &S, access_token_hash: &str)
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_token(state, access_token_hash).await;
+}
+
+pub(crate) async fn invalidate_token_cache_hashes<S>(state: &S, access_token_hashes: &[String])
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_tokens(state, access_token_hashes).await;
+}
+
+pub(crate) async fn invalidate_token_cache_for_user<S>(
+    state: &S,
+    user_id: i64,
+) -> Result<Vec<String>>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    let hashes =
+        yggdrasil_token_repo::list_active_hashes_for_user(state.reader_db(), user_id).await?;
+    invalidate_token_cache_hashes(state, &hashes).await;
+    Ok(hashes)
+}
+
+pub(crate) async fn invalidate_token_cache_for_selected_profile<S>(
+    state: &S,
+    selected_profile_id: i64,
+) -> Result<Vec<String>>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    let hashes = yggdrasil_token_repo::list_active_hashes_for_selected_profile(
+        state.reader_db(),
+        selected_profile_id,
+    )
+    .await?;
+    invalidate_token_cache_hashes(state, &hashes).await;
+    Ok(hashes)
 }

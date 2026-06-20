@@ -467,7 +467,6 @@ mod tests {
         let config = Arc::new(Config {
             database: db_cfg,
             cache: CacheConfig {
-                enabled: false,
                 ..Default::default()
             },
             ..Default::default()

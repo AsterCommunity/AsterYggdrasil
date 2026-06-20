@@ -11,6 +11,9 @@ pub struct DefaultSkin {
     pub hash: &'static str,
     pub bytes: &'static [u8],
     pub model: MinecraftTextureModel,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: i64,
 }
 
 pub fn for_profile_uuid(uuid: &str) -> DefaultSkin {
@@ -33,6 +36,9 @@ const fn steve() -> DefaultSkin {
         hash: STEVE_HASH,
         bytes: STEVE_BYTES,
         model: MinecraftTextureModel::Default,
+        width: 64,
+        height: 64,
+        file_size: STEVE_BYTES.len() as i64,
     }
 }
 
@@ -41,6 +47,9 @@ const fn alex() -> DefaultSkin {
         hash: ALEX_HASH,
         bytes: ALEX_BYTES,
         model: MinecraftTextureModel::Slim,
+        width: 64,
+        height: 64,
+        file_size: ALEX_BYTES.len() as i64,
     }
 }
 
@@ -75,5 +84,15 @@ mod tests {
     fn default_skin_hashes_match_embedded_bytes() {
         assert_eq!(crate::utils::hash::sha256_hex(STEVE_BYTES), STEVE_HASH);
         assert_eq!(crate::utils::hash::sha256_hex(ALEX_BYTES), ALEX_HASH);
+    }
+
+    #[test]
+    fn default_skin_static_metadata_matches_embedded_pngs() {
+        for skin in [steve(), alex()] {
+            let image = image::load_from_memory(skin.bytes).expect("default skin should decode");
+            assert_eq!(skin.width, image.width() as i32);
+            assert_eq!(skin.height, image.height() as i32);
+            assert_eq!(skin.file_size, skin.bytes.len() as i64);
+        }
     }
 }

@@ -156,15 +156,17 @@ async fn check_cache_component(
     config: &CacheConfig,
     cache: &dyn CacheBackend,
 ) -> HealthComponentReport {
-    if !config.enabled {
+    if config.backend != cache.backend_name() {
         tracing::debug!(
-            backend = cache.backend_name(),
-            "cache health check skipped because cache is disabled"
+            configured_backend = %config.backend,
+            active_backend = cache.backend_name(),
+            "cache backend is using fallback"
         );
-        return HealthComponentReport::healthy(
+        return HealthComponentReport::degraded(
             "cache",
             format!(
-                "cache.enabled=false is deprecated; using {} cache fallback",
+                "configured cache backend '{}' is using active backend '{}'",
+                config.backend,
                 cache.backend_name()
             ),
         );
@@ -180,10 +182,10 @@ async fn check_cache_component(
         }
         Err(error) => {
             tracing::debug!(backend = cache.backend_name(), error = %error, "cache health check failed");
-            HealthComponentReport::degraded(
+            HealthComponentReport::unhealthy(
                 "cache",
                 format!(
-                    "{} cache health check failed: {error}",
+                    "cache backend '{}' health check failed: {error}",
                     cache.backend_name()
                 ),
             )
@@ -238,6 +240,10 @@ mod tests {
         }
 
         async fn get_bytes(&self, _key: &str) -> Option<Vec<u8>> {
+            None
+        }
+
+        async fn take_bytes(&self, _key: &str) -> Option<Vec<u8>> {
             None
         }
 
@@ -333,29 +339,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cache_component_reports_memory_fallback_when_cache_is_disabled() {
+    async fn cache_component_reports_configured_backend_fallback() {
         let config = CacheConfig {
-            enabled: false,
             backend: "redis".to_string(),
             redis_url: "redis://example.com:6379/0".to_string(),
             default_ttl: 60,
         };
-        let cache = FakeCache::unhealthy("redis");
+        let cache = FakeCache::new("memory");
 
         let report = check_cache_component(&config, &cache).await;
 
         assert_eq!(report.name, "cache");
-        assert_eq!(report.status, HealthStatus::Healthy);
+        assert_eq!(report.status, HealthStatus::Degraded);
         assert_eq!(
             report.message,
-            "cache.enabled=false is deprecated; using redis cache fallback"
+            "configured cache backend 'redis' is using active backend 'memory'"
         );
     }
 
     #[tokio::test]
     async fn cache_component_reports_active_backend_probe_result() {
         let config = CacheConfig {
-            enabled: true,
             backend: "redis".to_string(),
             redis_url: "redis://example.com:6379/0".to_string(),
             default_ttl: 60,
@@ -366,8 +370,12 @@ mod tests {
         assert_eq!(healthy.message, "cache health check succeeded");
 
         let degraded = check_cache_component(&config, &FakeCache::unhealthy("redis")).await;
-        assert_eq!(degraded.status, HealthStatus::Degraded);
-        assert!(degraded.message.contains("redis cache health check failed"));
+        assert_eq!(degraded.status, HealthStatus::Unhealthy);
+        assert!(
+            degraded
+                .message
+                .contains("cache backend 'redis' health check failed")
+        );
     }
 
     #[tokio::test]

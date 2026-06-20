@@ -436,7 +436,6 @@ mod tests {
             .await
             .expect("runtime config should load");
         let cache = crate::cache::create_cache(&crate::config::CacheConfig {
-            enabled: false,
             ..Default::default()
         })
         .await;

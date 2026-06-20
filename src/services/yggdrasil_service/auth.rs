@@ -6,7 +6,7 @@ use crate::api::dto::yggdrasil::{
 };
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{audit_service, ban_service};
 use crate::types::UserBanScope;
 use crate::utils::hash::verify_password;
@@ -25,7 +25,7 @@ pub async fn authenticate<S>(
     req: &HttpRequest,
 ) -> std::result::Result<YggdrasilAuthenticateResp, YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(
         identifier_len = body.username.len(),
@@ -174,7 +174,7 @@ pub async fn refresh<S>(
     req: &HttpRequest,
 ) -> std::result::Result<YggdrasilRefreshResp, YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(
         has_client_token = body
@@ -297,10 +297,13 @@ where
     })
 }
 
-pub async fn validate<S: DatabaseRuntimeState>(
+pub async fn validate<S>(
     state: &S,
     body: YggdrasilTokenReq,
-) -> std::result::Result<(), YggdrasilError> {
+) -> std::result::Result<(), YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     tracing::debug!(
         has_client_token = body
             .client_token
@@ -322,7 +325,7 @@ pub async fn invalidate<S>(
     body: YggdrasilTokenReq,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(
         has_client_token = body
@@ -371,7 +374,7 @@ pub async fn signout<S>(
     password: &str,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(
         identifier_len = username.len(),

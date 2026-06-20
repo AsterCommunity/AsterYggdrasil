@@ -10,7 +10,7 @@ use crate::api::dto::yggdrasil::{
     MinecraftServicesPrivilegesResp, MinecraftServicesProfanityFilterPreferences,
 };
 use crate::errors::AsterError;
-use crate::runtime::DatabaseRuntimeState;
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::ban_service;
 use crate::types::UserBanScope;
 
@@ -19,10 +19,13 @@ use super::{YggdrasilError, YggdrasilErrorKind, active_token_for_protocol};
 const PROFILE_KEY_BITS: usize = 2048;
 const DUMMY_PUBLIC_KEY_SIGNATURE: &str = "AA==";
 
-pub async fn profile_key_certificate<S: DatabaseRuntimeState>(
+pub async fn profile_key_certificate<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<MinecraftServicesCertificateResp, YggdrasilError> {
+) -> std::result::Result<MinecraftServicesCertificateResp, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let token = active_token_for_protocol(state, access_token).await?;
     if token.selected_profile_id.is_none() {
         tracing::debug!(
@@ -52,20 +55,26 @@ pub async fn profile_key_certificate<S: DatabaseRuntimeState>(
     })
 }
 
-pub async fn minecraft_services_privileges<S: DatabaseRuntimeState>(
+pub async fn minecraft_services_privileges<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<MinecraftServicesPrivilegesResp, YggdrasilError> {
+) -> std::result::Result<MinecraftServicesPrivilegesResp, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let token = validate_minecraft_services_token(state, access_token).await?;
     Ok(MinecraftServicesPrivilegesResp {
         privileges: privileges_for_user(state, token.user_id).await?,
     })
 }
 
-pub async fn minecraft_services_player_attributes<S: DatabaseRuntimeState>(
+pub async fn minecraft_services_player_attributes<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<MinecraftServicesPlayerAttributesResp, YggdrasilError> {
+) -> std::result::Result<MinecraftServicesPlayerAttributesResp, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let token = validate_minecraft_services_token(state, access_token).await?;
     let join_banned =
         ban_service::is_user_banned(state, token.user_id, UserBanScope::YggdrasilJoin)
@@ -91,20 +100,26 @@ pub async fn minecraft_services_player_attributes<S: DatabaseRuntimeState>(
     })
 }
 
-pub async fn minecraft_services_privacy_blocklist<S: DatabaseRuntimeState>(
+pub async fn minecraft_services_privacy_blocklist<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<MinecraftServicesPrivacyBlocklistResp, YggdrasilError> {
+) -> std::result::Result<MinecraftServicesPrivacyBlocklistResp, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     validate_minecraft_services_token(state, access_token).await?;
     Ok(MinecraftServicesPrivacyBlocklistResp {
         blocked_profiles: Vec::new(),
     })
 }
 
-async fn validate_minecraft_services_token<S: DatabaseRuntimeState>(
+async fn validate_minecraft_services_token<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<crate::entities::yggdrasil_token::Model, YggdrasilError> {
+) -> std::result::Result<crate::entities::yggdrasil_token::Model, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     let token = active_token_for_protocol(state, access_token).await?;
     tracing::debug!(
         token_id = token.id,

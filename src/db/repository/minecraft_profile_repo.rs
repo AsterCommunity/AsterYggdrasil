@@ -154,6 +154,26 @@ pub async fn update_name_by_id<C: ConnectionTrait>(
     Ok(Some(updated))
 }
 
+pub async fn touch_by_id<C: ConnectionTrait>(
+    db: &C,
+    id: i64,
+) -> Result<Option<minecraft_profile::Model>> {
+    let Some(existing) = MinecraftProfile::find_by_id(id)
+        .one(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?
+    else {
+        return Ok(None);
+    };
+    let mut active: minecraft_profile::ActiveModel = existing.into();
+    active.updated_at = Set(chrono::Utc::now());
+    let updated = active
+        .update(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?;
+    Ok(Some(updated))
+}
+
 pub async fn list_by_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
