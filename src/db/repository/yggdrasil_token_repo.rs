@@ -52,6 +52,38 @@ pub async fn find_by_access_hash<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+pub async fn list_active_hashes_for_user<C: ConnectionTrait>(
+    db: &C,
+    user_id: i64,
+) -> Result<Vec<String>> {
+    let tokens = YggdrasilToken::find()
+        .filter(yggdrasil_token::Column::UserId.eq(user_id))
+        .filter(yggdrasil_token::Column::RevokedAt.is_null())
+        .all(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?;
+    Ok(tokens
+        .into_iter()
+        .map(|token| token.access_token_hash)
+        .collect())
+}
+
+pub async fn list_active_hashes_for_selected_profile<C: ConnectionTrait>(
+    db: &C,
+    selected_profile_id: i64,
+) -> Result<Vec<String>> {
+    let tokens = YggdrasilToken::find()
+        .filter(yggdrasil_token::Column::SelectedProfileId.eq(selected_profile_id))
+        .filter(yggdrasil_token::Column::RevokedAt.is_null())
+        .all(db)
+        .await
+        .map_aster_err(AsterError::database_operation)?;
+    Ok(tokens
+        .into_iter()
+        .map(|token| token.access_token_hash)
+        .collect())
+}
+
 pub async fn count_active<C: ConnectionTrait>(db: &C) -> Result<u64> {
     YggdrasilToken::find()
         .filter(yggdrasil_token::Column::RevokedAt.is_null())
@@ -163,7 +195,7 @@ pub async fn prune_oldest_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
     keep_count: u64,
-) -> Result<()> {
+) -> Result<Vec<String>> {
     let keep_count = crate::utils::numbers::u64_to_usize(keep_count, "yggdrasil token keep count")?;
     let tokens = YggdrasilToken::find()
         .filter(yggdrasil_token::Column::UserId.eq(user_id))
@@ -173,7 +205,9 @@ pub async fn prune_oldest_for_user<C: ConnectionTrait>(
         .await
         .map_aster_err(AsterError::database_operation)?;
 
+    let mut pruned_hashes = Vec::new();
     for token in tokens.into_iter().skip(keep_count) {
+        pruned_hashes.push(token.access_token_hash.clone());
         let mut active: yggdrasil_token::ActiveModel = token.into();
         active.revoked_at = Set(Some(Utc::now()));
         active
@@ -182,7 +216,7 @@ pub async fn prune_oldest_for_user<C: ConnectionTrait>(
             .map_aster_err(AsterError::database_operation)?;
     }
 
-    Ok(())
+    Ok(pruned_hashes)
 }
 
 #[cfg(test)]

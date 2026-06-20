@@ -1,5 +1,6 @@
 //! Minecraft texture validation, storage and lookup.
 
+mod cache;
 mod default_skin;
 mod error;
 mod maintenance;
@@ -50,7 +51,9 @@ use crate::entities::{
     minecraft_profile, minecraft_texture, minecraft_texture_report, user, yggdrasil_token,
 };
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::ban_service;
 use crate::types::{
     MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureReportReason,
@@ -85,6 +88,43 @@ pub fn parse_skin_model(
             "Invalid skin model.",
         )),
     }
+}
+
+async fn invalidate_profile_texture_caches<S>(state: &S, profile_id: i64)
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    crate::services::yggdrasil_service::invalidate_profile_properties_cache(state, profile_id)
+        .await;
+    if let Err(error) = minecraft_profile_repo::touch_by_id(state.writer_db(), profile_id).await {
+        tracing::warn!(
+            error = %error,
+            profile_id,
+            "failed to touch minecraft profile after texture cache invalidation"
+        );
+    }
+}
+
+async fn invalidate_profile_texture_caches_for_bindings<S>(
+    state: &S,
+    bindings: &[minecraft_profile_texture_repo::ProfileTexture],
+) where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
+    for profile_id in bindings
+        .iter()
+        .map(|binding| binding.binding.profile_id)
+        .collect::<BTreeSet<_>>()
+    {
+        invalidate_profile_texture_caches(state, profile_id).await;
+    }
+}
+
+async fn invalidate_texture_asset_caches<S>(state: &S, texture: &minecraft_texture::Model)
+where
+    S: CacheRuntimeState,
+{
+    query::invalidate_texture_blob_lookup_cache(state, &texture.hash).await;
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -229,7 +269,7 @@ pub async fn update_wardrobe_texture_metadata<S>(
     visibility: Option<MinecraftTextureVisibility>,
 ) -> Result<MinecraftWardrobeTextureMetadata>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     ban_service::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload).await?;
     if texture_id <= 0 {
@@ -258,6 +298,8 @@ where
             MinecraftTextureModel::Default
         }
     });
+    let texture_model_changed =
+        texture_model.is_some_and(|texture_model| texture_model != texture.texture_model);
     let updated = minecraft_texture_repo::update_wardrobe_metadata_for_user(
         state.writer_db(),
         texture,
@@ -275,6 +317,12 @@ where
             format!("wardrobe texture '{texture_id}'"),
         )
     })?;
+    if texture_model_changed {
+        let bindings =
+            minecraft_profile_texture_repo::list_by_texture_id(state.reader_db(), texture_id)
+                .await?;
+        invalidate_profile_texture_caches_for_bindings(state, &bindings).await;
+    }
     let tags = minecraft_texture_tag_repo::list_for_texture(state.reader_db(), updated.id).await?;
     Ok(wardrobe_texture_metadata_with_tags(state, &updated, tags))
 }
@@ -598,7 +646,10 @@ pub async fn delete_texture_library_texture<S>(
     texture_id: i64,
 ) -> std::result::Result<DeletedTextureLibraryTexture, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState
+        + DatabaseRuntimeState
+        + ObjectStorageRuntimeState
+        + RuntimeConfigRuntimeState,
 {
     if texture_id <= 0 {
         return Err(TextureError::with_detail(
@@ -641,6 +692,8 @@ where
         "admin texture library texture delete",
     )
     .await;
+    invalidate_profile_texture_caches_for_bindings(state, &deleted_bindings).await;
+    invalidate_texture_asset_caches(state, &deleted_texture).await;
     tracing::debug!(
         texture_id = deleted_texture.id,
         hash = %deleted_texture.hash,
@@ -1260,11 +1313,14 @@ pub async fn write_multipart_texture_field_to_file(
     })
 }
 
-pub async fn authenticate_texture_access<S: DatabaseRuntimeState>(
+pub async fn authenticate_texture_access<S>(
     state: &S,
     access_token: &str,
     profile_uuid: &str,
-) -> std::result::Result<(yggdrasil_token::Model, minecraft_profile::Model), TextureError> {
+) -> std::result::Result<(yggdrasil_token::Model, minecraft_profile::Model), TextureError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState,
+{
     tracing::debug!(profile_uuid, "authenticating texture upload access");
     let token = crate::services::yggdrasil_service::active_token_for_protocol(state, access_token)
         .await
@@ -1308,7 +1364,10 @@ pub async fn store_texture<S>(
     source_path: PathBuf,
 ) -> std::result::Result<StoredTexture, TextureError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState
+        + DatabaseRuntimeState
+        + RuntimeConfigRuntimeState
+        + ObjectStorageRuntimeState,
 {
     ban_service::ensure_user_not_banned(state, profile.user_id, UserBanScope::TextureUpload)
         .await
@@ -1372,6 +1431,11 @@ where
     {
         cleanup_texture_asset_if_unreferenced(state, &previous.texture, "texture reupload").await;
     }
+    invalidate_profile_texture_caches(state, profile.id).await;
+    invalidate_texture_asset_caches(state, &texture.texture).await;
+    if let Some(previous) = previous.as_ref() {
+        invalidate_texture_asset_caches(state, &previous.texture).await;
+    }
 
     tracing::debug!(
         profile_id = profile.id,
@@ -1434,7 +1498,7 @@ pub async fn register_bound_textures_in_wardrobe<S>(
     state: &S,
 ) -> std::result::Result<WardrobeRegistrationResult, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     let bindings = minecraft_profile_texture_repo::list_all(state.reader_db())
         .await
@@ -1465,9 +1529,11 @@ where
         .await
         .map_err(TextureError::from)?
         else {
+            invalidate_texture_asset_caches(state, &binding.texture).await;
             minecraft_texture_repo::mark_as_wardrobe_item(state.writer_db(), binding.texture)
                 .await
                 .map_err(TextureError::from)?;
+            invalidate_profile_texture_caches(state, binding.binding.profile_id).await;
             result.converted_textures += 1;
             continue;
         };
@@ -1482,6 +1548,9 @@ where
         )
         .await
         .map_err(TextureError::from)?;
+        invalidate_profile_texture_caches(state, binding.binding.profile_id).await;
+        invalidate_texture_asset_caches(state, &existing).await;
+        invalidate_texture_asset_caches(state, &binding.texture).await;
         result.rebound_bindings += 1;
 
         if let Some(deleted) = minecraft_texture_repo::delete_by_id_for_user(
@@ -1498,6 +1567,7 @@ where
                 "wardrobe registration duplicate texture",
             )
             .await;
+            invalidate_texture_asset_caches(state, &deleted).await;
             result.removed_duplicate_textures += 1;
         }
     }
@@ -1938,7 +2008,7 @@ pub async fn delete_wardrobe_texture<S>(
     wardrobe_texture_id: i64,
 ) -> std::result::Result<minecraft_texture::Model, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     ban_service::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload)
         .await
@@ -1957,8 +2027,12 @@ async fn delete_wardrobe_texture_unchecked<S>(
     wardrobe_texture_id: i64,
 ) -> std::result::Result<minecraft_texture::Model, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
+    let deleted_bindings =
+        minecraft_profile_texture_repo::list_by_texture_id(state.reader_db(), wardrobe_texture_id)
+            .await
+            .map_err(TextureError::from)?;
     let Some(deleted) = minecraft_texture_repo::delete_by_id_for_user(
         state.writer_db(),
         wardrobe_texture_id,
@@ -1975,6 +2049,8 @@ where
 
     cleanup_texture_blob_if_unreferenced(state, &deleted.storage_key, "wardrobe texture delete")
         .await;
+    invalidate_profile_texture_caches_for_bindings(state, &deleted_bindings).await;
+    invalidate_texture_asset_caches(state, &deleted).await;
     tracing::debug!(
         user_id,
         texture_id = deleted.id,
@@ -1989,7 +2065,7 @@ pub async fn delete_all_wardrobe_textures_for_user<S>(
     user_id: i64,
 ) -> std::result::Result<Vec<minecraft_texture::Model>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     let textures = minecraft_texture_repo::list_by_user(state.reader_db(), user_id)
         .await
@@ -2014,7 +2090,7 @@ pub async fn bind_wardrobe_texture_to_profile<S>(
     texture_type: MinecraftTextureType,
 ) -> std::result::Result<StoredTexture, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     ban_service::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload)
         .await
@@ -2073,6 +2149,11 @@ where
     {
         cleanup_texture_asset_if_unreferenced(state, &previous.texture, "wardrobe bind").await;
     }
+    invalidate_profile_texture_caches(state, profile.id).await;
+    invalidate_texture_asset_caches(state, &texture.texture).await;
+    if let Some(previous) = previous.as_ref() {
+        invalidate_texture_asset_caches(state, &previous.texture).await;
+    }
 
     tracing::debug!(
         user_id,
@@ -2095,7 +2176,7 @@ pub async fn delete_texture<S>(
     texture_type: MinecraftTextureType,
 ) -> std::result::Result<Option<minecraft_profile_texture_repo::ProfileTexture>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     ban_service::ensure_user_not_banned(state, profile.user_id, UserBanScope::TextureUpload)
         .await
@@ -2122,6 +2203,10 @@ where
     .map_err(TextureError::from)?;
     if let Some(texture) = deleted.as_ref() {
         cleanup_texture_asset_if_unreferenced(state, &texture.texture, "texture delete").await;
+        invalidate_texture_asset_caches(state, &texture.texture).await;
+    }
+    if deleted.is_some() {
+        invalidate_profile_texture_caches(state, profile.id).await;
     }
     tracing::debug!(
         profile_id = profile.id,
@@ -2138,7 +2223,7 @@ pub async fn delete_texture_for_profile<S>(
     texture_type: MinecraftTextureType,
 ) -> std::result::Result<Option<DeletedMinecraftTexture>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     let deleted = delete_texture(state, profile, texture_type).await?;
     Ok(deleted.map(|texture| DeletedMinecraftTexture {
@@ -2153,7 +2238,7 @@ pub async fn delete_texture_for_profile_unchecked<S>(
     texture_type: MinecraftTextureType,
 ) -> std::result::Result<Option<DeletedMinecraftTexture>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     tracing::debug!(
         profile_id = profile.id,
@@ -2170,6 +2255,10 @@ where
     if let Some(texture) = deleted.as_ref() {
         cleanup_texture_asset_if_unreferenced(state, &texture.texture, "admin texture delete")
             .await;
+        invalidate_texture_asset_caches(state, &texture.texture).await;
+    }
+    if deleted.is_some() {
+        invalidate_profile_texture_caches(state, profile.id).await;
     }
     tracing::debug!(
         profile_id = profile.id,
@@ -2188,7 +2277,7 @@ pub async fn delete_textures_by_hash<S>(
     hash: &str,
 ) -> std::result::Result<Vec<DeletedMinecraftTexture>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     if !is_valid_texture_hash(hash) {
         tracing::debug!(hash, "delete textures by hash skipped invalid hash");
@@ -2220,6 +2309,8 @@ where
             "hash texture delete",
         )
         .await;
+        invalidate_profile_texture_caches(state, profile.id).await;
+        invalidate_texture_asset_caches(state, &deleted_texture.texture).await;
         deleted.push(DeletedMinecraftTexture {
             texture: deleted_texture,
             profile,
@@ -2231,6 +2322,7 @@ where
     for texture in deleted_assets {
         cleanup_texture_blob_if_unreferenced(state, &texture.storage_key, "hash texture delete")
             .await;
+        invalidate_texture_asset_caches(state, &texture).await;
     }
     tracing::debug!(
         hash,
@@ -2245,7 +2337,7 @@ pub async fn delete_all_textures_for_profile<S>(
     profile: &minecraft_profile::Model,
 ) -> std::result::Result<Vec<minecraft_profile_texture_repo::ProfileTexture>, TextureError>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     tracing::debug!(profile_id = profile.id, "deleting all textures for profile");
     let textures = minecraft_profile_texture_repo::list_by_profile(state.reader_db(), profile.id)
@@ -2269,7 +2361,11 @@ where
             "profile texture delete",
         )
         .await;
+        invalidate_texture_asset_caches(state, &deleted_texture.texture).await;
         deleted.push(deleted_texture);
+    }
+    if !deleted.is_empty() {
+        invalidate_profile_texture_caches(state, profile.id).await;
     }
     tracing::debug!(
         profile_id = profile.id,

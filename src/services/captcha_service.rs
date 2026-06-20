@@ -1,7 +1,6 @@
 //! Visual captcha challenge service.
 
 use crate::api::error_code::AsterErrorCode;
-use crate::cache::CacheExt;
 use crate::config::auth_runtime::RuntimeCaptchaPolicy;
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::{CacheRuntimeState, RuntimeConfigRuntimeState};
@@ -88,14 +87,7 @@ where
             ),
     };
 
-    state
-        .cache()
-        .set(
-            &cache_key(&challenge_id),
-            &state_value,
-            Some(policy.ttl_secs),
-        )
-        .await;
+    store_challenge(state, &challenge_id, &state_value, policy.ttl_secs).await;
 
     Ok(CaptchaChallengeResponse {
         challenge_id,
@@ -164,28 +156,30 @@ async fn verify_answer<S>(state: &S, challenge_id: &str, answer: &str) -> Result
 where
     S: CacheRuntimeState,
 {
-    let key = cache_key(challenge_id);
-    let Some(mut challenge) = state.cache().get::<CaptchaChallengeState>(&key).await else {
+    let Some(mut challenge) = get_challenge(state, challenge_id).await else {
         return Err(captcha_expired_error());
     };
     if challenge.expires_at <= Utc::now() {
-        state.cache().delete(&key).await;
+        delete_challenge(state, challenge_id).await;
         return Err(captcha_expired_error());
     }
 
     if challenge.answer_hash == answer_hash(answer) {
-        state.cache().delete(&key).await;
+        delete_challenge(state, challenge_id).await;
         return Ok(());
     }
 
     challenge.attempts = challenge.attempts.saturating_add(1);
     if challenge.attempts >= challenge.max_attempts {
-        state.cache().delete(&key).await;
+        delete_challenge(state, challenge_id).await;
     } else {
-        state
-            .cache()
-            .set(&key, &challenge, Some(remaining_ttl_secs(&challenge)?))
-            .await;
+        store_challenge(
+            state,
+            challenge_id,
+            &challenge,
+            remaining_ttl_secs(&challenge)?,
+        )
+        .await;
     }
 
     Err(AsterError::validation_error_code(
@@ -203,6 +197,32 @@ fn remaining_ttl_secs(challenge: &CaptchaChallengeState) -> Result<u64> {
 
 fn cache_key(challenge_id: &str) -> String {
     format!("{CACHE_KEY_PREFIX}{challenge_id}")
+}
+
+async fn store_challenge<S>(
+    state: &S,
+    challenge_id: &str,
+    challenge: &CaptchaChallengeState,
+    ttl_secs: u64,
+) where
+    S: CacheRuntimeState,
+{
+    crate::services::cache_facade::set(state, &cache_key(challenge_id), challenge, Some(ttl_secs))
+        .await;
+}
+
+async fn get_challenge<S>(state: &S, challenge_id: &str) -> Option<CaptchaChallengeState>
+where
+    S: CacheRuntimeState,
+{
+    crate::services::cache_facade::get(state, &cache_key(challenge_id)).await
+}
+
+async fn delete_challenge<S>(state: &S, challenge_id: &str)
+where
+    S: CacheRuntimeState,
+{
+    crate::services::cache_facade::delete(state, &cache_key(challenge_id)).await;
 }
 
 fn answer_hash(answer: &str) -> String {

@@ -3,7 +3,9 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
 use crate::entities::minecraft_profile;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::{ban_service, texture_service};
 use crate::types::UserBanScope;
 use serde::Serialize;
@@ -110,7 +112,7 @@ pub async fn delete_profile_for_user<S>(
     uuid: &str,
 ) -> Result<Option<DeleteMinecraftProfileResult>>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
 {
     tracing::debug!(
         user_id,
@@ -130,12 +132,15 @@ where
         return Ok(None);
     };
 
+    let token_hashes =
+        super::token::invalidate_token_cache_for_selected_profile(state, profile.id).await?;
     let deleted_textures = texture_service::delete_all_textures_for_profile(state, &profile)
         .await
         .map_err(|error| AsterError::internal_error(error.protocol_message()))?;
     let revoked_token_count =
         yggdrasil_token_repo::revoke_all_for_selected_profile(state.writer_db(), profile.id)
             .await?;
+    super::token::invalidate_token_cache_hashes(state, &token_hashes).await;
     let deleted_profile = minecraft_profile_repo::delete_by_id(state.writer_db(), profile.id)
         .await?
         .unwrap_or_else(|| profile.clone());
@@ -162,7 +167,7 @@ pub async fn rename_profile_for_user<S>(
     new_name: &str,
 ) -> Result<Option<RenameMinecraftProfileResult>>
 where
-    S: DatabaseRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState,
 {
     tracing::debug!(
         user_id,
@@ -192,7 +197,7 @@ pub async fn rename_profile<S>(
     new_name: &str,
 ) -> Result<RenameMinecraftProfileResult>
 where
-    S: DatabaseRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState,
 {
     validate_profile_name(new_name)?;
     if profile.name == new_name {
@@ -223,7 +228,9 @@ where
     }
 
     let old_name = profile.name.clone();
-    crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
+    let token_hashes =
+        super::token::invalidate_token_cache_for_selected_profile(state, profile.id).await?;
+    let result = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
         let updated = minecraft_profile_repo::update_name_by_id(txn, profile.id, new_name)
             .await?
             .ok_or_else(|| {
@@ -238,7 +245,19 @@ where
             temporarily_invalidated_token_count,
         })
     })
-    .await
+    .await?;
+    super::token::invalidate_token_cache_hashes(state, &token_hashes).await;
+    crate::services::yggdrasil_service::invalidate_profile_name_summary_cache(
+        state,
+        &result.old_name,
+    )
+    .await;
+    crate::services::yggdrasil_service::invalidate_profile_name_summary_cache(
+        state,
+        &result.profile.name,
+    )
+    .await;
+    Ok(result)
 }
 
 pub fn validate_profile_name(name: &str) -> Result<()> {

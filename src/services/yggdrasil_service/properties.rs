@@ -4,7 +4,7 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::minecraft_profile_texture_repo;
 use crate::entities::minecraft_profile;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{texture_service, yggdrasil_signature};
 use chrono::Utc;
 use serde::Serialize;
@@ -16,8 +16,22 @@ pub(super) async fn profile_with_properties<S>(
     signed: bool,
 ) -> std::result::Result<YggdrasilProfile, YggdrasilError>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
+    if let Some(properties) = super::cache::get_profile_properties(state, profile, signed).await {
+        tracing::debug!(
+            profile_id = profile.id,
+            profile_uuid = %profile.uuid,
+            signed,
+            "yggdrasil profile properties cache hit"
+        );
+        return Ok(YggdrasilProfile {
+            id: profile.uuid.clone(),
+            name: profile.name.clone(),
+            properties: Some(properties),
+        });
+    }
+
     let mut properties = Vec::new();
     let textures = minecraft_profile_texture_repo::list_by_profile(state.reader_db(), profile.id)
         .await
@@ -68,11 +82,26 @@ where
         );
     }
 
+    super::cache::set_profile_properties(state, profile, signed, &properties).await;
+    tracing::debug!(
+        profile_id = profile.id,
+        profile_uuid = %profile.uuid,
+        signed,
+        "cached yggdrasil profile properties"
+    );
+
     Ok(YggdrasilProfile {
         id: profile.uuid.clone(),
         name: profile.name.clone(),
         properties: Some(properties),
     })
+}
+
+pub(crate) async fn invalidate_profile_properties_cache<S>(state: &S, profile_id: i64)
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_profile_properties(state, profile_id).await;
 }
 
 #[derive(Debug, Serialize)]
