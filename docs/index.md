@@ -87,4 +87,4 @@ X-Authlib-Injector-API-Location: /api/yggdrasil/
 - 删除 profile 会处理材质绑定、引用计数、相关 Yggdrasil token 和审计记录。
 - Yggdrasil 协议端点返回协议格式；站点和管理 API 才返回 `{ "code": "success", "msg": "", "data": ... }`。
 - 当前可用对象存储后端是 local、S3 和 MinIO。材质和上传头像都会走同一个 object storage backend；S3/MinIO 只支持服务端 streaming 上传。
-- 产品前端已经覆盖核心账号、profile、wardrobe、公共材质库和管理后台流程，但当前版本仍是 alpha；公开上线前请按自己的部署场景做完整回归。
+- 产品前端已经覆盖核心账号、profile、wardrobe、公共材质库和管理后台流程，但当前版本仍是 beta；公开上线前请按自己的部署场景做完整回归。

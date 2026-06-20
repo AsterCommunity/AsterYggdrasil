@@ -4,10 +4,11 @@ Self-hosted Minecraft skin site and Yggdrasil/authlib-injector authentication se
 
 > **Fast development version**
 >
-> The current target version is `0.1.0-alpha.6` and development is still moving quickly. The project now has implemented flows for accounts, scoped operators, captcha-protected public auth flows, Minecraft profiles, Yggdrasil protocol endpoints, wardrobe textures, the public texture library, runtime config, audit logs, and maintenance tasks. Do not treat this alpha as a long-term stable API; read the docs and plan backups before production use.
+> The current target version is `0.1.0-beta.1` and development is still moving quickly. The project now has implemented flows for accounts, scoped operators, captcha-protected public auth flows, Minecraft profiles, Yggdrasil protocol endpoints, wardrobe textures, the public texture library, runtime config, audit logs, and maintenance tasks. Do not treat this beta as a long-term stable API; read the docs and plan backups before production use.
 
 - 中文 README: [README.zh.md](README.zh.md)
-- Docs home: [docs/index.md](docs/index.md)
+- Documentation site: [yggdrasil.astercosm.com](https://yggdrasil.astercosm.com/)
+- Docs source: [docs/index.md](docs/index.md)
 - Getting started: [docs/guide/getting-started.md](docs/guide/getting-started.md)
 - User guide: [docs/guide/user-guide.md](docs/guide/user-guide.md)
 - Docker deployment: [docs/deployment/docker.md](docs/deployment/docker.md)
@@ -28,7 +29,7 @@ AsterYggdrasil puts the identity and texture flow needed by private Minecraft de
 - Admin and scoped operator workflows for users, profiles, texture library moderation, config, audit, tasks, and external authentication.
 - Runtime config, Yggdrasil signing key rotation, audit logs, and periodic maintenance tasks.
 
-It is not a file drive, private cloud, game server panel, or generic SaaS template. The product domain is Minecraft/Yggdrasil: accounts, player profiles, skins, capes, launcher login, server join verification, signing keys, object storage, and admin operations.
+AsterYggdrasil focuses on the Minecraft/Yggdrasil domain: accounts, player profiles, skins, capes, launcher login, server join verification, signing keys, texture storage, and admin operations.
 
 ## Current Fit
 
@@ -46,7 +47,7 @@ The current version is not the right fit when:
 - You need a finished commercial-grade operations panel ready for large long-term public traffic without your own validation.
 - You need client-side presigned uploads directly to S3/MinIO. Uploads are server-side streaming only.
 - You need multi-primary high availability, automatic failover, a complete ban system, or enterprise compliance guarantees.
-- You need game server management, file storage, WebDAV, WOPI, team sharing, or cloud-drive features.
+- You need full Minecraft game server lifecycle management such as world hosting, plugin management, console access, or scheduled server operations.
 - You need a public replacement for Mojang official online-mode auth for arbitrary clients.
 
 ## Implemented Capabilities

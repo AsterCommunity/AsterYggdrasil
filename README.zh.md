@@ -4,10 +4,11 @@
 
 > **快速开发版本提醒**
 >
-> 当前目标版本是 `0.1.0-alpha.6`，仍处于快速开发阶段。项目已经具备账号、分权 operator、公开认证流程图形验证码、Minecraft profile、Yggdrasil 协议端点、wardrobe 材质、公共材质库、运行时配置、审计日志和后台维护任务等完整链路。请不要把当前 alpha 当成长期稳定接口；生产部署前先阅读文档并做好备份。
+> 当前目标版本是 `0.1.0-beta.1`，仍处于快速开发阶段。项目已经具备账号、分权 operator、公开认证流程图形验证码、Minecraft profile、Yggdrasil 协议端点、wardrobe 材质、公共材质库、运行时配置、审计日志和后台维护任务等完整链路。请不要把当前 beta 当成长期稳定接口；生产部署前先阅读文档并做好备份。
 
 - English README: [README.md](README.md)
-- 文档首页: [docs/index.md](docs/index.md)
+- 在线文档: [yggdrasil.astercosm.com](https://yggdrasil.astercosm.com/)
+- 文档源码: [docs/index.md](docs/index.md)
 - 快速开始: [docs/guide/getting-started.md](docs/guide/getting-started.md)
 - 用户手册: [docs/guide/user-guide.md](docs/guide/user-guide.md)
 - Docker 部署: [docs/deployment/docker.md](docs/deployment/docker.md)
@@ -28,7 +29,7 @@ AsterYggdrasil 把 Minecraft 私有部署里常见的身份和材质链路放进
 - 管理员和分权 operator 工作流，覆盖用户、profile、公共材质库审核、配置、审计、任务和外部认证。
 - 运行时配置、Yggdrasil 签名密钥轮换、审计日志和周期维护任务。
 
-它不是云盘、私有云、服务器面板或通用 SaaS 模板。项目域已经明确收敛到 Minecraft/Yggdrasil：账号、玩家档案、皮肤、披风、启动器登录、服务端进服验证、签名密钥、对象存储和管理员运维。
+AsterYggdrasil 聚焦 Minecraft/Yggdrasil 业务域：账号、玩家档案、皮肤、披风、启动器登录、服务端进服验证、签名密钥、材质存储和管理员运维。
 
 ## 当前适合谁
 
@@ -46,7 +47,7 @@ AsterYggdrasil 适合这些场景：
 - 需要成熟商业级运营后台，且不打算自己做上线前验证。
 - 需要客户端直接向 S3/MinIO presigned 上传。当前上传统一走服务端 streaming。
 - 需要多主高可用、自动故障切换、复杂封禁系统或企业合规承诺。
-- 需要游戏服务器管理、文件存储、WebDAV、WOPI、团队分享或云盘功能。
+- 需要完整 Minecraft 游戏服务器生命周期管理，例如世界托管、插件管理、控制台访问或定时开关服。
 - 需要替代 Mojang 官方 online-mode 面向任意公网客户端提供通用账号服务。
 
 ## 当前真实能力

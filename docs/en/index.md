@@ -87,4 +87,4 @@ Read [Docs Contributing](/en/guide/docs-contributing) first. These docs are for 
 - Deleting a profile handles texture bindings, reference counts, related Yggdrasil tokens, and audit records.
 - Yggdrasil protocol endpoints return protocol-shaped responses; site and admin APIs use `{ "code": "success", "msg": "", "data": ... }`.
 - Available object storage backends are local, S3, and MinIO. Textures and uploaded avatars use the same object storage backend; S3/MinIO supports server-side streaming uploads only.
-- The product frontend now covers core account, profile, wardrobe, public texture library, and admin workflows, but this is still an alpha release; run full validation for your own deployment before public use.
+- The product frontend now covers core account, profile, wardrobe, public texture library, and admin workflows, but this is still a beta release; run full validation for your own deployment before public use.
