@@ -335,6 +335,12 @@ impl From<sea_orm::DbErr> for AsterError {
     }
 }
 
+impl From<aster_forge_api::ApiError> for AsterError {
+    fn from(value: aster_forge_api::ApiError) -> Self {
+        Self::validation_error(value.to_string())
+    }
+}
+
 impl From<jsonwebtoken::errors::Error> for AsterError {
     fn from(value: jsonwebtoken::errors::Error) -> Self {
         match value.kind() {

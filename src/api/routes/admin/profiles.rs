@@ -3,7 +3,6 @@
 use crate::api::dto::RenameMinecraftProfileReq;
 use crate::api::dto::{AdminMinecraftProfileListQuery, validation::validate_request};
 use crate::api::error_code::AsterErrorCode;
-use crate::api::pagination::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
@@ -11,6 +10,7 @@ use crate::runtime::AppState;
 use crate::services::auth_service::AuthUserInfo;
 use crate::services::{audit_service, texture_service, yggdrasil_service};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use crate::api::dto::yggdrasil::YggdrasilProfile;

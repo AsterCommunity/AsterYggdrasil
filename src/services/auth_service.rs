@@ -863,12 +863,7 @@ pub async fn list_sessions_cursor<S>(
     current_refresh_token: Option<&str>,
     limit: u64,
     cursor: Option<(chrono::DateTime<chrono::Utc>, String)>,
-) -> Result<
-    crate::api::pagination::CursorPage<
-        AuthSessionInfo,
-        crate::api::pagination::DateTimeStringCursor,
-    >,
->
+) -> Result<aster_forge_api::CursorPage<AuthSessionInfo, aster_forge_api::DateTimeStringCursor>>
 where
     S: DatabaseRuntimeState + AppConfigRuntimeState,
 {
@@ -879,7 +874,7 @@ where
     let next_cursor = if page.has_more {
         page.items
             .last()
-            .map(|session| crate::api::pagination::DateTimeStringCursor {
+            .map(|session| aster_forge_api::DateTimeStringCursor {
                 value: session.last_seen_at,
                 id: session.id.clone(),
             })
@@ -899,7 +894,7 @@ where
         has_current_refresh_token = current_refresh_jti.is_some(),
         "listed auth sessions page"
     );
-    Ok(crate::api::pagination::CursorPage::new(
+    Ok(aster_forge_api::CursorPage::new(
         items,
         page.total,
         limit,

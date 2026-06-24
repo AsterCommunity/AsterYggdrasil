@@ -1,8 +1,8 @@
 //! Auth session repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::auth_session::{self, Entity as AuthSession};
 use crate::errors::{AsterError, MapAsterErr, Result};
+use aster_forge_api::CursorSlice;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,
@@ -84,13 +84,7 @@ pub async fn list_by_user_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "auth session page size",
-        "auth session cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn list_active_for_user<C: ConnectionTrait>(

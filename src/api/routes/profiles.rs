@@ -8,7 +8,6 @@ use crate::api::dto::{
     RenameMinecraftProfileReq, validate_request,
 };
 use crate::api::error_code::AsterErrorCode;
-use crate::api::pagination::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
@@ -16,6 +15,7 @@ use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service, yggdrasil_service};
 use crate::types::MinecraftTextureType;
 use actix_web::{HttpRequest, HttpResponse, web};
+use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(

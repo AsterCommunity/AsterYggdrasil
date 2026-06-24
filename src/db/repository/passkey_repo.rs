@@ -1,9 +1,9 @@
 //! Repository helpers for passkey credentials.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::passkey::{self, Entity as Passkey};
 use crate::errors::{AsterError, Result};
 use crate::types::StoredPasskeyCredential;
+use aster_forge_api::CursorSlice;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -47,13 +47,7 @@ pub async fn list_for_user_cursor(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "passkey page size",
-        "passkey cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn find_by_id_for_user(

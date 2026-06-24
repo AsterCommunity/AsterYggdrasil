@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::api::error_code::AsterErrorCode;
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::db::repository::{user_ban_repo, user_repo};
 use crate::entities::{user_ban, user_ban_event};
 use crate::errors::{AsterError, Result};
@@ -12,6 +11,7 @@ use crate::runtime::DatabaseRuntimeState;
 use crate::types::{
     NullablePatch, UserBanEventType, UserBanScope, UserBanScopes, UserBanScopesError, UserBanStatus,
 };
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 const REASON_MAX_CHARS: usize = 128;
 const NOTE_MAX_CHARS: usize = 1000;

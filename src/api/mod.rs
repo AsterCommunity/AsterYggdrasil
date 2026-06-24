@@ -11,7 +11,6 @@ pub mod api_error_code {
 pub mod middleware;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 pub mod openapi;
-pub mod pagination;
 pub mod request_auth;
 pub mod response;
 pub mod routes;

@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::config::operations;
 use crate::db::repository::{background_task_repo, user_repo};
 use crate::entities::{background_task, user};
@@ -12,6 +11,7 @@ use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, TaskRuntim
 use crate::services::audit_service;
 use crate::types::{BackgroundTaskKind, BackgroundTaskStatus};
 use crate::utils::numbers::i64_to_i32;
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 use super::{
     TaskCreatorSummary, TaskInfo, TaskResult, build_task_presentation,

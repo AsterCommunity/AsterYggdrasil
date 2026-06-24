@@ -4,9 +4,6 @@ use crate::api::dto::{
     CreateExternalAuthProviderReq, ExternalAuthProviderTestParamsReq,
     UpdateExternalAuthProviderReq, validate_request,
 };
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, StringIdCursor};
-use crate::api::pagination::{LimitQuery, parse_string_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
@@ -16,6 +13,9 @@ use crate::services::external_auth_service::{
     self as external_auth_service, AdminExternalAuthProviderInfo, ExternalAuthProviderAuditDetails,
 };
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, StringIdCursor};
+use aster_forge_api::{LimitQuery, parse_string_id_cursor};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize)]

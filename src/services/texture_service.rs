@@ -42,7 +42,6 @@ pub use types::{
     TextureDownload, TextureReportInfo, TextureReportUserInfo, WardrobeRegistrationResult,
 };
 
-use crate::api::pagination::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
 use crate::db::repository::{
     minecraft_profile_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
     minecraft_texture_report_repo, minecraft_texture_tag_repo, user_repo,
@@ -60,6 +59,7 @@ use crate::types::{
     MinecraftTextureReportStatus, MinecraftTextureType, MinecraftTextureVisibility, NullablePatch,
     UserBanScope,
 };
+use aster_forge_api::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use serde::Serialize;

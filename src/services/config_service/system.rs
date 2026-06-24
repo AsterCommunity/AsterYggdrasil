@@ -1,4 +1,3 @@
-use crate::api::pagination::{CursorPage, IdCursor};
 use crate::config::definitions::{ALL_CONFIGS, AUTH_COOKIE_SECURE_KEY};
 use crate::config::system_config as shared_system_config;
 use crate::config::yggdrasil::YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY;
@@ -8,6 +7,7 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::audit_service::{self, AuditContext};
 use crate::types::{SystemConfigSource, SystemConfigValueType, SystemConfigVisibility};
+use aster_forge_api::{CursorPage, IdCursor};
 use sea_orm::ConnectionTrait;
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]

@@ -5,10 +5,10 @@ use sea_orm::{
 };
 
 use super::common::{AdminTaskFilters, active_processing_by_kinds_condition, apply_admin_filters};
-use crate::api::pagination::CursorSlice;
 use crate::entities::background_task::{self, Entity as BackgroundTask};
 use crate::errors::{AsterError, Result};
 use crate::types::{BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload};
+use aster_forge_api::CursorSlice;
 
 pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<background_task::Model> {
     BackgroundTask::find_by_id(id)
@@ -45,13 +45,7 @@ pub async fn find_cursor_filtered<C: ConnectionTrait>(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "background task page size",
-        "background task cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn list_recent<C: ConnectionTrait>(

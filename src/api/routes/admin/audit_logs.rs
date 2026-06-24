@@ -1,13 +1,13 @@
 //! Administrator audit log API routes.
 
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
-use crate::api::pagination::{LimitQuery, parse_datetime_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::audit_service;
 use actix_web::{HttpResponse, web};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
+use aster_forge_api::{LimitQuery, parse_datetime_id_cursor};
 
 #[aster_forge_api_docs_macros::path(
     get,

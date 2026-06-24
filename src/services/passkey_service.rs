@@ -501,8 +501,7 @@ pub async fn list_passkeys_cursor(
     user_id: i64,
     limit: u64,
     cursor: Option<(chrono::DateTime<chrono::Utc>, i64)>,
-) -> Result<crate::api::pagination::CursorPage<PasskeyInfo, crate::api::pagination::DateTimeIdCursor>>
-{
+) -> Result<aster_forge_api::CursorPage<PasskeyInfo, aster_forge_api::DateTimeIdCursor>> {
     let limit = limit.clamp(1, 100);
     tracing::debug!(user_id, limit, "listing passkeys page");
     let page =
@@ -510,7 +509,7 @@ pub async fn list_passkeys_cursor(
     let next_cursor = if page.has_more {
         page.items
             .last()
-            .map(|passkey| crate::api::pagination::DateTimeIdCursor {
+            .map(|passkey| aster_forge_api::DateTimeIdCursor {
                 value: passkey.created_at,
                 id: passkey.id,
             })
@@ -529,7 +528,7 @@ pub async fn list_passkeys_cursor(
         limit,
         "listed passkeys page"
     );
-    Ok(crate::api::pagination::CursorPage::new(
+    Ok(aster_forge_api::CursorPage::new(
         items,
         page.total,
         limit,

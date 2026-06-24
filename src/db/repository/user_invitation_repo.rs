@@ -1,9 +1,9 @@
 //! User invitation repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::user_invitation::{self, Entity as UserInvitation};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::UserInvitationStatus;
+use aster_forge_api::CursorSlice;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,
@@ -89,13 +89,7 @@ pub async fn list_cursor_after<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "user invitation page size",
-        "user invitation cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn mark_revoked_if_pending<C: ConnectionTrait>(db: &C, id: i64) -> Result<bool> {

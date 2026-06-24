@@ -4,9 +4,6 @@ use crate::api::dto::{
     AdminUserListQuery, CreateAdminUserReq, CreateUserInvitationReq, UpdateAdminUserReq,
     validate_request,
 };
-use crate::api::pagination::{CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor};
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
@@ -16,6 +13,9 @@ use crate::services::auth_service::AuthUserInfo;
 use crate::services::user_invitation_service;
 use crate::types::{UserRole, UserStatus};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use aster_forge_api::{CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     req.extensions()

@@ -1,10 +1,10 @@
 //! System config repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::config::definitions::{ALL_CONFIGS, ConfigDef, DEPRECATED_SYSTEM_CONFIG_KEYS};
 use crate::entities::system_config::{self, Entity as SystemConfig};
 use crate::errors::{AsterError, Result};
 use crate::types::{SystemConfigSource, SystemConfigValueType, SystemConfigVisibility};
+use aster_forge_api::CursorSlice;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait,
@@ -93,13 +93,7 @@ pub async fn find_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "system config page size",
-        "system config cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn find_by_key<C: ConnectionTrait>(

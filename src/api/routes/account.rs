@@ -3,15 +3,15 @@
 use crate::api::dto::{
     AccountAuditLogFilterQuery, AccountOverviewResp, AccountUserBanInfo, AccountUserBanListQuery,
 };
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
-use crate::api::pagination::{LimitQuery, parse_datetime_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::db::repository::user_repo;
 use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, ban_service};
 use actix_web::{HttpRequest, HttpResponse, web};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
+use aster_forge_api::{LimitQuery, parse_datetime_id_cursor};
 
 const ACCOUNT_OVERVIEW_ACTIVITY_LIMIT: u64 = 5;
 const ACCOUNT_AUDIT_LOG_DEFAULT_LIMIT: u64 = 30;
@@ -156,8 +156,7 @@ pub async fn list_user_bans(
         .into_iter()
         .map(AccountUserBanInfo::from)
         .collect::<Vec<_>>();
-    let page =
-        crate::api::pagination::CursorPage::new(items, page.total, page.limit, page.next_cursor);
+    let page = aster_forge_api::CursorPage::new(items, page.total, page.limit, page.next_cursor);
     tracing::debug!(
         user_id = user.id,
         count = page.items.len(),
@@ -174,10 +173,7 @@ async fn query_current_user_audit_logs(
     limit: u64,
     cursor: Option<(chrono::DateTime<chrono::Utc>, i64)>,
 ) -> Result<
-    crate::api::pagination::CursorPage<
-        audit_service::AuditLogEntry,
-        crate::api::pagination::DateTimeIdCursor,
-    >,
+    aster_forge_api::CursorPage<audit_service::AuditLogEntry, aster_forge_api::DateTimeIdCursor>,
 > {
     // Keep the current-user boundary server-side even if a future query type grows fields.
     filters.user_id = Some(user_id);

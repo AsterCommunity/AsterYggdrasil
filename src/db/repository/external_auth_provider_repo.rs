@@ -6,10 +6,10 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::external_auth_provider::{self, Entity as ExternalAuthProvider};
 use crate::errors::{AsterError, Result};
 use crate::types::ExternalAuthProviderKind;
+use aster_forge_api::CursorSlice;
 
 pub async fn find_all(db: &DatabaseConnection) -> Result<Vec<external_auth_provider::Model>> {
     ExternalAuthProvider::find()
@@ -80,13 +80,7 @@ async fn fetch_display_name_cursor(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "external auth provider page size",
-        "external auth provider cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn find_all_by_kind(

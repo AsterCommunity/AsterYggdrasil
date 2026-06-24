@@ -1,9 +1,9 @@
 //! Repository helpers for public texture library reports.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::minecraft_texture_report::{self, Entity as MinecraftTextureReport};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::{MinecraftTextureReportReason, MinecraftTextureReportStatus};
+use aster_forge_api::CursorSlice;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, IntoActiveModel,
@@ -110,13 +110,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "texture report page size",
-        "texture report cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn handle<C: ConnectionTrait>(

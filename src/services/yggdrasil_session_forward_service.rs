@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-use crate::api::pagination::{CursorPage, EnabledPriorityIdCursor, IdCursor};
 use crate::db::repository::yggdrasil_session_forward_server_repo;
 use crate::entities::yggdrasil_session_forward_server;
 use crate::errors::{AsterError, Result};
@@ -16,6 +15,7 @@ use crate::types::{
     YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardProviderKind,
     YggdrasilSessionForwardServerSortBy,
 };
+use aster_forge_api::{CursorPage, EnabledPriorityIdCursor, IdCursor};
 
 const MIN_PRIORITY: i32 = -10_000;
 const MAX_PRIORITY: i32 = 10_000;

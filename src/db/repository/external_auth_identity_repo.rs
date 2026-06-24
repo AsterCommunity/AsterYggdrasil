@@ -7,9 +7,9 @@ use sea_orm::{
     sea_query::Expr,
 };
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::external_auth_identity::{self, Entity as ExternalAuthIdentity};
 use crate::errors::{AsterError, Result};
+use aster_forge_api::CursorSlice;
 
 pub struct CreateExternalAuthIdentityInput<'a> {
     pub user_id: i64,
@@ -62,13 +62,7 @@ pub async fn list_for_user_cursor(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "external auth link page size",
-        "external auth link cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn find_by_provider_subject<C: ConnectionTrait>(

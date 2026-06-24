@@ -5,14 +5,14 @@ use actix_web::{HttpRequest, HttpResponse, web};
 use crate::api::dto::{
     AdminUserBanListQuery, CreateUserBanReq, RevokeUserBanReq, UpdateUserBanReq, validate_request,
 };
-use crate::api::pagination::{LimitQuery, parse_datetime_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, ban_service};
+use aster_forge_api::{LimitQuery, parse_datetime_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 #[aster_forge_api_docs_macros::path(
     get,

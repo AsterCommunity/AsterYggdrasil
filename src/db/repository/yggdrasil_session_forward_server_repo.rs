@@ -6,12 +6,12 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::yggdrasil_session_forward_server::{
     self, Entity as YggdrasilSessionForwardServer,
 };
 use crate::errors::{AsterError, Result};
 use crate::types::{YggdrasilSessionForwardProviderKind, YggdrasilSessionForwardServerSortBy};
+use aster_forge_api::CursorSlice;
 
 pub async fn list_enabled_ordered(
     db: &DatabaseConnection,
@@ -96,13 +96,7 @@ pub async fn find_cursor(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "Yggdrasil session forward server page size",
-        "Yggdrasil session forward server cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn find_by_id(

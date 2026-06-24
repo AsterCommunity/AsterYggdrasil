@@ -6,11 +6,11 @@ use super::filters::AuditLogFilters;
 use super::manager::flush_global_audit_log_manager;
 use super::models::{AuditLogEntry, AuditUserSummary};
 use super::presentation::build_audit_presentation;
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::db::repository::{audit_log_repo, user_repo};
 use crate::entities::audit_log;
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::types::AuditEntityType;
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 async fn build_audit_entries<S: DatabaseRuntimeState>(
     state: &S,

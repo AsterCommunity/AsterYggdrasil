@@ -1,12 +1,12 @@
 //! Minecraft texture library tag repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::db::repository::search_query;
 use crate::entities::{
     minecraft_texture_tag::{self, Entity as MinecraftTextureTag},
     minecraft_texture_tag_binding::{self, Entity as MinecraftTextureTagBinding},
 };
 use crate::errors::{AsterError, MapAsterErr, Result};
+use aster_forge_api::CursorSlice;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, JoinType,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, Set,
@@ -103,13 +103,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "texture tag page size",
-        "texture tag cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 fn texture_tag_list_query(filter: MinecraftTextureTagListFilter) -> Select<MinecraftTextureTag> {

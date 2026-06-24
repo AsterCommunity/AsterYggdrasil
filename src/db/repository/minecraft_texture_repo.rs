@@ -1,12 +1,12 @@
 //! Minecraft texture asset repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::minecraft_texture::{self, Entity as MinecraftTexture};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::{
     MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureType,
     MinecraftTextureVisibility, TextureTagSearchMethod,
 };
+use aster_forge_api::CursorSlice;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, ModelTrait,
@@ -349,13 +349,7 @@ async fn fetch_updated_at_cursor_slice<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "texture cursor page size",
-        "texture cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 fn apply_tag_filter(

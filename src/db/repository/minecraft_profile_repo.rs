@@ -1,10 +1,10 @@
 //! Minecraft profile repository.
 
-use crate::api::pagination::CursorSlice;
 use crate::db::repository::search_query;
 use crate::entities::minecraft_profile::{self, Entity as MinecraftProfile};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::MinecraftTextureModel;
+use aster_forge_api::CursorSlice;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, PaginatorTrait,
@@ -206,13 +206,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "minecraft profile cursor page size",
-        "minecraft profile cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 fn apply_filters(

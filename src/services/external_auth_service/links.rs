@@ -1,6 +1,5 @@
 use chrono::Utc;
 
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::db::repository::{
     external_auth_email_verification_flow_repo, external_auth_identity_repo,
     external_auth_login_flow_repo, external_auth_provider_repo,
@@ -8,6 +7,7 @@ use crate::db::repository::{
 use crate::entities::{external_auth_identity, external_auth_provider};
 use crate::errors::Result;
 use crate::runtime::SharedRuntimeState;
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 use super::ExternalAuthLinkInfo;
 

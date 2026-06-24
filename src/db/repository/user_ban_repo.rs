@@ -1,10 +1,10 @@
 //! Repository helpers for user capability bans.
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::user_ban::{self, Entity as UserBan};
 use crate::entities::user_ban_event::{self, Entity as UserBanEvent};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::{UserBanEventType, UserBanScope, UserBanScopes, UserBanStatus};
+use aster_forge_api::CursorSlice;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, IntoActiveModel,
@@ -148,13 +148,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "user ban page size",
-        "user ban cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn update<C: ConnectionTrait>(

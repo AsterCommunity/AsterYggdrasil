@@ -1,6 +1,6 @@
 //! Shared repository helpers for applying whitelisted sort options.
 
-use crate::api::pagination::SortOrder;
+use aster_forge_api::SortOrder;
 use sea_orm::{ColumnTrait, QueryOrder};
 
 pub fn order_by_column<Q, C>(query: Q, column: C, order: SortOrder) -> Q

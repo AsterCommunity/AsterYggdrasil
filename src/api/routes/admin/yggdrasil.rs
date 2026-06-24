@@ -6,9 +6,6 @@ use crate::api::dto::{
     AdminYggdrasilSessionForwardServerListQuery, CreateYggdrasilSessionForwardServerReq,
     UpdateYggdrasilSessionForwardServerReq, validate_request,
 };
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::CursorPage;
-use crate::api::pagination::{parse_enabled_priority_id_cursor, parse_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
@@ -16,6 +13,9 @@ use crate::services::{
     audit_service, auth_service::AuthUserInfo, yggdrasil_session_forward_service,
 };
 use crate::types::YggdrasilSessionForwardServerSortBy;
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::CursorPage;
+use aster_forge_api::{parse_enabled_priority_id_cursor, parse_id_cursor};
 
 fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     req.extensions()

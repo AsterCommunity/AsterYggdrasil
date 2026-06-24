@@ -4,11 +4,6 @@ use crate::api::dto::{ExternalAuthCallbackQuery, StartExternalAuthReq, validate_
 use crate::api::error_code::AsterErrorCode;
 use crate::api::middleware::auth::JwtAuth;
 use crate::api::middleware::csrf::{self, RequestSourceMode};
-use crate::api::pagination::{
-    CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor, parse_string_id_cursor,
-};
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor, StringIdCursor};
 use crate::api::response::ApiResponse;
 use crate::config::site_url;
 use crate::errors::{AsterError, Result};
@@ -18,6 +13,11 @@ use crate::services::{auth_service, external_auth_service};
 use crate::types::ExternalAuthKind;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
+use aster_forge_api::{
+    CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor, parse_string_id_cursor,
+};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, DateTimeIdCursor, StringIdCursor};
 use serde::{Deserialize, Serialize};
 
 const AUTH_REDIRECT_PARAM: &str = "auth_redirect";

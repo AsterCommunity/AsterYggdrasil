@@ -11,9 +11,6 @@ use crate::api::dto::textures::{
 };
 use crate::api::dto::validation::validate_request;
 use crate::api::error_code::AsterErrorCode;
-use crate::api::pagination::{
-    LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor,
-};
 use crate::api::response::ApiResponse;
 use crate::db::repository::{
     minecraft_texture_repo::AdminTextureLibraryListFilter,
@@ -26,9 +23,10 @@ use crate::types::{
     MinecraftTextureLibraryStatus, MinecraftTextureReportReason, MinecraftTextureReportStatus,
     MinecraftTextureType, MinecraftTextureVisibility, TextureTagSearchMethod,
 };
+use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
+use aster_forge_api::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
 
 #[derive(Debug, Clone, Default, Deserialize, Validate)]
 #[cfg_attr(

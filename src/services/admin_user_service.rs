@@ -1,6 +1,5 @@
 //! Administrator user management service.
 
-use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 use crate::db::repository::{
     minecraft_profile_repo, user_operator_scope_repo, user_repo, yggdrasil_token_repo,
 };
@@ -15,6 +14,7 @@ use crate::types::{OperatorScope, UserRole, UserStatus};
 use crate::utils::email::normalize_email;
 use crate::utils::hash::hash_password;
 use crate::utils::numbers::u64_to_usize;
+use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use rand::RngExt;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]

@@ -6,10 +6,10 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
-use crate::api::pagination::CursorSlice;
 use crate::entities::audit_log::{self, Entity as AuditLog};
 use crate::errors::{AsterError, Result};
 use crate::types::AuditAction;
+use aster_forge_api::CursorSlice;
 
 pub struct AuditLogQuery<'a> {
     pub user_id: Option<i64>,
@@ -89,13 +89,7 @@ pub async fn find_with_filters_cursor<C: ConnectionTrait>(
         .all(db)
         .await
         .map_err(AsterError::from)?;
-    CursorSlice::from_overfetch(
-        items,
-        total,
-        limit,
-        "audit log page size",
-        "audit log cursor limit",
-    )
+    Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
 pub async fn count_created_between<C: ConnectionTrait>(

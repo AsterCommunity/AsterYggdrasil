@@ -13,9 +13,6 @@ use crate::api::dto::{
 };
 use crate::api::error_code::AsterErrorCode;
 use crate::api::middleware::csrf::{self, RequestSourceMode};
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, DateTimeIdCursor, DateTimeStringCursor};
-use crate::api::pagination::{LimitQuery, parse_datetime_id_cursor, parse_datetime_string_cursor};
 use crate::api::request_auth::access_cookie_token;
 use crate::api::response::ApiResponse;
 use crate::config::auth_runtime::RuntimeAuthPolicy;
@@ -30,6 +27,9 @@ use crate::utils::numbers::u64_to_i64;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, DateTimeIdCursor, DateTimeStringCursor};
+use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_datetime_string_cursor};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;

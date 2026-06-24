@@ -1,7 +1,6 @@
 use chrono::Utc;
 use sea_orm::{ActiveValue::Set, IntoActiveModel};
 
-use crate::api::pagination::{CursorPage, StringIdCursor};
 use crate::db::repository::external_auth_provider_repo;
 use crate::entities::external_auth_provider;
 use crate::errors::{AsterError, Result};
@@ -15,6 +14,7 @@ use crate::types::{
     NullablePatch, serialize_external_auth_provider_options,
 };
 use crate::utils::id;
+use aster_forge_api::{CursorPage, StringIdCursor};
 
 use super::REDACTED_SECRET;
 use super::normalize::{

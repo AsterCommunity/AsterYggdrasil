@@ -1,15 +1,15 @@
 //! Administrator config API routes.
 
 use crate::api::dto::{ExecuteConfigActionReq, ExecuteConfigActionResp, SetConfigReq};
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::pagination::{CursorPage, IdCursor};
-use crate::api::pagination::{LimitQuery, parse_id_cursor};
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::auth_service::AuthUserInfo;
 use crate::services::{audit_service, config_service};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_forge_api::{CursorPage, IdCursor};
+use aster_forge_api::{LimitQuery, parse_id_cursor};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
