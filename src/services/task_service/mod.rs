@@ -267,44 +267,18 @@ pub(in crate::services::task_service) async fn prepare_task_temp_dir_in_root(
     temp_root: &str,
     lease: TaskLease,
 ) -> Result<String> {
-    tracing::debug!(
-        task_id = lease.task_id,
-        processing_token = lease.processing_token,
-        "preparing background task temp dir"
-    );
-    cleanup_task_temp_dir_for_lease_in_root(temp_root, lease).await?;
-    let task_temp_dir = aster_forge_utils::paths::task_token_temp_dir(
-        temp_root,
-        lease.task_id,
-        lease.processing_token,
-    );
-    tokio::fs::create_dir_all(&task_temp_dir)
+    aster_forge_tasks::prepare_task_temp_dir_in_root(temp_root, lease)
         .await
-        .map_err(|error| AsterError::internal_error(format!("create task temp dir: {error}")))?;
-    tracing::debug!(
-        task_id = lease.task_id,
-        processing_token = lease.processing_token,
-        "prepared background task temp dir"
-    );
-    Ok(task_temp_dir)
+        .map_err(AsterError::from)
 }
 
 pub(in crate::services::task_service) async fn cleanup_task_temp_dir_for_lease_in_root(
     temp_root: &str,
     lease: TaskLease,
 ) -> Result<()> {
-    tracing::debug!(
-        task_id = lease.task_id,
-        processing_token = lease.processing_token,
-        "cleaning background task temp dir for lease"
-    );
-    crate::utils::cleanup_temp_dir(&aster_forge_utils::paths::task_token_temp_dir(
-        temp_root,
-        lease.task_id,
-        lease.processing_token,
-    ))
-    .await;
-    Ok(())
+    aster_forge_tasks::cleanup_task_temp_dir_for_lease_in_root(temp_root, lease)
+        .await
+        .map_err(AsterError::from)
 }
 
 pub(super) async fn cleanup_task_temp_dir_for_task(
@@ -319,10 +293,9 @@ pub(super) async fn cleanup_task_temp_dir_for_task_in_root(
     temp_root: &str,
     task_id: i64,
 ) -> Result<()> {
-    tracing::debug!(task_id, "cleaning background task temp dir in root");
-    crate::utils::cleanup_temp_dir(&aster_forge_utils::paths::task_temp_dir(temp_root, task_id))
-        .await;
-    Ok(())
+    aster_forge_tasks::cleanup_task_temp_dir_for_task_in_root(temp_root, task_id)
+        .await
+        .map_err(AsterError::from)
 }
 
 pub(super) fn task_expiration_from(
@@ -335,7 +308,7 @@ pub(super) fn task_expiration_from(
 pub(super) fn task_lease_expires_at(
     now: chrono::DateTime<chrono::Utc>,
 ) -> chrono::DateTime<chrono::Utc> {
-    now + Duration::seconds(TASK_PROCESSING_STALE_SECS.max(1))
+    aster_forge_tasks::task_lease_expires_at(now, TASK_PROCESSING_STALE_SECS)
 }
 
 fn load_task_retention_hours(state: &impl RuntimeConfigRuntimeState) -> i64 {

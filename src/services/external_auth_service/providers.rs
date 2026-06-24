@@ -13,6 +13,7 @@ use crate::types::{
     ExternalAuthProviderKind, ExternalAuthProviderOptions, MicrosoftExternalAuthProviderOptions,
     NullablePatch, serialize_external_auth_provider_options,
 };
+use crate::utils::OUTBOUND_HTTP_USER_AGENT;
 use aster_forge_api::{CursorPage, StringIdCursor};
 use aster_forge_external_auth::providers::microsoft::{
     normalize_microsoft_tenant_input, normalize_microsoft_tenant_or_issuer_url,
@@ -233,6 +234,7 @@ fn external_auth_provider_config_from_test_params(
         email_verified_claim: None,
         groups_claim: None,
         avatar_url_claim: None,
+        outbound_http_user_agent: Some(OUTBOUND_HTTP_USER_AGENT.to_string()),
     })
 }
 

@@ -9,32 +9,7 @@ use crate::types::{BackgroundTaskKind, BackgroundTaskStatus};
 
 use super::runtime::SystemRuntimeTaskKind;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum TaskStepStatus {
-    Pending,
-    Active,
-    Succeeded,
-    Failed,
-    Skipped,
-    Canceled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct TaskStepInfo {
-    pub key: String,
-    pub title: String,
-    pub status: TaskStepStatus,
-    pub progress_current: i64,
-    pub progress_total: i64,
-    pub detail: Option<String>,
-    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
-    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
-    pub finished_at: Option<chrono::DateTime<chrono::Utc>>,
-}
+pub use aster_forge_tasks::{TaskStepInfo, TaskStepStatus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]

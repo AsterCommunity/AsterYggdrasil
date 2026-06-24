@@ -347,6 +347,12 @@ impl From<aster_forge_utils::UtilsError> for AsterError {
     }
 }
 
+impl From<aster_forge_tasks::TaskCoreError> for AsterError {
+    fn from(value: aster_forge_tasks::TaskCoreError) -> Self {
+        Self::internal_error(value.to_string())
+    }
+}
+
 impl From<aster_forge_external_auth::ExternalAuthError> for AsterError {
     fn from(value: aster_forge_external_auth::ExternalAuthError) -> Self {
         match value {

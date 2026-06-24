@@ -1,15 +1,11 @@
 //! Runtime background task management.
 
 use std::future::Future;
-use std::panic::AssertUnwindSafe;
 use std::time::Duration;
 
 use actix_web::web;
 use chrono::Utc;
-use futures::FutureExt;
-use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
-use tracing::Instrument;
 
 use crate::config::node_mode::NodeRuntimeMode;
 use crate::config::operations;
@@ -17,154 +13,9 @@ use crate::runtime::{AppState, SharedRuntimeState};
 use crate::services::task_service::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
 use aster_forge_metrics::SharedMetricsRecorder;
 
-const BACKGROUND_TASK_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
-const BACKGROUND_TASK_DISPATCH_ERROR_BACKOFF_CAP: Duration = Duration::from_secs(5);
 const MAINTENANCE_CLEANUP_JITTER_CAP: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BackgroundTaskDispatchTrigger {
-    Startup,
-    Timer,
-    Wakeup,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BackgroundTaskDispatchIteration {
-    has_activity: bool,
-    failed: bool,
-}
-
-impl BackgroundTaskDispatchIteration {
-    fn idle() -> Self {
-        Self {
-            has_activity: false,
-            failed: false,
-        }
-    }
-
-    fn active() -> Self {
-        Self {
-            has_activity: true,
-            failed: false,
-        }
-    }
-
-    fn failed() -> Self {
-        Self {
-            has_activity: false,
-            failed: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BackgroundTaskDispatchBackoff {
-    idle_interval: Duration,
-    last_error: bool,
-}
-
-impl BackgroundTaskDispatchBackoff {
-    fn new(base_interval: Duration, _max_interval: Duration) -> Self {
-        Self {
-            idle_interval: effective_dispatch_base_interval(base_interval),
-            last_error: false,
-        }
-    }
-
-    fn sleep_duration(&self, base_interval: Duration, max_interval: Duration) -> Duration {
-        let base_interval = effective_dispatch_base_interval(base_interval);
-        let max_interval = effective_dispatch_max_interval(base_interval, max_interval);
-        if self.last_error {
-            return base_interval.max(BACKGROUND_TASK_DISPATCH_ERROR_BACKOFF_CAP);
-        }
-        self.idle_interval.max(base_interval).min(max_interval)
-    }
-
-    fn record_iteration(
-        &mut self,
-        trigger: BackgroundTaskDispatchTrigger,
-        iteration: BackgroundTaskDispatchIteration,
-        base_interval: Duration,
-        max_interval: Duration,
-    ) {
-        let base_interval = effective_dispatch_base_interval(base_interval);
-        let max_interval = effective_dispatch_max_interval(base_interval, max_interval);
-        if iteration.failed {
-            self.idle_interval = base_interval;
-            self.last_error = true;
-            return;
-        }
-        if iteration.has_activity || matches!(trigger, BackgroundTaskDispatchTrigger::Wakeup) {
-            self.idle_interval = base_interval;
-            self.last_error = false;
-            return;
-        }
-        self.idle_interval = self
-            .idle_interval
-            .max(base_interval)
-            .saturating_mul(2)
-            .min(max_interval);
-        self.last_error = false;
-    }
-}
-
-pub struct BackgroundTasks {
-    shutdown_token: CancellationToken,
-    handles: JoinSet<()>,
-}
-
-impl BackgroundTasks {
-    pub fn new() -> Self {
-        Self::with_shutdown_token(CancellationToken::new())
-    }
-
-    pub fn with_shutdown_token(shutdown_token: CancellationToken) -> Self {
-        Self {
-            shutdown_token,
-            handles: JoinSet::new(),
-        }
-    }
-
-    pub fn shutdown_token(&self) -> CancellationToken {
-        self.shutdown_token.clone()
-    }
-
-    pub fn push<F>(&mut self, task: F)
-    where
-        F: Future<Output = ()> + Send + 'static,
-    {
-        self.handles.spawn(task);
-    }
-
-    pub async fn shutdown(self) {
-        let BackgroundTasks {
-            shutdown_token,
-            mut handles,
-        } = self;
-        shutdown_token.cancel();
-
-        let graceful_shutdown = async { while handles.join_next().await.is_some() {} };
-        if tokio::time::timeout(BACKGROUND_TASK_SHUTDOWN_GRACE, graceful_shutdown)
-            .await
-            .is_err()
-        {
-            let aborted = handles.len();
-            handles.abort_all();
-            tracing::warn!(
-                aborted,
-                grace_secs = BACKGROUND_TASK_SHUTDOWN_GRACE.as_secs(),
-                "background tasks did not stop before the shutdown grace period; aborting remaining workers"
-            );
-            while handles.join_next().await.is_some() {}
-        }
-    }
-}
-
-impl Default for BackgroundTasks {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub use aster_forge_tasks::BackgroundTasks;
 
 pub fn spawn_runtime_background_tasks(
     state: web::Data<AppState>,
@@ -303,14 +154,45 @@ fn push_primary_periodic_task<F, I, Fut>(
     F: Fn(web::Data<AppState>) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = RuntimeTaskRunOutcome> + Send + 'static,
 {
-    tasks.push(spawn_periodic(
-        name,
-        interval_fn,
-        jitter_cap,
-        shutdown_token.clone(),
-        state.clone(),
-        task_fn,
+    let interval_fn = move |state: &web::Data<AppState>| interval_fn(state.get_ref());
+    tasks.push(aster_forge_tasks::run_periodic_task(
+        aster_forge_tasks::PeriodicTask {
+            name,
+            task_name: name.as_str(),
+            interval_fn,
+            jitter_cap,
+            shutdown_token: shutdown_token.clone(),
+            state: state.clone(),
+            hooks: aster_forge_tasks::RecordedTaskHooks::new(
+                task_fn,
+                |panic_message| {
+                    RuntimeTaskRunOutcome::failed(Some("Task panicked".to_string()), panic_message)
+                },
+                record_periodic_task_outcome,
+            ),
+        },
     ));
+}
+
+async fn record_periodic_task_outcome(
+    state: web::Data<AppState>,
+    name: SystemRuntimeTaskKind,
+    started_at: chrono::DateTime<Utc>,
+    finished_at: chrono::DateTime<Utc>,
+    outcome: RuntimeTaskRunOutcome,
+) {
+    let task_name = name.as_str();
+    if let Err(error) = crate::services::task_service::record_runtime_task_run(
+        state.get_ref(),
+        name,
+        started_at,
+        finished_at,
+        &outcome,
+    )
+    .await
+    {
+        tracing::warn!("failed to record runtime task '{task_name}': {error}");
+    }
 }
 
 async fn run_mail_outbox_dispatch(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
@@ -584,185 +466,81 @@ async fn run_yggdrasil_texture_cleanup(state: web::Data<AppState>) -> RuntimeTas
     }
 }
 
-async fn spawn_periodic<F, I, Fut>(
-    name: SystemRuntimeTaskKind,
-    interval_fn: I,
-    jitter_cap: Option<Duration>,
-    shutdown_token: CancellationToken,
-    state: web::Data<AppState>,
-    task_fn: F,
-) where
-    I: Fn(&AppState) -> Duration + Send + Sync + 'static,
-    F: Fn(web::Data<AppState>) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = RuntimeTaskRunOutcome> + Send + 'static,
-{
-    let task_name = name.as_str();
-    if shutdown_token.is_cancelled() {
-        return;
-    }
-    run_periodic_iteration(name, &state, &task_fn)
-        .instrument(tracing::info_span!("bg_task", task.name = task_name))
-        .await;
-
-    loop {
-        let sleep_duration = periodic_sleep_duration(interval_fn(state.get_ref()), jitter_cap);
-        tokio::select! {
-            biased;
-            _ = shutdown_token.cancelled() => break,
-            _ = tokio::time::sleep(sleep_duration) => {}
-        }
-
-        if shutdown_token.is_cancelled() {
-            break;
-        }
-
-        run_periodic_iteration(name, &state, &task_fn)
-            .instrument(tracing::info_span!("bg_task", task.name = task_name))
-            .await;
-    }
-}
-
-async fn run_periodic_iteration<F, Fut>(
-    name: SystemRuntimeTaskKind,
-    state: &web::Data<AppState>,
-    task_fn: &F,
-) where
-    F: Fn(web::Data<AppState>) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = RuntimeTaskRunOutcome> + Send + 'static,
-{
-    let task_name = name.as_str();
-    let started_at = Utc::now();
-    let outcome = match AssertUnwindSafe(task_fn(state.clone()))
-        .catch_unwind()
-        .await
-    {
-        Ok(outcome) => outcome,
-        Err(panic) => {
-            let panic_message = panic_payload_message(&panic);
-            tracing::error!("background task '{task_name}' panicked: {panic_message}");
-            RuntimeTaskRunOutcome::failed(Some("Task panicked".to_string()), panic_message)
-        }
-    };
-    let finished_at = Utc::now();
-
-    if let Err(error) = crate::services::task_service::record_runtime_task_run(
-        state.get_ref(),
-        name,
-        started_at,
-        finished_at,
-        &outcome,
-    )
-    .await
-    {
-        tracing::warn!("failed to record runtime task '{task_name}': {error}");
-    }
-}
-
 async fn spawn_background_task_dispatcher(
     shutdown_token: CancellationToken,
     state: web::Data<AppState>,
 ) {
-    let mut backoff = BackgroundTaskDispatchBackoff::new(
-        background_task_dispatch_interval(state.get_ref()),
-        background_task_dispatch_idle_max_interval(state.get_ref()),
-    );
-    if shutdown_token.is_cancelled() {
-        return;
-    }
-    let iteration = run_background_task_dispatch_iteration(&state, shutdown_token.clone())
-        .instrument(tracing::info_span!(
-            "bg_task",
-            task.name = SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str()
-        ))
-        .await;
-    backoff.record_iteration(
-        BackgroundTaskDispatchTrigger::Startup,
-        iteration,
-        background_task_dispatch_interval(state.get_ref()),
-        background_task_dispatch_idle_max_interval(state.get_ref()),
-    );
-
-    loop {
-        let sleep_duration = backoff.sleep_duration(
-            background_task_dispatch_interval(state.get_ref()),
-            background_task_dispatch_idle_max_interval(state.get_ref()),
-        );
-        let trigger = tokio::select! {
-            biased;
-            _ = shutdown_token.cancelled() => break,
-            _ = state.background_task_dispatch_wakeup().notified() => {
-                BackgroundTaskDispatchTrigger::Wakeup
-            }
-            _ = tokio::time::sleep(sleep_duration) => {
-                BackgroundTaskDispatchTrigger::Timer
-            }
-        };
-
-        if shutdown_token.is_cancelled() {
-            break;
-        }
-
-        let iteration = run_background_task_dispatch_iteration(&state, shutdown_token.clone())
-            .instrument(tracing::info_span!(
-                "bg_task",
-                task.name = SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str()
-            ))
-            .await;
-        backoff.record_iteration(
-            trigger,
-            iteration,
-            background_task_dispatch_interval(state.get_ref()),
-            background_task_dispatch_idle_max_interval(state.get_ref()),
-        );
-    }
+    aster_forge_tasks::run_dispatch_worker(
+        SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str(),
+        shutdown_token,
+        state,
+        |state| background_task_dispatch_interval(state.get_ref()),
+        |state| background_task_dispatch_idle_max_interval(state.get_ref()),
+        |state: web::Data<AppState>| async move {
+            state.background_task_dispatch_wakeup().notified().await;
+        },
+        run_background_task_dispatch_iteration,
+    )
+    .await;
 }
 
 async fn run_background_task_dispatch_iteration(
-    state: &web::Data<AppState>,
+    state: web::Data<AppState>,
     shutdown_token: CancellationToken,
-) -> BackgroundTaskDispatchIteration {
-    let started_at = Utc::now();
-    let (iteration, outcome) = match AssertUnwindSafe(
-        crate::services::task_service::dispatch::dispatch_due_with_shutdown(
-            state.get_ref(),
-            shutdown_token,
-        ),
-    )
-    .catch_unwind()
-    .await
-    {
-        Ok(result) => {
-            let iteration = match &result {
-                Ok(stats) if stats.has_activity() => BackgroundTaskDispatchIteration::active(),
-                Ok(_) => BackgroundTaskDispatchIteration::idle(),
-                Err(_) => BackgroundTaskDispatchIteration::failed(),
-            };
-            (iteration, background_task_dispatch_outcome(result))
-        }
-        Err(panic) => {
-            let panic_message = panic_payload_message(&panic);
-            tracing::error!("background task 'background-task-dispatch' panicked: {panic_message}");
-            (
-                BackgroundTaskDispatchIteration::failed(),
-                RuntimeTaskRunOutcome::failed(Some("Task panicked".to_string()), panic_message),
-            )
-        }
-    };
-    let finished_at = Utc::now();
+) -> aster_forge_tasks::BackgroundTaskDispatchIteration {
+    let iteration = std::sync::Arc::new(std::sync::Mutex::new(
+        aster_forge_tasks::BackgroundTaskDispatchIteration::idle(),
+    ));
+    let iteration_for_record = iteration.clone();
+    let iteration_for_panic = iteration.clone();
 
-    if let Err(error) = crate::services::task_service::record_runtime_task_run(
-        state.get_ref(),
+    aster_forge_tasks::run_recorded_task_iteration(
         SystemRuntimeTaskKind::BackgroundTaskDispatch,
-        started_at,
-        finished_at,
-        &outcome,
+        SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str(),
+        state,
+        &move |state: web::Data<AppState>| {
+            let shutdown_token = shutdown_token.clone();
+            let iteration_for_record = iteration_for_record.clone();
+            async move {
+                let result = crate::services::task_service::dispatch::dispatch_due_with_shutdown(
+                    state.get_ref(),
+                    shutdown_token,
+                )
+                .await;
+                let dispatch_iteration = match &result {
+                    Ok(stats) if stats.has_activity() => {
+                        aster_forge_tasks::BackgroundTaskDispatchIteration::active()
+                    }
+                    Ok(_) => aster_forge_tasks::BackgroundTaskDispatchIteration::idle(),
+                    Err(_) => aster_forge_tasks::BackgroundTaskDispatchIteration::failed(),
+                };
+                match iteration_for_record.lock() {
+                    Ok(mut stored) => *stored = dispatch_iteration,
+                    Err(poisoned) => *poisoned.into_inner() = dispatch_iteration,
+                }
+                background_task_dispatch_outcome(result)
+            }
+        },
+        &move |panic_message| {
+            match iteration_for_panic.lock() {
+                Ok(mut stored) => {
+                    *stored = aster_forge_tasks::BackgroundTaskDispatchIteration::failed();
+                }
+                Err(poisoned) => {
+                    *poisoned.into_inner() =
+                        aster_forge_tasks::BackgroundTaskDispatchIteration::failed();
+                }
+            }
+            RuntimeTaskRunOutcome::failed(Some("Task panicked".to_string()), panic_message)
+        },
+        &record_periodic_task_outcome,
     )
-    .await
-    {
-        tracing::warn!("failed to record runtime task 'background-task-dispatch': {error}");
-    }
+    .await;
 
-    iteration
+    match iteration.lock() {
+        Ok(stored) => *stored,
+        Err(poisoned) => *poisoned.into_inner(),
+    }
 }
 
 fn background_task_dispatch_outcome(
@@ -789,47 +567,6 @@ fn background_task_dispatch_outcome(
             )
         }
     }
-}
-
-fn periodic_sleep_duration(base_interval: Duration, jitter_cap: Option<Duration>) -> Duration {
-    use rand::RngExt;
-
-    let Some(jitter_cap) = jitter_cap else {
-        return base_interval;
-    };
-    let max_jitter_ms = effective_jitter_cap(base_interval, jitter_cap).as_millis();
-    if max_jitter_ms == 0 {
-        return base_interval;
-    }
-
-    let max_jitter_ms =
-        aster_forge_utils::numbers::u128_to_u64(max_jitter_ms.min(u128::from(u64::MAX)), "jitter")
-            .unwrap_or(u64::MAX);
-    let mut rng = rand::rng();
-    let jitter_ms = rng.random_range(0..=max_jitter_ms);
-    base_interval.saturating_add(Duration::from_millis(jitter_ms))
-}
-
-fn effective_jitter_cap(base_interval: Duration, jitter_cap: Duration) -> Duration {
-    let bounded_ms = aster_forge_utils::numbers::u128_to_u64(
-        base_interval.as_millis().min(u128::from(u64::MAX)),
-        "base interval millis",
-    )
-    .unwrap_or(u64::MAX)
-        / 10;
-    jitter_cap.min(Duration::from_millis(bounded_ms))
-}
-
-fn effective_dispatch_base_interval(base_interval: Duration) -> Duration {
-    if base_interval.is_zero() {
-        Duration::from_secs(1)
-    } else {
-        base_interval
-    }
-}
-
-fn effective_dispatch_max_interval(base_interval: Duration, max_interval: Duration) -> Duration {
-    max_interval.max(effective_dispatch_base_interval(base_interval))
 }
 
 fn build_background_tasks_base(
@@ -865,16 +602,6 @@ fn mail_outbox_dispatch_interval(state: &impl SharedRuntimeState) -> Duration {
     Duration::from_secs(operations::mail_outbox_dispatch_interval_secs(
         state.runtime_config(),
     ))
-}
-
-fn panic_payload_message(panic: &Box<dyn std::any::Any + Send>) -> String {
-    if let Some(message) = panic.downcast_ref::<&str>() {
-        (*message).to_string()
-    } else if let Some(message) = panic.downcast_ref::<String>() {
-        message.clone()
-    } else {
-        "unknown panic payload".to_string()
-    }
 }
 
 #[cfg(test)]

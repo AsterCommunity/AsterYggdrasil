@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::runtime::{AppState, DatabaseRuntimeState, MetricsRuntimeState};
+pub use aster_forge_tasks::DispatchStats;
 
 use claim::claim_due_for_lane;
 use execute::run_claimed_tasks;
@@ -24,41 +25,8 @@ use super::{
     task_lease_expires_at, truncate_error,
 };
 
+pub(super) use aster_forge_tasks::TaskDispatchOutcome;
 pub use maintenance::{cleanup_expired, drain};
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct DispatchStats {
-    pub claimed: usize,
-    pub succeeded: usize,
-    pub retried: usize,
-    pub failed: usize,
-}
-
-impl DispatchStats {
-    fn add(&mut self, other: Self) {
-        self.claimed += other.claimed;
-        self.succeeded += other.succeeded;
-        self.retried += other.retried;
-        self.failed += other.failed;
-    }
-
-    pub fn has_activity(&self) -> bool {
-        self.claimed > 0 || self.succeeded > 0 || self.retried > 0 || self.failed > 0
-    }
-
-    pub(super) fn add_outcome(&mut self, outcome: TaskDispatchOutcome) {
-        self.succeeded += outcome.succeeded;
-        self.retried += outcome.retried;
-        self.failed += outcome.failed;
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub(super) struct TaskDispatchOutcome {
-    succeeded: usize,
-    retried: usize,
-    failed: usize,
-}
 
 pub async fn dispatch_due(state: &AppState) -> Result<DispatchStats> {
     tracing::debug!("dispatching due background tasks");

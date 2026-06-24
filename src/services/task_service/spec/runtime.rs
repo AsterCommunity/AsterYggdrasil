@@ -1,4 +1,4 @@
-use super::{BackgroundTaskSpec, TaskProcessFuture};
+use super::TaskProcessFuture;
 use crate::config::RuntimeConfig;
 use crate::entities::background_task;
 use crate::errors::AsterError;
@@ -16,9 +16,21 @@ const NO_STEPS: &[TaskStepSpec] = &[];
 
 pub(crate) struct SystemRuntimeTask;
 
-impl BackgroundTaskSpec for SystemRuntimeTask {
+impl
+    aster_forge_tasks::BackgroundTaskSpec<
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        AsterError,
+    > for SystemRuntimeTask
+{
+    type Kind = BackgroundTaskKind;
+    type Lane = TaskLane;
     type Payload = RuntimeTaskPayload;
     type Result = RuntimeTaskResult;
+    type PayloadEnvelope = TaskPayload;
+    type ResultEnvelope = TaskResult;
 
     const KIND: BackgroundTaskKind = BackgroundTaskKind::SystemRuntime;
 

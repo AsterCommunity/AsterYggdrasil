@@ -1,192 +1,130 @@
 //! Strongly typed background task specifications.
 
-use std::future::Future;
-use std::pin::Pin;
-
-use sea_orm::ActiveEnum;
-use serde::{Serialize, de::DeserializeOwned};
-
-use crate::config::{RuntimeConfig, operations};
+use crate::config::RuntimeConfig;
 use crate::entities::background_task;
-use crate::errors::{AsterError, Result};
+use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::types::BackgroundTaskKind;
 
 use super::TaskExecutionContext;
 use super::dispatch::TaskLane;
-use super::retry::{TaskRetryClass, default_retry_class};
-use super::steps::TaskStepSpec;
 use super::types::{TaskPayload, TaskResult};
 
-pub(super) type TaskProcessFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+pub(super) type TaskProcessFuture<'a> = aster_forge_tasks::TaskProcessFuture<'a, AsterError>;
+pub(super) type TaskSpecAdapter<S> = aster_forge_tasks::TaskSpecAdapter<S>;
+pub(super) type ErasedBackgroundTaskSpec = dyn aster_forge_tasks::ErasedBackgroundTaskSpec<
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        BackgroundTaskKind,
+        TaskLane,
+        TaskPayload,
+        TaskResult,
+        AsterError,
+    >;
 
-pub(super) trait BackgroundTaskSpec {
-    type Payload: Serialize + DeserializeOwned + Clone + Send + Sync + 'static;
-    type Result: Serialize + DeserializeOwned + Clone + Send + Sync + 'static;
-
-    const KIND: BackgroundTaskKind;
-
-    fn step_specs() -> &'static [TaskStepSpec];
-
-    fn lane() -> TaskLane;
-
-    fn max_attempts(runtime_config: &RuntimeConfig) -> i32 {
-        operations::background_task_max_attempts(runtime_config)
-    }
-
-    fn wrap_payload(payload: Self::Payload) -> TaskPayload;
-
-    fn wrap_result(result: Self::Result) -> TaskResult;
-
-    fn process<'a>(
-        state: &'a AppState,
-        task: &'a background_task::Model,
-        context: TaskExecutionContext,
-    ) -> TaskProcessFuture<'a>;
-
-    fn retry_class(error: &AsterError) -> TaskRetryClass {
-        default_retry_class(error)
-    }
-}
-
-pub(super) fn serialize_payload<S: BackgroundTaskSpec>(
-    payload: &S::Payload,
-) -> Result<crate::types::StoredTaskPayload> {
-    serde_json::to_string(payload)
-        .map(crate::types::StoredTaskPayload)
-        .map_err(|error| {
-            AsterError::internal_error(format!(
-                "serialize {} task payload: {error}",
-                S::KIND.to_value()
-            ))
-        })
-}
-
-pub(super) fn serialize_result<S: BackgroundTaskSpec>(
-    result: &S::Result,
-) -> Result<crate::types::StoredTaskResult> {
-    serde_json::to_string(result)
-        .map(crate::types::StoredTaskResult)
-        .map_err(|error| {
-            AsterError::internal_error(format!(
-                "serialize {} task result: {error}",
-                S::KIND.to_value()
-            ))
-        })
-}
-
-pub(super) fn decode_payload_as<S: BackgroundTaskSpec>(
-    task: &background_task::Model,
-) -> Result<S::Payload> {
-    if task.kind != S::KIND {
-        return Err(AsterError::internal_error(format!(
-            "task #{} kind mismatch: expected {}, got {}",
-            task.id,
-            S::KIND.to_value(),
-            task.kind.to_value()
-        )));
-    }
-
-    serde_json::from_str(task.payload_json.as_ref()).map_err(|error| {
-        AsterError::internal_error(format!(
-            "parse payload for task #{} ({}): {error}",
-            task.id,
-            task.kind.to_value()
-        ))
-    })
-}
-
-pub(super) fn decode_result_as<S: BackgroundTaskSpec>(
-    task: &background_task::Model,
-) -> Result<Option<S::Result>> {
-    if task.kind != S::KIND {
-        return Err(AsterError::internal_error(format!(
-            "task #{} kind mismatch: expected {}, got {}",
-            task.id,
-            S::KIND.to_value(),
-            task.kind.to_value()
-        )));
-    }
-
-    let Some(raw) = task.result_json.as_ref() else {
-        return Ok(None);
-    };
-
-    serde_json::from_str(raw.as_ref())
-        .map(Some)
-        .map_err(|error| {
-            AsterError::internal_error(format!(
-                "parse result for task #{} ({}): {error}",
-                task.id,
-                task.kind.to_value()
-            ))
-        })
-}
-
-pub(super) trait ErasedBackgroundTaskSpec: Sync {
-    fn step_specs(&self) -> &'static [TaskStepSpec];
-
-    fn lane(&self) -> TaskLane;
-
-    fn max_attempts(&self, runtime_config: &RuntimeConfig) -> i32;
-
-    fn decode_payload(&self, task: &background_task::Model) -> Result<TaskPayload>;
-
-    fn decode_result(&self, task: &background_task::Model) -> Result<Option<TaskResult>>;
-
-    fn retry_class(&self, error: &AsterError) -> TaskRetryClass;
-
-    fn process<'a>(
-        &self,
-        state: &'a AppState,
-        task: &'a background_task::Model,
-        context: TaskExecutionContext,
-    ) -> TaskProcessFuture<'a>;
-}
-
-pub(super) struct TaskSpecAdapter<S>(std::marker::PhantomData<S>);
-
-impl<S> TaskSpecAdapter<S> {
-    pub(super) const fn new() -> Self {
-        Self(std::marker::PhantomData)
-    }
-}
-
-impl<S> ErasedBackgroundTaskSpec for TaskSpecAdapter<S>
-where
-    S: BackgroundTaskSpec + Sync,
+pub(super) trait BackgroundTaskSpec:
+    aster_forge_tasks::BackgroundTaskSpec<
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        AsterError,
+        Kind = BackgroundTaskKind,
+        Lane = TaskLane,
+        PayloadEnvelope = TaskPayload,
+        ResultEnvelope = TaskResult,
+    >
 {
-    fn step_specs(&self) -> &'static [TaskStepSpec] {
-        S::step_specs()
+}
+
+impl<T> BackgroundTaskSpec for T where
+    T: aster_forge_tasks::BackgroundTaskSpec<
+            AppState,
+            background_task::Model,
+            RuntimeConfig,
+            TaskExecutionContext,
+            AsterError,
+            Kind = BackgroundTaskKind,
+            Lane = TaskLane,
+            PayloadEnvelope = TaskPayload,
+            ResultEnvelope = TaskResult,
+        >
+{
+}
+
+pub(super) fn serialize_payload<S>(
+    payload: &S::Payload,
+) -> crate::errors::Result<crate::types::StoredTaskPayload>
+where
+    S: aster_forge_tasks::BackgroundTaskSpec<
+            AppState,
+            background_task::Model,
+            RuntimeConfig,
+            TaskExecutionContext,
+            AsterError,
+            Kind = BackgroundTaskKind,
+            Lane = TaskLane,
+            PayloadEnvelope = TaskPayload,
+            ResultEnvelope = TaskResult,
+        >,
+{
+    aster_forge_tasks::serialize_payload::<
+        S,
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        AsterError,
+    >(payload)
+    .map(crate::types::StoredTaskPayload)
+    .map_err(AsterError::from)
+}
+
+pub(super) fn serialize_result<S>(
+    result: &S::Result,
+) -> crate::errors::Result<crate::types::StoredTaskResult>
+where
+    S: aster_forge_tasks::BackgroundTaskSpec<
+            AppState,
+            background_task::Model,
+            RuntimeConfig,
+            TaskExecutionContext,
+            AsterError,
+            Kind = BackgroundTaskKind,
+            Lane = TaskLane,
+            PayloadEnvelope = TaskPayload,
+            ResultEnvelope = TaskResult,
+        >,
+{
+    aster_forge_tasks::serialize_result::<
+        S,
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        AsterError,
+    >(result)
+    .map(crate::types::StoredTaskResult)
+    .map_err(AsterError::from)
+}
+
+impl aster_forge_tasks::TaskRecord<BackgroundTaskKind> for background_task::Model {
+    fn id(&self) -> i64 {
+        self.id
     }
 
-    fn lane(&self) -> TaskLane {
-        S::lane()
+    fn kind(&self) -> BackgroundTaskKind {
+        self.kind
     }
 
-    fn max_attempts(&self, runtime_config: &RuntimeConfig) -> i32 {
-        S::max_attempts(runtime_config)
+    fn payload_json(&self) -> &str {
+        self.payload_json.as_ref()
     }
 
-    fn decode_payload(&self, task: &background_task::Model) -> Result<TaskPayload> {
-        Ok(S::wrap_payload(decode_payload_as::<S>(task)?))
-    }
-
-    fn decode_result(&self, task: &background_task::Model) -> Result<Option<TaskResult>> {
-        Ok(decode_result_as::<S>(task)?.map(S::wrap_result))
-    }
-
-    fn retry_class(&self, error: &AsterError) -> TaskRetryClass {
-        S::retry_class(error)
-    }
-
-    fn process<'a>(
-        &self,
-        state: &'a AppState,
-        task: &'a background_task::Model,
-        context: TaskExecutionContext,
-    ) -> TaskProcessFuture<'a> {
-        S::process(state, task, context)
+    fn result_json(&self) -> Option<&str> {
+        self.result_json.as_ref().map(AsRef::as_ref)
     }
 }
 
@@ -196,10 +134,7 @@ pub(crate) use runtime::SystemRuntimeTask;
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BackgroundTaskSpec, ErasedBackgroundTaskSpec, TaskSpecAdapter, decode_payload_as,
-        decode_result_as, serialize_payload, serialize_result,
-    };
+    use super::{TaskSpecAdapter, serialize_payload, serialize_result};
     use crate::entities::background_task;
     use crate::services::task_service::runtime::SystemRuntimeTaskKind;
     use crate::services::task_service::spec::SystemRuntimeTask;
@@ -209,6 +144,7 @@ mod tests {
     use crate::types::{
         BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload, StoredTaskResult,
     };
+    use aster_forge_tasks::{BackgroundTaskSpec as _, ErasedBackgroundTaskSpec as _};
     use chrono::Utc;
 
     fn task_model(
@@ -265,15 +201,6 @@ mod tests {
             Some(result_json),
         );
 
-        assert_eq!(
-            decode_payload_as::<SystemRuntimeTask>(&task).unwrap(),
-            payload
-        );
-        assert_eq!(
-            decode_result_as::<SystemRuntimeTask>(&task).unwrap(),
-            Some(result)
-        );
-
         let adapter = TaskSpecAdapter::<SystemRuntimeTask>::new();
         assert_eq!(
             adapter.decode_payload(&task).unwrap(),
@@ -296,8 +223,9 @@ mod tests {
             StoredTaskPayload("not json".to_string()),
             None,
         );
-        let error = decode_payload_as::<SystemRuntimeTask>(&bad_payload).unwrap_err();
-        assert!(error.message().contains("parse payload for task #7"));
+        let adapter = TaskSpecAdapter::<SystemRuntimeTask>::new();
+        let error = adapter.decode_payload(&bad_payload).unwrap_err();
+        assert!(error.to_string().contains("parse payload for task #7"));
 
         let bad_result = task_model(
             BackgroundTaskKind::SystemRuntime,
@@ -307,8 +235,8 @@ mod tests {
             .unwrap(),
             Some(StoredTaskResult("not json".to_string())),
         );
-        let error = decode_result_as::<SystemRuntimeTask>(&bad_result).unwrap_err();
-        assert!(error.message().contains("parse result for task #7"));
+        let error = adapter.decode_result(&bad_result).unwrap_err();
+        assert!(error.to_string().contains("parse result for task #7"));
     }
 
     #[test]

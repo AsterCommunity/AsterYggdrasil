@@ -2,22 +2,7 @@
 
 use crate::errors::AsterError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum TaskRetryClass {
-    Auto,
-    Manual,
-    Never,
-}
-
-impl TaskRetryClass {
-    pub(super) fn should_auto_retry(self) -> bool {
-        matches!(self, Self::Auto)
-    }
-
-    pub(super) fn can_manual_retry(self) -> bool {
-        matches!(self, Self::Auto | Self::Manual)
-    }
-}
+pub(super) use aster_forge_tasks::TaskRetryClass;
 
 pub(super) fn default_retry_class(error: &AsterError) -> TaskRetryClass {
     match error {

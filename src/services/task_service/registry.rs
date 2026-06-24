@@ -4,30 +4,50 @@ use crate::config::RuntimeConfig;
 use crate::entities::background_task;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::types::{BackgroundTaskKind, BackgroundTaskStatus};
+use crate::types::BackgroundTaskKind;
 
 use super::retry::TaskRetryClass;
-use super::spec::{
-    ErasedBackgroundTaskSpec, SystemRuntimeTask, TaskProcessFuture, TaskSpecAdapter,
-};
+use super::spec::{ErasedBackgroundTaskSpec, SystemRuntimeTask, TaskProcessFuture};
 use super::steps::initial_task_steps_from_specs;
 use super::types::{TaskPayload, TaskResult, TaskStepInfo};
 use super::{TaskExecutionContext, dispatch::TaskLane};
 
-static SYSTEM_RUNTIME: TaskSpecAdapter<SystemRuntimeTask> = TaskSpecAdapter::new();
-
-pub(super) fn spec_for_kind(kind: BackgroundTaskKind) -> &'static dyn ErasedBackgroundTaskSpec {
-    match kind {
-        BackgroundTaskKind::SystemRuntime => &SYSTEM_RUNTIME,
+aster_forge_tasks::task_registry! {
+    pub(super) mod registered {
+        state: crate::runtime::AppState;
+        task: crate::entities::background_task::Model;
+        config: crate::config::RuntimeConfig;
+        context: crate::services::task_service::TaskExecutionContext;
+        error: crate::errors::AsterError;
+        kind: crate::types::BackgroundTaskKind;
+        lane: crate::services::task_service::dispatch::TaskLane;
+        payload: crate::services::task_service::types::TaskPayload;
+        result: crate::services::task_service::types::TaskResult;
+        specs {
+            SYSTEM_RUNTIME: super::SystemRuntimeTask => crate::types::BackgroundTaskKind::SystemRuntime,
+        }
+        lanes {
+            crate::services::task_service::dispatch::TaskLane::Fallback => [
+                crate::types::BackgroundTaskKind::SystemRuntime,
+            ],
+        }
     }
 }
 
+pub(super) fn spec_for_kind(kind: BackgroundTaskKind) -> &'static ErasedBackgroundTaskSpec {
+    registered::spec_for_kind(kind)
+}
+
 pub(super) fn decode_task_payload(task: &background_task::Model) -> Result<TaskPayload> {
-    spec_for_kind(task.kind).decode_payload(task)
+    spec_for_kind(task.kind)
+        .decode_payload(task)
+        .map_err(AsterError::from)
 }
 
 pub(super) fn decode_task_result(task: &background_task::Model) -> Result<Option<TaskResult>> {
-    spec_for_kind(task.kind).decode_result(task)
+    spec_for_kind(task.kind)
+        .decode_result(task)
+        .map_err(AsterError::from)
 }
 
 pub(super) fn task_retry_class(kind: BackgroundTaskKind, error: &AsterError) -> TaskRetryClass {
@@ -57,9 +77,5 @@ pub(in crate::services::task_service) fn task_lane(kind: BackgroundTaskKind) -> 
 pub(in crate::services::task_service) fn task_lane_kinds(
     lane: TaskLane,
 ) -> &'static [BackgroundTaskKind] {
-    match lane {
-        TaskLane::Fallback => &[BackgroundTaskKind::SystemRuntime],
-    }
+    registered::task_lane_kinds(lane)
 }
-
-pub(super) fn _assert_status_is_imported(_status: BackgroundTaskStatus) {}

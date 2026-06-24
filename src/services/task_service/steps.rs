@@ -1,53 +1,13 @@
 //! Background task step helpers.
 
-use chrono::Utc;
-
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::types::StoredTaskSteps;
 
-use super::types::{TaskStepInfo, TaskStepStatus};
+use super::types::TaskStepInfo;
 
-#[derive(Debug, Clone, Copy)]
-pub(super) struct TaskStepSpec {
-    pub(super) key: &'static str,
-    pub(super) title: &'static str,
-}
-
-fn new_task_step(spec: TaskStepSpec, status: TaskStepStatus, detail: Option<&str>) -> TaskStepInfo {
-    let now = (status == TaskStepStatus::Active).then(Utc::now);
-    TaskStepInfo {
-        key: spec.key.to_string(),
-        title: spec.title.to_string(),
-        status,
-        progress_current: 0,
-        progress_total: 0,
-        detail: detail.map(str::to_string),
-        started_at: now,
-        finished_at: None,
-    }
-}
-
-pub(super) fn initial_task_steps_from_specs(specs: &[TaskStepSpec]) -> Vec<TaskStepInfo> {
-    specs
-        .iter()
-        .enumerate()
-        .map(|(index, spec)| {
-            new_task_step(
-                *spec,
-                if index == 0 {
-                    TaskStepStatus::Active
-                } else {
-                    TaskStepStatus::Pending
-                },
-                if index == 0 {
-                    Some("Waiting for worker")
-                } else {
-                    None
-                },
-            )
-        })
-        .collect()
-}
+pub(super) use aster_forge_tasks::{
+    TaskStepSpec, initial_task_steps_from_specs, mark_active_step_failed,
+};
 
 pub(super) fn parse_task_steps_json(steps_json: Option<&str>) -> Result<Vec<TaskStepInfo>> {
     match steps_json {
@@ -61,32 +21,6 @@ pub(super) fn serialize_task_steps(steps: &[TaskStepInfo]) -> Result<StoredTaskS
     serde_json::to_string(steps)
         .map(StoredTaskSteps)
         .map_aster_err_ctx("serialize task steps", AsterError::internal_error)
-}
-
-pub(super) fn mark_active_step_failed(steps: &mut [TaskStepInfo], detail: Option<&str>) {
-    let now = Utc::now();
-    if let Some(step) = steps
-        .iter_mut()
-        .find(|step| step.status == TaskStepStatus::Active)
-    {
-        step.status = TaskStepStatus::Failed;
-        if step.started_at.is_none() {
-            step.started_at = Some(now);
-        }
-        step.finished_at = Some(now);
-        step.detail = detail.map(str::to_string);
-        return;
-    }
-    if let Some(step) = steps
-        .iter_mut()
-        .rev()
-        .find(|step| step.status == TaskStepStatus::Pending)
-    {
-        step.status = TaskStepStatus::Failed;
-        step.started_at = Some(now);
-        step.finished_at = Some(now);
-        step.detail = detail.map(str::to_string);
-    }
 }
 
 #[cfg(test)]
