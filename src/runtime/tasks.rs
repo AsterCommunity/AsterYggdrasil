@@ -12,10 +12,9 @@ use crate::config::operations;
 use crate::runtime::{AppState, SharedRuntimeState};
 use crate::services::task_service::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
 use aster_forge_metrics::SharedMetricsRecorder;
+use aster_forge_tasks::BackgroundTasks;
 
 const MAINTENANCE_CLEANUP_JITTER_CAP: Duration = Duration::from_secs(30);
-
-pub use aster_forge_tasks::BackgroundTasks;
 
 pub fn spawn_runtime_background_tasks(
     state: web::Data<AppState>,
@@ -544,7 +543,7 @@ async fn run_background_task_dispatch_iteration(
 }
 
 fn background_task_dispatch_outcome(
-    result: crate::errors::Result<crate::services::task_service::DispatchStats>,
+    result: crate::errors::Result<aster_forge_tasks::DispatchStats>,
 ) -> RuntimeTaskRunOutcome {
     match result {
         Ok(stats) => {

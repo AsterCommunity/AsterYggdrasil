@@ -6,9 +6,9 @@ use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::types::BackgroundTaskKind;
 
-use super::TaskExecutionContext;
 use super::dispatch::TaskLane;
 use super::types::{TaskPayload, TaskResult};
+use aster_forge_tasks::TaskExecutionContext;
 
 pub(super) type TaskProcessFuture<'a> = aster_forge_tasks::TaskProcessFuture<'a, AsterError>;
 pub(super) type TaskSpecAdapter<S> = aster_forge_tasks::TaskSpecAdapter<S>;

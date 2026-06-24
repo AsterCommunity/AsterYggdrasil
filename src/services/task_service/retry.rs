@@ -2,51 +2,38 @@
 
 use crate::errors::AsterError;
 
-pub(super) use aster_forge_tasks::TaskRetryClass;
-
-pub(super) fn default_retry_class(error: &AsterError) -> TaskRetryClass {
+pub(super) fn default_retry_class(error: &AsterError) -> aster_forge_tasks::TaskRetryClass {
     match error {
         AsterError::Public {
             status, retryable, ..
         } => match retryable {
-            Some(true) => TaskRetryClass::Auto,
-            Some(false) => TaskRetryClass::Never,
-            None if status.is_server_error() => TaskRetryClass::Manual,
-            None => TaskRetryClass::Never,
+            Some(true) => aster_forge_tasks::TaskRetryClass::Auto,
+            Some(false) => aster_forge_tasks::TaskRetryClass::Never,
+            None if status.is_server_error() => aster_forge_tasks::TaskRetryClass::Manual,
+            None => aster_forge_tasks::TaskRetryClass::Never,
         },
         AsterError::DatabaseConnection(_) | AsterError::MailDeliveryFailed(_) => {
-            TaskRetryClass::Auto
+            aster_forge_tasks::TaskRetryClass::Auto
         }
         AsterError::DatabaseOperation(_)
         | AsterError::ConfigError(_)
         | AsterError::ExternalAuthError(_)
-        | AsterError::InternalError(_) => TaskRetryClass::Manual,
+        | AsterError::InternalError(_) => aster_forge_tasks::TaskRetryClass::Manual,
         AsterError::ValidationError(_)
         | AsterError::AuthInvalidCredentials(_)
         | AsterError::AuthTokenInvalid(_)
         | AsterError::AuthTokenExpired(_)
         | AsterError::AuthForbidden(_)
         | AsterError::RecordNotFound(_)
-        | AsterError::MailNotConfigured(_) => TaskRetryClass::Never,
+        | AsterError::MailNotConfigured(_) => aster_forge_tasks::TaskRetryClass::Never,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{TaskRetryClass, default_retry_class};
+    use super::default_retry_class;
     use crate::errors::AsterError;
-
-    #[test]
-    fn retry_class_helpers_match_retry_capabilities() {
-        assert!(TaskRetryClass::Auto.should_auto_retry());
-        assert!(TaskRetryClass::Auto.can_manual_retry());
-
-        assert!(!TaskRetryClass::Manual.should_auto_retry());
-        assert!(TaskRetryClass::Manual.can_manual_retry());
-
-        assert!(!TaskRetryClass::Never.should_auto_retry());
-        assert!(!TaskRetryClass::Never.can_manual_retry());
-    }
+    use aster_forge_tasks::TaskRetryClass;
 
     #[test]
     fn default_retry_class_groups_transient_manual_and_permanent_errors() {

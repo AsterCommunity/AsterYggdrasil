@@ -368,8 +368,8 @@ use utoipa::{Modify, OpenApi};
             crate::services::task_service::types::TaskPresentationCode,
             crate::services::task_service::types::TaskPresentationMessage,
             crate::services::task_service::types::TaskResult,
-            crate::services::task_service::types::TaskStepInfo,
-            crate::services::task_service::types::TaskStepStatus,
+            aster_forge_tasks::TaskStepInfo,
+            aster_forge_tasks::TaskStepStatus,
 
             crate::entities::audit_log::Model,
             crate::entities::auth_session::Model,

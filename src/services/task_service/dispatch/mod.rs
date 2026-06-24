@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::errors::Result;
 use crate::runtime::{AppState, DatabaseRuntimeState, MetricsRuntimeState};
-pub use aster_forge_tasks::DispatchStats;
+use aster_forge_tasks::DispatchStats;
 
 use claim::claim_due_for_lane;
 use execute::run_claimed_tasks;
@@ -20,12 +20,10 @@ pub(in crate::services::task_service) use lane::TaskLane;
 use lane::{TASK_LANES, TaskLaneConfig, task_lane_configs};
 
 use super::{
-    TASK_DRAIN_MAX_ROUNDS, TASK_HEARTBEAT_INTERVAL_SECS, TASK_PROCESSING_STALE_SECS, TaskLease,
-    TaskLeaseGuard, is_task_lease_lost, is_task_lease_renewal_timed_out, task_expiration_from,
-    task_lease_expires_at, truncate_error,
+    TASK_DRAIN_MAX_ROUNDS, TASK_HEARTBEAT_INTERVAL_SECS, TASK_PROCESSING_STALE_SECS,
+    task_expiration_from, task_lease_expires_at, truncate_error,
 };
 
-pub(super) use aster_forge_tasks::TaskDispatchOutcome;
 pub use maintenance::{cleanup_expired, drain};
 
 pub async fn dispatch_due(state: &AppState) -> Result<DispatchStats> {
@@ -136,38 +134,4 @@ async fn dispatch_lane(
         "finished background task lane dispatch"
     );
     Ok(total)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{DispatchStats, TaskDispatchOutcome};
-
-    #[test]
-    fn dispatch_stats_tracks_activity_and_adds_outcomes() {
-        let mut stats = DispatchStats::default();
-        assert!(!stats.has_activity());
-
-        stats.claimed = 2;
-        assert!(stats.has_activity());
-
-        stats.add_outcome(TaskDispatchOutcome {
-            succeeded: 1,
-            retried: 2,
-            failed: 3,
-        });
-        assert_eq!(stats.succeeded, 1);
-        assert_eq!(stats.retried, 2);
-        assert_eq!(stats.failed, 3);
-
-        stats.add(DispatchStats {
-            claimed: 4,
-            succeeded: 5,
-            retried: 6,
-            failed: 7,
-        });
-        assert_eq!(stats.claimed, 6);
-        assert_eq!(stats.succeeded, 6);
-        assert_eq!(stats.retried, 8);
-        assert_eq!(stats.failed, 10);
-    }
 }

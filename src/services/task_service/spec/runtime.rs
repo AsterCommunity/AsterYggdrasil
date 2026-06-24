@@ -4,15 +4,13 @@ use crate::entities::background_task;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::services::task_service::{
-    TaskExecutionContext,
     dispatch::TaskLane,
-    retry::TaskRetryClass,
-    steps::TaskStepSpec,
     types::{RuntimeTaskPayload, RuntimeTaskResult, TaskPayload, TaskResult},
 };
 use crate::types::BackgroundTaskKind;
+use aster_forge_tasks::TaskExecutionContext;
 
-const NO_STEPS: &[TaskStepSpec] = &[];
+const NO_STEPS: &[aster_forge_tasks::TaskStepSpec] = &[];
 
 pub(crate) struct SystemRuntimeTask;
 
@@ -34,7 +32,7 @@ impl
 
     const KIND: BackgroundTaskKind = BackgroundTaskKind::SystemRuntime;
 
-    fn step_specs() -> &'static [TaskStepSpec] {
+    fn step_specs() -> &'static [aster_forge_tasks::TaskStepSpec] {
         NO_STEPS
     }
 
@@ -67,7 +65,7 @@ impl
         })
     }
 
-    fn retry_class(_error: &AsterError) -> TaskRetryClass {
-        TaskRetryClass::Never
+    fn retry_class(_error: &AsterError) -> aster_forge_tasks::TaskRetryClass {
+        aster_forge_tasks::TaskRetryClass::Never
     }
 }

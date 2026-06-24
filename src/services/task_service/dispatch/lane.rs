@@ -5,7 +5,7 @@ use crate::types::BackgroundTaskKind;
 use super::super::registry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::services::task_service) enum TaskLane {
+pub(crate) enum TaskLane {
     Fallback,
 }
 

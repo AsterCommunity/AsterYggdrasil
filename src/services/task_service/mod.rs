@@ -23,23 +23,23 @@ use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::types::StoredTaskResult;
+use aster_forge_tasks::{TaskLease, TaskLeaseGuard};
 
 pub(crate) use admin::{
     AdminTaskCleanupFilters, AdminTaskListFilters, cleanup_tasks_for_admin,
     list_tasks_paginated_for_admin, retry_task_for_admin_with_audit,
 };
 pub(in crate::services::task_service) use create::{TypedTaskCreate, insert_typed_task_record};
-pub use dispatch::{DispatchStats, cleanup_expired, dispatch_due, drain};
+pub use dispatch::{cleanup_expired, dispatch_due, drain};
 use lease::{
-    TaskExecutionContext, TaskLease, TaskLeaseGuard, is_task_lease_lost,
-    is_task_lease_renewal_timed_out, is_task_worker_shutdown_requested,
+    is_task_lease_lost, is_task_lease_renewal_timed_out, is_task_worker_shutdown_requested,
 };
 use presentation::build_task_presentation;
 use registry::{decode_task_payload, decode_task_result};
 pub use runtime::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind, record_runtime_task_run};
 use spec::BackgroundTaskSpec;
 use steps::{parse_task_steps_json, serialize_task_steps};
-use types::{TaskCreatorSummary, TaskInfo, TaskResult, TaskStepInfo};
+use types::{TaskCreatorSummary, TaskInfo, TaskResult};
 
 pub(super) const DEFAULT_TASK_RETENTION_HOURS: i64 = 24;
 pub(super) const TASK_HEARTBEAT_INTERVAL_SECS: u64 = 10;
@@ -55,7 +55,7 @@ pub(in crate::services::task_service) async fn mark_task_progress(
     current: i64,
     total: i64,
     status_text: Option<&str>,
-    steps: &[TaskStepInfo],
+    steps: &[aster_forge_tasks::TaskStepInfo],
 ) -> Result<()> {
     update_task_progress_db(
         state.writer_db(),
@@ -74,7 +74,7 @@ pub(in crate::services::task_service) async fn update_task_progress_db(
     current: i64,
     total: i64,
     status_text: Option<&str>,
-    steps: &[TaskStepInfo],
+    steps: &[aster_forge_tasks::TaskStepInfo],
 ) -> Result<()> {
     let status_text = status_text.map(truncate_status_text);
     let steps_json = serialize_task_steps(steps)?;
@@ -117,7 +117,7 @@ pub(in crate::services::task_service) async fn update_task_progress_db(
             processing_token = lease.processing_token,
             "background task progress update lost lease"
         );
-        Err(lease_guard.mark_lost())
+        Err(AsterError::from(lease_guard.mark_lost()))
     }
 }
 
@@ -156,7 +156,7 @@ pub(in crate::services::task_service) async fn set_task_runtime_json(
             processing_token = lease.processing_token,
             "background task runtime json update lost lease"
         );
-        Err(lease_guard.mark_lost())
+        Err(AsterError::from(lease_guard.mark_lost()))
     }
 }
 
@@ -196,7 +196,7 @@ pub(in crate::services::task_service) async fn set_task_display_name(
             processing_token = lease.processing_token,
             "background task display name update lost lease"
         );
-        Err(lease_guard.mark_lost())
+        Err(AsterError::from(lease_guard.mark_lost()))
     }
 }
 
@@ -207,7 +207,7 @@ pub(in crate::services::task_service) async fn mark_task_succeeded(
     current: i64,
     total: i64,
     status_text: Option<&str>,
-    steps: &[TaskStepInfo],
+    steps: &[aster_forge_tasks::TaskStepInfo],
 ) -> Result<()> {
     let now = Utc::now();
     let status_text = status_text.map(truncate_status_text);
@@ -252,7 +252,7 @@ pub(in crate::services::task_service) async fn mark_task_succeeded(
             processing_token = lease.processing_token,
             "background task success update lost lease"
         );
-        Err(lease_guard.mark_lost())
+        Err(AsterError::from(lease_guard.mark_lost()))
     }
 }
 

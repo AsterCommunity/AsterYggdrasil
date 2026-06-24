@@ -9,8 +9,6 @@ use crate::types::{BackgroundTaskKind, BackgroundTaskStatus};
 
 use super::runtime::SystemRuntimeTaskKind;
 
-pub use aster_forge_tasks::{TaskStepInfo, TaskStepStatus};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[serde(rename_all = "snake_case")]
@@ -218,7 +216,7 @@ pub struct TaskInfo {
     pub last_error: Option<String>,
     pub payload: TaskPayload,
     pub result: Option<TaskResult>,
-    pub steps: Vec<TaskStepInfo>,
+    pub steps: Vec<aster_forge_tasks::TaskStepInfo>,
     pub can_retry: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub presentation: Option<TaskPresentation>,

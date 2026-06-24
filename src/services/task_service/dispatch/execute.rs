@@ -1,286 +1,64 @@
 use std::time::Duration as StdDuration;
 
-use chrono::{Duration, Utc};
-use sea_orm::ActiveEnum;
-use tokio::task::JoinHandle;
+use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    DispatchStats, TASK_HEARTBEAT_INTERVAL_SECS, TaskDispatchOutcome, TaskLease, TaskLeaseGuard,
-    is_task_lease_lost, is_task_lease_renewal_timed_out, task_expiration_from,
-    task_lease_expires_at, truncate_error,
+    TASK_HEARTBEAT_INTERVAL_SECS, task_expiration_from, task_lease_expires_at, truncate_error,
 };
 use crate::db::repository::background_task_repo;
 use crate::entities::background_task;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{AppState, MetricsRuntimeState, TaskRuntimeState};
+use crate::runtime::{AppState, TaskRuntimeState};
 use crate::services::task_service::{
-    TaskExecutionContext, registry,
-    retry::TaskRetryClass,
-    steps::{mark_active_step_failed, parse_task_steps_json, serialize_task_steps},
+    registry,
+    steps::{parse_task_steps_json, serialize_task_steps},
 };
 use crate::types::{BackgroundTaskKind, BackgroundTaskStatus};
+use aster_forge_tasks::{DispatchStats, TaskLease, mark_active_step_failed};
 
 pub(super) async fn run_claimed_tasks(
     state: &AppState,
     claimed_tasks: Vec<(background_task::Model, TaskLease)>,
     shutdown_token: CancellationToken,
 ) -> Result<DispatchStats> {
-    aster_forge_tasks::run_claimed_task_batch(
+    aster_forge_tasks::run_claimed_task_batch_with_store(
+        BackgroundTaskExecutionStore {
+            state: state.clone(),
+        },
         claimed_tasks,
         |(task, _)| (task.created_at, task.id),
-        |(task, lease)| {
-            let state = state.clone();
-            let shutdown_token = shutdown_token.clone();
-            async move { process_claimed_task(&state, task, lease, shutdown_token).await }
+        shutdown_token,
+        aster_forge_tasks::ClaimedTaskExecutionConfig {
+            renewal_timeout: aster_forge_tasks::task_lease_renewal_timeout(
+                super::super::TASK_PROCESSING_STALE_SECS,
+                TASK_HEARTBEAT_INTERVAL_SECS,
+            ),
+            heartbeat_interval: StdDuration::from_secs(TASK_HEARTBEAT_INTERVAL_SECS),
+            lease_expires_at: task_lease_expires_at,
+            retry_delay_secs: aster_forge_tasks::default_task_retry_delay_secs,
         },
     )
     .await
 }
-async fn process_claimed_task(
-    state: &AppState,
-    task: background_task::Model,
-    lease: TaskLease,
-    shutdown_token: CancellationToken,
-) -> Result<TaskDispatchOutcome> {
-    let context = TaskExecutionContext::new(lease, shutdown_token);
-    let lease_guard = context.lease_guard().clone();
-    let heartbeat_stop = CancellationToken::new();
-    // Heartbeat must run in its own task. With SQLite the writer pool has one
-    // connection; keeping heartbeat in a select! with the business future can
-    // pause a future that already acquired that connection, then wait forever
-    // for a second writer connection.
-    let heartbeat_handle =
-        spawn_task_heartbeat(state.clone(), lease_guard.clone(), heartbeat_stop.clone());
-    let heartbeat_cancel_guard = heartbeat_stop.clone().drop_guard();
 
-    let task_result = match context.ensure_active() {
-        Ok(()) => registry::process_task(state, &task, context).await,
-        Err(error) => Err(error),
-    };
-    drop(heartbeat_cancel_guard);
-    stop_task_heartbeat(heartbeat_stop, heartbeat_handle).await;
+impl aster_forge_tasks::ExecutableTaskRecord<BackgroundTaskKind> for background_task::Model {
+    fn attempt_count(&self) -> i32 {
+        self.attempt_count
+    }
 
-    match task_result {
-        Ok(()) => {
-            record_task_metric(state, task.kind, "succeeded");
-            Ok(TaskDispatchOutcome {
-                succeeded: 1,
-                ..Default::default()
-            })
-        }
-        Err(error) => {
-            // lease 丢失 / 续约超时代表“这条执行流已经过期”，不是业务失败。
-            // 这时不要再把任务改成 Failed/Retry，否则旧 worker 可能覆盖新 lease 的结果。
-            if is_task_lease_lost(&error)
-                || is_task_lease_renewal_timed_out(&error)
-                || super::super::is_task_worker_shutdown_requested(&error)
-            {
-                if super::super::is_task_worker_shutdown_requested(&error) {
-                    release_task_for_shutdown(state, task.id, lease.processing_token).await?;
-                }
-                tracing::info!(
-                    task_id = task.id,
-                    processing_token = lease.processing_token,
-                    "background task worker stopped before completion; skipping stale completion"
-                );
-                return Ok(TaskDispatchOutcome::default());
-            }
-            let attempt_count = task.attempt_count + 1;
-            let error_message = truncate_error(error.message());
-            let display_error_message = error_message.clone();
-            let failed_steps_json =
-                build_failed_task_steps_json(state, task.id, task.kind, &display_error_message)
-                    .await;
-            let retry_class = task_retry_class(task.kind, &error);
-            let should_auto_retry =
-                retry_class.should_auto_retry() && attempt_count < task.max_attempts;
-            if !should_auto_retry {
-                let finished_at = Utc::now();
-                let failed = background_task_repo::mark_failed(
-                    state.writer_db(),
-                    background_task_repo::TaskFailureUpdate {
-                        id: task.id,
-                        processing_token: lease.processing_token,
-                        attempt_count,
-                        last_error: &error_message,
-                        finished_at,
-                        expires_at: task_expiration_from(state, finished_at),
-                        steps_json: failed_steps_json.as_deref(),
-                        failure_can_retry: retry_class.can_manual_retry(),
-                    },
-                )
-                .await?;
-                if !failed {
-                    tracing::info!(
-                        task_id = task.id,
-                        processing_token = lease.processing_token,
-                        "background task lease moved before failure state update; ignoring stale worker"
-                    );
-                    return Ok(TaskDispatchOutcome::default());
-                }
-                tracing::warn!(
-                    task_id = task.id,
-                    kind = %task.kind.to_value(),
-                    attempt_count,
-                    error = %display_error_message,
-                    "background task permanently failed"
-                );
-                if failed {
-                    record_task_metric(state, task.kind, "failed");
-                }
-                Ok(TaskDispatchOutcome {
-                    failed: usize::from(failed),
-                    ..Default::default()
-                })
-            } else {
-                let retry_at = Utc::now() + Duration::seconds(retry_delay_secs(attempt_count));
-                let retried = background_task_repo::mark_retry(
-                    state.writer_db(),
-                    task.id,
-                    lease.processing_token,
-                    attempt_count,
-                    retry_at,
-                    &error_message,
-                    failed_steps_json.as_deref(),
-                )
-                .await?;
-                if !retried {
-                    tracing::info!(
-                        task_id = task.id,
-                        processing_token = lease.processing_token,
-                        "background task lease moved before retry state update; ignoring stale worker"
-                    );
-                    return Ok(TaskDispatchOutcome::default());
-                }
-                tracing::warn!(
-                    task_id = task.id,
-                    kind = %task.kind.to_value(),
-                    attempt_count,
-                    retry_at = %retry_at,
-                    error = %display_error_message,
-                    "background task failed; scheduled retry"
-                );
-                state.wake_background_task_dispatcher();
-                if retried {
-                    record_task_metric(state, task.kind, "retry");
-                }
-                Ok(TaskDispatchOutcome {
-                    retried: usize::from(retried),
-                    ..Default::default()
-                })
-            }
-        }
+    fn max_attempts(&self) -> i32 {
+        self.max_attempts
     }
 }
 
-fn spawn_task_heartbeat(
-    state: AppState,
-    lease_guard: TaskLeaseGuard,
-    stop_token: CancellationToken,
-) -> JoinHandle<()> {
-    spawn_task_heartbeat_with_interval(
-        state,
-        lease_guard,
-        stop_token,
-        StdDuration::from_secs(TASK_HEARTBEAT_INTERVAL_SECS),
-    )
-}
-
-pub(super) fn spawn_task_heartbeat_with_interval(
-    state: AppState,
-    lease_guard: TaskLeaseGuard,
-    stop_token: CancellationToken,
-    interval: StdDuration,
-) -> JoinHandle<()> {
-    aster_forge_tasks::spawn_task_heartbeat_with_interval(
-        BackgroundTaskHeartbeatStore { state },
-        lease_guard.as_forge(),
-        stop_token,
-        interval,
-        task_lease_expires_at,
-    )
-}
-
-async fn stop_task_heartbeat(stop_token: CancellationToken, heartbeat_handle: JoinHandle<()>) {
-    aster_forge_tasks::stop_task_heartbeat(stop_token, heartbeat_handle).await;
-}
-
-async fn release_task_for_shutdown(
-    state: &AppState,
-    task_id: i64,
-    processing_token: i64,
-) -> Result<()> {
-    // Graceful shutdown is neither task success nor task failure. Release the
-    // current processing lease back into Retry so the next dispatcher round can
-    // resume it with a fresh processing token.
-    let released = background_task_repo::release_processing(
-        state.writer_db(),
-        task_id,
-        processing_token,
-        Utc::now(),
-        BackgroundTaskStatus::Retry,
-    )
-    .await?;
-    if released {
-        state.wake_background_task_dispatcher();
-    }
-    Ok(())
-}
-
-fn record_task_metric(
-    state: &impl MetricsRuntimeState,
-    kind: BackgroundTaskKind,
-    status: &'static str,
-) {
-    state
-        .metrics()
-        .record_background_task_transition(kind.as_str(), status);
-}
-
-pub(super) fn evaluate_heartbeat_result(
-    lease_guard: &TaskLeaseGuard,
-    result: Result<bool>,
-) -> Result<()> {
-    aster_forge_tasks::evaluate_heartbeat_result(&lease_guard.as_forge(), result)
-}
-
-async fn build_failed_task_steps_json(
-    state: &AppState,
-    task_id: i64,
-    _kind: BackgroundTaskKind,
-    error_message: &str,
-) -> Option<String> {
-    let latest = background_task_repo::find_by_id(state.writer_db(), task_id)
-        .await
-        .ok()?;
-    let mut steps =
-        parse_task_steps_json(latest.steps_json.as_ref().map(|raw| raw.as_ref())).ok()?;
-    if steps.is_empty() {
-        return None;
-    }
-    mark_active_step_failed(&mut steps, Some(error_message));
-    serialize_task_steps(&steps).ok().map(Into::into)
-}
-fn retry_delay_secs(attempt_count: i32) -> i64 {
-    match attempt_count {
-        1 => 5,
-        2 => 15,
-        3 => 60,
-        _ => 300,
-    }
-}
-
-pub(super) fn task_retry_class(kind: BackgroundTaskKind, error: &AsterError) -> TaskRetryClass {
-    super::super::registry::task_retry_class(kind, error)
-}
-
-struct BackgroundTaskHeartbeatStore {
+#[derive(Clone)]
+struct BackgroundTaskExecutionStore {
     state: AppState,
 }
 
 #[async_trait::async_trait]
-impl aster_forge_tasks::TaskHeartbeatStore for BackgroundTaskHeartbeatStore {
+impl aster_forge_tasks::TaskHeartbeatStore for BackgroundTaskExecutionStore {
     type Error = AsterError;
 
     async fn touch_task_heartbeat(
@@ -300,6 +78,129 @@ impl aster_forge_tasks::TaskHeartbeatStore for BackgroundTaskHeartbeatStore {
     }
 }
 
+#[async_trait::async_trait]
+impl aster_forge_tasks::ClaimedTaskExecutionStore<background_task::Model, BackgroundTaskKind>
+    for BackgroundTaskExecutionStore
+{
+    async fn process_task(
+        &self,
+        task: &background_task::Model,
+        context: aster_forge_tasks::TaskExecutionContext,
+    ) -> Result<()> {
+        registry::process_task(&self.state, task, context).await
+    }
+
+    fn is_lease_lost_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_lease_lost(error)
+    }
+
+    fn is_lease_renewal_timed_out_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_lease_renewal_timed_out(error)
+    }
+
+    fn is_worker_shutdown_requested_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_worker_shutdown_requested(error)
+    }
+
+    fn retry_class(
+        &self,
+        task: &background_task::Model,
+        error: &AsterError,
+    ) -> aster_forge_tasks::TaskRetryClass {
+        registry::task_retry_class(task.kind, error)
+    }
+
+    fn storage_error(&self, error: &AsterError) -> String {
+        truncate_error(error.message())
+    }
+
+    fn display_error(&self, storage_error: &str) -> String {
+        storage_error.to_string()
+    }
+
+    async fn failed_steps_json(
+        &self,
+        task: &background_task::Model,
+        display_error: &str,
+    ) -> Option<String> {
+        let latest = background_task_repo::find_by_id(self.state.writer_db(), task.id)
+            .await
+            .ok()?;
+        let mut steps =
+            parse_task_steps_json(latest.steps_json.as_ref().map(|raw| raw.as_ref())).ok()?;
+        if steps.is_empty() {
+            return None;
+        }
+        mark_active_step_failed(&mut steps, Some(display_error));
+        serialize_task_steps(&steps).ok().map(Into::into)
+    }
+
+    async fn mark_task_failed(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+        failure: aster_forge_tasks::TaskPermanentFailure<'_>,
+    ) -> Result<bool> {
+        background_task_repo::mark_failed(
+            self.state.writer_db(),
+            background_task_repo::TaskFailureUpdate {
+                id: task.id,
+                processing_token: lease.processing_token,
+                attempt_count: failure.attempt_count,
+                last_error: failure.storage_error,
+                finished_at: failure.finished_at,
+                expires_at: task_expiration_from(&self.state, failure.finished_at),
+                steps_json: failure.failed_steps_json,
+                failure_can_retry: failure.failure_can_retry,
+            },
+        )
+        .await
+    }
+
+    async fn mark_task_retry(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+        retry: aster_forge_tasks::TaskRetryUpdate<'_>,
+    ) -> Result<bool> {
+        background_task_repo::mark_retry(
+            self.state.writer_db(),
+            task.id,
+            lease.processing_token,
+            retry.attempt_count,
+            retry.retry_at,
+            retry.storage_error,
+            retry.failed_steps_json,
+        )
+        .await
+    }
+
+    async fn release_task_for_shutdown(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+    ) -> Result<bool> {
+        background_task_repo::release_processing(
+            self.state.writer_db(),
+            task.id,
+            lease.processing_token,
+            Utc::now(),
+            BackgroundTaskStatus::Retry,
+        )
+        .await
+    }
+
+    fn record_task_transition(&self, task: &background_task::Model, status: &'static str) {
+        self.state
+            .metrics()
+            .record_background_task_transition(task.kind.as_str(), status);
+    }
+
+    fn wake_dispatcher(&self) {
+        self.state.wake_background_task_dispatcher();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -308,10 +209,11 @@ mod tests {
     use migration::Migrator;
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
-    use super::release_task_for_shutdown;
+    use super::BackgroundTaskExecutionStore;
     use crate::entities::background_task;
     use crate::runtime::AppState;
     use crate::types::{BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload};
+    use aster_forge_tasks::{ClaimedTaskExecutionStore, TaskLease};
 
     async fn test_state() -> AppState {
         let db = crate::db::connect_with_metrics(
@@ -397,7 +299,11 @@ mod tests {
         .await
         .expect("processing task should insert");
 
-        release_task_for_shutdown(&state, task.id, 7)
+        let store = BackgroundTaskExecutionStore {
+            state: state.clone(),
+        };
+        store
+            .release_task_for_shutdown(&task, TaskLease::new(task.id, 7))
             .await
             .expect("shutdown release should succeed");
 

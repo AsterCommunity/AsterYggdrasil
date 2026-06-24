@@ -8,9 +8,10 @@ use crate::entities::background_task;
 use crate::errors::Result;
 use crate::runtime::DatabaseRuntimeState;
 use crate::types::BackgroundTaskKind;
+use aster_forge_tasks::TaskLease;
 
+use super::TASK_PROCESSING_STALE_SECS;
 use super::lane::{TaskLane, TaskLaneConfig, task_lane};
-use super::{TASK_PROCESSING_STALE_SECS, TaskLease};
 
 struct BackgroundTaskClaimStore<'a, State> {
     state: &'a State,

@@ -4,8 +4,9 @@ use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppConfigRuntimeState, AppState, DatabaseRuntimeState};
 use crate::types::BackgroundTaskStatus;
+use aster_forge_tasks::DispatchStats;
 
-use super::{DispatchStats, TASK_DRAIN_MAX_ROUNDS, dispatch_due};
+use super::{TASK_DRAIN_MAX_ROUNDS, dispatch_due};
 
 pub async fn drain(state: &AppState) -> Result<DispatchStats> {
     aster_forge_tasks::drain_dispatcher(

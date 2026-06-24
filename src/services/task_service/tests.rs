@@ -5,15 +5,19 @@ use crate::services::task_service::admin::{build_task_info, validate_admin_task_
 use crate::services::task_service::create::create_typed_task_record;
 use crate::services::task_service::lease::{
     is_task_lease_renewal_timed_out, is_task_worker_shutdown_requested, task_lease_lost,
+    task_lease_renewal_timeout,
 };
 use crate::services::task_service::runtime::SystemRuntimeTaskKind;
 use crate::services::task_service::spec::SystemRuntimeTask;
 use crate::services::task_service::types::{
-    RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult, TaskStepStatus,
+    RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult,
 };
 use crate::types::{
     BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload, SystemConfigSource,
     SystemConfigVisibility,
+};
+use aster_forge_tasks::{
+    TaskExecutionContext, TaskLease, TaskLeaseGuard, TaskStepInfo, TaskStepStatus,
 };
 use sea_orm::{ActiveModelTrait, Set};
 use std::sync::Arc;
@@ -292,35 +296,46 @@ async fn task_info_decodes_payload_steps_result_and_retryability() {
 #[tokio::test]
 async fn lease_guard_reports_lost_timeout_and_shutdown_states() {
     let lease = TaskLease::new(10, 20);
-    let lost_guard = TaskLeaseGuard::new(lease);
-    let lost = lost_guard.mark_lost();
+    let lost_guard = TaskLeaseGuard::new(lease, task_lease_renewal_timeout());
+    let lost = AsterError::from(lost_guard.mark_lost());
     assert!(is_task_lease_lost(&lost));
-    assert!(is_task_lease_lost(&lost_guard.ensure_active().unwrap_err()));
+    assert!(is_task_lease_lost(&AsterError::from(
+        lost_guard.ensure_active().unwrap_err()
+    )));
 
-    let timeout_guard = TaskLeaseGuard::with_renewal_timeout(lease, StdDuration::ZERO);
-    let timeout = timeout_guard.ensure_active().unwrap_err();
+    let timeout_guard = TaskLeaseGuard::new(lease, StdDuration::ZERO);
+    let timeout = AsterError::from(timeout_guard.ensure_active().unwrap_err());
     assert!(is_task_lease_renewal_timed_out(&timeout));
 
     let shutdown = CancellationToken::new();
-    let context = TaskExecutionContext::new(lease, shutdown.clone());
+    let context = TaskExecutionContext::new(lease, task_lease_renewal_timeout(), shutdown.clone());
     shutdown.cancel();
-    let error = context.ensure_active().unwrap_err();
+    let error = AsterError::from(context.ensure_active().unwrap_err());
     assert!(is_task_worker_shutdown_requested(&error));
 }
 
 #[tokio::test]
 async fn execution_context_sleep_and_shutdown_return_shutdown_errors() {
     let shutdown = CancellationToken::new();
-    let context = TaskExecutionContext::new(TaskLease::new(11, 22), shutdown.clone());
+    let context = TaskExecutionContext::new(
+        TaskLease::new(11, 22),
+        task_lease_renewal_timeout(),
+        shutdown.clone(),
+    );
     shutdown.cancel();
 
     let sleep_error = context
         .sleep_or_shutdown(StdDuration::from_secs(60))
         .await
+        .map_err(AsterError::from)
         .unwrap_err();
     assert!(is_task_worker_shutdown_requested(&sleep_error));
 
-    let context = TaskExecutionContext::new(TaskLease::new(12, 23), CancellationToken::new());
+    let context = TaskExecutionContext::new(
+        TaskLease::new(12, 23),
+        task_lease_renewal_timeout(),
+        CancellationToken::new(),
+    );
     context
         .sleep_or_shutdown(StdDuration::from_millis(1))
         .await
