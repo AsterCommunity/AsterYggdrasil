@@ -201,7 +201,6 @@ mod tests {
     };
     use crate::cache::CacheBackend;
     use crate::config::{CacheConfig, DatabaseConfig};
-    use crate::errors::{AsterError, Result};
     use async_trait::async_trait;
 
     struct FakeCache {
@@ -231,11 +230,13 @@ mod tests {
             self.backend_name
         }
 
-        async fn health_check(&self) -> Result<()> {
+        async fn health_check(&self) -> aster_forge_cache::Result<()> {
             if self.healthy {
                 Ok(())
             } else {
-                Err(AsterError::internal_error("cache probe failed"))
+                Err(aster_forge_cache::CacheError::RedisHealthCheck(
+                    "cache probe failed".to_string(),
+                ))
             }
         }
 

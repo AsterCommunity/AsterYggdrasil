@@ -14,17 +14,8 @@ use tokio_util::sync::CancellationToken;
 ///
 /// 所有方法默认 no-op，方便测试和非 metrics 构建复用同一条业务路径。
 #[allow(unused_variables)]
-pub trait MetricsRecorder: Send + Sync {
-    /// 当前 recorder 是否会真实记录指标。
-    ///
-    /// 用于跳过会额外产生成本的采集逻辑，例如 DB callback 和 HTTP route label。
-    fn enabled(&self) -> bool {
-        false
-    }
-
+pub trait MetricsRecorder: aster_forge_db::DbMetricsRecorder + Send + Sync {
     fn record_http_request(&self, method: &str, route: &str, status: u16, duration_seconds: f64) {}
-
-    fn record_db_query(&self, info: &sea_orm::metric::Info<'_>) {}
 
     fn record_auth_event(&self, action: &'static str, status: &'static str, reason: &'static str) {}
 
@@ -64,6 +55,14 @@ pub struct NoopMetrics;
 
 impl MetricsRecorder for NoopMetrics {}
 
+impl aster_forge_db::DbMetricsRecorder for NoopMetrics {
+    fn enabled(&self) -> bool {
+        false
+    }
+
+    fn record_db_query(&self, _info: &sea_orm::metric::Info<'_>) {}
+}
+
 impl NoopMetrics {
     pub fn new() -> Self {
         Self
@@ -83,6 +82,7 @@ impl Default for NoopMetrics {
 #[cfg(test)]
 mod tests {
     use super::{MetricsRecorder, NoopMetrics};
+    use aster_forge_db::DbMetricsRecorder;
     use sea_orm::{DatabaseBackend, Statement, metric::Info};
     use std::time::Duration;
     use tokio_util::sync::CancellationToken;

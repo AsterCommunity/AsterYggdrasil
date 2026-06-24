@@ -75,7 +75,9 @@ actix-multipart = "0.8.0"
 actix-governor = "0.10"
 aster-texture-renderer = { path = "crates/aster-texture-renderer" }
 aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api_docs_macros" }
+aster_forge_cache = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_cache", features = ["memory", "redis"] }
 aster_forge_crypto = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_crypto" }
+aster_forge_db = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db" }
 aster_forge_utils = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_utils" }
 aster_forge_validation = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_validation" }
 argon2 = "0.5.3"
@@ -87,7 +89,6 @@ captcha-rs = "0.5"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4", features = ["derive", "env"], optional = true }
 config = { version = "0.15", default-features = false, features = ["toml"] }
-dashmap = "6"
 dotenvy = "0.15"
 futures = "0.3"
 governor = "0.10"
@@ -99,13 +100,11 @@ jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 md-5 = "0.11"
 migration = { version = "0.1.0", path = "migration" }
-moka = { version = "0.12.15", features = ["future"] }
 num_cpus = "1.17.0"
 parking_lot = "0.12"
 openidconnect = "4.0.1"
 prometheus = { version = "0.14", optional = true, default-features = false }
 rand = { version = "0.10.1", default-features = false, features = ["std", "std_rng", "thread_rng"] }
-redis = { version = "1.2.4", features = ["connection-manager", "tokio-comp", "tokio-rustls-comp"] }
 reqwest = { version = "0.13", features = ["stream", "json"] }
 rsa = { version = "0.10.0-rc.18", features = ["sha1"] }
 rust-embed = "8"

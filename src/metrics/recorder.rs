@@ -2,17 +2,19 @@
 
 pub struct PrometheusMetricsRecorder;
 
-impl crate::metrics_core::MetricsRecorder for PrometheusMetricsRecorder {
+impl aster_forge_db::DbMetricsRecorder for PrometheusMetricsRecorder {
     fn enabled(&self) -> bool {
         true
     }
 
-    fn record_http_request(&self, method: &str, route: &str, status: u16, duration_seconds: f64) {
-        super::registry::record_http_request(method, route, status, duration_seconds);
-    }
-
     fn record_db_query(&self, info: &sea_orm::metric::Info<'_>) {
         super::registry::record_db_query(info);
+    }
+}
+
+impl crate::metrics_core::MetricsRecorder for PrometheusMetricsRecorder {
+    fn record_http_request(&self, method: &str, route: &str, status: u16, duration_seconds: f64) {
+        super::registry::record_http_request(method, route, status, duration_seconds);
     }
 
     fn record_auth_event(&self, action: &'static str, status: &'static str, reason: &'static str) {
