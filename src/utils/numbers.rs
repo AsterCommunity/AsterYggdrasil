@@ -1,8 +1,12 @@
-//! 工具子模块：`numbers`。
+//! Checked numeric conversion helpers.
 
 use std::num::{NonZeroU32, NonZeroU64};
 
-use crate::errors::{AsterError, MapAsterErr, Result};
+use crate::errors::{AsterError, Result};
+
+fn map_utils_internal(error: aster_forge_utils::UtilsError) -> AsterError {
+    AsterError::internal_error(error.to_string())
+}
 
 pub fn non_zero_u32(value: u32) -> NonZeroU32 {
     NonZeroU32::new(value).unwrap_or(NonZeroU32::MIN)
@@ -13,39 +17,27 @@ pub fn non_zero_u64(value: u64) -> NonZeroU64 {
 }
 
 pub fn bytes_to_usize(bytes: i64, value_name: &str) -> Result<usize> {
-    i64_to_usize(bytes, value_name)
+    aster_forge_utils::numbers::bytes_to_usize(bytes, value_name).map_err(map_utils_internal)
 }
 
 pub fn i32_to_usize(value: i32, value_name: &str) -> Result<usize> {
-    usize::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} cannot be negative: {value}"))
-    })
+    aster_forge_utils::numbers::i32_to_usize(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn i64_to_i32(value: i64, value_name: &str) -> Result<i32> {
-    i32::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} is outside i32 range: {value}"))
-    })
+    aster_forge_utils::numbers::i64_to_i32(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn i64_to_usize(value: i64, value_name: &str) -> Result<usize> {
-    usize::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!(
-            "{value_name} exceeds platform usize range or is negative: {value}"
-        ))
-    })
+    aster_forge_utils::numbers::i64_to_usize(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn i64_to_u64(value: i64, value_name: &str) -> Result<u64> {
-    u64::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} cannot be negative: {value}"))
-    })
+    aster_forge_utils::numbers::i64_to_u64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn u128_to_u64(value: u128, value_name: &str) -> Result<u64> {
-    u64::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds u64 range: {value}"))
-    })
+    aster_forge_utils::numbers::u128_to_u64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn f64_seconds_to_u64_millis(seconds: f64, value_name: &str) -> Result<u64> {
@@ -60,7 +52,7 @@ pub fn f64_seconds_to_u64_millis(seconds: f64, value_name: &str) -> Result<u64> 
         )));
     }
 
-    let duration = std::time::Duration::try_from_secs_f64(seconds).map_aster_err_with(|| {
+    let duration = std::time::Duration::try_from_secs_f64(seconds).map_err(|_| {
         AsterError::internal_error(format!("{value_name} exceeds duration range: {seconds}"))
     })?;
     let rounded_duration = duration
@@ -73,62 +65,41 @@ pub fn f64_seconds_to_u64_millis(seconds: f64, value_name: &str) -> Result<u64> 
 }
 
 pub fn u32_to_usize(value: u32, value_name: &str) -> Result<usize> {
-    usize::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!(
-            "{value_name} exceeds platform usize range: {value}"
-        ))
-    })
+    aster_forge_utils::numbers::u32_to_usize(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn u32_to_i64(value: u32, value_name: &str) -> Result<i64> {
-    let _ = value_name;
-    Ok(i64::from(value))
+    aster_forge_utils::numbers::u32_to_i64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn u32_to_i32(value: u32, value_name: &str) -> Result<i32> {
-    i32::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds i32 range: {value}"))
-    })
+    i32::try_from(value)
+        .map_err(|_| AsterError::internal_error(format!("{value_name} exceeds i32 range: {value}")))
 }
 
 pub fn u64_to_i64(value: u64, value_name: &str) -> Result<i64> {
-    i64::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds i64 range: {value}"))
-    })
+    aster_forge_utils::numbers::u64_to_i64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn u64_to_usize(value: u64, value_name: &str) -> Result<usize> {
-    usize::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!(
-            "{value_name} exceeds platform usize range: {value}"
-        ))
-    })
+    aster_forge_utils::numbers::u64_to_usize(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn usize_to_i32(value: usize, value_name: &str) -> Result<i32> {
-    i32::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds i32 range: {value}"))
-    })
+    aster_forge_utils::numbers::usize_to_i32(value, value_name).map_err(map_utils_internal)
 }
 
-/// 把 `usize`（如 `Vec::len()` / `&[u8].len()`）安全转 `i64`。
-/// 仅在 32-bit 平台是 infallible，但保持签名一致以配合现有调用方式。
+/// Converts `usize` values such as `Vec::len()` or byte-slice lengths to `i64`.
 pub fn usize_to_i64(value: usize, value_name: &str) -> Result<i64> {
-    i64::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds i64 range: {value}"))
-    })
+    aster_forge_utils::numbers::usize_to_i64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn usize_to_u32(value: usize, value_name: &str) -> Result<u32> {
-    u32::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds u32 range: {value}"))
-    })
+    aster_forge_utils::numbers::usize_to_u32(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn usize_to_u64(value: usize, value_name: &str) -> Result<u64> {
-    u64::try_from(value).map_aster_err_with(|| {
-        AsterError::internal_error(format!("{value_name} exceeds u64 range: {value}"))
-    })
+    aster_forge_utils::numbers::usize_to_u64(value, value_name).map_err(map_utils_internal)
 }
 
 pub fn calc_total_chunks(total_size: i64, chunk_size: i64, context: &str) -> Result<i32> {
@@ -148,7 +119,7 @@ pub fn calc_total_chunks(total_size: i64, chunk_size: i64, context: &str) -> Res
     })?;
     let chunks = adjusted / chunk_size;
 
-    i32::try_from(chunks).map_aster_err_with(|| {
+    i32::try_from(chunks).map_err(|_| {
         AsterError::validation_error(format!("{context} requires too many chunks: {chunks}"))
     })
 }

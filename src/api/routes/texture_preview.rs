@@ -14,7 +14,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     ));
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/texture-previews/{hash}/{file_name}",
     tag = "texture-preview",

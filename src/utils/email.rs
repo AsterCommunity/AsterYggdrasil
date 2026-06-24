@@ -1,36 +1,19 @@
 use crate::errors::{AsterError, Result};
 
+fn map_validation_error(error: aster_forge_validation::ValidationError) -> AsterError {
+    AsterError::validation_error(error.to_string())
+}
+
 pub fn validate_email(email: &str) -> Result<()> {
-    if email.len() > 254 {
-        return Err(AsterError::validation_error("email is too long"));
-    }
-    if email.matches('@').count() != 1 {
-        return Err(AsterError::validation_error("invalid email format"));
-    }
-    let Some((local, domain)) = email.split_once('@') else {
-        return Err(AsterError::validation_error("invalid email format"));
-    };
-    if local.is_empty() || domain.is_empty() {
-        return Err(AsterError::validation_error("invalid email format"));
-    }
-    if !domain.contains('.') {
-        return Err(AsterError::validation_error("invalid email format"));
-    }
-    Ok(())
+    aster_forge_validation::email::validate_email(email).map_err(map_validation_error)
 }
 
 pub fn normalize_email(email: &str) -> Result<String> {
-    let normalized = email.trim().to_ascii_lowercase();
-    validate_email(&normalized)?;
-    Ok(normalized)
+    aster_forge_validation::email::normalize_email(email).map_err(map_validation_error)
 }
 
 pub fn email_domain(email: &str) -> Result<String> {
-    let normalized = normalize_email(email)?;
-    normalized
-        .rsplit_once('@')
-        .map(|(_, domain)| domain.to_ascii_lowercase())
-        .ok_or_else(|| AsterError::validation_error("invalid email format"))
+    aster_forge_validation::email::email_domain(email).map_err(map_validation_error)
 }
 
 #[cfg(test)]

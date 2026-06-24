@@ -10,7 +10,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/public").route("/frontend-config", web::get().to(frontend_config)));
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/public/frontend-config",
     tag = "public",

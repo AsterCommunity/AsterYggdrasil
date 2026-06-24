@@ -1,21 +1,10 @@
 //! Network address helpers.
 
+pub use aster_forge_utils::net::is_loopback_host;
+
 use actix_web::http::header::HeaderMap;
 use ipnet::IpNet;
 use std::net::IpAddr;
-
-pub fn is_loopback_host(host: &str) -> bool {
-    let trimmed = host.trim();
-    let host = trimmed
-        .strip_prefix('[')
-        .and_then(|value| value.strip_suffix(']'))
-        .unwrap_or(trimmed);
-
-    host.eq_ignore_ascii_case("localhost")
-        || host
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback())
-}
 
 pub fn parse_trusted_proxies(trusted_proxies: &[String]) -> Vec<IpNet> {
     trusted_proxies

@@ -111,7 +111,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/wardrobe/textures",
     tag = "profiles",
@@ -199,7 +199,7 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
     Ok(normalized)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/wardrobe/tags",
     tag = "profiles",
@@ -249,7 +249,7 @@ pub async fn list_texture_library_tags(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/wardrobe/textures/{texture_id}",
     tag = "profiles",
@@ -293,7 +293,7 @@ pub async fn update_wardrobe_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/wardrobe/textures/{texture_id}/tags",
     tag = "profiles",
@@ -333,7 +333,7 @@ pub async fn replace_wardrobe_texture_tags(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/wardrobe/textures/{texture_id}/library-submission",
     tag = "profiles",
@@ -384,7 +384,7 @@ pub async fn submit_texture_library_review(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/wardrobe/textures/{texture_id}/library-submission",
     tag = "profiles",
@@ -434,7 +434,7 @@ pub async fn withdraw_texture_library_submission(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/wardrobe/textures/{texture_type}",
     tag = "profiles",
@@ -536,7 +536,7 @@ pub async fn upload_wardrobe_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(response_texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/wardrobe/textures/{texture_id}",
     tag = "profiles",

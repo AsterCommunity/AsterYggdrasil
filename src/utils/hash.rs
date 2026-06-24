@@ -1,57 +1,38 @@
-//! 工具子模块：`hash`。
+//! Password hashing and digest helpers.
 
-use crate::errors::{AsterError, MapAsterErr, Result};
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-};
-use sha2::{Digest, Sha256};
-use std::fmt::Write;
-use uuid::Uuid;
+use crate::errors::{AsterError, Result};
+use sha2::Sha256;
 
-fn password_hasher() -> Result<Argon2<'static>> {
-    Ok(Argon2::default())
+fn map_crypto_error(error: aster_forge_crypto::CryptoError) -> AsterError {
+    AsterError::internal_error(error.to_string())
 }
 
-/// Argon2 密码哈希
+/// Hashes a password using the shared AsterForge Argon2 implementation.
 pub fn hash_password(password: &str) -> Result<String> {
-    let salt = SaltString::encode_b64(Uuid::new_v4().as_bytes())
-        .map_aster_err(AsterError::internal_error)?;
-    password_hasher()?
-        .hash_password(password.as_bytes(), &salt)
-        .map(|h| h.to_string())
-        .map_aster_err(AsterError::internal_error)
+    aster_forge_crypto::hash_password(password).map_err(map_crypto_error)
 }
 
-/// 验证密码
+/// Verifies a password against an Argon2 password hash.
 pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
-    let parsed = PasswordHash::new(hash).map_aster_err(AsterError::internal_error)?;
-    Ok(password_hasher()?
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok())
+    aster_forge_crypto::verify_password(password, hash).map_err(map_crypto_error)
 }
 
-/// 计算数据的 SHA-256 hex 字符串
+/// Computes the SHA-256 digest of `data` and returns lowercase hex.
 pub fn sha256_hex(data: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    bytes_to_hex(&hasher.finalize())
+    aster_forge_crypto::sha256_hex(data)
 }
 
-/// 将任意字节切片编码为小写 hex
+/// Encodes arbitrary bytes as lowercase hex.
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
-    let mut hex = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        let _ = write!(&mut hex, "{byte:02x}");
-    }
-    hex
+    aster_forge_crypto::bytes_to_hex(bytes)
 }
 
-/// 将 SHA-256 digest 编码为小写 hex
+/// Encodes a SHA-256 digest as lowercase hex.
 pub fn sha256_digest_to_hex(digest: &[u8]) -> String {
-    bytes_to_hex(digest)
+    aster_forge_crypto::sha256_digest_to_hex(digest)
 }
 
+/// Creates a new incremental SHA-256 hasher.
 pub fn new_sha256() -> Sha256 {
-    Sha256::new()
+    aster_forge_crypto::new_sha256()
 }

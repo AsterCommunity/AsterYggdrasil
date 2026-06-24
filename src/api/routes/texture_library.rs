@@ -89,7 +89,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/texture-library/tags",
     tag = "texture-library",
@@ -128,7 +128,7 @@ pub async fn list_public_texture_library_tags(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/texture-library/textures",
     tag = "texture-library",
@@ -189,7 +189,7 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
     Ok(normalized)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/texture-library/textures/{texture_id}",
     tag = "texture-library",
@@ -210,7 +210,7 @@ pub async fn get_public_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/texture-library/textures/{texture_id}/copy",
     tag = "texture-library",
@@ -254,7 +254,7 @@ pub async fn copy_public_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/texture-library/textures/{texture_id}/reports",
     tag = "texture-library",

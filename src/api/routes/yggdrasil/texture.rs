@@ -10,7 +10,7 @@ use crate::types::MinecraftTextureType;
 
 use super::yggdrasil_error_response;
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/yggdrasil/api/user/profile/{uuid}/{texture_type}",
     tag = "yggdrasil",
@@ -144,7 +144,7 @@ pub async fn upload_texture(
     HttpResponse::NoContent().finish()
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/yggdrasil/api/user/profile/{uuid}/{texture_type}",
     tag = "yggdrasil",
@@ -258,7 +258,7 @@ pub async fn delete_texture(
     HttpResponse::NoContent().finish()
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/textures/{hash}",
     tag = "yggdrasil",
@@ -333,7 +333,7 @@ pub async fn texture_by_hash(
         .streaming(download.stream)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/sessionserver/session/minecraft/forwardedTextures/{upstream_id}/{texture_hash}/{ticket}",
     tag = "yggdrasil",

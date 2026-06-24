@@ -21,7 +21,7 @@ pub fn routes() -> actix_web::Scope {
     scope
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/health",
     tag = "health",
@@ -35,7 +35,7 @@ pub async fn health() -> HttpResponse {
     HttpResponse::Ok().json(status_response("ok"))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/health/ready",
     tag = "health",

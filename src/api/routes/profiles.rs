@@ -45,7 +45,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/profiles/minecraft/{uuid}/textures/{texture_type}",
     tag = "profiles",
@@ -144,7 +144,7 @@ pub async fn bind_minecraft_profile_texture(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/profiles/minecraft/{uuid}/textures/{texture_type}",
     tag = "profiles",
@@ -243,7 +243,7 @@ pub async fn unbind_minecraft_profile_texture(
     Ok(HttpResponse::NoContent().finish())
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/profiles/minecraft",
     tag = "profiles",
@@ -311,7 +311,7 @@ pub async fn list_minecraft_profiles(
     ))))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/profiles/minecraft",
     tag = "profiles",
@@ -367,7 +367,7 @@ pub async fn create_minecraft_profile(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/profiles/minecraft/{uuid}/name",
     tag = "profiles",
@@ -437,7 +437,7 @@ pub async fn rename_minecraft_profile(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/profiles/minecraft/{uuid}/textures",
     tag = "profiles",
@@ -496,7 +496,7 @@ pub async fn list_minecraft_profile_textures(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(textures)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/profiles/minecraft/{uuid}",
     tag = "profiles",

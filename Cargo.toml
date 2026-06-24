@@ -47,14 +47,18 @@ panic = "abort"
 strip = true
 
 [workspace]
-members = [".", "migration", "api-docs-macros", "crates/aster-texture-renderer"]
+members = [".", "migration", "crates/aster-texture-renderer"]
 
 [features]
 default = ["server"]
 server = []
 cli = ["server", "dep:clap"]
 metrics = ["server", "dep:prometheus", "dep:sysinfo"]
-openapi = ["dep:utoipa", "dep:utoipa-swagger-ui", "api-docs-macros/openapi"]
+openapi = [
+    "dep:utoipa",
+    "dep:utoipa-swagger-ui",
+    "aster_forge_api_docs_macros/openapi",
+]
 full = ["server", "cli", "metrics", "openapi"]
 jemalloc = ["dep:tikv-jemallocator"]
 jemalloc-stats = [
@@ -66,11 +70,14 @@ jemalloc-stats = [
 jemalloc-profiling = ["jemalloc-stats", "tikv-jemallocator/profiling"]
 
 [dependencies]
-actix-web = { version = "4.13.0", features = ["compress-brotli", "compress-gzip"] }
-actix-multipart = "0.7.2"
+actix-web = { version = "4.14.0", features = ["compress-brotli", "compress-gzip"] }
+actix-multipart = "0.8.0"
 actix-governor = "0.10"
-api-docs-macros = { path = "api-docs-macros" }
 aster-texture-renderer = { path = "crates/aster-texture-renderer" }
+aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api_docs_macros" }
+aster_forge_crypto = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_crypto" }
+aster_forge_utils = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_utils" }
+aster_forge_validation = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_validation" }
 argon2 = "0.5.3"
 async-trait = "0.1"
 aws-credential-types = { version = "1.2.14", features = ["hardcoded-credentials"] }

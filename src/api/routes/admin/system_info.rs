@@ -5,7 +5,7 @@ use crate::api::routes::health;
 use crate::runtime::AppState;
 use actix_web::{HttpResponse, web};
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/system-info",
     tag = "admin",

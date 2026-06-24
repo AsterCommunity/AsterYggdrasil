@@ -28,7 +28,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/account/overview",
     tag = "account",
@@ -76,7 +76,7 @@ pub async fn overview(state: web::Data<AppState>, req: HttpRequest) -> Result<Ht
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/account/audit-logs",
     tag = "account",
@@ -117,7 +117,7 @@ pub async fn list_audit_logs(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/account/bans",
     tag = "account",

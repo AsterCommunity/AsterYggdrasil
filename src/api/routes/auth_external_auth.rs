@@ -64,7 +64,7 @@ pub struct ExternalAuthProviderCursorQuery {
     pub after_id: Option<i64>,
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/external-auth/providers",
     tag = "external-auth",
@@ -93,7 +93,7 @@ pub async fn list_providers(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(providers)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/external-auth/{kind}/providers",
     tag = "external-auth",
@@ -126,7 +126,7 @@ pub async fn list_providers_by_kind(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(providers)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/external-auth/{kind}/{provider}/start",
     tag = "external-auth",
@@ -172,7 +172,7 @@ pub struct ExternalAuthFinishLoginResponse {
     pub return_path: Option<String>,
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/external-auth/{kind}/{provider}/callback",
     tag = "external-auth",
@@ -269,7 +269,7 @@ pub async fn finish_login(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/external-auth/email-verification/start",
     tag = "external-auth",
@@ -296,7 +296,7 @@ pub async fn start_email_verification(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(response)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/external-auth/email-verification/confirm",
     tag = "external-auth",
@@ -363,7 +363,7 @@ pub async fn confirm_email_verification(
     super::auth::authenticated_redirect_response(state.get_ref(), session, redirect_url)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/external-auth/password-link",
     tag = "external-auth",
@@ -412,7 +412,7 @@ pub async fn link_with_password(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/external-auth/links",
     tag = "external-auth",
@@ -445,7 +445,7 @@ pub async fn list_links(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(links)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/auth/external-auth/links/{id}",
     tag = "external-auth",

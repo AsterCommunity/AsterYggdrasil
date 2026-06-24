@@ -131,7 +131,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/check",
     tag = "auth",
@@ -148,7 +148,7 @@ pub async fn check(state: web::Data<AppState>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(ApiResponse::ok(CheckResp { initialized })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/captcha/policy",
     tag = "auth",
@@ -170,7 +170,7 @@ pub async fn captcha_policy(state: web::Data<AppState>) -> Result<HttpResponse> 
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/captcha",
     tag = "auth",
@@ -275,7 +275,7 @@ fn ensure_cookie_write_allowed(state: &AppState, req: &HttpRequest) -> Result<()
     csrf::ensure_double_submit_token(req)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/setup",
     tag = "auth",
@@ -310,7 +310,7 @@ pub async fn setup(
     authenticated_response(state.get_ref(), data)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/register",
     tag = "auth",
@@ -368,7 +368,7 @@ pub async fn register(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/register/resend",
     tag = "auth",
@@ -447,7 +447,7 @@ fn contact_verification_redirect_response(
         .finish()
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/contact-verification/confirm",
     tag = "auth",
@@ -548,7 +548,7 @@ pub async fn confirm_contact_verification(
     Ok(contact_verification_redirect_response(path, status, email))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/password/reset/request",
     tag = "auth",
@@ -584,7 +584,7 @@ pub async fn request_password_reset(
     })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/password/reset/confirm",
     tag = "auth",
@@ -621,7 +621,7 @@ pub async fn confirm_password_reset(
     })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/auth/password",
     tag = "auth",
@@ -656,7 +656,7 @@ pub async fn change_password(
     authenticated_response(state.get_ref(), session)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/invitations/{token}",
     tag = "auth",
@@ -675,7 +675,7 @@ pub async fn verify_user_invitation(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/invitations/{token}/accept",
     tag = "auth",
@@ -723,7 +723,7 @@ pub async fn accept_user_invitation(
     Ok(HttpResponse::Created().json(ApiResponse::ok(user_info)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/login",
     tag = "auth",
@@ -758,7 +758,7 @@ pub async fn login(
     authenticated_response(state.get_ref(), data)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/refresh",
     tag = "auth",
@@ -790,7 +790,7 @@ pub async fn refresh(
     authenticated_response(state.get_ref(), data)
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/logout",
     tag = "auth",
@@ -832,7 +832,7 @@ pub async fn logout(
         .json(ApiResponse::ok(LogoutResp { revoked })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/me",
     tag = "auth",
@@ -856,7 +856,7 @@ pub async fn me(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResp
     Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/email/change",
     tag = "auth",
@@ -896,7 +896,7 @@ pub async fn request_email_change(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(info)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/email/change/resend",
     tag = "auth",
@@ -935,7 +935,7 @@ pub async fn resend_email_change(
     })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/auth/profile",
     tag = "auth",
@@ -969,7 +969,7 @@ pub async fn patch_profile(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(profile)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/profile/avatar/upload",
     tag = "auth",
@@ -997,7 +997,7 @@ pub async fn upload_avatar(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(profile)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/auth/profile/avatar/source",
     tag = "auth",
@@ -1026,7 +1026,7 @@ pub async fn put_avatar_source(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(profile)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/profile/avatar/{size}",
     tag = "auth",
@@ -1065,7 +1065,7 @@ pub async fn get_self_avatar(
     ))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/sessions",
     tag = "auth",
@@ -1116,7 +1116,7 @@ pub async fn sessions(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(sessions)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/auth/sessions/others",
     tag = "auth",
@@ -1153,7 +1153,7 @@ pub async fn delete_other_sessions(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(RemovedCountResponse { removed })))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/auth/sessions/{id}",
     tag = "auth",
@@ -1210,7 +1210,7 @@ pub async fn delete_session(
     Ok(response.json(ApiResponse::<()>::ok_empty()))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/auth/passkeys",
     tag = "auth",
@@ -1251,7 +1251,7 @@ pub async fn list_passkeys(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(items)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/passkeys/register/start",
     tag = "auth",
@@ -1280,7 +1280,7 @@ pub async fn start_passkey_registration(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(resp)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/passkeys/register/finish",
     tag = "auth",
@@ -1329,7 +1329,7 @@ pub async fn finish_passkey_registration(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(passkey)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/auth/passkeys/{id}",
     tag = "auth",
@@ -1393,7 +1393,7 @@ pub async fn rename_passkey(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(passkey)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/auth/passkeys/{id}",
     tag = "auth",
@@ -1457,7 +1457,7 @@ pub async fn delete_passkey(
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::ok_empty()))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/passkeys/login/start",
     tag = "auth",
@@ -1493,7 +1493,7 @@ pub async fn start_passkey_login(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(resp)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/auth/passkeys/login/finish",
     tag = "auth",

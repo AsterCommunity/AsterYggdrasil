@@ -95,7 +95,7 @@ where
         .collect()
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/texture-library/reports",
     tag = "admin",
@@ -130,7 +130,7 @@ pub async fn list_texture_library_reports(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(reports)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/texture-library/reports/{report_id}",
     tag = "admin",
@@ -154,7 +154,7 @@ pub async fn get_texture_library_report(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(report)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/reports/{report_id}/accept",
     tag = "admin",
@@ -196,7 +196,7 @@ pub async fn accept_texture_library_report(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(report)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/reports/{report_id}/reject",
     tag = "admin",
@@ -238,7 +238,7 @@ pub async fn reject_texture_library_report(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(report)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/texture-library/textures",
     tag = "admin",
@@ -285,7 +285,7 @@ pub async fn list_texture_library_textures(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/texture-library/textures/{texture_id}",
     tag = "admin",
@@ -309,7 +309,7 @@ pub async fn get_texture_library_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/textures/{texture_id}/approve",
     tag = "admin",
@@ -352,7 +352,7 @@ pub async fn approve_texture_library_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/textures/{texture_id}/reject",
     tag = "admin",
@@ -394,7 +394,7 @@ pub async fn reject_texture_library_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/textures/{texture_id}/unpublish",
     tag = "admin",
@@ -436,7 +436,7 @@ pub async fn unpublish_texture_library_texture(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/texture-library/textures/{texture_id}",
     tag = "admin",
@@ -575,7 +575,7 @@ async fn log_texture_report_audit(
     .await;
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/texture-library/tags",
     tag = "admin",
@@ -606,7 +606,7 @@ pub async fn list_texture_library_tags(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(tags)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/texture-library/tags",
     tag = "admin",
@@ -635,7 +635,7 @@ pub async fn create_texture_library_tag(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(tag)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/admin/texture-library/tags/{tag_id}",
     tag = "admin",
@@ -668,7 +668,7 @@ pub async fn update_texture_library_tag(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(tag)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/texture-library/tags/{tag_id}",
     tag = "admin",

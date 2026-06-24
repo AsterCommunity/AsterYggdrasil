@@ -14,7 +14,7 @@ use crate::services::{audit_service, auth_service, ban_service};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use crate::api::pagination::{CursorPage, DateTimeIdCursor};
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/user-bans",
     tag = "admin",
@@ -49,7 +49,7 @@ pub async fn list_user_bans(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(bans)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/user-bans/{ban_id}",
     tag = "admin",
@@ -71,7 +71,7 @@ pub async fn get_user_ban(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ban)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/users/{user_id}/bans",
     tag = "admin",
@@ -120,7 +120,7 @@ pub async fn create_user_ban(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ban)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/admin/user-bans/{ban_id}",
     tag = "admin",
@@ -169,7 +169,7 @@ pub async fn update_user_ban(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ban)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/user-bans/{ban_id}/revoke",
     tag = "admin",
@@ -211,7 +211,7 @@ pub async fn revoke_user_ban(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ban)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/user-bans/{ban_id}/events",
     tag = "admin",

@@ -20,7 +20,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         .ok_or_else(|| AsterError::internal_error("missing authenticated user in request context"))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/tasks",
     tag = "admin",
@@ -64,7 +64,7 @@ pub async fn list_tasks(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/tasks/{id}/retry",
     tag = "admin",
@@ -98,7 +98,7 @@ pub async fn retry_task(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(task)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/tasks/cleanup",
     tag = "admin",

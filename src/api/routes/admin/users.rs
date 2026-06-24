@@ -37,7 +37,7 @@ fn user_audit_details(user: &admin_user_service::AdminUserInfo) -> Option<serde_
     })
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/users",
     tag = "admin",
@@ -84,7 +84,7 @@ pub async fn list_users(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(users)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/users",
     tag = "admin",
@@ -153,7 +153,7 @@ pub async fn create_user(
     Ok(HttpResponse::Created().json(ApiResponse::ok(output)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/users/invitations",
     tag = "admin",
@@ -193,7 +193,7 @@ pub async fn create_user_invitation(
     Ok(HttpResponse::Created().json(ApiResponse::ok(invitation)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/users/invitations",
     tag = "admin",
@@ -222,7 +222,7 @@ pub async fn list_user_invitations(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(invitations)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/users/invitations/{id}/revoke",
     tag = "admin",
@@ -270,7 +270,7 @@ fn invitation_audit_details(
     }))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/users/{id}",
     tag = "admin",
@@ -297,7 +297,7 @@ pub async fn get_user(state: web::Data<AppState>, path: web::Path<i64>) -> Resul
     Ok(HttpResponse::Ok().json(ApiResponse::ok(user)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/admin/users/{id}",
     tag = "admin",
@@ -370,7 +370,7 @@ pub async fn update_user(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(user)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/users/{id}/sessions/revoke",
     tag = "admin",
@@ -411,7 +411,7 @@ pub async fn revoke_user_sessions(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/users/{id}",
     tag = "admin",

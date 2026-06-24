@@ -80,7 +80,7 @@ async fn yggdrasil_not_found(req: HttpRequest) -> HttpResponse {
     minecraft_services::minecraft_services_not_found_req(req).await
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil",
     tag = "yggdrasil",
@@ -96,7 +96,7 @@ pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
         .json(yggdrasil_service::metadata(state.get_ref()))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/authserver/authenticate",
     tag = "yggdrasil",
@@ -158,7 +158,7 @@ pub async fn authenticate(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/authserver/refresh",
     tag = "yggdrasil",
@@ -208,7 +208,7 @@ pub async fn refresh(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/authserver/validate",
     tag = "yggdrasil",
@@ -251,7 +251,7 @@ pub async fn validate(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/authserver/invalidate",
     tag = "yggdrasil",
@@ -294,7 +294,7 @@ pub async fn invalidate(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/authserver/signout",
     tag = "yggdrasil",
@@ -342,7 +342,7 @@ pub async fn signout(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/api/profiles/minecraft",
     tag = "yggdrasil",
@@ -381,7 +381,7 @@ pub async fn profiles_by_names(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/sessionserver/session/minecraft/join",
     tag = "yggdrasil",
@@ -423,7 +423,7 @@ pub async fn join(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/sessionserver/session/minecraft/hasJoined",
     tag = "yggdrasil",
@@ -485,7 +485,7 @@ pub async fn has_joined(
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/sessionserver/session/minecraft/profile/{uuid}",
     tag = "yggdrasil",

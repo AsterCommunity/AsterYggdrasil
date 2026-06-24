@@ -24,7 +24,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         .ok_or_else(|| AsterError::internal_error("missing authenticated user in request context"))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/yggdrasil/session-forward-servers",
     tag = "admin",
@@ -74,7 +74,7 @@ pub async fn list_session_forward_servers(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(servers)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/yggdrasil/session-forward-servers/{id}",
     tag = "admin",
@@ -96,7 +96,7 @@ pub async fn get_session_forward_server(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(server)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/v1/admin/yggdrasil/session-forward-servers",
     tag = "admin",
@@ -133,7 +133,7 @@ pub async fn create_session_forward_server(
     Ok(HttpResponse::Created().json(ApiResponse::ok(server)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     patch,
     path = "/api/v1/admin/yggdrasil/session-forward-servers/{id}",
     tag = "admin",
@@ -174,7 +174,7 @@ pub async fn update_session_forward_server(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(server)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/yggdrasil/session-forward-servers/{id}",
     tag = "admin",

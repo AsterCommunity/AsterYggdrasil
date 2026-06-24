@@ -6,7 +6,7 @@ use crate::services::yggdrasil_service::{self, YggdrasilError, YggdrasilErrorKin
 
 use super::yggdrasil_error_response;
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     post,
     path = "/api/yggdrasil/minecraftservices/player/certificates",
     tag = "yggdrasil",
@@ -43,7 +43,7 @@ pub async fn player_certificates(state: web::Data<AppState>, req: HttpRequest) -
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/minecraftservices/privileges",
     tag = "yggdrasil",
@@ -71,7 +71,7 @@ pub async fn privileges(state: web::Data<AppState>, req: HttpRequest) -> HttpRes
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/minecraftservices/player/attributes",
     tag = "yggdrasil",
@@ -102,7 +102,7 @@ pub async fn player_attributes(state: web::Data<AppState>, req: HttpRequest) -> 
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/minecraftservices/privacy/blocklist",
     tag = "yggdrasil",
@@ -133,7 +133,7 @@ pub async fn privacy_blocklist(state: web::Data<AppState>, req: HttpRequest) -> 
     }
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/yggdrasil/sessionserver/blockedservers",
     tag = "yggdrasil",

@@ -45,7 +45,7 @@ async fn find_profile_by_uuid(
         })
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/minecraft-profiles",
     tag = "admin",
@@ -111,7 +111,7 @@ pub async fn list_minecraft_profiles(
     ))))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/users/{user_id}/minecraft-profiles",
     tag = "admin",
@@ -181,7 +181,7 @@ pub async fn list_user_minecraft_profiles(
     ))))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/minecraft-profiles/{uuid}",
     tag = "admin",
@@ -213,7 +213,7 @@ pub async fn get_minecraft_profile(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(yggdrasil_service::profile_info(&profile))))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     put,
     path = "/api/v1/admin/minecraft-profiles/{uuid}/name",
     tag = "admin",
@@ -263,7 +263,7 @@ pub async fn rename_minecraft_profile(
     )
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/minecraft-profiles/{uuid}/textures",
     tag = "admin",
@@ -299,7 +299,7 @@ pub async fn list_minecraft_profile_textures(
     Ok(HttpResponse::Ok().json(ApiResponse::ok(textures)))
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/minecraft-profiles/{uuid}",
     tag = "admin",
@@ -349,7 +349,7 @@ pub async fn delete_minecraft_profile(
     Ok(HttpResponse::NoContent().finish())
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/minecraft-profiles/{uuid}/textures/{texture_type}",
     tag = "admin",
@@ -442,7 +442,7 @@ pub async fn delete_minecraft_profile_texture(
     Ok(HttpResponse::NoContent().finish())
 }
 
-#[api_docs_macros::path(
+#[aster_forge_api_docs_macros::path(
     delete,
     path = "/api/v1/admin/minecraft-textures/{hash}",
     tag = "admin",
