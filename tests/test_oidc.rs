@@ -890,7 +890,7 @@ async fn finish_callback_verifies_jwks_and_issues_asterdrive_cookies() {
     );
     assert!(common::extract_cookie(&resp, "aster_access").is_some());
     assert!(common::extract_cookie(&resp, "aster_refresh").is_some());
-    assert!(common::extract_cookie(&resp, "aster_csrf").is_some());
+    assert!(common::extract_cookie(&resp, "aster_yggdrasil_csrf").is_some());
 
     let identities = external_auth_identity::Entity::find()
         .all(state.writer_db())
@@ -1744,7 +1744,7 @@ async fn no_email_claim_can_link_after_local_password_login() {
     assert_eq!(resp.status(), 200);
     assert!(common::extract_cookie(&resp, "aster_access").is_some());
     assert!(common::extract_cookie(&resp, "aster_refresh").is_some());
-    assert!(common::extract_cookie(&resp, "aster_csrf").is_some());
+    assert!(common::extract_cookie(&resp, "aster_yggdrasil_csrf").is_some());
     let body: Value = test::read_body_json(resp).await;
     assert!(body["data"]["expires_in"].as_u64().is_some());
 
@@ -2507,7 +2507,7 @@ async fn dex_container_authorization_code_login_e2e() {
     );
     assert!(common::extract_cookie(&resp, "aster_access").is_some());
     assert!(common::extract_cookie(&resp, "aster_refresh").is_some());
-    assert!(common::extract_cookie(&resp, "aster_csrf").is_some());
+    assert!(common::extract_cookie(&resp, "aster_yggdrasil_csrf").is_some());
 
     let identities = external_auth_identity::Entity::find()
         .all(state.writer_db())

@@ -8,11 +8,12 @@ use actix_web::{
 use futures::future::{LocalBoxFuture, Ready, ok};
 use std::rc::Rc;
 
-use crate::api::middleware::csrf::{self, RequestSourceMode};
+use crate::api::middleware::csrf;
 use crate::api::request_auth::access_cookie_token;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::services::auth_service;
+use aster_forge_actix_middleware::csrf::{RequestSourceMode, is_unsafe_method};
 
 pub struct JwtAuth;
 
@@ -56,8 +57,7 @@ where
             let state = req
                 .app_data::<web::Data<AppState>>()
                 .ok_or_else(|| AsterError::internal_error("AppState not found"))?;
-            if access_cookie_token(req.request()).is_some() && csrf::is_unsafe_method(req.method())
-            {
+            if access_cookie_token(req.request()).is_some() && is_unsafe_method(req.method()) {
                 csrf::ensure_service_request_source_allowed(
                     &req,
                     state.get_ref().runtime_config(),

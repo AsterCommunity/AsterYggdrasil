@@ -16,10 +16,12 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, ban_service, texture_service};
 use crate::types::{
-    MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility, NullablePatch,
+    MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility,
     TextureTagSearchMethod, UserBanScope,
 };
-use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
+use aster_forge_api::{
+    LimitQuery, NullablePatch, parse_datetime_id_cursor, parse_sort_order_name_id_cursor,
+};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};

@@ -15,7 +15,6 @@ pub use super::external_auth::{
 };
 pub use super::mail::{MailOutboxStatus, MailTemplateCode, StoredMailPayload};
 pub use super::passkey::StoredPasskeyCredential;
-pub use super::patch::{NullablePatch, deserialize_nullable_patch_option};
 pub use super::task::{
     BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload, StoredTaskResult,
     StoredTaskRuntime, StoredTaskSteps,

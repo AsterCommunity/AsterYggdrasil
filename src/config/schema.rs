@@ -1,9 +1,17 @@
-//! 配置子模块：`schema`。
+//! Static configuration schema.
+//!
+//! Values in this module are loaded from the deployment configuration at
+//! process startup. They are intentionally separate from `RuntimeConfig`, which
+//! stores settings that can be edited through the admin API while the service
+//! is running.
 
 use serde::{Deserialize, Serialize};
 use std::num::{NonZeroU32, NonZeroU64};
 
 use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
+
+pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_yggdrasil_csrf";
+pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Config {
@@ -128,6 +136,10 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     #[serde(default = "AuthConfig::default_mfa_secret_key")]
     pub mfa_secret_key: String,
+    #[serde(default = "AuthConfig::default_csrf_cookie_name")]
+    pub csrf_cookie_name: String,
+    #[serde(default = "AuthConfig::default_csrf_header_name")]
+    pub csrf_header_name: String,
     /// 首次初始化 system_config 时，是否把 auth_cookie_secure 设为 false。
     #[serde(default = "AuthConfig::default_bootstrap_insecure_cookies")]
     pub bootstrap_insecure_cookies: bool,
@@ -138,6 +150,8 @@ impl Default for AuthConfig {
         Self {
             jwt_secret: Self::default_jwt_secret(),
             mfa_secret_key: Self::default_mfa_secret_key(),
+            csrf_cookie_name: Self::default_csrf_cookie_name(),
+            csrf_header_name: Self::default_csrf_header_name(),
             bootstrap_insecure_cookies: Self::default_bootstrap_insecure_cookies(),
         }
     }
@@ -155,6 +169,12 @@ impl AuthConfig {
     }
     fn default_mfa_secret_key() -> String {
         Self::random_hex_secret()
+    }
+    fn default_csrf_cookie_name() -> String {
+        DEFAULT_AUTH_CSRF_COOKIE_NAME.to_string()
+    }
+    fn default_csrf_header_name() -> String {
+        DEFAULT_AUTH_CSRF_HEADER_NAME.to_string()
     }
     fn default_bootstrap_insecure_cookies() -> bool {
         false

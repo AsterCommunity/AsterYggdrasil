@@ -18,9 +18,10 @@ use crate::services::yggdrasil_session_forward_service::{
 };
 use crate::types::{
     BackgroundTaskKind, BackgroundTaskStatus, ExternalAuthKind, ExternalAuthProviderOptions,
-    NullablePatch, OperatorScope, SystemConfigVisibility, UserBanScope, UserBanStatus, UserRole,
-    UserStatus, YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardServerSortBy,
+    OperatorScope, SystemConfigVisibility, UserBanScope, UserBanStatus, UserRole, UserStatus,
+    YggdrasilSessionForwardEndpointKind, YggdrasilSessionForwardServerSortBy,
 };
+use aster_forge_api::NullablePatch;
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -122,7 +123,7 @@ pub struct UpdateUserBanReq {
     pub reason: Option<String>,
     #[serde(
         default,
-        deserialize_with = "crate::types::deserialize_nullable_patch_option"
+        deserialize_with = "aster_forge_api::deserialize_nullable_patch_option"
     )]
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
@@ -131,7 +132,7 @@ pub struct UpdateUserBanReq {
     pub public_reason: Option<NullablePatch<String>>,
     #[serde(
         default,
-        deserialize_with = "crate::types::deserialize_nullable_patch_option"
+        deserialize_with = "aster_forge_api::deserialize_nullable_patch_option"
     )]
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
@@ -141,7 +142,7 @@ pub struct UpdateUserBanReq {
     pub starts_at: Option<DateTime<Utc>>,
     #[serde(
         default,
-        deserialize_with = "crate::types::deserialize_nullable_patch_option"
+        deserialize_with = "aster_forge_api::deserialize_nullable_patch_option"
     )]
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),

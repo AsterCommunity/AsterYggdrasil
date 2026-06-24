@@ -77,6 +77,8 @@ async fn main() -> std::io::Result<()> {
 
     let config = aster_yggdrasil::config::init_config()
         .map_err(|error| std::io::Error::other(error.to_string()))?;
+    aster_yggdrasil::api::middleware::csrf::init_token_names_from_auth_config(&config.auth)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
     let logging = aster_yggdrasil::runtime::logging::init_logging(&config.logging);
     let _log_guard = logging.guard;
     if let Some(warning) = logging.warning {
@@ -118,7 +120,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(aster_forge_actix_middleware::request_id::RequestIdMiddleware)
             .wrap(aster_yggdrasil::api::middleware::cors::RuntimeCors)
             .wrap(aster_forge_actix_middleware::security_headers::default_headers())
-            .wrap(aster_yggdrasil::api::middleware::metrics::MetricsMiddleware)
+            .wrap(aster_forge_actix_middleware::metrics::MetricsMiddleware)
             .app_data(app_state.clone())
             .app_data(app_shutdown_data.clone())
             .app_data(app_metrics_data.clone())

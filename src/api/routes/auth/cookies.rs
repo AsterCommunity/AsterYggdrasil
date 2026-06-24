@@ -67,17 +67,20 @@ pub(super) fn clear_refresh_cookie(secure: bool) -> Cookie<'static> {
 }
 
 pub(super) fn build_csrf_cookie(value: &str, max_age_secs: i64, secure: bool) -> Cookie<'static> {
-    Cookie::build(csrf::CSRF_COOKIE.to_string(), value.to_string())
-        .path("/".to_string())
-        .http_only(false)
-        .same_site(SameSite::Lax)
-        .secure(secure)
-        .max_age(CookieDuration::seconds(max_age_secs))
-        .finish()
+    Cookie::build(
+        csrf::token_names().cookie_name().to_string(),
+        value.to_string(),
+    )
+    .path("/".to_string())
+    .http_only(false)
+    .same_site(SameSite::Lax)
+    .secure(secure)
+    .max_age(CookieDuration::seconds(max_age_secs))
+    .finish()
 }
 
 pub(super) fn clear_csrf_cookie(secure: bool) -> Cookie<'static> {
-    Cookie::build(csrf::CSRF_COOKIE.to_string(), "")
+    Cookie::build(csrf::token_names().cookie_name().to_string(), "")
         .path("/".to_string())
         .http_only(false)
         .same_site(SameSite::Lax)

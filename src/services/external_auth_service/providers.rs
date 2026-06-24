@@ -11,10 +11,10 @@ use crate::external_auth::{
 use crate::runtime::SharedRuntimeState;
 use crate::types::{
     ExternalAuthProviderKind, ExternalAuthProviderOptions, MicrosoftExternalAuthProviderOptions,
-    NullablePatch, serialize_external_auth_provider_options,
+    serialize_external_auth_provider_options,
 };
 use crate::utils::OUTBOUND_HTTP_USER_AGENT;
-use aster_forge_api::{CursorPage, StringIdCursor};
+use aster_forge_api::{CursorPage, NullablePatch, StringIdCursor};
 use aster_forge_external_auth::providers::microsoft::{
     normalize_microsoft_tenant_input, normalize_microsoft_tenant_or_issuer_url,
 };

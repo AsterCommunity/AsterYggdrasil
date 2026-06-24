@@ -1,4 +1,10 @@
-//! CORS 中间件模块入口。
+//! Runtime CORS middleware.
+//!
+//! Yggdrasil stores the CORS policy in runtime configuration, so this
+//! middleware evaluates each request against the current policy instead of
+//! relying on a static Actix CORS builder. Static frontend assets are exempt,
+//! while API requests and preflight checks receive allow/expose headers that
+//! include the process-wide CSRF header name configured during startup.
 
 mod constants;
 
@@ -17,6 +23,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use self::constants::{ALLOWED_HEADERS, ALLOWED_METHODS, EXPOSE_HEADERS};
+use crate::api::middleware::csrf;
 use crate::config::cors::RuntimeCorsPolicy;
 use crate::errors::{AsterError, MapAsterErr};
 use crate::runtime::AppState;
@@ -165,10 +172,7 @@ fn requested_headers_are_allowed(req: &ServiceRequest) -> Result<bool, AsterErro
         AsterError::validation_error("invalid Access-Control-Request-Headers")
     })?;
 
-    let allowed_headers = ALLOWED_HEADERS
-        .iter()
-        .copied()
-        .collect::<BTreeSet<&'static str>>();
+    let allowed_headers = allowed_headers();
 
     for requested in request_headers.split(',') {
         let requested = requested.trim().to_ascii_lowercase();
@@ -221,7 +225,7 @@ fn apply_preflight_headers(
     policy: &RuntimeCorsPolicy,
 ) -> Result<(), AsterError> {
     let allow_methods = ALLOWED_METHODS.join(", ");
-    let allow_headers = ALLOWED_HEADERS.join(", ");
+    let allow_headers = allowed_headers_for_response().join(", ");
 
     headers.insert(
         header::ACCESS_CONTROL_ALLOW_METHODS,
@@ -244,6 +248,25 @@ fn apply_preflight_headers(
     ensure_vary(headers, "Access-Control-Request-Method")?;
     ensure_vary(headers, "Access-Control-Request-Headers")?;
     Ok(())
+}
+
+fn allowed_headers() -> BTreeSet<&'static str> {
+    allowed_headers_for_response()
+        .into_iter()
+        .collect::<BTreeSet<&'static str>>()
+}
+
+fn allowed_headers_for_response() -> Vec<&'static str> {
+    let mut headers = ALLOWED_HEADERS.to_vec();
+    let csrf_header = csrf::token_names().header_name_str();
+    if !headers.contains(&csrf_header) {
+        let insert_index = headers
+            .iter()
+            .position(|header| *header == "x-request-id")
+            .unwrap_or(headers.len());
+        headers.insert(insert_index, csrf_header);
+    }
+    headers
 }
 
 fn apply_actual_headers(

@@ -9,9 +9,9 @@ use crate::entities::{user_ban, user_ban_event};
 use crate::errors::{AsterError, Result};
 use crate::runtime::DatabaseRuntimeState;
 use crate::types::{
-    NullablePatch, UserBanEventType, UserBanScope, UserBanScopes, UserBanScopesError, UserBanStatus,
+    UserBanEventType, UserBanScope, UserBanScopes, UserBanScopesError, UserBanStatus,
 };
-use aster_forge_api::{CursorPage, DateTimeIdCursor};
+use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
 
 const REASON_MAX_CHARS: usize = 128;
 const NOTE_MAX_CHARS: usize = 1000;

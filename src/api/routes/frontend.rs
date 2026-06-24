@@ -1,6 +1,13 @@
-//! API 路由：`frontend`。
+//! Frontend asset routes.
+//!
+//! The backend serves the built panel from embedded assets while allowing a
+//! local override directory for deployments that ship a customized frontend.
+//! `index.html` is treated as a runtime template: branding, CSP, and process
+//! startup values that must be available before the first API request are
+//! injected through stable placeholders.
 
 use crate::api::cache::conditional_bytes_response;
+use crate::api::middleware::csrf;
 use crate::config::{branding, yggdrasil::DEFAULT_YGGDRASIL_API_ROOT_ALI};
 use crate::runtime::AppState;
 use actix_web::{HttpRequest, HttpResponse, web};
@@ -11,7 +18,7 @@ use std::path::PathBuf;
 #[folder = "frontend-panel/dist/"]
 struct FrontendAssets;
 
-/// 运行时可覆盖的前端目录
+/// Frontend override directory used by deployments that replace embedded assets.
 const CUSTOM_FRONTEND_DIR: &str = "./frontend-override";
 const FILE_NOT_FOUND_MESSAGE: &str = "File not found";
 const INDEX_CACHE_CONTROL: &str = "no-cache";
@@ -28,8 +35,9 @@ pub const FRONTEND_CSP_HEADER: &str = concat!(
     "style-src 'self' 'unsafe-inline'; ",
     "img-src 'self' data: blob: http: https:; ",
     "font-src 'self' data:; ",
-    // presigned upload / download 可能直接命中外部对象存储或 remote follower，
-    // 这里必须允许浏览器向任意 http(s) 终点发起 XHR/fetch/WebSocket 连接。
+    // Presigned upload/download URLs and remote followers may point at external
+    // object storage, so the panel must be allowed to connect to arbitrary
+    // HTTP(S) and WebSocket endpoints.
     "connect-src 'self' http: https: ws: wss:; ",
     "media-src 'self' blob:; ",
     "worker-src 'self' blob:; ",
@@ -45,7 +53,8 @@ pub const FRONTEND_CSP_META: &str = concat!(
     "style-src 'self' 'unsafe-inline'; ",
     "img-src 'self' data: blob: http: https:; ",
     "font-src 'self' data:; ",
-    // meta CSP 不能承载 frame-ancestors；该约束仍由响应头版 CSP 生效。
+    // Meta CSP cannot carry frame-ancestors; that policy is enforced by the
+    // response header variant above.
     "connect-src 'self' http: https: ws: wss:; ",
     "media-src 'self' blob:; ",
     "worker-src 'self' blob:; ",
@@ -56,7 +65,7 @@ pub const FRONTEND_CSP_META: &str = concat!(
 pub struct FrontendService;
 
 impl FrontendService {
-    /// 优先从自定义目录加载，fallback 到嵌入资源
+    /// Loads from the override directory first, then falls back to embedded assets.
     async fn load_file(file_path: &str) -> Option<Vec<u8>> {
         if file_path.contains("..") {
             return None;
@@ -71,7 +80,7 @@ impl FrontendService {
         FrontendAssets::get(file_path).map(|c| c.data.into_owned())
     }
 
-    /// 服务 index.html，替换配置占位符
+    /// Serves index.html and replaces runtime configuration placeholders.
     async fn serve_index(state: &AppState) -> HttpResponse {
         let html = match Self::load_file("index.html").await {
             Some(data) => String::from_utf8_lossy(&data).into_owned(),
@@ -108,7 +117,15 @@ impl FrontendService {
                     state.runtime_config(),
                 )),
             )
-            .replace("%ASTERYGGDRASIL_CSP%", &escape_html(FRONTEND_CSP_META));
+            .replace("%ASTERYGGDRASIL_CSP%", &escape_html(FRONTEND_CSP_META))
+            .replace(
+                "%ASTERYGGDRASIL_CSRF_COOKIE_NAME%",
+                &escape_html(csrf::token_names().cookie_name()),
+            )
+            .replace(
+                "%ASTERYGGDRASIL_CSRF_HEADER_NAME%",
+                &escape_html(csrf::token_names().header_name_str()),
+            );
 
         HttpResponse::Ok()
             .insert_header(("Content-Security-Policy", FRONTEND_CSP_HEADER))
@@ -209,7 +226,7 @@ fn escape_html(value: impl AsRef<str>) -> String {
         .replace('>', "&gt;")
 }
 
-/// 前端路由，挂在 `/` 下，必须最后注册
+/// Frontend routes mounted at `/`; this scope must be registered last.
 pub fn routes() -> actix_web::Scope {
     web::scope("")
         .route("/", web::get().to(FrontendService::handle_index))
@@ -225,7 +242,7 @@ pub fn routes() -> actix_web::Scope {
             "/favicon.svg",
             web::get().to(FrontendService::handle_favicon),
         )
-        // PWA 文件（sw.js, workbox-*.js, manifest.webmanifest）
+        // PWA files: sw.js, workbox-*.js, and manifest.webmanifest.
         .route(
             "/registerSW.js",
             web::get().to(FrontendService::handle_pwa_file),
@@ -239,7 +256,7 @@ pub fn routes() -> actix_web::Scope {
             "/{filename:workbox-[^/]*}",
             web::get().to(FrontendService::handle_pwa_file),
         )
-        // SPA fallback（最后）
+        // SPA fallback must be registered last.
         .route(
             "/{path:.*}",
             web::get().to(FrontendService::handle_spa_fallback),

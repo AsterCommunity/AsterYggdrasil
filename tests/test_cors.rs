@@ -7,7 +7,7 @@ use actix_web::{http::header, test};
 use serde_json::Value;
 
 const EXPECTED_ALLOW_HEADERS: &str =
-    "authorization, accept, content-type, range, timeout, x-csrf-token, x-request-id";
+    "authorization, accept, content-type, range, timeout, x-aster-yggdrasil-csrf, x-request-id";
 const EXPECTED_EXPOSE_HEADERS: &str = "content-length, etag, x-request-id";
 
 macro_rules! set_config {

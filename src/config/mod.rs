@@ -1,4 +1,10 @@
-//! 配置模块导出与全局入口。
+//! Configuration loading and shared runtime access.
+//!
+//! The concrete schema lives in `schema`, while this module exposes the
+//! configuration types and process-wide initialization helpers used by the
+//! server startup path. Runtime-editable settings are kept in `RuntimeConfig`;
+//! static boot settings such as database, cache, and startup-only auth values
+//! are loaded once into `Config`.
 
 pub mod audit;
 pub mod auth_runtime;
@@ -21,9 +27,9 @@ pub mod yggdrasil;
 
 pub use runtime_config::RuntimeConfig;
 pub use schema::{
-    AuthConfig, CacheConfig, Config, DatabaseConfig, LoggingConfig, NetworkTrustConfig,
-    ObjectStorageConfig, RateLimitConfig, RateLimitTier, S3ObjectStorageConfig, ServerConfig,
-    ServerFollowerConfig,
+    AuthConfig, CacheConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,
+    DatabaseConfig, LoggingConfig, NetworkTrustConfig, ObjectStorageConfig, RateLimitConfig,
+    RateLimitTier, S3ObjectStorageConfig, ServerConfig, ServerFollowerConfig,
 };
 
 use std::sync::Arc;
@@ -54,12 +60,12 @@ pub fn get_config() -> Arc<Config> {
         .clone()
 }
 
-/// 尝试获取配置，未初始化时返回 None。
+/// Attempts to get the initialized configuration.
 pub fn try_get_config() -> Option<Arc<Config>> {
     CONFIG.get().cloned()
 }
 
-/// 测试环境用：手动设置全局配置（OnceLock 只接受第一次调用）
+/// Manually sets the global configuration for tests.
 pub fn set_config_for_test(config: Arc<Config>) -> Result<(), Arc<Config>> {
     CONFIG.set(config)
 }

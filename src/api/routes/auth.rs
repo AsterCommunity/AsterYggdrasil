@@ -12,7 +12,7 @@ use crate::api::dto::{
     UpdateAvatarSourceReq, UpdateProfileReq, validate_request,
 };
 use crate::api::error_code::AsterErrorCode;
-use crate::api::middleware::csrf::{self, RequestSourceMode};
+use crate::api::middleware::csrf;
 use crate::api::request_auth::access_cookie_token;
 use crate::api::response::ApiResponse;
 use crate::config::auth_runtime::RuntimeAuthPolicy;
@@ -26,6 +26,7 @@ use crate::types::VerificationPurpose;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
+use aster_forge_actix_middleware::csrf::{RequestSourceMode, build_csrf_token};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, DateTimeIdCursor, DateTimeStringCursor};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_datetime_string_cursor};
@@ -191,7 +192,7 @@ pub(super) fn authenticated_response_with_body<T: Serialize>(
 ) -> Result<HttpResponse> {
     let auth_policy = RuntimeAuthPolicy::from_runtime_config(state.runtime_config());
     let secure = auth_policy.cookie_secure;
-    let csrf_token = csrf::build_csrf_token();
+    let csrf_token = build_csrf_token();
     let access_ttl = u64_to_i64(auth_policy.access_token_ttl_secs, "access token ttl")?;
     let refresh_ttl = u64_to_i64(auth_policy.refresh_token_ttl_secs, "refresh token ttl")?;
 
@@ -225,7 +226,7 @@ pub(super) fn authenticated_redirect_response(
 ) -> Result<HttpResponse> {
     let auth_policy = RuntimeAuthPolicy::from_runtime_config(state.runtime_config());
     let secure = auth_policy.cookie_secure;
-    let csrf_token = csrf::build_csrf_token();
+    let csrf_token = build_csrf_token();
     let access_ttl = u64_to_i64(auth_policy.access_token_ttl_secs, "access token ttl")?;
     let refresh_ttl = u64_to_i64(auth_policy.refresh_token_ttl_secs, "refresh token ttl")?;
 

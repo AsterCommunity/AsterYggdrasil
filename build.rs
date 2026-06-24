@@ -37,6 +37,8 @@ fn create_fallback_files(dist_path: &Path) -> io::Result<()> {
     <meta name="asteryggdrasil-version" content="%ASTERYGGDRASIL_VERSION%" />
     <meta name="asteryggdrasil-wordmark-dark" content="%ASTERYGGDRASIL_WORDMARK_DARK_URL%" />
     <meta name="asteryggdrasil-wordmark-light" content="%ASTERYGGDRASIL_WORDMARK_LIGHT_URL%" />
+    <meta name="asteryggdrasil-csrf-cookie-name" content="%ASTERYGGDRASIL_CSRF_COOKIE_NAME%" />
+    <meta name="asteryggdrasil-csrf-header-name" content="%ASTERYGGDRASIL_CSRF_HEADER_NAME%" />
     <title>%ASTERYGGDRASIL_TITLE% - Frontend Not Built</title>
     <style>
         :root { color-scheme: dark; }

@@ -398,7 +398,7 @@ async fn finish_callback_exchanges_code_fetches_userinfo_and_issues_cookies() {
     );
     assert!(common::extract_cookie(&resp, "aster_access").is_some());
     assert!(common::extract_cookie(&resp, "aster_refresh").is_some());
-    assert!(common::extract_cookie(&resp, "aster_csrf").is_some());
+    assert!(common::extract_cookie(&resp, "aster_yggdrasil_csrf").is_some());
 
     let identities = external_auth_identity::Entity::find()
         .all(state.writer_db())

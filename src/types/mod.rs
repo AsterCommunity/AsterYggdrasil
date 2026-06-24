@@ -11,7 +11,6 @@ pub mod external_auth;
 mod facade;
 pub mod mail;
 pub mod passkey;
-pub mod patch;
 pub mod task;
 pub mod user;
 pub mod yggdrasil;

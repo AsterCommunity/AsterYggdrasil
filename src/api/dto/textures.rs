@@ -5,8 +5,10 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use validator::Validate;
 
+use aster_forge_api::NullablePatch;
+
 use crate::types::{
-    MinecraftTextureModel, MinecraftTextureReportReason, MinecraftTextureVisibility, NullablePatch,
+    MinecraftTextureModel, MinecraftTextureReportReason, MinecraftTextureVisibility,
 };
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -21,7 +23,7 @@ pub struct BindMinecraftTextureReq {
 pub struct UpdateWardrobeTextureReq {
     #[serde(
         default,
-        deserialize_with = "crate::types::deserialize_nullable_patch_option"
+        deserialize_with = "aster_forge_api::deserialize_nullable_patch_option"
     )]
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
@@ -37,7 +39,7 @@ pub struct UpdateWardrobeTextureReq {
 pub struct CopyPublicTextureReq {
     #[serde(
         default,
-        deserialize_with = "crate::types::deserialize_nullable_patch_option"
+        deserialize_with = "aster_forge_api::deserialize_nullable_patch_option"
     )]
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
@@ -95,4 +97,28 @@ pub struct CreateTextureReportReq {
 pub struct HandleTextureReportReq {
     #[validate(length(max = 512, message = "admin note must not exceed 512 characters"))]
     pub admin_note: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use aster_forge_api::NullablePatch;
+
+    use super::UpdateWardrobeTextureReq;
+
+    #[test]
+    fn update_wardrobe_texture_display_name_preserves_nullable_patch_state() {
+        let omitted: UpdateWardrobeTextureReq = serde_json::from_str("{}").unwrap();
+        assert_eq!(omitted.display_name, None);
+
+        let cleared: UpdateWardrobeTextureReq =
+            serde_json::from_str(r#"{"display_name":null}"#).unwrap();
+        assert_eq!(cleared.display_name, Some(NullablePatch::Null));
+
+        let updated: UpdateWardrobeTextureReq =
+            serde_json::from_str(r#"{"display_name":"Forge"}"#).unwrap();
+        assert_eq!(
+            updated.display_name,
+            Some(NullablePatch::Value("Forge".to_string()))
+        );
+    }
 }

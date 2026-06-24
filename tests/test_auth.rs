@@ -53,7 +53,7 @@ macro_rules! login_session {
         let access = common::extract_cookie(&resp, "aster_access").expect("access cookie missing");
         let refresh =
             common::extract_cookie(&resp, "aster_refresh").expect("refresh cookie missing");
-        let csrf = common::extract_cookie(&resp, "aster_csrf").expect("csrf cookie missing");
+        let csrf = common::extract_cookie(&resp, "aster_yggdrasil_csrf").expect("csrf cookie missing");
         (access, refresh, csrf)
     }};
 }
@@ -72,7 +72,7 @@ macro_rules! login_session_with_body {
         let status = resp.status();
         let access = common::extract_cookie(&resp, "aster_access");
         let refresh = common::extract_cookie(&resp, "aster_refresh");
-        let csrf = common::extract_cookie(&resp, "aster_csrf");
+        let csrf = common::extract_cookie(&resp, "aster_yggdrasil_csrf");
         let body: Value = test::read_body_json(resp).await;
         (status, body, access, refresh, csrf)
     }};
@@ -143,7 +143,7 @@ where
 }
 
 fn access_and_csrf_cookie_header(access_token: &str, csrf_token: &str) -> String {
-    format!("aster_access={access_token}; aster_csrf={csrf_token}")
+    format!("aster_access={access_token}; aster_yggdrasil_csrf={csrf_token}")
 }
 
 fn extract_password_reset_token(
@@ -1283,7 +1283,7 @@ async fn auth_login_sets_http_only_session_cookies_without_token_body() {
 
     let access = common::extract_cookie(&resp, "aster_access").expect("access cookie missing");
     let refresh = common::extract_cookie(&resp, "aster_refresh").expect("refresh cookie missing");
-    let csrf = common::extract_cookie(&resp, "aster_csrf").expect("csrf cookie missing");
+    let csrf = common::extract_cookie(&resp, "aster_yggdrasil_csrf").expect("csrf cookie missing");
     assert!(!access.is_empty());
     assert!(!refresh.is_empty());
     assert!(!csrf.is_empty());
@@ -1317,7 +1317,7 @@ async fn auth_login_sets_http_only_session_cookies_without_token_body() {
     let csrf_cookie = resp
         .response()
         .cookies()
-        .find(|cookie| cookie.name() == "aster_csrf")
+        .find(|cookie| cookie.name() == "aster_yggdrasil_csrf")
         .expect("csrf cookie missing");
     assert_eq!(csrf_cookie.path(), Some("/"));
     assert_eq!(csrf_cookie.same_site(), Some(SameSite::Lax));
@@ -1350,7 +1350,7 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     assert_eq!(resp.status(), 200);
     let access = common::extract_cookie(&resp, "aster_access").expect("access cookie missing");
     let refresh = common::extract_cookie(&resp, "aster_refresh").expect("refresh cookie missing");
-    let csrf = common::extract_cookie(&resp, "aster_csrf").expect("csrf cookie missing");
+    let csrf = common::extract_cookie(&resp, "aster_yggdrasil_csrf").expect("csrf cookie missing");
 
     let req = test::TestRequest::get()
         .uri("/api/v1/auth/me")
@@ -1375,7 +1375,7 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     let rotated_refresh =
         common::extract_cookie(&resp, "aster_refresh").expect("rotated refresh cookie missing");
     let rotated_csrf =
-        common::extract_cookie(&resp, "aster_csrf").expect("rotated csrf cookie missing");
+        common::extract_cookie(&resp, "aster_yggdrasil_csrf").expect("rotated csrf cookie missing");
     assert!(!rotated_access.is_empty());
     assert_ne!(rotated_refresh, refresh);
     assert_ne!(rotated_csrf, csrf);
@@ -1424,7 +1424,7 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
         Some("")
     );
     assert_eq!(
-        common::extract_cookie(&resp, "aster_csrf").as_deref(),
+        common::extract_cookie(&resp, "aster_yggdrasil_csrf").as_deref(),
         Some("")
     );
     let body: Value = test::read_body_json(resp).await;
@@ -1993,7 +1993,7 @@ async fn auth_sessions_revoke_current_clears_cookies_and_blocks_refresh() {
         Some("")
     );
     assert_eq!(
-        common::extract_cookie(&resp, "aster_csrf").as_deref(),
+        common::extract_cookie(&resp, "aster_yggdrasil_csrf").as_deref(),
         Some("")
     );
 
@@ -2586,7 +2586,8 @@ async fn auth_change_password_enforces_new_password_boundaries() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     access = common::extract_cookie(&resp, "aster_access").expect("new access cookie missing");
-    let csrf = common::extract_cookie(&resp, "aster_csrf").expect("new csrf cookie missing");
+    let csrf =
+        common::extract_cookie(&resp, "aster_yggdrasil_csrf").expect("new csrf cookie missing");
 
     let req = test::TestRequest::put()
         .uri("/api/v1/auth/password")

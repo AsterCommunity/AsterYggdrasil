@@ -1010,7 +1010,7 @@ pub fn bearer_header(access_token: impl AsRef<str>) -> (&'static str, String) {
 pub fn access_cookie_header(access_token: impl AsRef<str>) -> String {
     let access_token = access_token.as_ref();
     format!(
-        "aster_access={access_token}; aster_csrf={}",
+        "aster_access={access_token}; aster_yggdrasil_csrf={}",
         csrf_token_for(access_token)
     )
 }
@@ -1022,7 +1022,7 @@ pub fn refresh_cookie_header(
 ) -> String {
     let refresh_token = refresh_token.as_ref();
     format!(
-        "aster_refresh={refresh_token}; aster_csrf={}",
+        "aster_refresh={refresh_token}; aster_yggdrasil_csrf={}",
         csrf_token_for(refresh_token)
     )
 }
@@ -1036,14 +1036,14 @@ pub fn access_and_refresh_cookie_header(
     let access_token = access_token.as_ref();
     let refresh_token = refresh_token.as_ref();
     format!(
-        "aster_access={access_token}; aster_refresh={refresh_token}; aster_csrf={}",
+        "aster_access={access_token}; aster_refresh={refresh_token}; aster_yggdrasil_csrf={}",
         csrf_token_for(access_token)
     )
 }
 
 #[allow(dead_code)]
 pub fn csrf_header(csrf_token: impl AsRef<str>) -> (&'static str, String) {
-    ("X-CSRF-Token", csrf_token.as_ref().to_string())
+    ("X-Aster-Yggdrasil-CSRF", csrf_token.as_ref().to_string())
 }
 
 fn csrf_tokens_by_session() -> &'static Mutex<HashMap<String, String>> {
@@ -1095,7 +1095,7 @@ pub fn extract_cookie<B>(resp: &actix_web::dev::ServiceResponse<B>, name: &str) 
             .find_map(|raw| {
                 raw.split(';')
                     .next()
-                    .and_then(|pair| pair.strip_prefix("aster_csrf="))
+                    .and_then(|pair| pair.strip_prefix("aster_yggdrasil_csrf="))
                     .map(str::to_string)
             })
     {
@@ -1181,7 +1181,7 @@ macro_rules! create_test_app {
                 .wrap(aster_forge_actix_middleware::request_id::RequestIdMiddleware)
                 .wrap(aster_yggdrasil::api::middleware::cors::RuntimeCors)
                 .wrap(aster_forge_actix_middleware::security_headers::default_headers())
-                .wrap(aster_yggdrasil::api::middleware::metrics::MetricsMiddleware)
+                .wrap(aster_forge_actix_middleware::metrics::MetricsMiddleware)
                 .app_data(web::PayloadConfig::new(10 * 1024 * 1024))
                 .app_data(web::JsonConfig::default().limit(1024 * 1024))
                 .app_data(web::Data::new(metrics))
