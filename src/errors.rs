@@ -347,6 +347,28 @@ impl From<aster_forge_utils::UtilsError> for AsterError {
     }
 }
 
+impl From<aster_forge_external_auth::ExternalAuthError> for AsterError {
+    fn from(value: aster_forge_external_auth::ExternalAuthError) -> Self {
+        match value {
+            aster_forge_external_auth::ExternalAuthError::Validation(message) => {
+                Self::validation_error(message)
+            }
+            aster_forge_external_auth::ExternalAuthError::Config(message) => {
+                Self::config_error(message)
+            }
+            aster_forge_external_auth::ExternalAuthError::InvalidCredentials(message) => {
+                Self::auth_invalid_credentials(message)
+            }
+            aster_forge_external_auth::ExternalAuthError::State(message) => {
+                Self::database_operation(message)
+            }
+            aster_forge_external_auth::ExternalAuthError::Internal(message) => {
+                Self::internal_error(message)
+            }
+        }
+    }
+}
+
 impl From<aster_forge_crypto::CryptoError> for AsterError {
     fn from(value: aster_forge_crypto::CryptoError) -> Self {
         Self::internal_error(value.to_string())

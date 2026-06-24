@@ -79,6 +79,34 @@ impl std::fmt::Display for ExternalAuthProviderKind {
     }
 }
 
+impl From<ExternalAuthProviderKind> for aster_forge_external_auth::ExternalAuthProviderKind {
+    fn from(value: ExternalAuthProviderKind) -> Self {
+        match value {
+            ExternalAuthProviderKind::Oidc => Self::Oidc,
+            ExternalAuthProviderKind::GenericOAuth2 => Self::GenericOAuth2,
+            ExternalAuthProviderKind::GitHub => Self::GitHub,
+            ExternalAuthProviderKind::Google => Self::Google,
+            ExternalAuthProviderKind::Microsoft => Self::Microsoft,
+            ExternalAuthProviderKind::Qq => Self::Qq,
+        }
+    }
+}
+
+impl From<aster_forge_external_auth::ExternalAuthProviderKind> for ExternalAuthProviderKind {
+    fn from(value: aster_forge_external_auth::ExternalAuthProviderKind) -> Self {
+        match value {
+            aster_forge_external_auth::ExternalAuthProviderKind::Oidc => Self::Oidc,
+            aster_forge_external_auth::ExternalAuthProviderKind::GenericOAuth2 => {
+                Self::GenericOAuth2
+            }
+            aster_forge_external_auth::ExternalAuthProviderKind::GitHub => Self::GitHub,
+            aster_forge_external_auth::ExternalAuthProviderKind::Google => Self::Google,
+            aster_forge_external_auth::ExternalAuthProviderKind::Microsoft => Self::Microsoft,
+            aster_forge_external_auth::ExternalAuthProviderKind::Qq => Self::Qq,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(32))")]
@@ -96,6 +124,24 @@ impl ExternalAuthProtocol {
         match self {
             Self::Oidc => "oidc",
             Self::OAuth2 => "oauth2",
+        }
+    }
+}
+
+impl From<ExternalAuthProtocol> for aster_forge_external_auth::ExternalAuthProtocol {
+    fn from(value: ExternalAuthProtocol) -> Self {
+        match value {
+            ExternalAuthProtocol::Oidc => Self::Oidc,
+            ExternalAuthProtocol::OAuth2 => Self::OAuth2,
+        }
+    }
+}
+
+impl From<aster_forge_external_auth::ExternalAuthProtocol> for ExternalAuthProtocol {
+    fn from(value: aster_forge_external_auth::ExternalAuthProtocol) -> Self {
+        match value {
+            aster_forge_external_auth::ExternalAuthProtocol::Oidc => Self::Oidc,
+            aster_forge_external_auth::ExternalAuthProtocol::OAuth2 => Self::OAuth2,
         }
     }
 }
@@ -161,6 +207,38 @@ impl MicrosoftExternalAuthProviderOptions {
     fn normalized(self) -> Option<Self> {
         let tenant = self.tenant.trim().to_string();
         (!tenant.is_empty()).then_some(Self { tenant })
+    }
+}
+
+impl From<MicrosoftExternalAuthProviderOptions>
+    for aster_forge_external_auth::MicrosoftExternalAuthProviderOptions
+{
+    fn from(value: MicrosoftExternalAuthProviderOptions) -> Self {
+        Self::new(value.tenant)
+    }
+}
+
+impl From<aster_forge_external_auth::MicrosoftExternalAuthProviderOptions>
+    for MicrosoftExternalAuthProviderOptions
+{
+    fn from(value: aster_forge_external_auth::MicrosoftExternalAuthProviderOptions) -> Self {
+        Self::new(value.tenant)
+    }
+}
+
+impl From<ExternalAuthProviderOptions> for aster_forge_external_auth::ExternalAuthProviderOptions {
+    fn from(value: ExternalAuthProviderOptions) -> Self {
+        Self {
+            microsoft: value.microsoft.map(Into::into),
+        }
+    }
+}
+
+impl From<aster_forge_external_auth::ExternalAuthProviderOptions> for ExternalAuthProviderOptions {
+    fn from(value: aster_forge_external_auth::ExternalAuthProviderOptions) -> Self {
+        Self {
+            microsoft: value.microsoft.map(Into::into),
+        }
     }
 }
 

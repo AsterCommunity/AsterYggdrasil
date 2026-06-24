@@ -1,77 +1,69 @@
-//! 外部认证 provider driver 注册表。
+//! Yggdrasil-facing registry facade over shared Forge external-auth drivers.
 
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use super::driver::{ExternalAuthProviderDescriptor, ExternalAuthProviderDriver};
-use super::providers::github::GitHubProviderDriver;
-use super::providers::google::GoogleProviderDriver;
-use super::providers::microsoft::MicrosoftProviderDriver;
-use super::providers::oauth2::OAuth2ProviderDriver;
-use super::providers::oidc::OidcProviderDriver;
-use super::providers::qq::QqProviderDriver;
-use crate::errors::{AsterError, Result};
+use crate::errors::Result;
 use crate::types::ExternalAuthProviderKind;
 
+use super::{
+    ExternalAuthProviderDescriptor, ExternalAuthProviderDriver, map_external_auth_error,
+    map_external_auth_provider_descriptor,
+};
+
+/// Registry facade for feature-enabled external authentication provider drivers.
 pub struct ExternalAuthProviderRegistry {
-    drivers: HashMap<ExternalAuthProviderKind, Arc<dyn ExternalAuthProviderDriver>>,
+    inner: aster_forge_external_auth::ExternalAuthProviderRegistry,
 }
 
 impl ExternalAuthProviderRegistry {
+    /// Creates a registry populated with all Forge drivers enabled for Yggdrasil.
     pub fn new() -> Self {
-        let mut registry = Self {
-            drivers: HashMap::new(),
-        };
-        registry.register(OidcProviderDriver::new());
-        registry.register(OAuth2ProviderDriver::new());
-        registry.register(GitHubProviderDriver::new());
-        registry.register(GoogleProviderDriver::new());
-        registry.register(MicrosoftProviderDriver::new());
-        registry.register(QqProviderDriver::new());
-        registry
+        Self {
+            inner: aster_forge_external_auth::ExternalAuthProviderRegistry::new(),
+        }
     }
 
-    pub fn register<D>(&mut self, driver: D)
-    where
-        D: ExternalAuthProviderDriver + 'static,
-    {
-        self.drivers.insert(driver.kind(), Arc::new(driver));
-    }
-
-    pub fn register_arc(&mut self, driver: Arc<dyn ExternalAuthProviderDriver>) {
-        self.drivers.insert(driver.kind(), driver);
-    }
-
+    /// Returns registered provider kinds.
     pub fn supported_kinds(&self) -> impl Iterator<Item = ExternalAuthProviderKind> + '_ {
-        self.drivers.keys().copied()
+        self.inner.supported_kinds().map(Into::into)
     }
 
+    /// Returns registered provider descriptors sorted by provider kind.
     pub fn descriptors(&self) -> Vec<ExternalAuthProviderDescriptor> {
-        let mut descriptors = self
-            .drivers
-            .values()
-            .map(|driver| driver.descriptor())
-            .collect::<Vec<_>>();
-        descriptors.sort_by_key(|descriptor| descriptor.kind.as_str());
-        descriptors
+        self.inner
+            .descriptors()
+            .into_iter()
+            .map(map_external_auth_provider_descriptor)
+            .collect()
     }
 
+    /// Returns whether a provider kind is registered.
     pub fn contains(&self, kind: ExternalAuthProviderKind) -> bool {
-        self.drivers.contains_key(&kind)
+        self.inner.contains(kind.into())
     }
 
+    /// Returns a provider descriptor by provider kind.
+    pub fn descriptor_for(
+        &self,
+        kind: ExternalAuthProviderKind,
+    ) -> Result<ExternalAuthProviderDescriptor> {
+        self.inner
+            .descriptor_for(kind.into())
+            .map(map_external_auth_provider_descriptor)
+            .map_err(map_external_auth_error)
+    }
+
+    /// Returns a registered Forge provider driver by provider kind.
     pub fn get_driver(
         &self,
         kind: ExternalAuthProviderKind,
     ) -> Result<Arc<dyn ExternalAuthProviderDriver>> {
-        self.drivers.get(&kind).cloned().ok_or_else(|| {
-            AsterError::config_error(format!(
-                "external auth provider driver '{}' is not registered",
-                kind.as_str()
-            ))
-        })
+        self.inner
+            .get_driver(kind.into())
+            .map_err(map_external_auth_error)
     }
 
+    /// Returns the registered OIDC provider driver.
     pub fn oidc(&self) -> Result<Arc<dyn ExternalAuthProviderDriver>> {
         self.get_driver(ExternalAuthProviderKind::Oidc)
     }
@@ -83,99 +75,8 @@ impl Default for ExternalAuthProviderRegistry {
     }
 }
 
+/// Returns the process-wide default external-auth provider registry.
 pub fn default_registry() -> &'static ExternalAuthProviderRegistry {
     static REGISTRY: OnceLock<ExternalAuthProviderRegistry> = OnceLock::new();
     REGISTRY.get_or_init(ExternalAuthProviderRegistry::new)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::external_auth::{
-        ExternalAuthAuthorizationStart, ExternalAuthCallback, ExternalAuthProfile,
-        ExternalAuthProviderConfig, ExternalAuthProviderTestResult,
-    };
-    use async_trait::async_trait;
-
-    #[derive(Default)]
-    struct TestOidcDriver;
-
-    #[async_trait]
-    impl ExternalAuthProviderDriver for TestOidcDriver {
-        fn kind(&self) -> ExternalAuthProviderKind {
-            ExternalAuthProviderKind::Oidc
-        }
-
-        fn descriptor(&self) -> ExternalAuthProviderDescriptor {
-            ExternalAuthProviderDescriptor {
-                kind: ExternalAuthProviderKind::Oidc,
-                protocol: crate::types::ExternalAuthProtocol::Oidc,
-                display_name: "Test OIDC",
-                description: "Test OIDC driver",
-                default_scopes: "openid email profile",
-                issuer_url_required: true,
-                manual_endpoint_configuration_supported: false,
-                authorization_url_required: false,
-                token_url_required: false,
-                userinfo_url_required: false,
-                supports_discovery: true,
-                supports_pkce: true,
-                supports_email_verified_claim: true,
-            }
-        }
-
-        async fn start_authorization(
-            &self,
-            _provider: &ExternalAuthProviderConfig,
-            _redirect_uri: &str,
-        ) -> Result<ExternalAuthAuthorizationStart> {
-            unreachable!("registry tests only inspect driver registration")
-        }
-
-        async fn exchange_callback(
-            &self,
-            _provider: &ExternalAuthProviderConfig,
-            _callback: ExternalAuthCallback,
-        ) -> Result<ExternalAuthProfile> {
-            unreachable!("registry tests only inspect driver registration")
-        }
-
-        async fn test_provider(
-            &self,
-            _provider: &ExternalAuthProviderConfig,
-        ) -> Result<ExternalAuthProviderTestResult> {
-            unreachable!("registry tests only inspect driver registration")
-        }
-    }
-
-    #[test]
-    fn registry_returns_oidc_driver_by_kind() {
-        let registry = ExternalAuthProviderRegistry::new();
-        let driver = registry
-            .get_driver(ExternalAuthProviderKind::Oidc)
-            .expect("OIDC driver should be registered");
-
-        assert_eq!(driver.kind(), ExternalAuthProviderKind::Oidc);
-    }
-
-    #[test]
-    fn registry_allows_driver_replacement_by_kind() {
-        let mut registry = ExternalAuthProviderRegistry::new();
-        registry.register(TestOidcDriver);
-
-        assert!(registry.contains(ExternalAuthProviderKind::Oidc));
-        assert!(registry.contains(ExternalAuthProviderKind::GenericOAuth2));
-        assert!(registry.contains(ExternalAuthProviderKind::GitHub));
-        assert!(registry.contains(ExternalAuthProviderKind::Google));
-        assert!(registry.contains(ExternalAuthProviderKind::Microsoft));
-        assert!(registry.contains(ExternalAuthProviderKind::Qq));
-    }
-
-    #[test]
-    fn default_registry_is_singleton() {
-        let first = default_registry() as *const ExternalAuthProviderRegistry;
-        let second = default_registry() as *const ExternalAuthProviderRegistry;
-
-        assert_eq!(first, second);
-    }
 }

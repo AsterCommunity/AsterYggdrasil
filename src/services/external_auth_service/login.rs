@@ -4,7 +4,7 @@ use sea_orm::ActiveValue::Set;
 use crate::db::repository::{external_auth_login_flow_repo, external_auth_provider_repo};
 use crate::entities::external_auth_login_flow;
 use crate::errors::{AsterError, Result};
-use crate::external_auth::{ExternalAuthCallback, registry};
+use crate::external_auth::{ExternalAuthCallback, MapExternalAuthResult, registry};
 use crate::runtime::SharedRuntimeState;
 use crate::types::ExternalAuthProviderKind;
 use aster_forge_utils::numbers::u64_to_i64;
@@ -64,7 +64,8 @@ pub async fn start_login(
     let auth_start = registry::default_registry()
         .get_driver(provider.provider_kind)?
         .start_authorization(&external_auth_provider_config(&provider), &redirect_uri)
-        .await?;
+        .await
+        .map_external_auth()?;
     let now = Utc::now();
     let ttl = u64_to_i64(FLOW_TTL_SECS, "external auth login flow ttl")?;
     let flow = external_auth_login_flow::ActiveModel {
@@ -188,7 +189,8 @@ pub async fn finish_callback(
                 redirect_uri: flow.redirect_uri.clone(),
             },
         )
-        .await?;
+        .await
+        .map_external_auth()?;
 
     tracing::debug!(
         provider_id = provider.id,

@@ -4,16 +4,19 @@ use sea_orm::{ActiveValue::Set, IntoActiveModel};
 use crate::db::repository::external_auth_provider_repo;
 use crate::entities::external_auth_provider;
 use crate::errors::{AsterError, Result};
-use crate::external_auth::providers::microsoft::{
-    normalize_microsoft_tenant_input, normalize_microsoft_tenant_or_issuer_url,
+use crate::external_auth::{
+    ExternalAuthProviderConfig, MapExternalAuthResult, external_auth_provider_config_from_model,
+    map_external_auth_error, registry,
 };
-use crate::external_auth::{ExternalAuthProviderConfig, registry};
 use crate::runtime::SharedRuntimeState;
 use crate::types::{
     ExternalAuthProviderKind, ExternalAuthProviderOptions, MicrosoftExternalAuthProviderOptions,
     NullablePatch, serialize_external_auth_provider_options,
 };
 use aster_forge_api::{CursorPage, StringIdCursor};
+use aster_forge_external_auth::providers::microsoft::{
+    normalize_microsoft_tenant_input, normalize_microsoft_tenant_or_issuer_url,
+};
 
 use super::REDACTED_SECRET;
 use super::normalize::{
@@ -174,21 +177,13 @@ fn admin_manual_endpoint(
 pub(super) fn external_auth_provider_config(
     provider: &external_auth_provider::Model,
 ) -> ExternalAuthProviderConfig {
-    ExternalAuthProviderConfig::from_provider(provider)
+    external_auth_provider_config_from_model(provider)
 }
 
 fn external_auth_provider_config_from_test_params(
     input: ExternalAuthProviderTestParamsInput,
 ) -> Result<ExternalAuthProviderConfig> {
-    let driver = registry::default_registry().get_driver(input.provider_kind)?;
-    let descriptor = driver.descriptor();
-    if descriptor.kind != input.provider_kind {
-        return Err(AsterError::config_error(format!(
-            "external auth provider driver '{}' returned descriptor for '{}'",
-            input.provider_kind.as_str(),
-            descriptor.kind.as_str()
-        )));
-    }
+    let descriptor = registry::default_registry().descriptor_for(input.provider_kind)?;
     let options = normalize_provider_options_from_test_params(
         input.provider_kind,
         input.options,
@@ -197,9 +192,9 @@ fn external_auth_provider_config_from_test_params(
     Ok(ExternalAuthProviderConfig {
         id: 0,
         key: "draft".to_string(),
-        provider_kind: input.provider_kind,
-        protocol: descriptor.protocol,
-        options,
+        provider_kind: input.provider_kind.into(),
+        protocol: descriptor.protocol.into(),
+        options: options.into(),
         issuer_url: normalize_provider_issuer_url_input(
             input.provider_kind,
             input.issuer_url,
@@ -274,7 +269,7 @@ fn normalize_provider_issuer_url_input(
             normalize_issuer_url_input(value, required)
         }
         ExternalAuthProviderKind::Microsoft if allow_test_override => {
-            normalize_microsoft_tenant_or_issuer_url(value)
+            Ok(normalize_microsoft_tenant_or_issuer_url(value)?)
         }
         ExternalAuthProviderKind::Microsoft => normalize_specialized_issuer_url_input(
             provider_kind,
@@ -503,15 +498,7 @@ pub async fn create_provider(
     state: &impl SharedRuntimeState,
     input: CreateExternalAuthProviderInput,
 ) -> Result<AdminExternalAuthProviderInfo> {
-    let driver = registry::default_registry().get_driver(input.provider_kind)?;
-    let descriptor = driver.descriptor();
-    if descriptor.kind != input.provider_kind {
-        return Err(AsterError::config_error(format!(
-            "external auth provider driver '{}' returned descriptor for '{}'",
-            input.provider_kind.as_str(),
-            descriptor.kind.as_str()
-        )));
-    }
+    let descriptor = registry::default_registry().descriptor_for(input.provider_kind)?;
     let key =
         aster_forge_utils::id::new_best_effort_uuid("external auth provider key", |candidate| {
             let db = state.writer_db();
@@ -629,9 +616,7 @@ pub async fn update_provider(
             "external auth provider #{id}"
         )));
     }
-    let descriptor = registry::default_registry()
-        .get_driver(existing.provider_kind)?
-        .descriptor();
+    let descriptor = registry::default_registry().descriptor_for(existing.provider_kind)?;
     let mut active = existing.clone().into_active_model();
     if let Some(display_name) = input.display_name {
         active.display_name = Set(normalize_required(&display_name, "display_name", 128)?);
@@ -753,7 +738,8 @@ pub async fn test_provider(
     let result = registry::default_registry()
         .get_driver(provider.provider_kind)?
         .test_provider(&external_auth_provider_config(&provider))
-        .await?;
+        .await
+        .map_external_auth()?;
     external_auth_provider_repo::touch_updated_at(state.writer_db(), id, Utc::now()).await?;
     Ok(map_driver_test_result(result))
 }
@@ -763,9 +749,11 @@ pub async fn test_provider_params(
     input: ExternalAuthProviderTestParamsInput,
 ) -> Result<ExternalAuthProviderTestResult> {
     let provider = external_auth_provider_config_from_test_params(input)?;
-    let result = registry::default_registry()
-        .get_driver(provider.provider_kind)?
+    let result = aster_forge_external_auth::default_registry()
+        .get_driver(provider.provider_kind)
+        .map_err(map_external_auth_error)?
         .test_provider(&provider)
-        .await?;
+        .await
+        .map_external_auth()?;
     Ok(map_driver_test_result(result))
 }

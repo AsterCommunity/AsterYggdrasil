@@ -4,11 +4,11 @@
 mod common;
 
 use actix_web::{App, body::to_bytes, http::header, test, web};
+use aster_forge_actix_middleware::security_headers::{
+    REFERRER_POLICY_VALUE, X_CONTENT_TYPE_OPTIONS_VALUE, X_FRAME_OPTIONS_VALUE,
+};
 use aster_yggdrasil::api::{
     error_code::AsterErrorCode,
-    middleware::security_headers::{
-        REFERRER_POLICY_VALUE, X_CONTENT_TYPE_OPTIONS_VALUE, X_FRAME_OPTIONS_VALUE,
-    },
     routes::frontend::{FRONTEND_CSP_HEADER, FRONTEND_CSP_META},
 };
 use serde_json::Value;

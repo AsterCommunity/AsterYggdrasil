@@ -2,7 +2,6 @@ use crate::api::api_error_code::ApiErrorCode;
 use crate::config::site_url;
 use crate::entities::external_auth_provider;
 use crate::errors::{AsterError, MapAsterErr, Result, validation_error_with_code};
-use crate::external_auth::url::parse_url;
 use crate::runtime::SharedRuntimeState;
 use crate::services::auth_service;
 use crate::types::{ExternalAuthProtocol, ExternalAuthProviderKind, NullablePatch};
@@ -140,6 +139,11 @@ pub(super) fn normalize_scopes(
     normalize_scopes_with_default(value, DEFAULT_SCOPES, protocol)
 }
 
+fn parse_external_auth_url(value: &str, context: &str) -> Result<url::Url> {
+    aster_forge_utils::url::parse_url(value, context)
+        .map_err(|error| AsterError::validation_error(error.to_string()))
+}
+
 fn normalize_optional_url(
     value: Option<String>,
     field: &str,
@@ -158,7 +162,7 @@ fn normalize_optional_url(
         )));
     }
     let parse_context = format!("invalid external auth {field}");
-    let parsed = parse_url(trimmed, &parse_context, AsterError::validation_error)?;
+    let parsed = parse_external_auth_url(trimmed, &parse_context)?;
     if !aster_forge_utils::url::is_https_or_loopback_http(&parsed) {
         return Err(AsterError::validation_error(format!(
             "external auth {field} must use HTTPS, except localhost"
@@ -193,11 +197,7 @@ pub(super) fn normalize_icon_url_input(value: Option<String>) -> Result<Option<S
     if trimmed.starts_with('/') && !trimmed.starts_with("//") {
         return Ok(Some(trimmed.to_string()));
     }
-    let parsed = parse_url(
-        trimmed,
-        "invalid external auth icon_url",
-        AsterError::validation_error,
-    )?;
+    let parsed = parse_external_auth_url(trimmed, "invalid external auth icon_url")?;
     if !aster_forge_utils::url::is_https_or_loopback_http(&parsed) {
         return Err(AsterError::validation_error(
             "external auth icon_url must be a root-relative path or HTTPS URL, except localhost",
@@ -226,11 +226,7 @@ pub(super) fn normalize_issuer_url_input(
         }
         return Ok(None);
     };
-    let parsed = parse_url(
-        &issuer,
-        "invalid external auth issuer_url",
-        AsterError::validation_error,
-    )?;
+    let parsed = parse_external_auth_url(&issuer, "invalid external auth issuer_url")?;
     if parsed.query().is_some() {
         return Err(AsterError::validation_error(
             "external auth issuer_url cannot include query or fragment",
