@@ -78,6 +78,7 @@ aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterFo
 aster_forge_cache = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_cache", features = ["memory", "redis"] }
 aster_forge_crypto = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_crypto" }
 aster_forge_db = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db" }
+aster_forge_metrics = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_metrics" }
 aster_forge_utils = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_utils" }
 aster_forge_validation = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_validation" }
 argon2 = "0.5.3"

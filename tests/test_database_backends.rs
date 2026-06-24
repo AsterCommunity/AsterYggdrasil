@@ -283,12 +283,10 @@ async fn test_sqlite_transactions_are_serialized_by_single_connection_pool() {
         pool_size: 8,
         retry_count: 0,
     };
-    let db = aster_yggdrasil::db::connect_with_metrics(
-        &cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
-    )
-    .await
-    .expect("sqlite lock smoke database should connect");
+    let db =
+        aster_yggdrasil::db::connect_with_metrics(&cfg, aster_forge_metrics::NoopMetrics::arc())
+            .await
+            .expect("sqlite lock smoke database should connect");
 
     let txn = db
         .begin()

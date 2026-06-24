@@ -485,7 +485,7 @@ mod tests {
             pool_size: 1,
             retry_count: 0,
         };
-        let db = crate::db::connect_with_metrics(&db_cfg, crate::metrics_core::NoopMetrics::arc())
+        let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("test database should connect");
         migration::Migrator::up(&db, None)

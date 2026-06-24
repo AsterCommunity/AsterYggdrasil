@@ -4,9 +4,9 @@ use crate::cache;
 use crate::config::{Config, RuntimeConfig};
 use crate::db;
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::metrics_core::SharedMetricsRecorder;
 use crate::object_storage;
 use crate::services::{system_config_service, yggdrasil_session_forward_service};
+use aster_forge_metrics::SharedMetricsRecorder;
 
 pub(super) struct CommonRuntimeParts {
     pub config: Arc<Config>,
@@ -68,5 +68,5 @@ fn create_metrics_recorder() -> SharedMetricsRecorder {
         }
     }
 
-    crate::metrics_core::NoopMetrics::arc()
+    aster_forge_metrics::NoopMetrics::arc()
 }

@@ -9,7 +9,7 @@ use futures::future::{LocalBoxFuture, Ready, ok};
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::metrics_core::SharedMetricsRecorder;
+use aster_forge_metrics::SharedMetricsRecorder;
 
 pub struct MetricsMiddleware;
 
@@ -51,7 +51,7 @@ where
         let metrics = req
             .app_data::<web::Data<SharedMetricsRecorder>>()
             .map(|data| data.get_ref().clone())
-            .unwrap_or_else(crate::metrics_core::NoopMetrics::arc);
+            .unwrap_or_else(aster_forge_metrics::NoopMetrics::arc);
 
         if !metrics.enabled() {
             return Box::pin(async move { svc.call(req).await });
@@ -104,8 +104,8 @@ fn unmatched_route(req: &ServiceRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::{MetricsMiddleware, unmatched_route};
-    use crate::metrics_core::{MetricsRecorder, SharedMetricsRecorder};
     use actix_web::{App, HttpResponse, error, test as actix_test, web};
+    use aster_forge_metrics::{MetricsRecorder, SharedMetricsRecorder};
     use std::sync::{Arc, Mutex};
 
     #[derive(Clone, Debug, PartialEq)]

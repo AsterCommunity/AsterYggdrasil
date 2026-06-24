@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::config::DatabaseConfig;
 use crate::errors::{AsterError, Result};
-use crate::metrics_core::SharedMetricsRecorder;
+use aster_forge_metrics::SharedMetricsRecorder;
 use sea_orm::DatabaseConnection;
 
 pub use aster_forge_db::DbHandles;

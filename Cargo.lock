@@ -725,7 +725,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_api_docs_macros"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -735,7 +735,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_cache"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -751,7 +751,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_crypto"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "argon2",
  "rand_core 0.6.4",
@@ -762,7 +762,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_db"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "rand 0.10.1",
  "sea-orm",
@@ -772,9 +772,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "aster_forge_metrics"
+version = "0.1.0"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
+dependencies = [
+ "aster_forge_db",
+ "sea-orm",
+ "thiserror 2.0.18",
+ "tokio-util",
+]
+
+[[package]]
 name = "aster_forge_utils"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "thiserror 2.0.18",
  "tracing",
@@ -784,7 +795,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_validation"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#2082601e0c64eb9109f8eb0e671e5f937b190dce"
+source = "git+https://github.com/AsterCommunity/AsterForge#e5bd9fad17f6ebb493f66b015306740aa52edb80"
 dependencies = [
  "thiserror 2.0.18",
  "unicode-normalization",
@@ -804,6 +815,7 @@ dependencies = [
  "aster_forge_cache",
  "aster_forge_crypto",
  "aster_forge_db",
+ "aster_forge_metrics",
  "aster_forge_utils",
  "aster_forge_validation",
  "async-trait",

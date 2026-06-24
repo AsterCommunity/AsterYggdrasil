@@ -125,7 +125,7 @@ mod tests {
     use crate::config::DatabaseConfig;
     use crate::db::repository::system_config_repo;
     use crate::errors::{AsterError, Result};
-    use crate::metrics_core::NoopMetrics;
+    use aster_forge_metrics::NoopMetrics;
 
     async fn setup_db() -> sea_orm::DatabaseConnection {
         let db = crate::db::connect_with_metrics(

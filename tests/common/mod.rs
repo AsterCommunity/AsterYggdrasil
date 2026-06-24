@@ -351,7 +351,7 @@ async fn drop_stale_test_databases(
     };
     let admin_db = aster_yggdrasil::db::connect_with_metrics(
         &admin_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        aster_forge_metrics::NoopMetrics::arc(),
     )
     .await
     .expect("stale test database cleanup should connect");
@@ -378,7 +378,7 @@ async fn ensure_mysql_test_user_access(admin_database_url: &str, username: &str)
     };
     let admin_db = aster_yggdrasil::db::connect_with_metrics(
         &admin_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        aster_forge_metrics::NoopMetrics::arc(),
     )
     .await
     .expect("mysql test admin connection should succeed");
@@ -423,7 +423,7 @@ async fn wait_for_database(database_url: &str) {
             };
             match aster_yggdrasil::db::connect_with_metrics(
                 &cfg,
-                aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+                aster_forge_metrics::NoopMetrics::arc(),
             )
             .await
             {
@@ -647,7 +647,7 @@ async fn provision_isolated_test_database_url_with_template(
     };
     let admin_db = aster_yggdrasil::db::connect_with_metrics(
         &admin_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        aster_forge_metrics::NoopMetrics::arc(),
     )
     .await
     .expect("isolated test database admin connection should succeed");
@@ -702,12 +702,10 @@ async fn build_postgres_database_template() -> PostgresDatabaseTemplate {
         pool_size: 1,
         retry_count: 0,
     };
-    let db = aster_yggdrasil::db::connect_with_metrics(
-        &db_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
-    )
-    .await
-    .expect("postgres template database connection should succeed");
+    let db =
+        aster_yggdrasil::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
+            .await
+            .expect("postgres template database connection should succeed");
 
     migration::Migrator::up(&db, None)
         .await
@@ -782,7 +780,7 @@ pub async fn setup_with_memory_cache() -> AppState {
         cache,
         object_storage: base.object_storage,
         mail_sender: aster_yggdrasil::services::mail_service::memory_sender(),
-        metrics: aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        metrics: aster_forge_metrics::NoopMetrics::arc(),
         started_at: aster_yggdrasil::runtime::AppState::new_started_at(),
         yggdrasil_rate_limiter: aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(
             &base.config,
@@ -860,12 +858,10 @@ async fn build_mysql_schema_template() -> MySqlSchemaTemplate {
         pool_size: 1,
         retry_count: 0,
     };
-    let db = aster_yggdrasil::db::connect_with_metrics(
-        &db_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
-    )
-    .await
-    .expect("mysql schema template connection should succeed");
+    let db =
+        aster_yggdrasil::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
+            .await
+            .expect("mysql schema template connection should succeed");
 
     migration::Migrator::up(&db, None)
         .await
@@ -917,12 +913,10 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         pool_size: 1,
         retry_count: 0,
     };
-    let writer = aster_yggdrasil::db::connect_with_metrics(
-        &db_cfg,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
-    )
-    .await
-    .expect("test database should connect");
+    let writer =
+        aster_yggdrasil::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
+            .await
+            .expect("test database should connect");
 
     if should_use_mysql_schema_template(database_url) {
         clone_mysql_schema_from_template(&writer).await;
@@ -982,7 +976,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     let db_handles = aster_yggdrasil::db::connect_reader_for_writer_with_metrics(
         &db_cfg,
         writer,
-        aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        aster_forge_metrics::NoopMetrics::arc(),
     )
     .await
     .expect("test db handles should initialize");
@@ -996,7 +990,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         cache,
         object_storage,
         mail_sender: aster_yggdrasil::services::mail_service::memory_sender(),
-        metrics: aster_yggdrasil::metrics_core::NoopMetrics::arc(),
+        metrics: aster_forge_metrics::NoopMetrics::arc(),
         started_at: aster_yggdrasil::runtime::AppState::new_started_at(),
         yggdrasil_rate_limiter,
         yggdrasil_session_forward_http_client:

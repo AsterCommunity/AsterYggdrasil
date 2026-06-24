@@ -12,7 +12,7 @@ impl aster_forge_db::DbMetricsRecorder for PrometheusMetricsRecorder {
     }
 }
 
-impl crate::metrics_core::MetricsRecorder for PrometheusMetricsRecorder {
+impl aster_forge_metrics::MetricsRecorder for PrometheusMetricsRecorder {
     fn record_http_request(&self, method: &str, route: &str, status: u16, duration_seconds: f64) {
         super::registry::record_http_request(method, route, status, duration_seconds);
     }

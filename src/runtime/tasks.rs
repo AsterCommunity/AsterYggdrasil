@@ -13,9 +13,9 @@ use tracing::Instrument;
 
 use crate::config::node_mode::NodeRuntimeMode;
 use crate::config::operations;
-use crate::metrics_core::SharedMetricsRecorder;
 use crate::runtime::{AppState, SharedRuntimeState};
 use crate::services::task_service::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
+use aster_forge_metrics::SharedMetricsRecorder;
 
 const BACKGROUND_TASK_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
 const BACKGROUND_TASK_DISPATCH_ERROR_BACKOFF_CAP: Duration = Duration::from_secs(5);

@@ -58,7 +58,7 @@ mod tests {
                 pool_size: 1,
                 retry_count: 0,
             },
-            crate::metrics_core::NoopMetrics::arc(),
+            aster_forge_metrics::NoopMetrics::arc(),
         )
         .await
         .expect("test database should connect");
@@ -86,7 +86,7 @@ mod tests {
             )
             .expect("test object storage should initialize"),
             mail_sender: crate::services::mail_service::memory_sender(),
-            metrics: crate::metrics_core::NoopMetrics::arc(),
+            metrics: aster_forge_metrics::NoopMetrics::arc(),
             started_at: AppState::new_started_at(),
             yggdrasil_rate_limiter: AppState::new_yggdrasil_rate_limiter(
                 &crate::config::Config::default(),

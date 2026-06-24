@@ -23,7 +23,7 @@ async fn test_state(texture_root: String) -> AppState {
         pool_size: 1,
         retry_count: 0,
     };
-    let db = crate::db::connect_with_metrics(&db_cfg, crate::metrics_core::NoopMetrics::arc())
+    let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
         .await
         .expect("texture cleanup test database should connect");
     migration::Migrator::up(&db, None)
@@ -62,7 +62,7 @@ async fn test_state(texture_root: String) -> AppState {
         cache,
         object_storage,
         mail_sender: crate::services::mail_service::memory_sender(),
-        metrics: crate::metrics_core::NoopMetrics::arc(),
+        metrics: aster_forge_metrics::NoopMetrics::arc(),
         started_at: crate::runtime::AppState::new_started_at(),
         yggdrasil_rate_limiter,
         yggdrasil_session_forward_http_client:

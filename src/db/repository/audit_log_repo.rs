@@ -187,7 +187,7 @@ mod tests {
                 pool_size: 1,
                 retry_count: 0,
             },
-            crate::metrics_core::NoopMetrics::arc(),
+            aster_forge_metrics::NoopMetrics::arc(),
         )
         .await
         .expect("audit log repo test DB should connect");
