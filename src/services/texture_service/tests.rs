@@ -29,7 +29,7 @@ async fn test_state(texture_root: String) -> AppState {
     migration::Migrator::up(&db, None)
         .await
         .expect("texture cleanup test migrations should run");
-    crate::services::system_config_service::ensure_defaults(&db)
+    crate::services::config_service::ensure_defaults(&db)
         .await
         .expect("texture cleanup test defaults should seed");
 

@@ -5,8 +5,11 @@
 //! mechanics to `aster_forge_actix_middleware`.
 
 use crate::config::RuntimeConfig;
-use crate::errors::{AsterError, MapAsterErr, Result};
+use crate::errors::{AsterError, Result};
 use aster_forge_actix_middleware::cors as forge_cors;
+use aster_forge_config::{
+    normalize_non_negative_u64_config_value, normalize_strict_bool_config_value,
+};
 
 pub use crate::config::definitions::{
     CORS_ALLOW_CREDENTIALS_KEY, CORS_ALLOWED_ORIGINS_KEY, CORS_ENABLED_KEY, CORS_MAX_AGE_SECS_KEY,
@@ -112,12 +115,7 @@ pub fn runtime_cors_policy(runtime_config: &RuntimeConfig) -> RuntimeCorsPolicy 
 }
 
 pub fn normalize_enabled_config_value(value: &str) -> Result<String> {
-    match parse_bool_str(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(
-            "cors_enabled must be 'true' or 'false'",
-        )),
-    }
+    normalize_strict_bool_config_value(CORS_ENABLED_KEY, value).map_err(Into::into)
 }
 
 pub fn normalize_allowed_origins_config_value(value: &str) -> Result<String> {
@@ -130,20 +128,11 @@ pub fn normalize_allowed_origins_config_value(value: &str) -> Result<String> {
 }
 
 pub fn normalize_allow_credentials_config_value(value: &str) -> Result<String> {
-    match parse_bool_str(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(
-            "cors_allow_credentials must be 'true' or 'false'",
-        )),
-    }
+    normalize_strict_bool_config_value(CORS_ALLOW_CREDENTIALS_KEY, value).map_err(Into::into)
 }
 
 pub fn normalize_max_age_config_value(value: &str) -> Result<String> {
-    let trimmed = value.trim();
-    let max_age = trimmed.parse::<u64>().map_aster_err_with(|| {
-        AsterError::validation_error("cors_max_age_secs must be a non-negative integer")
-    })?;
-    Ok(max_age.to_string())
+    normalize_non_negative_u64_config_value(CORS_MAX_AGE_SECS_KEY, value).map_err(Into::into)
 }
 
 pub fn parse_allowed_origins_value(value: &str) -> Result<CorsAllowedOrigins> {

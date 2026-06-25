@@ -2,7 +2,7 @@
 
 use aster_forge_config::{
     ConfigCoreError, ConfigDefinition, ConfigRegistry, ConfigValueLookup, ConfigValueType,
-    Result as ConfigCoreResult,
+    Result as ConfigCoreResult, normalize_bool_config_value,
 };
 use aster_forge_utils::bool_like::parse_bool_like;
 
@@ -456,9 +456,7 @@ fn normalize_texture_library_bool(
     key: &str,
     value: &str,
 ) -> ConfigCoreResult<String> {
-    parse_bool_like(value)
-        .map(|value| value.to_string())
-        .ok_or_else(|| ConfigCoreError::invalid_value(format!("{key} must be a boolean value")))
+    normalize_bool_config_value(key, value)
 }
 
 fn normalize_branding_title(

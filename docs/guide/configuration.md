@@ -70,6 +70,16 @@ auth_captcha_length
 auth_captcha_max_attempts
 ```
 
+头像相关设置也走运行时配置：
+
+```text
+gravatar_base_url
+```
+
+`gravatar_base_url` 控制 Gravatar 头像 URL 的基础地址，默认是 `https://www.gravatar.com/avatar`。
+可以改成镜像地址，例如 `https://cravatar.cn/avatar`。保存时会去掉首尾空白和尾部斜杠；
+非空值必须是带 host 的 `http`/`https` base URL，不能包含 query 或 fragment。空值会回退默认地址。
+
 管理端通过 Admin Config API 修改：
 
 ```text

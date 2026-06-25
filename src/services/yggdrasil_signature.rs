@@ -386,7 +386,7 @@ mod tests {
         .await
         .unwrap();
         migration::Migrator::up(&db, None).await.unwrap();
-        crate::services::system_config_service::ensure_defaults(&db)
+        crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();
 
@@ -431,7 +431,7 @@ mod tests {
         .await
         .unwrap();
         migration::Migrator::up(&db, None).await.unwrap();
-        crate::services::system_config_service::ensure_defaults(&db)
+        crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();
         crate::db::repository::system_config_repo::upsert_with_options(
@@ -474,7 +474,7 @@ mod tests {
         .await
         .unwrap();
         migration::Migrator::up(&db, None).await.unwrap();
-        crate::services::system_config_service::ensure_defaults(&db)
+        crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();
         let private_key = generate_private_key_pem(2048).unwrap();

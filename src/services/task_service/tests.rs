@@ -36,7 +36,7 @@ async fn test_state() -> AppState {
     migration::Migrator::up(&db, None)
         .await
         .expect("task service test migrations should run");
-    crate::services::system_config_service::ensure_defaults(&db)
+    crate::services::config_service::ensure_defaults(&db)
         .await
         .expect("task service test defaults should seed");
 

@@ -70,6 +70,18 @@ auth_captcha_length
 auth_captcha_max_attempts
 ```
 
+Avatar-related settings also use runtime config:
+
+```text
+gravatar_base_url
+```
+
+`gravatar_base_url` controls the base URL used to generate Gravatar avatar URLs. The default is
+`https://www.gravatar.com/avatar`, and deployments can point it to a mirror such as
+`https://cravatar.cn/avatar`. Writes trim surrounding whitespace and trailing slashes. Non-empty
+values must be `http`/`https` base URLs with a host and must not include query strings or fragments.
+Blank values fall back to the default base URL.
+
 Admin Config API:
 
 ```text

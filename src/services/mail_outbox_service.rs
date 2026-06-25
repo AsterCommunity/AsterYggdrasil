@@ -16,7 +16,7 @@ use crate::services::{
     mail_template::{self, MailTemplatePayload},
 };
 use crate::types::MailOutboxStatus;
-use aster_forge_mail::MailOutboxDeliveryFailureDecision;
+use aster_forge_mail::{DispatchStats, MailOutboxDeliveryFailureDecision};
 
 const MAIL_OUTBOX_BATCH_SIZE: u64 = 20;
 const MAIL_OUTBOX_PROCESSING_STALE_SECS: i64 = 60;
@@ -27,8 +27,6 @@ const MAIL_OUTBOX_RETRY_POLICY: aster_forge_mail::MailOutboxRetryPolicy =
         MAIL_OUTBOX_MAX_ATTEMPTS,
         aster_forge_mail::DEFAULT_ERROR_MAX_LEN,
     );
-
-pub use aster_forge_mail::DispatchStats;
 
 pub async fn enqueue<C: ConnectionTrait>(
     db: &C,

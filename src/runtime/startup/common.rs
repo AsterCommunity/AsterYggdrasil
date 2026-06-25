@@ -5,7 +5,7 @@ use crate::config::{Config, RuntimeConfig};
 use crate::db;
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::object_storage;
-use crate::services::{system_config_service, yggdrasil_session_forward_service};
+use crate::services::{config_service, yggdrasil_session_forward_service};
 use aster_forge_metrics::SharedMetricsRecorder;
 
 pub(super) struct CommonRuntimeParts {
@@ -33,12 +33,12 @@ pub(super) async fn prepare_common(config: Arc<Config>) -> Result<CommonRuntimeP
         db::connect_reader_for_writer_with_metrics(&config.database, writer, metrics.clone())
             .await?;
 
-    system_config_service::bootstrap_insecure_cookies(
+    config_service::bootstrap_insecure_cookies(
         db_handles.writer(),
         config.auth.bootstrap_insecure_cookies,
     )
     .await?;
-    system_config_service::ensure_defaults(db_handles.writer()).await?;
+    config_service::ensure_defaults(db_handles.writer()).await?;
     yggdrasil_session_forward_service::ensure_builtin_servers(db_handles.writer()).await?;
     crate::services::yggdrasil_signature::ensure_signature_key(db_handles.writer()).await?;
     let runtime_config = Arc::new(RuntimeConfig::new());
@@ -66,5 +66,8 @@ fn create_metrics_recorder() -> SharedMetricsRecorder {
         });
     }
 
-    aster_forge_metrics::NoopMetrics::arc()
+    #[cfg(not(feature = "metrics"))]
+    {
+        return aster_forge_metrics::NoopMetrics::arc();
+    }
 }

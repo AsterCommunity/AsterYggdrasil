@@ -558,7 +558,7 @@ mod tests {
         migration::Migrator::up(&db, None)
             .await
             .expect("admin user test migrations should run");
-        crate::services::system_config_service::ensure_defaults(&db)
+        crate::services::config_service::ensure_defaults(&db)
             .await
             .expect("admin user test defaults should seed");
 

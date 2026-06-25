@@ -3,6 +3,15 @@
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
 use crate::types::MailTemplateCode;
+use aster_forge_mail::{
+    normalize_mail_address_config_value as forge_normalize_mail_address_config_value,
+    normalize_mail_name_config_value as forge_normalize_mail_name_config_value,
+    normalize_mail_security_config_value as forge_normalize_mail_security_config_value,
+    normalize_mail_template_body_config_value as forge_normalize_mail_template_body_config_value,
+    normalize_mail_template_subject_config_value as forge_normalize_mail_template_subject_config_value,
+    normalize_smtp_host_config_value as forge_normalize_smtp_host_config_value,
+    normalize_smtp_port_config_value as forge_normalize_smtp_port_config_value, parse_smtp_port,
+};
 
 pub use crate::config::definitions::{
     MAIL_FROM_ADDRESS_KEY, MAIL_FROM_NAME_KEY, MAIL_SECURITY_KEY, MAIL_SMTP_HOST_KEY,
@@ -21,8 +30,6 @@ pub use crate::config::definitions::{
 
 pub const DEFAULT_MAIL_SMTP_PORT: u16 = 587;
 pub const DEFAULT_MAIL_SECURITY: bool = true;
-const MAIL_TEMPLATE_MAX_SUBJECT_LEN: usize = 255;
-const MAIL_TEMPLATE_MAX_BODY_LEN: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeMailSettings {
@@ -39,7 +46,7 @@ impl RuntimeMailSettings {
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let smtp_port = runtime_config
             .get(MAIL_SMTP_PORT_KEY)
-            .and_then(|raw| parse_port(&raw))
+            .and_then(|raw| parse_smtp_port(&raw))
             .unwrap_or(DEFAULT_MAIL_SMTP_PORT);
         let encryption_enabled =
             runtime_config.get_bool_or(MAIL_SECURITY_KEY, DEFAULT_MAIL_SECURITY);
@@ -187,108 +194,35 @@ pub fn template_html(runtime_config: &RuntimeConfig, code: MailTemplateCode) -> 
 }
 
 pub fn normalize_smtp_host_config_value(value: &str) -> Result<String> {
-    let normalized = value.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
-        return Ok(String::new());
-    }
-    if normalized.contains(char::is_whitespace) {
-        return Err(AsterError::validation_error(
-            "mail_smtp_host cannot contain spaces",
-        ));
-    }
-    Ok(normalized)
+    forge_normalize_smtp_host_config_value(value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_smtp_port_config_value(value: &str) -> Result<String> {
-    let Some(port) = parse_port(value) else {
-        return Err(AsterError::validation_error(
-            "mail_smtp_port must be an integer between 1 and 65535",
-        ));
-    };
-    Ok(port.to_string())
+    forge_normalize_smtp_port_config_value(value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_mail_address_config_value(value: &str) -> Result<String> {
-    let normalized = value.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
-        return Ok(String::new());
-    }
-    validate_contact_email(&normalized)?;
-    Ok(normalized)
+    forge_normalize_mail_address_config_value(value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_mail_name_config_value(value: &str) -> Result<String> {
-    let normalized = value.trim();
-    if normalized.len() > 128 {
-        return Err(AsterError::validation_error(
-            "mail_from_name must be at most 128 characters",
-        ));
-    }
-    Ok(normalized.to_string())
+    forge_normalize_mail_name_config_value(value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_mail_security_config_value(value: &str) -> Result<String> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "true" | "1" | "yes" | "on" => Ok("true".to_string()),
-        "false" | "0" | "no" | "off" => Ok("false".to_string()),
-        _ => Err(AsterError::validation_error(
-            "mail_security must be 'true' or 'false'",
-        )),
-    }
+    forge_normalize_mail_security_config_value(value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_mail_template_subject_config_value(key: &str, value: &str) -> Result<String> {
-    let normalized = value.trim();
-    if normalized.is_empty() {
-        return Err(AsterError::validation_error(format!(
-            "{key} cannot be empty"
-        )));
-    }
-    if normalized.contains(['\r', '\n']) {
-        return Err(AsterError::validation_error(format!(
-            "{key} must be a single line",
-        )));
-    }
-    if normalized.len() > MAIL_TEMPLATE_MAX_SUBJECT_LEN {
-        return Err(AsterError::validation_error(format!(
-            "{key} must be at most {MAIL_TEMPLATE_MAX_SUBJECT_LEN} characters",
-        )));
-    }
-    Ok(normalized.to_string())
+    forge_normalize_mail_template_subject_config_value(key, value).map_err(map_mail_config_error)
 }
 
 pub fn normalize_mail_template_body_config_value(key: &str, value: &str) -> Result<String> {
-    let normalized = normalize_multiline(value);
-    if normalized.trim().is_empty() {
-        return Err(AsterError::validation_error(format!(
-            "{key} cannot be empty"
-        )));
-    }
-    if normalized.len() > MAIL_TEMPLATE_MAX_BODY_LEN {
-        return Err(AsterError::validation_error(format!(
-            "{key} must be at most {MAIL_TEMPLATE_MAX_BODY_LEN} characters",
-        )));
-    }
-    Ok(normalized)
+    forge_normalize_mail_template_body_config_value(key, value).map_err(map_mail_config_error)
 }
 
-fn parse_port(value: &str) -> Option<u16> {
-    value.trim().parse::<u16>().ok().filter(|port| *port > 0)
-}
-
-fn validate_contact_email(email: &str) -> Result<()> {
-    if email.len() > 254 {
-        return Err(AsterError::validation_error("email is too long"));
-    }
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() || !parts[1].contains('.') {
-        return Err(AsterError::validation_error("invalid email format"));
-    }
-    Ok(())
-}
-
-fn normalize_multiline(value: &str) -> String {
-    value.replace("\r\n", "\n").replace('\r', "\n")
+fn map_mail_config_error(error: aster_forge_mail::MailConfigError) -> AsterError {
+    AsterError::validation_error(error.to_string())
 }
 
 #[cfg(test)]

@@ -926,7 +926,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
             .expect("test database migrations should run");
     }
 
-    aster_yggdrasil::services::system_config_service::ensure_defaults(&writer)
+    aster_yggdrasil::services::config_service::ensure_defaults(&writer)
         .await
         .expect("system config defaults should seed");
     aster_yggdrasil::services::yggdrasil_session_forward_service::ensure_builtin_servers(&writer)

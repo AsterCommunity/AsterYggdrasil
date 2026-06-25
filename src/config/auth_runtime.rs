@@ -6,7 +6,8 @@ use std::str::FromStr;
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
 use aster_forge_config::{
-    parse_bool_like_value, parse_positive_u64, parse_single_string_enum_selection,
+    normalize_bool_config_value, normalize_bounded_u64_config_value,
+    normalize_positive_u64_config_value, parse_single_string_enum_selection,
     read_bool as forge_read_bool, read_bounded_u64, read_positive_u64 as forge_read_positive_u64,
 };
 
@@ -378,71 +379,37 @@ impl RuntimeCaptchaPolicy {
 }
 
 pub fn normalize_cookie_secure_config_value(value: &str) -> Result<String> {
-    match parse_bool_like_value(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(
-            "auth_cookie_secure must be 'true' or 'false'",
-        )),
-    }
+    normalize_auth_bool_config_value(AUTH_COOKIE_SECURE_KEY, value)
 }
 
 pub fn normalize_allow_user_registration_config_value(value: &str) -> Result<String> {
-    match parse_bool_like_value(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(
-            "auth_allow_user_registration must be 'true' or 'false'",
-        )),
-    }
+    normalize_auth_bool_config_value(AUTH_ALLOW_USER_REGISTRATION_KEY, value)
 }
 
 pub fn normalize_register_activation_enabled_config_value(value: &str) -> Result<String> {
-    match parse_bool_like_value(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(
-            "auth_register_activation_enabled must be 'true' or 'false'",
-        )),
-    }
+    normalize_auth_bool_config_value(AUTH_REGISTER_ACTIVATION_ENABLED_KEY, value)
 }
 
 pub fn normalize_email_code_login_bool_config_value(key: &str, value: &str) -> Result<String> {
-    match parse_bool_like_value(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(format!(
-            "{key} must be 'true' or 'false'",
-        ))),
-    }
+    normalize_auth_bool_config_value(key, value)
 }
 
 pub fn normalize_auth_bool_config_value(key: &str, value: &str) -> Result<String> {
-    match parse_bool_like_value(value) {
-        Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
-        None => Err(AsterError::validation_error(format!(
-            "{key} must be 'true' or 'false'",
-        ))),
-    }
+    normalize_bool_config_value(key, value).map_err(Into::into)
 }
 
 pub fn normalize_token_ttl_config_value(key: &str, value: &str) -> Result<String> {
-    let Some(ttl) = parse_positive_u64(value) else {
-        return Err(AsterError::validation_error(format!(
-            "{key} must be a positive integer",
-        )));
-    };
-    Ok(ttl.to_string())
+    normalize_positive_u64_config_value(key, value).map_err(Into::into)
 }
 
 pub fn normalize_captcha_length_config_value(value: &str) -> Result<String> {
-    let Some(length) = parse_positive_u64(value) else {
-        return Err(AsterError::validation_error(format!(
-            "{AUTH_CAPTCHA_LENGTH_KEY} must be a positive integer",
-        )));
-    };
-    if !(MIN_AUTH_CAPTCHA_LENGTH..=MAX_AUTH_CAPTCHA_LENGTH).contains(&length) {
-        return Err(AsterError::validation_error(format!(
-            "{AUTH_CAPTCHA_LENGTH_KEY} must be between {MIN_AUTH_CAPTCHA_LENGTH} and {MAX_AUTH_CAPTCHA_LENGTH}",
-        )));
-    }
-    Ok(length.to_string())
+    normalize_bounded_u64_config_value(
+        AUTH_CAPTCHA_LENGTH_KEY,
+        value,
+        MIN_AUTH_CAPTCHA_LENGTH,
+        MAX_AUTH_CAPTCHA_LENGTH,
+    )
+    .map_err(Into::into)
 }
 
 pub fn normalize_captcha_preset_config_value(value: &str) -> Result<String> {
@@ -451,17 +418,13 @@ pub fn normalize_captcha_preset_config_value(value: &str) -> Result<String> {
 }
 
 pub fn normalize_captcha_max_attempts_config_value(value: &str) -> Result<String> {
-    let Some(attempts) = parse_positive_u64(value) else {
-        return Err(AsterError::validation_error(format!(
-            "{AUTH_CAPTCHA_MAX_ATTEMPTS_KEY} must be a positive integer",
-        )));
-    };
-    if !(MIN_AUTH_CAPTCHA_MAX_ATTEMPTS..=MAX_AUTH_CAPTCHA_MAX_ATTEMPTS).contains(&attempts) {
-        return Err(AsterError::validation_error(format!(
-            "{AUTH_CAPTCHA_MAX_ATTEMPTS_KEY} must be between {MIN_AUTH_CAPTCHA_MAX_ATTEMPTS} and {MAX_AUTH_CAPTCHA_MAX_ATTEMPTS}",
-        )));
-    }
-    Ok(attempts.to_string())
+    normalize_bounded_u64_config_value(
+        AUTH_CAPTCHA_MAX_ATTEMPTS_KEY,
+        value,
+        MIN_AUTH_CAPTCHA_MAX_ATTEMPTS,
+        MAX_AUTH_CAPTCHA_MAX_ATTEMPTS,
+    )
+    .map_err(Into::into)
 }
 
 pub fn user_invitation_ttl_secs(runtime_config: &RuntimeConfig) -> u64 {

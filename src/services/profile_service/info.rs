@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use md5::{Digest, Md5};
+use aster_forge_utils::avatar::gravatar_url;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
@@ -40,19 +40,6 @@ pub struct UserProfileInfo {
 
 pub fn resolve_gravatar_base_url(state: &impl RuntimeConfigRuntimeState) -> String {
     avatar::gravatar_base_url_or_default(state.runtime_config())
-}
-
-fn gravatar_hash(email: &str) -> String {
-    let normalized = email.trim().to_lowercase();
-    let mut hasher = Md5::new();
-    hasher.update(normalized.as_bytes());
-    hex::encode(hasher.finalize())
-}
-
-fn gravatar_url(email: &str, size: u32, base_url: &str) -> String {
-    let hash = gravatar_hash(email);
-    let base = base_url.trim_end_matches('/');
-    format!("{base}/{hash}?d=identicon&s={size}&r=g")
 }
 
 fn avatar_api_path(user_id: i64, version: i32, size: u32, audience: AvatarAudience) -> String {

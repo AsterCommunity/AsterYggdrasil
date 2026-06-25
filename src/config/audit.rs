@@ -1,6 +1,7 @@
 pub use crate::config::definitions::{AUDIT_LOG_ENABLED_KEY, AUDIT_LOG_RECORDED_ACTIONS_KEY};
 use crate::errors::{AsterError, Result};
 use crate::types::AuditAction;
+use aster_forge_config::{normalize_string_enum_set_selection, parse_string_enum_set_selection};
 use aster_forge_utils::bool_like::parse_bool_like;
 
 pub const DEFAULT_AUDIT_LOG_ENABLED: bool = true;
@@ -68,18 +69,14 @@ fn full_recorded_actions_json_fallback() -> String {
 }
 
 pub fn normalize_recorded_actions_config_value(value: &str) -> Result<String> {
-    let actions = parse_recorded_actions_config_value(value)?;
-    let mut selected = [false; AuditAction::COUNT];
-    for action in actions {
-        selected[action.index()] = true;
-    }
-
-    let normalized: Vec<&'static str> = AuditAction::ALL
-        .iter()
-        .copied()
-        .filter(|action| selected[action.index()])
-        .map(|action| action.as_str())
-        .collect();
+    let normalized = normalize_string_enum_set_selection(
+        value,
+        AUDIT_LOG_RECORDED_ACTIONS_KEY,
+        "audit action",
+        &AuditAction::ALL,
+        AuditAction::from_str_name,
+        AuditAction::as_str,
+    )?;
     serde_json::to_string(&normalized).map_err(|error| {
         AsterError::internal_error(format!(
             "failed to serialize audit_log_recorded_actions config: {error}"
@@ -88,27 +85,13 @@ pub fn normalize_recorded_actions_config_value(value: &str) -> Result<String> {
 }
 
 pub fn parse_recorded_actions_config_value(value: &str) -> Result<Vec<AuditAction>> {
-    let values = parse_string_array(value, "string_enum_set")?;
-    let mut seen = [false; AuditAction::COUNT];
-    let mut actions = Vec::with_capacity(values.len());
-
-    for raw in values {
-        let Some(action) = AuditAction::from_str_name(&raw) else {
-            return Err(AsterError::validation_error(format!(
-                "unknown audit action '{raw}' in {AUDIT_LOG_RECORDED_ACTIONS_KEY}"
-            )));
-        };
-        let index = action.index();
-        if seen[index] {
-            return Err(AsterError::validation_error(format!(
-                "duplicate audit action '{raw}' in {AUDIT_LOG_RECORDED_ACTIONS_KEY}"
-            )));
-        }
-        seen[index] = true;
-        actions.push(action);
-    }
-
-    Ok(actions)
+    parse_string_enum_set_selection(
+        value,
+        AUDIT_LOG_RECORDED_ACTIONS_KEY,
+        "audit action",
+        AuditAction::from_str_name,
+    )
+    .map_err(Into::into)
 }
 
 pub fn is_audit_runtime_key(key: &str) -> bool {
@@ -132,14 +115,6 @@ fn parse_action_mask_for_runtime(value: &str) -> [u64; AUDIT_ACTION_MASK_WORDS] 
             all_actions_mask()
         }
     }
-}
-
-fn parse_string_array(value: &str, value_type: &str) -> Result<Vec<String>> {
-    serde_json::from_str::<Vec<String>>(value.trim()).map_err(|err| {
-        AsterError::validation_error(format!(
-            "{value_type} config must be a JSON array of strings: {err}"
-        ))
-    })
 }
 
 fn empty_action_mask() -> [u64; AUDIT_ACTION_MASK_WORDS] {

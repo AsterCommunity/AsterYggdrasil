@@ -113,7 +113,6 @@ image = { version = "0.25.10", default-features = false, features = ["gif", "jpe
 ipnet = "2.12.0"
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
-md-5 = "0.11"
 migration = { version = "0.1.0", path = "migration" }
 num_cpus = "1.17.0"
 parking_lot = "0.12"

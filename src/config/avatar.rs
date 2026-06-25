@@ -1,34 +1,26 @@
 //! Avatar runtime configuration.
+//!
+//! This module keeps the product-specific config binding for avatar base URLs.
+//! The shared normalization and defaulting logic lives in Forge config, while
+//! this crate still owns the runtime key, local schema wiring, and tests around
+//! product state.
 
 use crate::config::RuntimeConfig;
-use crate::errors::{AsterError, Result};
-use aster_forge_utils::url::HttpBaseUrlOptions;
+use crate::errors::Result;
+use aster_forge_config::avatar::{
+    gravatar_base_url_or_default as forge_gravatar_base_url_or_default,
+    normalize_gravatar_base_url_config_value as forge_normalize_gravatar_base_url_config_value,
+};
 
 pub use crate::config::definitions::GRAVATAR_BASE_URL_KEY;
 
-const DEFAULT_GRAVATAR_BASE_URL: &str = "https://www.gravatar.com/avatar";
-
 pub fn normalize_gravatar_base_url_config_value(value: &str) -> Result<String> {
-    aster_forge_utils::url::normalize_http_base_url(
-        value,
-        "gravatar_base_url",
-        HttpBaseUrlOptions::optional_without_query_fragment(),
-    )
-    .map_err(|error| AsterError::validation_error(error.to_string()))
-    .map(|normalized| normalized.unwrap_or_else(|| DEFAULT_GRAVATAR_BASE_URL.to_string()))
+    forge_normalize_gravatar_base_url_config_value(value).map_err(Into::into)
 }
 
 pub fn gravatar_base_url_or_default(runtime_config: &RuntimeConfig) -> String {
-    let normalized = runtime_config
-        .get_string_or(GRAVATAR_BASE_URL_KEY, DEFAULT_GRAVATAR_BASE_URL)
-        .trim()
-        .trim_end_matches('/')
-        .to_string();
-    if normalized.is_empty() {
-        DEFAULT_GRAVATAR_BASE_URL.to_string()
-    } else {
-        normalized
-    }
+    let configured = runtime_config.get(GRAVATAR_BASE_URL_KEY);
+    forge_gravatar_base_url_or_default(configured.as_deref())
 }
 
 #[cfg(test)]

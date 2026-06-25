@@ -9,7 +9,11 @@ use std::str::FromStr;
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
-use aster_forge_config::parse_single_string_enum_selection;
+use aster_forge_config::{
+    normalize_bool_config_value, normalize_bounded_u8_config_value,
+    normalize_finite_f32_config_value, normalize_positive_u32_config_value,
+    parse_single_string_enum_selection, read_finite_f32, read_positive_u32,
+};
 
 pub use crate::config::definitions::{
     TEXTURE_PREVIEW_2D_PADDING_KEY, TEXTURE_PREVIEW_2D_SPACING_KEY,
@@ -295,13 +299,8 @@ pub fn normalize_texture_preview_config_value(key: &str, value: &str) -> Result<
         TEXTURE_PREVIEW_PROFILE_KEY => Ok(parse_profile(value)?.as_str().to_string()),
         TEXTURE_PREVIEW_BACKGROUND_KEY => Ok(parse_background(value)?.wire_value()),
         TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY => {
-            aster_forge_utils::bool_like::parse_bool_like(value)
-                .map(|value| value.to_string())
-                .ok_or_else(|| {
-                    AsterError::validation_error(
-                        "texture preview outer layer setting must be true or false",
-                    )
-                })
+            normalize_bool_config_value(TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY, value)
+                .map_err(Into::into)
         }
         TEXTURE_PREVIEW_WIDTH_KEY
         | TEXTURE_PREVIEW_HEIGHT_KEY
@@ -342,11 +341,7 @@ fn read_background(runtime_config: &RuntimeConfig) -> TexturePreviewBackground {
 }
 
 fn read_u32(runtime_config: &RuntimeConfig, key: &str, default: u32) -> u32 {
-    runtime_config
-        .get(key)
-        .and_then(|value| value.trim().parse::<u32>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(default)
+    read_positive_u32(runtime_config, key, default)
 }
 
 fn read_supersampling(runtime_config: &RuntimeConfig, profile: TexturePreviewQualityProfile) -> u8 {
@@ -357,8 +352,7 @@ fn read_supersampling(runtime_config: &RuntimeConfig, profile: TexturePreviewQua
     };
     let configured = runtime_config
         .get(TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY)
-        .and_then(|value| value.trim().parse::<u8>().ok())
-        .filter(|value| (1..=4).contains(value));
+        .and_then(|value| aster_forge_config::parse_bounded_u8(&value, 1, 4));
 
     match configured {
         Some(value) if value != DEFAULT_TEXTURE_PREVIEW_3D_SUPERSAMPLING => value,
@@ -367,11 +361,7 @@ fn read_supersampling(runtime_config: &RuntimeConfig, profile: TexturePreviewQua
 }
 
 fn read_f32(runtime_config: &RuntimeConfig, key: &str, default: f32) -> f32 {
-    runtime_config
-        .get(key)
-        .and_then(|value| value.trim().parse::<f32>().ok())
-        .filter(|value| value.is_finite())
-        .unwrap_or(default)
+    read_finite_f32(runtime_config, key, default)
 }
 
 fn parse_engine(value: &str) -> Result<TexturePreviewEngine> {
@@ -432,37 +422,16 @@ fn parse_hex_byte(hex: &str, start: usize) -> Result<u8> {
 }
 
 fn normalize_u32(value: &str) -> Result<String> {
-    let parsed = value
-        .trim()
-        .parse::<u32>()
-        .ok()
-        .filter(|value| *value > 0)
-        .ok_or_else(|| AsterError::validation_error("texture preview value must be positive"))?;
-    Ok(parsed.to_string())
+    normalize_positive_u32_config_value("texture preview value", value).map_err(Into::into)
 }
 
 fn normalize_supersampling(value: &str) -> Result<String> {
-    let parsed = value
-        .trim()
-        .parse::<u8>()
-        .ok()
-        .filter(|value| (1..=4).contains(value))
-        .ok_or_else(|| {
-            AsterError::validation_error("texture preview supersampling must be from 1 to 4")
-        })?;
-    Ok(parsed.to_string())
+    normalize_bounded_u8_config_value(TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY, value, 1, 4)
+        .map_err(Into::into)
 }
 
 fn normalize_f32(value: &str) -> Result<String> {
-    let parsed = value
-        .trim()
-        .parse::<f32>()
-        .ok()
-        .filter(|value| value.is_finite())
-        .ok_or_else(|| {
-            AsterError::validation_error("texture preview value must be a finite number")
-        })?;
-    Ok(parsed.to_string())
+    normalize_finite_f32_config_value("texture preview value", value).map_err(Into::into)
 }
 
 #[cfg(test)]

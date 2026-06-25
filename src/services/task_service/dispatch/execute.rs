@@ -229,7 +229,7 @@ mod tests {
         Migrator::up(&db, None)
             .await
             .expect("test database migration should run");
-        crate::services::system_config_service::ensure_defaults(&db)
+        crate::services::config_service::ensure_defaults(&db)
             .await
             .expect("system config defaults should be installed");
         let runtime_config = Arc::new(crate::config::RuntimeConfig::new());
