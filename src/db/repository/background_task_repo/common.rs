@@ -66,9 +66,9 @@ pub(super) fn active_processing_by_kinds_condition(
 }
 
 pub(super) fn claimable_condition(now: DateTime<Utc>, _stale_before: DateTime<Utc>) -> Condition {
-    // 可认领任务有两类：
-    // 1. Pending / Retry 且 next_run_at 已到；
-    // 2. 仍显示 Processing，但已经 stale，可被新 worker 硬接管。
+    // Claimable tasks are either:
+    // 1. Pending / Retry rows whose next_run_at is due.
+    // 2. Processing rows whose lease is stale enough for a new worker to take over.
     Condition::any()
         .add(
             Condition::all()

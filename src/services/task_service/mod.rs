@@ -331,7 +331,7 @@ fn load_task_retention_hours(state: &impl RuntimeConfigRuntimeState) -> i64 {
 }
 
 pub(super) fn truncate_display_name(value: &str) -> String {
-    crate::utils::truncate_utf8_to_max_bytes(value, TASK_DISPLAY_NAME_MAX_LEN)
+    aster_forge_utils::text::truncate_utf8_to_max_bytes(value, TASK_DISPLAY_NAME_MAX_LEN)
 }
 
 pub(super) fn truncate_status_text(value: &str) -> String {

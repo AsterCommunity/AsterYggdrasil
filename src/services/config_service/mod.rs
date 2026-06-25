@@ -5,9 +5,7 @@ mod public;
 mod schema;
 mod system;
 
-pub use crate::services::mail_template::{
-    TemplateVariableGroup, TemplateVariableItem, list_template_variable_groups,
-};
+pub use crate::services::mail_template::list_template_variable_groups;
 pub use actions::{
     ConfigActionResult, ConfigActionType, ExecuteConfigActionInput, MAIL_CONFIG_ACTION_KEY,
     YGGDRASIL_CONFIG_ACTION_KEY, execute_action_with_audit,

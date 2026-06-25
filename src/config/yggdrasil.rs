@@ -2,6 +2,10 @@
 
 use crate::config::{RuntimeConfig, site_url};
 use crate::errors::{AsterError, Result};
+use aster_forge_config::{
+    normalize_positive_u64_config_value, parse_string_array_config_value,
+    read_positive_u64 as forge_read_positive_u64,
+};
 use aster_forge_utils::url::HttpBaseUrlOptions;
 use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey};
@@ -83,22 +87,22 @@ impl RuntimeYggdrasilPolicy {
                 YGGDRASIL_ENABLE_MOJANG_ANTI_FEATURES_KEY,
                 DEFAULT_YGGDRASIL_ENABLE_MOJANG_ANTI_FEATURES,
             ),
-            token_ttl_days: read_positive_u64(
+            token_ttl_days: forge_read_positive_u64(
                 runtime_config,
                 YGGDRASIL_TOKEN_TTL_DAYS_KEY,
                 DEFAULT_YGGDRASIL_TOKEN_TTL_DAYS,
             ),
-            max_active_tokens: read_positive_u64(
+            max_active_tokens: forge_read_positive_u64(
                 runtime_config,
                 YGGDRASIL_MAX_ACTIVE_TOKENS_KEY,
                 DEFAULT_YGGDRASIL_MAX_ACTIVE_TOKENS,
             ),
-            max_texture_upload_bytes: read_positive_u64(
+            max_texture_upload_bytes: forge_read_positive_u64(
                 runtime_config,
                 YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY,
                 DEFAULT_YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES,
             ),
-            max_texture_pixels: read_positive_u64(
+            max_texture_pixels: forge_read_positive_u64(
                 runtime_config,
                 YGGDRASIL_MAX_TEXTURE_PIXELS_KEY,
                 DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS,
@@ -142,7 +146,9 @@ pub fn normalize_yggdrasil_config_value(key: &str, value: &str) -> Result<String
         YGGDRASIL_TOKEN_TTL_DAYS_KEY
         | YGGDRASIL_MAX_ACTIVE_TOKENS_KEY
         | YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY
-        | YGGDRASIL_MAX_TEXTURE_PIXELS_KEY => normalize_positive_u64_config_value(key, value),
+        | YGGDRASIL_MAX_TEXTURE_PIXELS_KEY => {
+            normalize_positive_u64_config_value(key, value).map_err(Into::into)
+        }
         YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY => {
             validate_signature_private_key_config_value(value)?;
             Ok(value.trim().to_string())
@@ -165,14 +171,8 @@ pub fn normalize_texture_public_base_url_config_value(value: &str) -> Result<Str
     .map(|normalized| normalized.unwrap_or_default())
 }
 
-pub fn normalize_positive_u64_config_value(key: &str, value: &str) -> Result<String> {
-    let parsed = parse_positive_u64(value)
-        .ok_or_else(|| AsterError::validation_error(format!("{key} must be a positive integer")))?;
-    Ok(parsed.to_string())
-}
-
 pub fn normalize_public_base_url_config_value(value: &str) -> Result<String> {
-    let urls = parse_string_array_config(value, YGGDRASIL_PUBLIC_BASE_URL_KEY)?
+    let urls = parse_string_array_config_value(value, YGGDRASIL_PUBLIC_BASE_URL_KEY)?
         .into_iter()
         .map(|value| normalize_required_public_base_url(&value))
         .collect::<Result<Vec<_>>>()?
@@ -191,7 +191,7 @@ pub fn normalize_public_base_url_config_value(value: &str) -> Result<String> {
 }
 
 pub fn normalize_skin_domains_config_value(value: &str) -> Result<String> {
-    let domains = parse_string_array_config(value, YGGDRASIL_SKIN_DOMAINS_KEY)?
+    let domains = parse_string_array_config_value(value, YGGDRASIL_SKIN_DOMAINS_KEY)?
         .into_iter()
         .map(|value| normalize_required_skin_domain(&value))
         .collect::<Result<Vec<_>>>()?
@@ -271,26 +271,8 @@ pub fn public_base_url_hosts_missing_from_skin_domains(
 fn read_string_array(runtime_config: &RuntimeConfig, key: &str) -> Vec<String> {
     runtime_config
         .get(key)
-        .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+        .and_then(|raw| parse_string_array_config_value(&raw, key).ok())
         .unwrap_or_default()
-}
-
-fn parse_positive_u64(value: &str) -> Option<u64> {
-    let parsed = value.trim().parse::<u64>().ok()?;
-    (parsed > 0).then_some(parsed)
-}
-
-fn read_positive_u64(runtime_config: &RuntimeConfig, key: &str, default: u64) -> u64 {
-    match runtime_config.get(key) {
-        Some(raw) => match parse_positive_u64(&raw) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(key, value = %raw, "invalid Yggdrasil numeric config; using default");
-                default
-            }
-        },
-        None => default,
-    }
 }
 
 fn read_effective_public_base_urls(runtime_config: &RuntimeConfig) -> Vec<String> {
@@ -400,12 +382,6 @@ fn normalize_skin_domain(value: &str) -> Option<String> {
     } else {
         Some(trimmed)
     }
-}
-
-fn parse_string_array_config(value: &str, key: &str) -> Result<Vec<String>> {
-    serde_json::from_str::<Vec<String>>(value.trim()).map_err(|error| {
-        AsterError::validation_error(format!("{key} must be a JSON array of strings: {error}"))
-    })
 }
 
 fn normalize_required_public_base_url(value: &str) -> Result<String> {

@@ -1,4 +1,4 @@
-//! API 请求鉴权 helper。
+//! API request authentication helpers.
 
 use actix_web::{HttpRequest, http::header};
 

@@ -1,4 +1,4 @@
-//! SeaORM 实体定义：`external_auth_providers`。
+//! SeaORM entity definition for `external_auth_providers`.
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

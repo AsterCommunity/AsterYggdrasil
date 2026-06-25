@@ -1,4 +1,4 @@
-//! 仓储模块：`external_auth_identity_repo`。
+//! Repository helpers for external auth identities.
 
 use chrono::Utc;
 use sea_orm::{

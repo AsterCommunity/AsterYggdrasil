@@ -1,54 +1,56 @@
 //! Graceful shutdown helpers.
 
-use crate::errors::{AsterError, MapAsterErr, Result};
+use crate::errors::{AsterError, Result};
 use crate::runtime::SharedRuntimeState;
 use aster_forge_db::DbHandles;
+use aster_forge_runtime::ShutdownCoordinator;
 use aster_forge_tasks::BackgroundTasks;
 
 pub async fn wait_for_signal() -> Result<()> {
-    wait_for_termination_signal().await
-}
-
-#[cfg(unix)]
-async fn wait_for_termination_signal() -> Result<()> {
-    use tokio::signal::unix::{SignalKind, signal};
-
-    let mut sigint = signal(SignalKind::interrupt())
-        .map_aster_err_ctx("install SIGINT handler", AsterError::internal_error)?;
-    let mut sigterm = signal(SignalKind::terminate())
-        .map_aster_err_ctx("install SIGTERM handler", AsterError::internal_error)?;
-
-    tokio::select! {
-        _ = sigint.recv() => tracing::info!("received SIGINT, shutting down gracefully..."),
-        _ = sigterm.recv() => tracing::info!("received SIGTERM, shutting down gracefully..."),
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-async fn wait_for_termination_signal() -> Result<()> {
-    tokio::signal::ctrl_c()
+    aster_forge_runtime::wait_for_termination_signal()
         .await
-        .map_aster_err_ctx("install Ctrl+C handler", AsterError::internal_error)?;
-    tracing::info!("received Ctrl+C, shutting down gracefully...");
+        .map_err(|error| AsterError::internal_error(error.to_string()))?;
     Ok(())
 }
 
 pub async fn perform_shutdown(background_tasks: BackgroundTasks, db_handles: DbHandles) {
-    tracing::info!("stopping background tasks...");
-    background_tasks.shutdown().await;
-    tracing::info!("background tasks stopped");
+    let mut coordinator = ShutdownCoordinator::new();
+    let mut background_tasks = Some(background_tasks);
+    coordinator.phase("background_tasks", None, move || {
+        let background_tasks = background_tasks.take();
+        async move {
+            if let Some(background_tasks) = background_tasks {
+                background_tasks.shutdown().await;
+            }
+            Ok(())
+        }
+    });
 
-    tracing::info!("flushing audit logs...");
-    crate::services::audit_service::shutdown_global_audit_log_manager().await;
+    coordinator.phase("audit_logs", None, || async {
+        crate::services::audit_service::shutdown_global_audit_log_manager().await;
+        Ok(())
+    });
 
-    tracing::info!("closing database connections...");
-    if let Err(error) = db_handles.close().await {
-        tracing::error!("error closing database connections: {error}");
+    let mut db_handles = Some(db_handles);
+    coordinator.phase("database_connections", None, move || {
+        let db_handles = db_handles.take();
+        async move {
+            if let Some(db_handles) = db_handles {
+                db_handles
+                    .close()
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        }
+    });
+
+    let report = coordinator.run().await;
+    if report.has_failures() {
+        tracing::warn!("shutdown completed with one or more failed phases");
     } else {
-        tracing::info!("database connections closed");
+        tracing::info!("shutdown complete");
     }
-    tracing::info!("shutdown complete");
 }
 
 pub async fn record_server_shutdown<S: SharedRuntimeState>(state: &S) {

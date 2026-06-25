@@ -1,4 +1,4 @@
-//! SeaORM 实体定义：`mail_outbox`。
+//! SeaORM entity definition for `mail_outbox`.
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

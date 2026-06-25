@@ -1,4 +1,4 @@
-//! Passkey / WebAuthn 业务逻辑。
+//! Passkey / WebAuthn service logic.
 
 use base64::Engine as _;
 use chrono::Utc;
@@ -22,6 +22,7 @@ use crate::types::StoredPasskeyCredential;
 use actix_web::HttpRequest;
 use aster_forge_utils::net::is_loopback_host;
 use aster_forge_utils::numbers::{u32_to_i64, u64_to_i64};
+use aster_forge_utils::text::char_count;
 
 const PASSKEY_CHALLENGE_TTL_SECS: u64 = 300;
 const PASSKEY_NAME_MAX_LEN: usize = 128;
@@ -124,7 +125,7 @@ async fn user_handle_for_registration(
 fn normalize_passkey_name(name: Option<&str>) -> Result<String> {
     let trimmed = name.map(str::trim).filter(|value| !value.is_empty());
     let normalized = trimmed.unwrap_or("Passkey");
-    if normalized.chars().count() > PASSKEY_NAME_MAX_LEN {
+    if char_count(normalized) > PASSKEY_NAME_MAX_LEN {
         return Err(AsterError::validation_error_code(
             AsterErrorCode::PasskeyNameTooLong,
             format!("passkey name exceeds {PASSKEY_NAME_MAX_LEN} characters"),

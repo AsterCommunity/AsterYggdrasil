@@ -55,78 +55,7 @@ pub struct TaskCreatorSummary {
     pub email: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeTaskName {
-    Known(SystemRuntimeTaskKind),
-    Legacy(String),
-}
-
-impl RuntimeTaskName {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Known(kind) => kind.as_str(),
-            Self::Legacy(value) => value.as_str(),
-        }
-    }
-
-    pub fn display_name(&self) -> String {
-        match self {
-            Self::Known(kind) => kind.display_name().to_string(),
-            Self::Legacy(value) => value.replace('-', " "),
-        }
-    }
-
-    pub fn known(&self) -> Option<SystemRuntimeTaskKind> {
-        match self {
-            Self::Known(kind) => Some(*kind),
-            Self::Legacy(_) => None,
-        }
-    }
-}
-
-impl From<SystemRuntimeTaskKind> for RuntimeTaskName {
-    fn from(value: SystemRuntimeTaskKind) -> Self {
-        Self::Known(value)
-    }
-}
-
-impl From<String> for RuntimeTaskName {
-    fn from(value: String) -> Self {
-        SystemRuntimeTaskKind::from_wire_value(&value)
-            .map(Self::Known)
-            .unwrap_or(Self::Legacy(value))
-    }
-}
-
-impl From<&str> for RuntimeTaskName {
-    fn from(value: &str) -> Self {
-        Self::from(value.to_string())
-    }
-}
-
-impl std::fmt::Display for RuntimeTaskName {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl Serialize for RuntimeTaskName {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for RuntimeTaskName {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        String::deserialize(deserializer).map(Self::from)
-    }
-}
+pub type RuntimeTaskName = aster_forge_tasks::RuntimeTaskName<SystemRuntimeTaskKind>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]

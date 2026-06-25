@@ -224,6 +224,17 @@ async fn run_mail_outbox_dispatch(state: web::Data<AppState>) -> RuntimeTaskRunO
 
 async fn run_system_health_check(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
     let report = crate::services::health_service::run_system_health_checks(state.get_ref()).await;
+    system_health_outcome(report)
+}
+
+fn system_health_outcome(report: aster_forge_runtime::SystemHealthReport) -> RuntimeTaskRunOutcome {
+    let has_issues = report.has_issues();
+    let summary = if has_issues {
+        report.issue_summary()
+    } else {
+        "system healthy".to_string()
+    };
+    let error = has_issues.then(|| report.issue_details());
     let status = runtime_health_status(report.status());
     let system_health = crate::services::task_service::types::RuntimeSystemHealthResult {
         status,
@@ -239,23 +250,24 @@ async fn run_system_health_check(state: web::Data<AppState>) -> RuntimeTaskRunOu
             )
             .collect(),
     };
-    RuntimeTaskRunOutcome::succeeded_with_system_health(
-        Some("System health check completed".to_string()),
-        system_health,
-    )
+    if let Some(error) = error {
+        RuntimeTaskRunOutcome::failed_with_system_health(Some(summary), error, system_health)
+    } else {
+        RuntimeTaskRunOutcome::succeeded_with_system_health(Some(summary), system_health)
+    }
 }
 
 fn runtime_health_status(
-    status: crate::services::health_service::HealthStatus,
+    status: aster_forge_runtime::HealthStatus,
 ) -> crate::services::task_service::types::RuntimeSystemHealthStatus {
     match status {
-        crate::services::health_service::HealthStatus::Healthy => {
+        aster_forge_runtime::HealthStatus::Healthy => {
             crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
         }
-        crate::services::health_service::HealthStatus::Degraded => {
+        aster_forge_runtime::HealthStatus::Degraded => {
             crate::services::task_service::types::RuntimeSystemHealthStatus::Degraded
         }
-        crate::services::health_service::HealthStatus::Unhealthy => {
+        aster_forge_runtime::HealthStatus::Unhealthy => {
             crate::services::task_service::types::RuntimeSystemHealthStatus::Unhealthy
         }
     }
@@ -610,6 +622,7 @@ mod tests {
         ObjectStorageConsistencyIssue, ObjectStorageConsistencyIssueKind,
         ObjectStorageConsistencyReport,
     };
+    use aster_forge_runtime::{HealthComponentReport, SystemHealthReport};
 
     #[tokio::test]
     async fn shutdown_only_awaits_each_handle_once() {
@@ -640,6 +653,57 @@ mod tests {
             .expect("background worker should report shutdown");
 
         tasks.shutdown().await;
+    }
+
+    #[test]
+    fn system_health_outcome_succeeds_when_report_is_healthy() {
+        let outcome = system_health_outcome(SystemHealthReport::new(vec![
+            HealthComponentReport::healthy("database", "database ping succeeded"),
+            HealthComponentReport::healthy("cache", "cache health check succeeded"),
+        ]));
+
+        match outcome {
+            RuntimeTaskRunOutcome::Succeeded {
+                summary,
+                system_health: Some(system_health),
+            } => {
+                assert_eq!(summary.as_deref(), Some("system healthy"));
+                assert_eq!(
+                    system_health.status,
+                    crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
+                );
+                assert_eq!(system_health.components.len(), 2);
+            }
+            other => panic!("expected healthy system health success, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn system_health_outcome_fails_when_report_has_issues() {
+        let outcome = system_health_outcome(SystemHealthReport::new(vec![
+            HealthComponentReport::healthy("database", "database ping succeeded"),
+            HealthComponentReport::degraded("cache", "memory fallback active"),
+        ]));
+
+        match outcome {
+            RuntimeTaskRunOutcome::Failed {
+                summary,
+                error,
+                system_health: Some(system_health),
+            } => {
+                assert_eq!(summary.as_deref(), Some("cache degraded"));
+                assert_eq!(error, "cache=degraded: memory fallback active");
+                assert_eq!(
+                    system_health.status,
+                    crate::services::task_service::types::RuntimeSystemHealthStatus::Degraded
+                );
+                assert_eq!(
+                    system_health.components[0].status,
+                    crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
+                );
+            }
+            other => panic!("expected unhealthy system health failure, got {other:?}"),
+        }
     }
 
     #[test]

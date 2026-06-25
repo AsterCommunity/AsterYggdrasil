@@ -781,20 +781,17 @@ async fn drain_field(
 }
 
 async fn cleanup_upload_file(path: &std::path::Path) {
-    if let Err(error) = tokio::fs::remove_file(path).await
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(path = %path.display(), error = %error, "failed to remove upload temp texture");
-    }
+    aster_forge_utils::fs::cleanup_temp_file(path).await;
 }
 
 fn texture_upload_temp_path(state: &AppState) -> std::path::PathBuf {
-    std::path::Path::new(&state.config().server.temp_dir)
-        .join("_runtime")
-        .join(format!(
+    std::path::PathBuf::from(aster_forge_utils::paths::runtime_temp_file_path(
+        &state.config().server.temp_dir,
+        &format!(
             "wardrobe-texture-upload-{}.png",
             uuid::Uuid::new_v4().simple()
-        ))
+        ),
+    ))
 }
 
 fn is_png_field(field: &actix_multipart::Field) -> bool {

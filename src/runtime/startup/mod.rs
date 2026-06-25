@@ -10,22 +10,47 @@ use crate::config::Config;
 use crate::config::node_mode::NodeRuntimeMode;
 use crate::errors::Result;
 use crate::runtime::AppState;
+use aster_forge_runtime::{StartupReport, run_required_startup_phase};
 
 pub use follower::{PreparedFollowerRuntime, prepare_follower};
 pub use primary::{PreparedPrimaryRuntime, prepare_primary};
 
 pub struct PreparedRuntime {
     pub state: AppState,
+    pub startup_report: StartupReport,
 }
 
 pub async fn prepare(config: Arc<Config>) -> Result<PreparedRuntime> {
     let start_mode = config.server.start_mode;
-    let state = match start_mode {
-        NodeRuntimeMode::Primary => prepare_primary(config).await?.state,
-        NodeRuntimeMode::Follower => prepare_follower(config).await?.state,
-    };
-    record_server_start(&state).await;
-    Ok(PreparedRuntime { state })
+    let mut phase_reports = Vec::new();
+    let prepared = run_required_startup_phase("prepare_runtime_state", move || {
+        let config = config.clone();
+        async move {
+            match start_mode {
+                NodeRuntimeMode::Primary => {
+                    prepare_primary(config).await.map(|prepared| prepared.state)
+                }
+                NodeRuntimeMode::Follower => prepare_follower(config)
+                    .await
+                    .map(|prepared| prepared.state),
+            }
+        }
+    })
+    .await?;
+    let state = prepared.value;
+    phase_reports.push(prepared.report);
+
+    let audit = run_required_startup_phase("record_server_start", || async {
+        record_server_start(&state).await;
+        Ok::<(), crate::errors::AsterError>(())
+    })
+    .await?;
+    phase_reports.push(audit.report);
+
+    Ok(PreparedRuntime {
+        state,
+        startup_report: StartupReport::new(phase_reports),
+    })
 }
 
 pub async fn record_server_start(state: &impl crate::runtime::SharedRuntimeState) {

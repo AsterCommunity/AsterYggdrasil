@@ -1,4 +1,4 @@
-//! 仓储模块：`external_auth_email_verification_flow_repo`。
+//! Repository helpers for external auth email verification flows.
 
 use chrono::Utc;
 use sea_orm::{

@@ -1,4 +1,4 @@
-//! 节点启动模式配置。
+//! Node startup mode configuration.
 
 use crate::config::Config;
 use serde::{Deserialize, Serialize};

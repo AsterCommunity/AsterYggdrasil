@@ -49,72 +49,94 @@ pub enum SystemRuntimeTaskKind {
     YggdrasilTextureCleanup,
 }
 
+aster_forge_tasks::runtime_task_registry! {
+    pub(super) mod system_runtime_task_registry {
+        kind: super::SystemRuntimeTaskKind;
+        presentation: crate::services::task_service::types::TaskPresentationCode;
+        tasks {
+            super::SystemRuntimeTaskKind::BackgroundTaskDispatch => {
+                wire: "background-task-dispatch",
+                display: "Background task dispatch",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskBackgroundTaskDispatch,
+            },
+            super::SystemRuntimeTaskKind::SystemHealthCheck => {
+                wire: "system-health-check",
+                display: "System health check",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskSystemHealthCheck,
+            },
+            super::SystemRuntimeTaskKind::AuthSessionCleanup => {
+                wire: "auth-session-cleanup",
+                display: "Auth session cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskAuthSessionCleanup,
+            },
+            super::SystemRuntimeTaskKind::ExternalAuthFlowCleanup => {
+                wire: "external-auth-flow-cleanup",
+                display: "External auth flow cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskExternalAuthFlowCleanup,
+            },
+            super::SystemRuntimeTaskKind::MailOutboxDispatch => {
+                wire: "mail-outbox-dispatch",
+                display: "Mail outbox dispatch",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskMailOutboxDispatch,
+            },
+            super::SystemRuntimeTaskKind::AuditCleanup => {
+                wire: "audit-cleanup",
+                display: "Audit log cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskAuditCleanup,
+            },
+            super::SystemRuntimeTaskKind::TaskCleanup => {
+                wire: "task-cleanup",
+                display: "Task artifact cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskTaskCleanup,
+            },
+            super::SystemRuntimeTaskKind::YggdrasilTokenCleanup => {
+                wire: "yggdrasil-token-cleanup",
+                display: "Yggdrasil token cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskYggdrasilTokenCleanup,
+            },
+            super::SystemRuntimeTaskKind::YggdrasilStorageConsistencyCheck => {
+                wire: "yggdrasil-storage-consistency-check",
+                display: "Yggdrasil storage consistency check",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskYggdrasilStorageConsistencyCheck,
+            },
+            super::SystemRuntimeTaskKind::YggdrasilTextureCleanup => {
+                wire: "yggdrasil-texture-cleanup",
+                display: "Yggdrasil texture cleanup",
+                presentation: crate::services::task_service::types::TaskPresentationCode::RuntimeTaskYggdrasilTextureCleanup,
+            },
+        }
+    }
+}
+
 impl SystemRuntimeTaskKind {
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::BackgroundTaskDispatch => "background-task-dispatch",
-            Self::SystemHealthCheck => "system-health-check",
-            Self::AuthSessionCleanup => "auth-session-cleanup",
-            Self::ExternalAuthFlowCleanup => "external-auth-flow-cleanup",
-            Self::MailOutboxDispatch => "mail-outbox-dispatch",
-            Self::AuditCleanup => "audit-cleanup",
-            Self::TaskCleanup => "task-cleanup",
-            Self::YggdrasilTokenCleanup => "yggdrasil-token-cleanup",
-            Self::YggdrasilStorageConsistencyCheck => "yggdrasil-storage-consistency-check",
-            Self::YggdrasilTextureCleanup => "yggdrasil-texture-cleanup",
-        }
+        system_runtime_task_registry::as_str(self)
     }
 
     pub const fn display_name(self) -> &'static str {
-        match self {
-            Self::BackgroundTaskDispatch => "Background task dispatch",
-            Self::SystemHealthCheck => "System health check",
-            Self::AuthSessionCleanup => "Auth session cleanup",
-            Self::ExternalAuthFlowCleanup => "External auth flow cleanup",
-            Self::MailOutboxDispatch => "Mail outbox dispatch",
-            Self::AuditCleanup => "Audit log cleanup",
-            Self::TaskCleanup => "Task artifact cleanup",
-            Self::YggdrasilTokenCleanup => "Yggdrasil token cleanup",
-            Self::YggdrasilStorageConsistencyCheck => "Yggdrasil storage consistency check",
-            Self::YggdrasilTextureCleanup => "Yggdrasil texture cleanup",
-        }
+        system_runtime_task_registry::display_name(self)
     }
 
     pub const fn presentation_code(self) -> TaskPresentationCode {
-        match self {
-            Self::BackgroundTaskDispatch => TaskPresentationCode::RuntimeTaskBackgroundTaskDispatch,
-            Self::SystemHealthCheck => TaskPresentationCode::RuntimeTaskSystemHealthCheck,
-            Self::AuthSessionCleanup => TaskPresentationCode::RuntimeTaskAuthSessionCleanup,
-            Self::ExternalAuthFlowCleanup => {
-                TaskPresentationCode::RuntimeTaskExternalAuthFlowCleanup
-            }
-            Self::MailOutboxDispatch => TaskPresentationCode::RuntimeTaskMailOutboxDispatch,
-            Self::AuditCleanup => TaskPresentationCode::RuntimeTaskAuditCleanup,
-            Self::TaskCleanup => TaskPresentationCode::RuntimeTaskTaskCleanup,
-            Self::YggdrasilTokenCleanup => TaskPresentationCode::RuntimeTaskYggdrasilTokenCleanup,
-            Self::YggdrasilStorageConsistencyCheck => {
-                TaskPresentationCode::RuntimeTaskYggdrasilStorageConsistencyCheck
-            }
-            Self::YggdrasilTextureCleanup => {
-                TaskPresentationCode::RuntimeTaskYggdrasilTextureCleanup
-            }
-        }
+        system_runtime_task_registry::presentation_code(self)
     }
 
     pub fn from_wire_value(value: &str) -> Option<Self> {
-        match value {
-            "background-task-dispatch" => Some(Self::BackgroundTaskDispatch),
-            "system-health-check" => Some(Self::SystemHealthCheck),
-            "auth-session-cleanup" => Some(Self::AuthSessionCleanup),
-            "external-auth-flow-cleanup" => Some(Self::ExternalAuthFlowCleanup),
-            "mail-outbox-dispatch" => Some(Self::MailOutboxDispatch),
-            "audit-cleanup" => Some(Self::AuditCleanup),
-            "task-cleanup" => Some(Self::TaskCleanup),
-            "yggdrasil-token-cleanup" => Some(Self::YggdrasilTokenCleanup),
-            "yggdrasil-storage-consistency-check" => Some(Self::YggdrasilStorageConsistencyCheck),
-            "yggdrasil-texture-cleanup" => Some(Self::YggdrasilTextureCleanup),
-            _ => None,
-        }
+        system_runtime_task_registry::from_wire_value(value)
+    }
+}
+
+impl aster_forge_tasks::RegisteredRuntimeTaskKind for SystemRuntimeTaskKind {
+    fn as_str(self) -> &'static str {
+        Self::as_str(self)
+    }
+
+    fn display_name(self) -> &'static str {
+        Self::display_name(self)
+    }
+
+    fn from_wire_value(value: &str) -> Option<Self> {
+        Self::from_wire_value(value)
     }
 }
 

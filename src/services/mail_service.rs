@@ -1,4 +1,4 @@
-//! 服务模块：`mail_service`。
+//! Mail delivery service.
 
 use std::any::Any;
 use std::sync::{Arc, Mutex};
@@ -15,24 +15,9 @@ use crate::config::RuntimeConfig;
 use crate::config::{mail, site_url};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::MailRuntimeState;
-use crate::services::mail_template::RenderedMail;
+use aster_forge_mail::{MailMessage, MailRecipient, RenderedMail};
 
 const SMTP_SEND_TIMEOUT_SECS: u64 = 15;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MailRecipient {
-    pub address: String,
-    pub display_name: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MailMessage {
-    pub from: MailRecipient,
-    pub to: MailRecipient,
-    pub subject: String,
-    pub text_body: String,
-    pub html_body: String,
-}
 
 #[async_trait]
 pub trait MailSender: Send + Sync {

@@ -1,4 +1,4 @@
-//! SeaORM 实体定义：`background_task`。
+//! SeaORM entity definition for `background_task`.
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

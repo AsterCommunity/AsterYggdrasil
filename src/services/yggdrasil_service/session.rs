@@ -121,7 +121,7 @@ fn real_join_client_ip<S: AppConfigRuntimeState>(state: &S, req: &HttpRequest) -
     // reverse proxy, record the same forwarded client IP instead of the proxy
     // socket address so prevent-proxy-connections checks can match.
     Some(
-        crate::utils::net::real_ip_from_headers(
+        aster_forge_actix_middleware::client_ip::real_ip_from_headers(
             req.headers(),
             peer,
             &state.config().network_trust.trusted_proxies,

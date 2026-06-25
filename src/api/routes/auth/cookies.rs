@@ -1,4 +1,4 @@
-//! 认证 API 路由：`cookies`。
+//! Authentication cookie route helpers.
 
 use crate::api::middleware::csrf;
 use crate::api::request_auth::ACCESS_COOKIE;

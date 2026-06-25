@@ -1,4 +1,4 @@
-//! 配置子模块：`mail`。
+//! Mail runtime configuration helpers.
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};

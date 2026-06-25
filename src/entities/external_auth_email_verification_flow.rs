@@ -1,4 +1,4 @@
-//! SeaORM 实体定义：`external_auth_email_verification_flows`。
+//! SeaORM entity definition for `external_auth_email_verification_flows`.
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

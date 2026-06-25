@@ -1,4 +1,4 @@
-//! 仓储模块：`external_auth_login_flow_repo`。
+//! Repository helpers for external auth login flows.
 
 use chrono::Utc;
 use sea_orm::{

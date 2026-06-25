@@ -42,6 +42,8 @@ pub use types::{
     TextureDownload, TextureReportInfo, TextureReportUserInfo, WardrobeRegistrationResult,
 };
 
+use aster_forge_utils::text::char_count;
+
 use crate::db::repository::{
     minecraft_profile_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
     minecraft_texture_report_repo, minecraft_texture_tag_repo, user_repo,
@@ -1122,7 +1124,7 @@ fn normalize_review_note(value: &str) -> Result<Option<String>> {
     if value.is_empty() {
         return Ok(None);
     }
-    if value.chars().count() > 512 {
+    if char_count(value) > 512 {
         return Err(AsterError::validation_error_code(
             crate::api::error_code::AsterErrorCode::TextureLibraryReviewNoteInvalid,
             "review note must not exceed 512 characters",
@@ -1138,7 +1140,7 @@ fn normalize_report_message(value: Option<String>) -> Result<Option<String>> {
             if value.is_empty() {
                 return Ok(None);
             }
-            if value.chars().count() > 1000 {
+            if char_count(value) > 1000 {
                 return Err(AsterError::validation_error_code(
                     crate::api::error_code::AsterErrorCode::TextureReportMessageInvalid,
                     "report message must not exceed 1000 characters",
@@ -1157,7 +1159,7 @@ fn normalize_admin_report_note(value: Option<String>) -> Result<Option<String>> 
             if value.is_empty() {
                 return Ok(None);
             }
-            if value.chars().count() > 512 {
+            if char_count(value) > 512 {
                 return Err(AsterError::validation_error_code(
                     crate::api::error_code::AsterErrorCode::TextureReportMessageInvalid,
                     "admin note must not exceed 512 characters",
@@ -1182,7 +1184,7 @@ fn normalize_texture_display_name(value: &str) -> Result<Option<String>> {
     if value.is_empty() {
         return Ok(None);
     }
-    if value.chars().count() > 96 {
+    if char_count(value) > 96 {
         return Err(AsterError::validation_error_code(
             crate::api::error_code::AsterErrorCode::WardrobeTextureNameInvalid,
             "texture display name must not exceed 96 characters",
@@ -1207,7 +1209,7 @@ fn normalize_texture_tag_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
 
 fn normalize_texture_tag_name(value: &str) -> Result<(String, String)> {
     let name = value.trim();
-    if name.is_empty() || name.chars().count() > 64 {
+    if name.is_empty() || char_count(name) > 64 {
         return Err(AsterError::validation_error_code(
             crate::api::error_code::AsterErrorCode::TextureLibraryTagNameInvalid,
             "texture library tag name must be 1-64 characters",
@@ -1627,7 +1629,7 @@ where
     .await
     .map_err(TextureError::from)?
     {
-        cleanup_temp_file(&processed_path).await;
+        aster_forge_utils::fs::cleanup_temp_file(&processed_path).await;
         tracing::debug!(
             user_id,
             texture_id = existing.id,
@@ -1643,7 +1645,7 @@ where
         .await
         .map_err(TextureError::from)?;
     tracing::debug!(user_id, hash = %processing.hash, "stored texture blob");
-    cleanup_temp_file(&processed_path).await;
+    aster_forge_utils::fs::cleanup_temp_file(&processed_path).await;
 
     let file_size =
         aster_forge_utils::numbers::u64_to_i64(processing.file_size, "texture file size")
@@ -2355,14 +2357,6 @@ fn temporary_processed_path(source_path: &Path) -> PathBuf {
     let mut path = source_path.to_path_buf();
     path.set_extension("processed.png");
     path
-}
-
-async fn cleanup_temp_file(path: &Path) {
-    if let Err(error) = tokio::fs::remove_file(path).await
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(path = %path.display(), error = %error, "failed to remove temp texture file");
-    }
 }
 
 fn is_valid_texture_hash(hash: &str) -> bool {

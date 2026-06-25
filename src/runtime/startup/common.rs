@@ -18,7 +18,11 @@ pub(super) struct CommonRuntimeParts {
 }
 
 pub(super) async fn prepare_common(config: Arc<Config>) -> Result<CommonRuntimeParts> {
-    crate::utils::paths::ensure_runtime_dirs(&config.server.temp_dir).await?;
+    aster_forge_runtime::ensure_runtime_temp_dir(&config.server.temp_dir)
+        .await
+        .map_err(|error| {
+            AsterError::config_error(format!("failed to create runtime temp dir: {error}"))
+        })?;
 
     let metrics = create_metrics_recorder();
     let writer = db::connect_with_metrics(&config.database, metrics.clone()).await?;
@@ -57,15 +61,9 @@ pub(super) async fn prepare_common(config: Arc<Config>) -> Result<CommonRuntimeP
 fn create_metrics_recorder() -> SharedMetricsRecorder {
     #[cfg(feature = "metrics")]
     {
-        match crate::metrics::init_metrics() {
-            Ok(()) => {
-                tracing::info!("prometheus metrics initialized");
-                return std::sync::Arc::new(crate::metrics::PrometheusMetricsRecorder);
-            }
-            Err(error) => {
-                tracing::warn!("failed to initialize prometheus metrics: {error}");
-            }
-        }
+        return aster_forge_metrics::init_metrics_or_noop(crate::metrics::init_metrics, || {
+            crate::metrics::PrometheusMetricsRecorder
+        });
     }
 
     aster_forge_metrics::NoopMetrics::arc()

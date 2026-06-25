@@ -1,4 +1,4 @@
-//! `background_task_repo` 仓储聚合入口。
+//! Repository entrypoint for background task persistence.
 
 mod cleanup;
 mod common;

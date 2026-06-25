@@ -1,7 +1,8 @@
-//! 后台任务 dispatcher。
+//! Background task dispatcher.
 //!
-//! 这层负责从数据库认领可执行任务、按并发上限驱动执行，并在 lease 丢失时
-//! 阻止旧 worker 继续把状态写回数据库。
+//! This layer claims executable tasks from the database, drives execution under
+//! lane concurrency limits, and prevents an old worker from writing terminal
+//! state after its lease has been lost.
 
 mod claim;
 mod execute;

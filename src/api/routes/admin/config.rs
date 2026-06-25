@@ -86,14 +86,14 @@ pub async fn config_schema() -> Result<HttpResponse> {
     tag = "admin",
     operation_id = "config_template_variables",
     responses(
-        (status = 200, description = "Template variables", body = inline(ApiResponse<Vec<config_service::TemplateVariableGroup>>)),
+        (status = 200, description = "Template variables", body = inline(ApiResponse<Vec<aster_forge_mail::TemplateVariableGroup>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
     security(("bearer" = [])),
 )]
 pub async fn config_template_variables() -> Result<HttpResponse> {
-    let groups = config_service::list_template_variable_groups();
+    let groups = config_service::list_template_variable_groups()?;
     tracing::debug!(
         count = groups.len(),
         "admin loaded config template variable groups"

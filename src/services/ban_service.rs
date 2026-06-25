@@ -12,6 +12,7 @@ use crate::types::{
     UserBanEventType, UserBanScope, UserBanScopes, UserBanScopesError, UserBanStatus,
 };
 use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
+use aster_forge_utils::text::char_count;
 
 const REASON_MAX_CHARS: usize = 128;
 const NOTE_MAX_CHARS: usize = 1000;
@@ -591,7 +592,7 @@ fn normalize_required_text(
     label: &str,
 ) -> Result<String> {
     let value = value.trim();
-    if value.is_empty() || value.chars().count() > max_chars {
+    if value.is_empty() || char_count(value) > max_chars {
         return Err(AsterError::validation_error_code(
             code,
             format!("{label} must be 1-{max_chars} characters"),
@@ -612,7 +613,7 @@ fn normalize_optional_text(
             if value.is_empty() {
                 return Ok(None);
             }
-            if value.chars().count() > max_chars {
+            if char_count(value) > max_chars {
                 return Err(AsterError::validation_error_code(
                     code,
                     format!("{label} must not exceed {max_chars} characters"),

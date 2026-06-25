@@ -1,4 +1,4 @@
-//! 配置子模块：`loader`。
+//! Configuration loading helpers.
 
 use super::schema::Config;
 use crate::errors::{AsterError, MapAsterErr, Result};

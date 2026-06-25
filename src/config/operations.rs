@@ -1,7 +1,7 @@
 //! Generic runtime operation settings.
 
 use crate::config::RuntimeConfig;
-use crate::errors::{AsterError, Result};
+use crate::errors::Result;
 
 pub use crate::config::definitions::{
     BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS_KEY,
@@ -19,13 +19,11 @@ pub const DEFAULT_MAINTENANCE_CLEANUP_INTERVAL_SECS: u64 = 3600;
 pub const DEFAULT_MAIL_OUTBOX_DISPATCH_INTERVAL_SECS: u64 = 5;
 
 pub fn normalize_interval_config_value(key: &str, value: &str) -> Result<String> {
-    let parsed = parse_positive_u64(value)
-        .ok_or_else(|| AsterError::validation_error(format!("{key} must be a positive integer")))?;
-    Ok(parsed.to_string())
+    aster_forge_config::normalize_positive_u64_config_value(key, value).map_err(Into::into)
 }
 
 pub fn background_task_dispatch_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    aster_forge_config::read_positive_u64(
         runtime_config,
         BACKGROUND_TASK_DISPATCH_INTERVAL_SECS_KEY,
         DEFAULT_BACKGROUND_TASK_DISPATCH_INTERVAL_SECS,
@@ -33,7 +31,7 @@ pub fn background_task_dispatch_interval_secs(runtime_config: &RuntimeConfig) ->
 }
 
 pub fn background_task_dispatch_idle_max_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    aster_forge_config::read_positive_u64(
         runtime_config,
         BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS_KEY,
         DEFAULT_BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS,
@@ -41,39 +39,23 @@ pub fn background_task_dispatch_idle_max_interval_secs(runtime_config: &RuntimeC
 }
 
 pub fn background_task_max_concurrency(runtime_config: &RuntimeConfig) -> usize {
-    match read_positive_u64(
+    aster_forge_config::read_positive_usize(
         runtime_config,
         BACKGROUND_TASK_MAX_CONCURRENCY_KEY,
-        u64::try_from(DEFAULT_BACKGROUND_TASK_MAX_CONCURRENCY).unwrap_or(4),
+        DEFAULT_BACKGROUND_TASK_MAX_CONCURRENCY,
     )
-    .try_into()
-    {
-        Ok(value) => value,
-        Err(_) => {
-            tracing::warn!("background_task_max_concurrency exceeds usize; using default");
-            DEFAULT_BACKGROUND_TASK_MAX_CONCURRENCY
-        }
-    }
 }
 
 pub fn background_task_max_attempts(runtime_config: &RuntimeConfig) -> i32 {
-    match read_positive_u64(
+    aster_forge_config::read_positive_i32(
         runtime_config,
         BACKGROUND_TASK_MAX_ATTEMPTS_KEY,
-        u64::try_from(DEFAULT_BACKGROUND_TASK_MAX_ATTEMPTS).unwrap_or(3),
+        DEFAULT_BACKGROUND_TASK_MAX_ATTEMPTS,
     )
-    .try_into()
-    {
-        Ok(value) => value,
-        Err(_) => {
-            tracing::warn!("background_task_max_attempts exceeds i32; using default");
-            DEFAULT_BACKGROUND_TASK_MAX_ATTEMPTS
-        }
-    }
 }
 
 pub fn task_list_max_limit(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    aster_forge_config::read_positive_u64(
         runtime_config,
         TASK_LIST_MAX_LIMIT_KEY,
         DEFAULT_TASK_LIST_MAX_LIMIT,
@@ -81,7 +63,7 @@ pub fn task_list_max_limit(runtime_config: &RuntimeConfig) -> u64 {
 }
 
 pub fn maintenance_cleanup_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    aster_forge_config::read_positive_u64(
         runtime_config,
         MAINTENANCE_CLEANUP_INTERVAL_SECS_KEY,
         DEFAULT_MAINTENANCE_CLEANUP_INTERVAL_SECS,
@@ -89,29 +71,11 @@ pub fn maintenance_cleanup_interval_secs(runtime_config: &RuntimeConfig) -> u64 
 }
 
 pub fn mail_outbox_dispatch_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    aster_forge_config::read_positive_u64(
         runtime_config,
         MAIL_OUTBOX_DISPATCH_INTERVAL_SECS_KEY,
         DEFAULT_MAIL_OUTBOX_DISPATCH_INTERVAL_SECS,
     )
-}
-
-fn parse_positive_u64(value: &str) -> Option<u64> {
-    let parsed = value.trim().parse::<u64>().ok()?;
-    (parsed > 0).then_some(parsed)
-}
-
-fn read_positive_u64(runtime_config: &RuntimeConfig, key: &str, default: u64) -> u64 {
-    match runtime_config.get(key) {
-        Some(raw) => match parse_positive_u64(&raw) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(key, value = %raw, "invalid runtime operations config; using default");
-                default
-            }
-        },
-        None => default,
-    }
 }
 
 #[cfg(test)]

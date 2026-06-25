@@ -4,104 +4,14 @@ use crate::config::CacheConfig;
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState};
 use aster_forge_cache::CacheBackend;
+use aster_forge_runtime::{
+    HealthCheckCriticality, HealthCheckRegistry, HealthComponentReport, HealthStatus,
+    SystemHealthReport,
+};
 use sea_orm::DatabaseConnection;
+use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HealthStatus {
-    Healthy,
-    Degraded,
-    Unhealthy,
-}
-
-impl HealthStatus {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Healthy => "healthy",
-            Self::Degraded => "degraded",
-            Self::Unhealthy => "unhealthy",
-        }
-    }
-
-    pub const fn is_issue(self) -> bool {
-        !matches!(self, Self::Healthy)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HealthComponentReport {
-    pub name: &'static str,
-    pub status: HealthStatus,
-    pub message: String,
-}
-
-impl HealthComponentReport {
-    pub fn healthy(name: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            name,
-            status: HealthStatus::Healthy,
-            message: message.into(),
-        }
-    }
-
-    pub fn degraded(name: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            name,
-            status: HealthStatus::Degraded,
-            message: message.into(),
-        }
-    }
-
-    pub fn unhealthy(name: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            name,
-            status: HealthStatus::Unhealthy,
-            message: message.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SystemHealthReport {
-    pub components: Vec<HealthComponentReport>,
-}
-
-impl SystemHealthReport {
-    pub fn has_issues(&self) -> bool {
-        self.components
-            .iter()
-            .any(|component| component.status.is_issue())
-    }
-
-    pub fn status(&self) -> HealthStatus {
-        if self
-            .components
-            .iter()
-            .any(|component| matches!(component.status, HealthStatus::Unhealthy))
-        {
-            HealthStatus::Unhealthy
-        } else if self
-            .components
-            .iter()
-            .any(|component| matches!(component.status, HealthStatus::Degraded))
-        {
-            HealthStatus::Degraded
-        } else {
-            HealthStatus::Healthy
-        }
-    }
-
-    pub fn summary(&self) -> String {
-        if self.components.is_empty() {
-            return "system health check did not run any components".to_string();
-        }
-
-        self.components
-            .iter()
-            .map(|component| format!("{} {}", component.name, component.status.as_str()))
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-}
+const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub async fn ping_database(db: &DatabaseConnection) -> Result<()> {
     tracing::debug!("pinging database health check");
@@ -120,23 +30,55 @@ where
     S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState,
 {
     tracing::debug!("running system health checks");
-    let components = vec![
-        check_database_component(state.reader_db()).await,
-        check_cache_component(&state.config().cache, state.cache().as_ref()).await,
-    ];
+    let mut registry = HealthCheckRegistry::new();
+
+    register_core_health_checks(&mut registry, state);
+
+    let report = registry.run().await;
     tracing::debug!(
-        component_count = components.len(),
-        unhealthy_count = components
+        component_count = report.components.len(),
+        unhealthy_count = report
+            .components
             .iter()
             .filter(|component| matches!(component.status, HealthStatus::Unhealthy))
             .count(),
-        degraded_count = components
+        degraded_count = report
+            .components
             .iter()
             .filter(|component| matches!(component.status, HealthStatus::Degraded))
             .count(),
         "completed system health checks"
     );
-    SystemHealthReport { components }
+    report
+}
+
+pub fn register_core_health_checks<S>(registry: &mut HealthCheckRegistry, state: &S)
+where
+    S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState,
+{
+    let reader_db = state.reader_db().clone();
+    registry.register(
+        "database",
+        HealthCheckCriticality::Critical,
+        Some(HEALTH_CHECK_TIMEOUT),
+        move || {
+            let reader_db = reader_db.clone();
+            async move { check_database_component(&reader_db).await }
+        },
+    );
+
+    let cache_config = state.config().cache.clone();
+    let cache = state.cache().clone();
+    registry.register(
+        "cache",
+        HealthCheckCriticality::NonCritical,
+        Some(HEALTH_CHECK_TIMEOUT),
+        move || {
+            let cache_config = cache_config.clone();
+            let cache = cache.clone();
+            async move { check_cache_component(&cache_config, cache.as_ref()).await }
+        },
+    );
 }
 
 async fn check_database_component(db: &DatabaseConnection) -> HealthComponentReport {
@@ -196,11 +138,42 @@ async fn check_cache_component(
 #[cfg(test)]
 mod tests {
     use super::{
-        HealthComponentReport, HealthStatus, SystemHealthReport, check_cache_component,
-        check_database_component,
+        HealthStatus, check_cache_component, check_database_component, register_core_health_checks,
     };
-    use crate::config::{CacheConfig, DatabaseConfig};
+    use crate::config::{CacheConfig, Config, DatabaseConfig};
+    use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState};
     use aster_forge_cache::CacheBackend;
+    use sea_orm::DatabaseConnection;
+    use std::sync::Arc;
+
+    struct HealthState {
+        db: DatabaseConnection,
+        config: Arc<Config>,
+        cache: Arc<dyn CacheBackend>,
+    }
+
+    impl DatabaseRuntimeState for HealthState {
+        fn writer_db(&self) -> &DatabaseConnection {
+            &self.db
+        }
+
+        fn reader_db(&self) -> &DatabaseConnection {
+            &self.db
+        }
+    }
+
+    impl AppConfigRuntimeState for HealthState {
+        fn config(&self) -> &Arc<Config> {
+            &self.config
+        }
+    }
+
+    impl CacheRuntimeState for HealthState {
+        fn cache(&self) -> &Arc<dyn CacheBackend> {
+            &self.cache
+        }
+    }
+
     use async_trait::async_trait;
 
     struct FakeCache {
@@ -264,81 +237,6 @@ mod tests {
         async fn invalidate_prefix(&self, _prefix: &str) {}
     }
 
-    #[test]
-    fn health_status_reports_wire_values_and_issues() {
-        assert_eq!(HealthStatus::Healthy.as_str(), "healthy");
-        assert_eq!(HealthStatus::Degraded.as_str(), "degraded");
-        assert_eq!(HealthStatus::Unhealthy.as_str(), "unhealthy");
-        assert!(!HealthStatus::Healthy.is_issue());
-        assert!(HealthStatus::Degraded.is_issue());
-        assert!(HealthStatus::Unhealthy.is_issue());
-    }
-
-    #[test]
-    fn component_constructors_preserve_name_status_and_message() {
-        assert_eq!(
-            HealthComponentReport::healthy("database", "ok"),
-            HealthComponentReport {
-                name: "database",
-                status: HealthStatus::Healthy,
-                message: "ok".to_string(),
-            }
-        );
-        assert_eq!(
-            HealthComponentReport::degraded("cache", "fallback").status,
-            HealthStatus::Degraded
-        );
-        assert_eq!(
-            HealthComponentReport::unhealthy("database", "down").status,
-            HealthStatus::Unhealthy
-        );
-    }
-
-    #[test]
-    fn system_health_report_status_and_summary_follow_worst_component() {
-        let healthy = SystemHealthReport {
-            components: vec![
-                HealthComponentReport::healthy("database", "ok"),
-                HealthComponentReport::healthy("cache", "ok"),
-            ],
-        };
-        assert!(!healthy.has_issues());
-        assert_eq!(healthy.status(), HealthStatus::Healthy);
-        assert_eq!(healthy.summary(), "database healthy, cache healthy");
-
-        let degraded = SystemHealthReport {
-            components: vec![
-                HealthComponentReport::healthy("database", "ok"),
-                HealthComponentReport::degraded("cache", "fallback"),
-            ],
-        };
-        assert!(degraded.has_issues());
-        assert_eq!(degraded.status(), HealthStatus::Degraded);
-        assert_eq!(degraded.summary(), "database healthy, cache degraded");
-
-        let unhealthy = SystemHealthReport {
-            components: vec![
-                HealthComponentReport::degraded("cache", "fallback"),
-                HealthComponentReport::unhealthy("database", "down"),
-            ],
-        };
-        assert!(unhealthy.has_issues());
-        assert_eq!(unhealthy.status(), HealthStatus::Unhealthy);
-        assert_eq!(unhealthy.summary(), "cache degraded, database unhealthy");
-    }
-
-    #[test]
-    fn empty_system_health_report_has_explicit_summary() {
-        let report = SystemHealthReport { components: vec![] };
-
-        assert!(!report.has_issues());
-        assert_eq!(report.status(), HealthStatus::Healthy);
-        assert_eq!(
-            report.summary(),
-            "system health check did not run any components"
-        );
-    }
-
     #[tokio::test]
     async fn cache_component_reports_configured_backend_fallback() {
         let config = CacheConfig {
@@ -400,5 +298,35 @@ mod tests {
         let unhealthy = check_database_component(&db).await;
         assert_eq!(unhealthy.status, HealthStatus::Unhealthy);
         assert!(unhealthy.message.contains("database ping failed"));
+    }
+
+    #[tokio::test]
+    async fn core_health_checks_register_database_and_cache_components() {
+        let db = crate::db::connect_with_metrics(
+            &DatabaseConfig {
+                url: "sqlite::memory:".to_string(),
+                pool_size: 1,
+                retry_count: 0,
+            },
+            aster_forge_metrics::NoopMetrics::arc(),
+        )
+        .await
+        .unwrap();
+        let config = Arc::new(Config::default());
+        let cache: Arc<dyn CacheBackend> = Arc::new(aster_forge_cache::MemoryCache::new(60));
+        let state = HealthState { db, config, cache };
+        let mut registry = aster_forge_runtime::HealthCheckRegistry::new();
+
+        register_core_health_checks(&mut registry, &state);
+
+        assert_eq!(registry.len(), 2);
+        let report = registry.run().await;
+        let component_names = report
+            .components
+            .iter()
+            .map(|component| component.name)
+            .collect::<Vec<_>>();
+        assert_eq!(component_names, vec!["database", "cache"]);
+        assert_eq!(report.status(), HealthStatus::Healthy);
     }
 }

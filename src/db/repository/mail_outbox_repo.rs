@@ -1,4 +1,4 @@
-//! 仓储模块：`mail_outbox_repo`。
+//! Repository helpers for mail outbox rows.
 
 use chrono::{DateTime, Utc};
 use sea_orm::{

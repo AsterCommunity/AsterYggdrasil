@@ -94,7 +94,7 @@ where
         .object_storage()
         .put_file(&storage_key, &temp_path)
         .await;
-    cleanup_preview_temp_file(&temp_path).await;
+    aster_forge_utils::fs::cleanup_temp_file(&temp_path).await;
     put_result?;
 
     tracing::debug!(
@@ -208,18 +208,6 @@ async fn write_preview_temp_file(path: &Path, bytes: &[u8]) -> Result<()> {
         "write texture preview temp file",
         AsterError::internal_error,
     )
-}
-
-async fn cleanup_preview_temp_file(path: &Path) {
-    if let Err(error) = tokio::fs::remove_file(path).await
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(
-            path = %path.display(),
-            error = %error,
-            "failed to remove texture preview temp file"
-        );
-    }
 }
 
 fn preview_temp_path<S>(state: &S, hash: &str, file_name: &str) -> PathBuf

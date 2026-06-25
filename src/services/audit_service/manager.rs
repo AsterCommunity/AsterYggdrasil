@@ -1,12 +1,7 @@
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, Set};
-use std::sync::{
-    Arc, OnceLock,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
 
 use super::context::AuditContext;
 use crate::config::RuntimeConfig;
@@ -22,57 +17,7 @@ const AUDIT_LOG_DELAYED_FLUSH_AFTER: Duration = Duration::from_secs(1);
 static GLOBAL_AUDIT_LOG_MANAGER: OnceLock<Arc<AuditLogManager>> = OnceLock::new();
 
 struct AuditLogManager {
-    db: DatabaseConnection,
-    buffer: parking_lot::Mutex<Vec<audit_log::ActiveModel>>,
-    flush_lock: Mutex<()>,
-    flush_pending: AtomicBool,
-    delayed_flush_pending: AtomicBool,
-    delayed_flush_after: Duration,
-    shutdown_token: CancellationToken,
-}
-
-struct FlushPendingReset {
-    manager: Arc<AuditLogManager>,
-    armed: bool,
-}
-
-impl Drop for FlushPendingReset {
-    fn drop(&mut self) {
-        if self.armed {
-            self.manager.flush_pending.store(false, Ordering::Release);
-        }
-    }
-}
-
-impl FlushPendingReset {
-    fn reset(&mut self) {
-        self.manager.flush_pending.store(false, Ordering::Release);
-        self.armed = false;
-    }
-}
-
-struct DelayedFlushPendingReset {
-    manager: Arc<AuditLogManager>,
-    armed: bool,
-}
-
-impl Drop for DelayedFlushPendingReset {
-    fn drop(&mut self) {
-        if self.armed {
-            self.manager
-                .delayed_flush_pending
-                .store(false, Ordering::Release);
-        }
-    }
-}
-
-impl DelayedFlushPendingReset {
-    fn reset(&mut self) {
-        self.manager
-            .delayed_flush_pending
-            .store(false, Ordering::Release);
-        self.armed = false;
-    }
+    writer: Arc<aster_forge_runtime::BufferedBatchWriter<audit_log::ActiveModel>>,
 }
 
 impl AuditLogManager {
@@ -81,144 +26,48 @@ impl AuditLogManager {
     }
 
     fn new_with_delayed_flush_after(db: DatabaseConnection, delayed_flush_after: Duration) -> Self {
+        let batch_db = db.clone();
+        let single_db = db;
+        let writer = aster_forge_runtime::BufferedBatchWriter::new(
+            aster_forge_runtime::BufferedBatchConfig::new(
+                AUDIT_LOG_QUEUE_CAPACITY,
+                AUDIT_LOG_BATCH_SIZE,
+                delayed_flush_after,
+                "audit_log",
+            ),
+            move |mut batch| {
+                let db = batch_db.clone();
+                async move {
+                    write_audit_batch(&db, &mut batch).await;
+                }
+            },
+            move |model| {
+                let db = single_db.clone();
+                async move {
+                    write_audit_model(&db, model).await;
+                }
+            },
+        );
         Self {
-            db,
-            buffer: parking_lot::Mutex::new(Vec::with_capacity(AUDIT_LOG_BATCH_SIZE)),
-            flush_lock: Mutex::new(()),
-            flush_pending: AtomicBool::new(false),
-            delayed_flush_pending: AtomicBool::new(false),
-            delayed_flush_after,
-            shutdown_token: CancellationToken::new(),
+            writer: Arc::new(writer),
         }
     }
 
-    async fn record(self: &Arc<Self>, model: audit_log::ActiveModel) {
-        let mut overflow_model = None;
-        let should_flush;
-        let should_schedule_delayed_flush;
-        {
-            let mut buffer = self.buffer.lock();
-            if buffer.len() >= AUDIT_LOG_QUEUE_CAPACITY {
-                overflow_model = Some(model);
-                should_flush = false;
-                should_schedule_delayed_flush = false;
-            } else {
-                let was_empty = buffer.is_empty();
-                buffer.push(model);
-                should_flush = buffer.len() >= AUDIT_LOG_BATCH_SIZE;
-                should_schedule_delayed_flush = !should_flush && was_empty;
-            }
-        }
-
-        if let Some(model) = overflow_model {
-            tracing::warn!(
-                capacity = AUDIT_LOG_QUEUE_CAPACITY,
-                "audit log buffer is full; falling back to direct write"
-            );
-            self.schedule_flush();
-            write_audit_model(&self.db, model).await;
-            return;
-        }
-
-        if should_flush {
-            self.schedule_flush();
-        } else if should_schedule_delayed_flush {
-            self.schedule_delayed_flush();
-        }
+    async fn record(&self, model: audit_log::ActiveModel) {
+        self.writer.record(model).await;
     }
 
-    fn schedule_flush(self: &Arc<Self>) {
-        if self
-            .flush_pending
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
-            .is_err()
-        {
-            return;
-        }
-
-        let manager = Arc::clone(self);
-        drop(tokio::spawn(async move {
-            let mut pending_reset = FlushPendingReset {
-                manager: Arc::clone(&manager),
-                armed: true,
-            };
-            {
-                let _guard = manager.flush_lock.lock().await;
-                manager.flush_buffer().await;
-            }
-            pending_reset.reset();
-            manager.schedule_buffered_flush();
-        }));
-    }
-
-    fn schedule_delayed_flush(self: &Arc<Self>) {
-        if self
-            .delayed_flush_pending
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
-            .is_err()
-        {
-            return;
-        }
-
-        let manager = Arc::clone(self);
-        drop(tokio::spawn(async move {
-            let mut pending_reset = DelayedFlushPendingReset {
-                manager: Arc::clone(&manager),
-                armed: true,
-            };
-            let delayed_flush_after = manager.delayed_flush_after;
-            tokio::select! {
-                biased;
-                _ = manager.shutdown_token.cancelled() => return,
-                _ = tokio::time::sleep(delayed_flush_after) => {}
-            }
-
-            {
-                let _guard = manager.flush_lock.lock().await;
-                manager.flush_buffer().await;
-            }
-            pending_reset.reset();
-            manager.schedule_buffered_flush();
-        }));
-    }
-
-    fn schedule_buffered_flush(self: &Arc<Self>) {
-        let buffered_count = self.buffer.lock().len();
-        if buffered_count >= AUDIT_LOG_BATCH_SIZE {
-            self.schedule_flush();
-        } else if buffered_count > 0 {
-            self.schedule_delayed_flush();
-        }
-    }
-
-    async fn flush(self: &Arc<Self>) {
-        let _guard = self.flush_lock.lock().await;
-        self.flush_buffer().await;
-        if self.buffer.lock().is_empty() {
-            self.flush_pending.store(false, Ordering::Release);
-            self.delayed_flush_pending.store(false, Ordering::Release);
-        }
-        self.schedule_buffered_flush();
+    async fn flush(&self) {
+        self.writer.flush().await;
     }
 
     fn cancel(&self) {
-        self.shutdown_token.cancel();
+        self.writer.cancel();
     }
 
     #[cfg(test)]
     async fn lock_flush_for_test(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.flush_lock.lock().await
-    }
-
-    async fn flush_buffer(&self) {
-        let mut models = {
-            let mut buffer = self.buffer.lock();
-            if buffer.is_empty() {
-                return;
-            }
-            std::mem::take(&mut *buffer)
-        };
-        write_audit_batch(&self.db, &mut models).await;
+        self.writer.lock_flush_for_test().await
     }
 }
 

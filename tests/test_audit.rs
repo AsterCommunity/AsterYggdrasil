@@ -4,15 +4,13 @@
 mod common;
 
 use actix_web::test;
+use aster_forge_mail::MailMessage;
 use aster_yggdrasil::config::definitions::BRANDING_TITLE_KEY;
 use aster_yggdrasil::db::repository::{audit_log_repo, mail_outbox_repo, user_repo};
 use aster_yggdrasil::entities::{audit_log, background_task, mail_outbox};
 use aster_yggdrasil::errors::{AsterError, Result as AsterResult};
 use aster_yggdrasil::runtime::AppState;
-use aster_yggdrasil::services::{
-    audit_service, mail_outbox_service,
-    mail_service::{MailMessage, MailSender},
-};
+use aster_yggdrasil::services::{audit_service, mail_outbox_service, mail_service::MailSender};
 use aster_yggdrasil::types::{
     BackgroundTaskKind, BackgroundTaskStatus, MailOutboxStatus, MailTemplateCode,
     StoredMailPayload, StoredTaskPayload,

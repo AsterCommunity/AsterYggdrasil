@@ -67,9 +67,10 @@ async fn cleanup_expired_in_root(
             continue;
         };
 
-        // 这里只删“产物目录”，不删 background_task 记录：
-        // - 终态且 expires_at 已到的任务：删 temp 目录，保留历史行；
-        // - 数据库里已经没有任务行的孤儿目录：直接删，避免长期泄露磁盘。
+        // Only task artifact directories are removed here; background_task rows
+        // remain as history. Terminal tasks past expires_at lose their temp
+        // directory, and orphan directories without a database row are removed
+        // to avoid leaking disk space indefinitely.
         let should_cleanup =
             match background_task_repo::find_by_id(state.writer_db(), task_id).await {
                 Ok(task) => {

@@ -11,6 +11,7 @@ use crate::api::middleware::csrf;
 use crate::config::{branding, yggdrasil::DEFAULT_YGGDRASIL_API_ROOT_ALI};
 use crate::runtime::AppState;
 use actix_web::{HttpRequest, HttpResponse, web};
+use aster_forge_utils::html::escape_html;
 use rust_embed::Embed;
 use std::path::PathBuf;
 
@@ -214,16 +215,6 @@ impl FrontendService {
             _ => "application/octet-stream",
         }
     }
-}
-
-fn escape_html(value: impl AsRef<str>) -> String {
-    value
-        .as_ref()
-        .replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
 }
 
 /// Frontend routes mounted at `/`; this scope must be registered last.

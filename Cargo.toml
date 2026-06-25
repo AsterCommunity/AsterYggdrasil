@@ -59,6 +59,7 @@ openapi = [
     "dep:utoipa-swagger-ui",
     "aster_forge_api/openapi",
     "aster_forge_api_docs_macros/openapi",
+    "aster_forge_mail/openapi",
     "aster_forge_tasks/openapi",
 ]
 full = ["server", "cli", "metrics", "openapi"]
@@ -88,6 +89,8 @@ aster_forge_external_auth = { git = "https://github.com/AsterCommunity/AsterForg
 aster_forge_logging = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_logging" }
 aster_forge_metrics = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_metrics" }
 aster_forge_panic = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_panic" }
+aster_forge_runtime = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_runtime" }
+aster_forge_mail = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_mail" }
 aster_forge_storage_core = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_storage_core" }
 aster_forge_tasks = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_tasks" }
 aster_forge_utils = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_utils" }

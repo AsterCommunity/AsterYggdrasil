@@ -1,11 +1,14 @@
-//! 配置子模块：`auth_runtime`。
+//! Authentication runtime configuration helpers.
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
-use aster_forge_utils::bool_like::parse_bool_like;
+use aster_forge_config::{
+    parse_bool_like_value, parse_positive_u64, parse_single_string_enum_selection,
+    read_bool as forge_read_bool, read_bounded_u64, read_positive_u64 as forge_read_positive_u64,
+};
 
 pub use crate::config::definitions::{
     AUTH_ACCESS_TOKEN_TTL_SECS_KEY, AUTH_ALLOW_USER_REGISTRATION_KEY, AUTH_CAPTCHA_ENABLED_KEY,
@@ -173,56 +176,38 @@ pub struct RuntimeCaptchaPolicy {
 
 impl RuntimeAuthPolicy {
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
-        let cookie_secure = read_bool(
+        let cookie_secure = forge_read_bool(
             runtime_config,
             AUTH_COOKIE_SECURE_KEY,
             DEFAULT_AUTH_COOKIE_SECURE,
         );
-        let allow_user_registration = read_bool(
+        let allow_user_registration = forge_read_bool(
             runtime_config,
             AUTH_ALLOW_USER_REGISTRATION_KEY,
             DEFAULT_AUTH_ALLOW_USER_REGISTRATION,
         );
-        let register_activation_enabled = read_bool(
+        let register_activation_enabled = forge_read_bool(
             runtime_config,
             AUTH_REGISTER_ACTIVATION_ENABLED_KEY,
             DEFAULT_AUTH_REGISTER_ACTIVATION_ENABLED,
         );
-        let passkey_login_enabled = read_bool(
+        let passkey_login_enabled = forge_read_bool(
             runtime_config,
             AUTH_PASSKEY_LOGIN_ENABLED_KEY,
             DEFAULT_AUTH_PASSKEY_LOGIN_ENABLED,
         );
 
-        let access_token_ttl_secs = match runtime_config.get(AUTH_ACCESS_TOKEN_TTL_SECS_KEY) {
-            Some(raw) => match parse_positive_u64(&raw) {
-                Some(value) => value,
-                None => {
-                    tracing::warn!(
-                        key = AUTH_ACCESS_TOKEN_TTL_SECS_KEY,
-                        value = %raw,
-                        "invalid runtime auth access token ttl config; using default"
-                    );
-                    DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS
-                }
-            },
-            None => DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS,
-        };
+        let access_token_ttl_secs = forge_read_positive_u64(
+            runtime_config,
+            AUTH_ACCESS_TOKEN_TTL_SECS_KEY,
+            DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS,
+        );
 
-        let refresh_token_ttl_secs = match runtime_config.get(AUTH_REFRESH_TOKEN_TTL_SECS_KEY) {
-            Some(raw) => match parse_positive_u64(&raw) {
-                Some(value) => value,
-                None => {
-                    tracing::warn!(
-                        key = AUTH_REFRESH_TOKEN_TTL_SECS_KEY,
-                        value = %raw,
-                        "invalid runtime auth refresh token ttl config; using default"
-                    );
-                    DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS
-                }
-            },
-            None => DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS,
-        };
+        let refresh_token_ttl_secs = forge_read_positive_u64(
+            runtime_config,
+            AUTH_REFRESH_TOKEN_TTL_SECS_KEY,
+            DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS,
+        );
 
         Self {
             cookie_secure,
@@ -237,27 +222,27 @@ impl RuntimeAuthPolicy {
 
 impl RuntimeContactVerificationPolicy {
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
-        let register_activation_ttl_secs = read_positive_u64(
+        let register_activation_ttl_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_REGISTER_ACTIVATION_TTL_SECS_KEY,
             DEFAULT_AUTH_REGISTER_ACTIVATION_TTL_SECS,
         );
-        let contact_change_ttl_secs = read_positive_u64(
+        let contact_change_ttl_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_CONTACT_CHANGE_TTL_SECS_KEY,
             DEFAULT_AUTH_CONTACT_CHANGE_TTL_SECS,
         );
-        let password_reset_ttl_secs = read_positive_u64(
+        let password_reset_ttl_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_PASSWORD_RESET_TTL_SECS_KEY,
             DEFAULT_AUTH_PASSWORD_RESET_TTL_SECS,
         );
-        let resend_cooldown_secs = read_positive_u64(
+        let resend_cooldown_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY,
             DEFAULT_AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS,
         );
-        let password_reset_request_cooldown_secs = read_positive_u64(
+        let password_reset_request_cooldown_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS_KEY,
             DEFAULT_AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS,
@@ -275,22 +260,22 @@ impl RuntimeContactVerificationPolicy {
 
 impl RuntimeEmailCodeLoginPolicy {
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
-        let enabled = read_bool(
+        let enabled = forge_read_bool(
             runtime_config,
             AUTH_EMAIL_CODE_LOGIN_ENABLED_KEY,
             DEFAULT_AUTH_EMAIL_CODE_LOGIN_ENABLED,
         );
-        let allow_totp_fallback = read_bool(
+        let allow_totp_fallback = forge_read_bool(
             runtime_config,
             AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK_KEY,
             DEFAULT_AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK,
         );
-        let ttl_secs = read_positive_u64(
+        let ttl_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_EMAIL_CODE_LOGIN_TTL_SECS_KEY,
             DEFAULT_AUTH_EMAIL_CODE_LOGIN_TTL_SECS,
         );
-        let resend_cooldown_secs = read_positive_u64(
+        let resend_cooldown_secs = forge_read_positive_u64(
             runtime_config,
             AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS_KEY,
             DEFAULT_AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS,
@@ -320,41 +305,41 @@ impl RuntimeCaptchaPolicy {
                 .cloned()
                 .or_else(|| runtime_config.get(key))
         };
-        let enabled = read_bool_from(&get, AUTH_CAPTCHA_ENABLED_KEY, DEFAULT_AUTH_CAPTCHA_ENABLED);
-        let login_required = read_bool_from(
+        let enabled = forge_read_bool(&get, AUTH_CAPTCHA_ENABLED_KEY, DEFAULT_AUTH_CAPTCHA_ENABLED);
+        let login_required = forge_read_bool(
             &get,
             AUTH_CAPTCHA_LOGIN_REQUIRED_KEY,
             DEFAULT_AUTH_CAPTCHA_LOGIN_REQUIRED,
         );
-        let register_required = read_bool_from(
+        let register_required = forge_read_bool(
             &get,
             AUTH_CAPTCHA_REGISTER_REQUIRED_KEY,
             DEFAULT_AUTH_CAPTCHA_REGISTER_REQUIRED,
         );
-        let invitation_accept_required = read_bool_from(
+        let invitation_accept_required = forge_read_bool(
             &get,
             AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY,
             DEFAULT_AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED,
         );
-        let register_activation_resend_required = read_bool_from(
+        let register_activation_resend_required = forge_read_bool(
             &get,
             AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY,
             DEFAULT_AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED,
         );
-        let ttl_secs = read_positive_u64_from(
+        let ttl_secs = forge_read_positive_u64(
             &get,
             AUTH_CAPTCHA_TTL_SECS_KEY,
             DEFAULT_AUTH_CAPTCHA_TTL_SECS,
         );
         let preset = read_captcha_render_preset_from(&get);
-        let length = read_range_u64_from(
+        let length = read_bounded_u64(
             &get,
             AUTH_CAPTCHA_LENGTH_KEY,
             DEFAULT_AUTH_CAPTCHA_LENGTH,
             MIN_AUTH_CAPTCHA_LENGTH,
             MAX_AUTH_CAPTCHA_LENGTH,
         );
-        let max_attempts = read_range_u64_from(
+        let max_attempts = read_bounded_u64(
             &get,
             AUTH_CAPTCHA_MAX_ATTEMPTS_KEY,
             DEFAULT_AUTH_CAPTCHA_MAX_ATTEMPTS,
@@ -393,7 +378,7 @@ impl RuntimeCaptchaPolicy {
 }
 
 pub fn normalize_cookie_secure_config_value(value: &str) -> Result<String> {
-    match parse_bool_like(value) {
+    match parse_bool_like_value(value) {
         Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
         None => Err(AsterError::validation_error(
             "auth_cookie_secure must be 'true' or 'false'",
@@ -402,7 +387,7 @@ pub fn normalize_cookie_secure_config_value(value: &str) -> Result<String> {
 }
 
 pub fn normalize_allow_user_registration_config_value(value: &str) -> Result<String> {
-    match parse_bool_like(value) {
+    match parse_bool_like_value(value) {
         Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
         None => Err(AsterError::validation_error(
             "auth_allow_user_registration must be 'true' or 'false'",
@@ -411,7 +396,7 @@ pub fn normalize_allow_user_registration_config_value(value: &str) -> Result<Str
 }
 
 pub fn normalize_register_activation_enabled_config_value(value: &str) -> Result<String> {
-    match parse_bool_like(value) {
+    match parse_bool_like_value(value) {
         Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
         None => Err(AsterError::validation_error(
             "auth_register_activation_enabled must be 'true' or 'false'",
@@ -420,7 +405,7 @@ pub fn normalize_register_activation_enabled_config_value(value: &str) -> Result
 }
 
 pub fn normalize_email_code_login_bool_config_value(key: &str, value: &str) -> Result<String> {
-    match parse_bool_like(value) {
+    match parse_bool_like_value(value) {
         Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
         None => Err(AsterError::validation_error(format!(
             "{key} must be 'true' or 'false'",
@@ -429,7 +414,7 @@ pub fn normalize_email_code_login_bool_config_value(key: &str, value: &str) -> R
 }
 
 pub fn normalize_auth_bool_config_value(key: &str, value: &str) -> Result<String> {
-    match parse_bool_like(value) {
+    match parse_bool_like_value(value) {
         Some(value) => Ok(if value { "true" } else { "false" }.to_string()),
         None => Err(AsterError::validation_error(format!(
             "{key} must be 'true' or 'false'",
@@ -480,38 +465,11 @@ pub fn normalize_captcha_max_attempts_config_value(value: &str) -> Result<String
 }
 
 pub fn user_invitation_ttl_secs(runtime_config: &RuntimeConfig) -> u64 {
-    read_positive_u64(
+    forge_read_positive_u64(
         runtime_config,
         AUTH_USER_INVITATION_TTL_SECS_KEY,
         DEFAULT_AUTH_USER_INVITATION_TTL_SECS,
     )
-}
-
-fn parse_positive_u64(value: &str) -> Option<u64> {
-    let parsed = value.trim().parse::<u64>().ok()?;
-    (parsed > 0).then_some(parsed)
-}
-
-fn read_range_u64_from<F>(get: &F, key: &str, default_value: u64, min: u64, max: u64) -> u64
-where
-    F: Fn(&str) -> Option<String>,
-{
-    match get(key) {
-        Some(raw) => match parse_positive_u64(&raw).filter(|value| (min..=max).contains(value)) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(
-                    key,
-                    value = %raw,
-                    min,
-                    max,
-                    "invalid runtime auth numeric config; using default"
-                );
-                default_value
-            }
-        },
-        None => default_value,
-    }
 }
 
 fn read_captcha_render_preset_from<F>(get: &F) -> CaptchaRenderPreset
@@ -536,67 +494,13 @@ where
 }
 
 fn parse_captcha_preset_selection(value: &str) -> Result<CaptchaRenderPreset> {
-    let trimmed = value.trim();
-    let preset = if trimmed.starts_with('[') {
-        let selected = serde_json::from_str::<Vec<String>>(trimmed).map_err(|error| {
-            AsterError::validation_error(format!(
-                "{AUTH_CAPTCHA_PRESET_KEY} must be a string enum or a legacy JSON array with exactly one preset: {error}",
-            ))
-        })?;
-        let [preset] = selected.as_slice() else {
-            return Err(AsterError::validation_error(format!(
-                "{AUTH_CAPTCHA_PRESET_KEY} must select exactly one preset",
-            )));
-        };
-        preset.clone()
-    } else {
-        trimmed.to_string()
-    };
-    preset.parse::<CaptchaRenderPreset>().map_err(|_| {
-        AsterError::validation_error(format!(
-            "{AUTH_CAPTCHA_PRESET_KEY} must be one of: readable, balanced, hardened",
-        ))
-    })
-}
-
-fn read_bool(runtime_config: &RuntimeConfig, key: &str, default: bool) -> bool {
-    read_bool_from(&|key| runtime_config.get(key), key, default)
-}
-
-fn read_bool_from<F>(get: &F, key: &str, default: bool) -> bool
-where
-    F: Fn(&str) -> Option<String>,
-{
-    match get(key) {
-        Some(raw) => match parse_bool_like(&raw) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(key, value = %raw, "invalid runtime auth bool config; using default");
-                default
-            }
-        },
-        None => default,
-    }
-}
-
-fn read_positive_u64(runtime_config: &RuntimeConfig, key: &str, default: u64) -> u64 {
-    read_positive_u64_from(&|key| runtime_config.get(key), key, default)
-}
-
-fn read_positive_u64_from<F>(get: &F, key: &str, default: u64) -> u64
-where
-    F: Fn(&str) -> Option<String>,
-{
-    match get(key) {
-        Some(raw) => match parse_positive_u64(&raw) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(key, value = %raw, "invalid runtime auth contact config; using default");
-                default
-            }
-        },
-        None => default,
-    }
+    parse_single_string_enum_selection(
+        value,
+        AUTH_CAPTCHA_PRESET_KEY,
+        "readable, balanced, hardened",
+        |value| value.parse::<CaptchaRenderPreset>().ok(),
+    )
+    .map_err(|error| AsterError::validation_error(error.to_string()))
 }
 
 #[cfg(test)]

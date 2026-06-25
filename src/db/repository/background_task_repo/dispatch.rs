@@ -48,11 +48,13 @@ pub async fn try_claim<C: ConnectionTrait>(
     next_processing_token: i64,
     lease_expires_at: DateTime<Utc>,
 ) -> Result<bool> {
-    // try_claim 是一条 compare-and-swap：
-    // 只有当 id 命中、旧 processing_token 仍匹配、并且任务此刻仍满足 claimable 条件时，
-    // 才会把任务推进到 Processing，并原子地把 token 递增到 next_processing_token。
+    // try_claim is a compare-and-swap update. It moves the task to Processing
+    // only when the id matches, the old processing_token still matches, and the
+    // task is still claimable at this moment. The token is advanced atomically to
+    // next_processing_token.
     //
-    // 这样多个 dispatcher 并发捞到同一条任务时，只有一个能成功认领。
+    // When multiple dispatchers see the same task concurrently, only one can
+    // claim it successfully.
     let result = BackgroundTask::update_many()
         .col_expr(
             background_task::Column::Status,
@@ -95,8 +97,9 @@ pub async fn touch_heartbeat<C: ConnectionTrait>(
     now: DateTime<Utc>,
     lease_expires_at: DateTime<Utc>,
 ) -> Result<bool> {
-    // heartbeat 也带 token 条件。
-    // 如果返回 false，说明任务虽然还在表里，但这条 worker 的 lease 已经过期了。
+    // Heartbeat updates also carry the processing token condition. A false
+    // result means the task row still exists, but this worker's lease is no
+    // longer current.
     let result = BackgroundTask::update_many()
         .col_expr(
             background_task::Column::LastHeartbeatAt,

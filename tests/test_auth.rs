@@ -146,9 +146,7 @@ fn access_and_csrf_cookie_header(access_token: &str, csrf_token: &str) -> String
     format!("aster_access={access_token}; aster_yggdrasil_csrf={csrf_token}")
 }
 
-fn extract_password_reset_token(
-    message: &aster_yggdrasil::services::mail_service::MailMessage,
-) -> String {
+fn extract_password_reset_token(message: &aster_forge_mail::MailMessage) -> String {
     common::extract_token_from_mail_message(message, "/reset-password?token=")
         .expect("password reset link missing from mail body")
 }

@@ -39,22 +39,22 @@ pub struct ServerConfig {
     pub host: String,
     #[serde(default = "ServerConfig::default_port")]
     pub port: u16,
-    /// 0 = num_cpus
+    /// `0` means use the number of CPUs.
     #[serde(default)]
     pub workers: usize,
     #[serde(default = "ServerConfig::default_temp_dir")]
     pub temp_dir: String,
     #[serde(default)]
     pub follower: ServerFollowerConfig,
-    /// 节点静态启动角色。改动后需要重启进程。
+    /// Static node role selected at startup. Changing it requires a process restart.
     #[serde(default)]
     pub start_mode: crate::config::node_mode::NodeRuntimeMode,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ServerFollowerConfig {
-    /// follower 受 primary 托管的 local ingress profile 根目录。
-    /// primary 下发的本地落点只能在这个根目录下使用相对路径。
+    /// Root directory for follower local ingress profiles managed by the primary.
+    /// Local destinations pushed by the primary must be relative paths under this root.
     #[serde(default = "ServerFollowerConfig::default_managed_ingress_local_root")]
     pub managed_ingress_local_root: String,
 }
@@ -140,7 +140,7 @@ pub struct AuthConfig {
     pub csrf_cookie_name: String,
     #[serde(default = "AuthConfig::default_csrf_header_name")]
     pub csrf_header_name: String,
-    /// 首次初始化 system_config 时，是否把 auth_cookie_secure 设为 false。
+    /// Whether the first system_config seed should set auth_cookie_secure to false.
     #[serde(default = "AuthConfig::default_bootstrap_insecure_cookies")]
     pub bootstrap_insecure_cookies: bool,
 }
@@ -267,11 +267,11 @@ pub struct LoggingConfig {
     #[serde(default = "LoggingConfig::default_format")]
     pub format: String, // "text" | "json"
     #[serde(default)]
-    pub file: String, // 留空 = stdout only
-    /// 启用日志轮转（按天），仅在 file 非空时生效
+    pub file: String, // Empty means stdout only.
+    /// Enables daily log rotation when file logging is configured.
     #[serde(default = "LoggingConfig::default_enable_rotation")]
     pub enable_rotation: bool,
-    /// 保留的历史日志文件数量
+    /// Number of historical log files to retain.
     #[serde(default = "LoggingConfig::default_max_backups")]
     pub max_backups: u32,
 }
@@ -303,23 +303,24 @@ impl LoggingConfig {
     }
 }
 
-/// 网络信任配置（config.toml）
+/// Network trust configuration from `config.toml`.
 ///
-/// 这组受信代理信息会影响真实客户端 IP 的判定，供限流、认证审计等模块共用。
+/// Trusted proxy information affects real client IP detection for rate limiting,
+/// authentication, audit logging, and other request-bound modules.
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct NetworkTrustConfig {
-    /// 受信任的上游代理 IP 列表（CIDR 格式或单 IP）。
+    /// Trusted upstream proxy IP ranges, in CIDR or single-IP form.
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
 }
 
-/// Rate limiting 配置
+/// Rate limiting configuration.
 ///
-/// 四个层级，不同接口类别不同阈值：
-/// - `auth`: 认证/密码验证（最严格，防暴力破解）
-/// - `public`: 公开分享匿名访问
-/// - `api`: 已认证一般读写操作
-/// - `write`: 高成本写操作（批量/管理）
+/// Four tiers let request classes use different thresholds:
+/// - `auth`: authentication and password verification.
+/// - `public`: unauthenticated public endpoints.
+/// - `api`: general authenticated reads and writes.
+/// - `write`: expensive write or administrative operations.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RateLimitConfig {
     #[serde(default = "RateLimitConfig::default_enabled")]

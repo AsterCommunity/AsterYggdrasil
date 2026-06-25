@@ -37,14 +37,6 @@ pub fn resolve_config_relative_sqlite_url(
         .map_err(map_utils_config)
 }
 
-pub async fn ensure_runtime_dirs(temp_dir: &str) -> Result<()> {
-    tokio::fs::create_dir_all(aster_forge_utils::paths::runtime_temp_dir(temp_dir))
-        .await
-        .map_err(|error| {
-            AsterError::config_error(format!("failed to create runtime temp dir: {error}"))
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -52,20 +44,6 @@ mod tests {
         resolve_config_relative_sqlite_url,
     };
     use std::path::Path;
-
-    #[tokio::test]
-    async fn ensure_runtime_dirs_creates_runtime_subdir() {
-        let root = std::env::temp_dir().join(format!(
-            "asteryggdrasil-runtime-dirs-{}",
-            uuid::Uuid::new_v4()
-        ));
-        let root = root.to_string_lossy().to_string();
-
-        super::ensure_runtime_dirs(&root).await.unwrap();
-
-        assert!(Path::new(&aster_forge_utils::paths::runtime_temp_dir(&root)).is_dir());
-        let _ = std::fs::remove_dir_all(root);
-    }
 
     #[test]
     fn resolve_config_relative_path_accepts_plain_and_data_prefixed_relative_values() {

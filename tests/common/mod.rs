@@ -1139,7 +1139,7 @@ fn extract_token_from_content(content: &str, marker: &str) -> Option<String> {
 
 #[allow(dead_code)]
 pub fn extract_token_from_mail_message(
-    message: &aster_yggdrasil::services::mail_service::MailMessage,
+    message: &aster_forge_mail::MailMessage,
     marker: &str,
 ) -> Option<String> {
     extract_token_from_content(&message.text_body, marker)

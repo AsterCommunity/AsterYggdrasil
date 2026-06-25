@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
+use aster_forge_config::parse_single_string_enum_selection;
 
 pub use crate::config::definitions::{
     TEXTURE_PREVIEW_2D_PADDING_KEY, TEXTURE_PREVIEW_2D_SPACING_KEY,
@@ -374,49 +375,23 @@ fn read_f32(runtime_config: &RuntimeConfig, key: &str, default: f32) -> f32 {
 }
 
 fn parse_engine(value: &str) -> Result<TexturePreviewEngine> {
-    parse_single_enum_selection(
+    parse_single_string_enum_selection(
         value,
         TEXTURE_PREVIEW_ENGINE_KEY,
         "skin-3d or skin-2d",
         |value| value.parse::<TexturePreviewEngine>().ok(),
     )
+    .map_err(|error| AsterError::validation_error(error.to_string()))
 }
 
 fn parse_profile(value: &str) -> Result<TexturePreviewQualityProfile> {
-    parse_single_enum_selection(
+    parse_single_string_enum_selection(
         value,
         TEXTURE_PREVIEW_PROFILE_KEY,
         "fast, default, or quality",
         |value| value.parse::<TexturePreviewQualityProfile>().ok(),
     )
-}
-
-fn parse_single_enum_selection<T>(
-    value: &str,
-    key: &str,
-    allowed_values: &str,
-    parse: impl Fn(&str) -> Option<T>,
-) -> Result<T> {
-    let trimmed = value.trim();
-    let selected = if trimmed.starts_with('[') {
-        let items = serde_json::from_str::<Vec<String>>(trimmed).map_err(|error| {
-            AsterError::validation_error(format!(
-                "{key} must be a JSON array with exactly one value: {error}",
-            ))
-        })?;
-        let [item] = items.as_slice() else {
-            return Err(AsterError::validation_error(format!(
-                "{key} must select exactly one value",
-            )));
-        };
-        item.clone()
-    } else {
-        trimmed.to_string()
-    };
-
-    parse(&selected).ok_or_else(|| {
-        AsterError::validation_error(format!("{key} must be one of: {allowed_values}"))
-    })
+    .map_err(|error| AsterError::validation_error(error.to_string()))
 }
 
 fn parse_background(value: &str) -> Result<TexturePreviewBackground> {

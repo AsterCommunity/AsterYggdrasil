@@ -43,12 +43,7 @@ async fn put_avatar_bytes<S: ObjectStorageRuntimeState>(
         .object_storage()
         .put_file(storage_key, &temp_path)
         .await;
-    if let Err(error) = tokio::fs::remove_file(&temp_path).await {
-        tracing::warn!(
-            path = %temp_path.display(),
-            "failed to remove avatar temp file: {error}"
-        );
-    }
+    aster_forge_utils::fs::cleanup_temp_file(&temp_path).await;
     result?;
     Ok(())
 }
