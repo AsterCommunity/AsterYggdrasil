@@ -101,19 +101,17 @@ mod tests {
     use super::*;
     use crate::config::RuntimeConfig;
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     fn config_model(key: &str, value: &str) -> system_config::Model {
         system_config::Model {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::StringArray,
+            value_type: ConfigValueType::StringArray,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: crate::config::definitions::CONFIG_CATEGORY_AUTH_EMAIL_POLICY.to_string(),
             description: "test".to_string(),

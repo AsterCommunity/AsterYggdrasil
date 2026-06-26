@@ -6,11 +6,9 @@ use crate::entities::system_config;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{ConfigSyncRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::audit_service::{self, AuditContext};
-use crate::types::{
-    config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-};
 use aster_forge_api::{CursorPage, IdCursor};
 use aster_forge_config::ConfigValue;
+use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
 use sea_orm::ConnectionTrait;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -22,11 +20,11 @@ pub struct SystemConfig {
     pub id: i64,
     pub key: String,
     pub value: ConfigValue,
-    pub value_type: SystemConfigValueType,
+    pub value_type: ConfigValueType,
     pub requires_restart: bool,
     pub is_sensitive: bool,
-    pub source: SystemConfigSource,
-    pub visibility: SystemConfigVisibility,
+    pub source: ConfigSource,
+    pub visibility: ConfigVisibility,
     pub namespace: String,
     pub category: String,
     pub description: String,
@@ -161,7 +159,7 @@ pub async fn set_with_visibility(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
     key: &str,
     value: impl Into<ConfigValue>,
-    visibility: Option<SystemConfigVisibility>,
+    visibility: Option<ConfigVisibility>,
     updated_by: i64,
 ) -> Result<SystemConfig> {
     let value = value.into();
@@ -235,7 +233,7 @@ pub async fn set_with_audit_and_visibility(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
     key: &str,
     value: &ConfigValue,
-    visibility: Option<SystemConfigVisibility>,
+    visibility: Option<ConfigVisibility>,
     updated_by: i64,
     audit_ctx: &AuditContext,
 ) -> Result<SystemConfig> {
@@ -251,7 +249,7 @@ pub async fn set_with_audit_and_visibility_result(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
     key: &str,
     value: &ConfigValue,
-    visibility: Option<SystemConfigVisibility>,
+    visibility: Option<ConfigVisibility>,
     updated_by: i64,
     audit_ctx: &AuditContext,
 ) -> Result<SystemConfigUpdateResult> {
@@ -271,7 +269,7 @@ async fn save_config(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
     key: &str,
     value: &ConfigValue,
-    visibility: Option<SystemConfigVisibility>,
+    visibility: Option<ConfigVisibility>,
     updated_by: Option<i64>,
 ) -> Result<system_config::Model> {
     validate_direct_config_update_target(key)?;
@@ -304,7 +302,7 @@ async fn audit_config_update(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState),
     audit_ctx: &AuditContext,
     config: &system_config::Model,
-    prior_visibility: Option<SystemConfigVisibility>,
+    prior_visibility: Option<ConfigVisibility>,
 ) {
     audit_service::log_with_details(
         state,
@@ -336,7 +334,7 @@ async fn audit_config_update(
     .await;
 }
 
-fn validate_visibility_target(key: &str, visibility: Option<SystemConfigVisibility>) -> Result<()> {
+fn validate_visibility_target(key: &str, visibility: Option<ConfigVisibility>) -> Result<()> {
     if visibility.is_some() && CONFIG_REGISTRY.contains_key(key) {
         return Err(AsterError::validation_error(
             "visibility can only be changed for custom configuration",
@@ -381,10 +379,8 @@ mod tests {
     use crate::db::repository::system_config_repo;
     use crate::runtime::AppState;
     use crate::services::audit_service::{AuditContext, flush_global_audit_log_manager};
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
     use aster_forge_cache::CacheConfig;
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     use aster_forge_db::DbHandles;
     async fn build_test_state() -> AppState {
         let db_cfg = DatabaseConfig {
@@ -437,19 +433,19 @@ mod tests {
     fn system_config_value_storage_rules_match_value_type() {
         assert_eq!(
             ConfigValue::String("value".to_string())
-                .to_storage_for_type(SystemConfigValueType::String)
+                .to_storage_for_type(ConfigValueType::String)
                 .unwrap(),
             "value"
         );
         assert_eq!(
             ConfigValue::String("value".to_string())
-                .to_storage_for_type(SystemConfigValueType::StringEnum)
+                .to_storage_for_type(ConfigValueType::StringEnum)
                 .unwrap(),
             "value"
         );
         assert_eq!(
             ConfigValue::StringArray(vec!["a".to_string(), "b".to_string()])
-                .to_storage_for_type(SystemConfigValueType::StringArray)
+                .to_storage_for_type(ConfigValueType::StringArray)
                 .unwrap(),
             r#"["a","b"]"#
         );
@@ -459,12 +455,12 @@ mod tests {
         );
         assert!(
             ConfigValue::String("not-an-array".to_string())
-                .to_storage_for_type(SystemConfigValueType::StringArray)
+                .to_storage_for_type(ConfigValueType::StringArray)
                 .is_err()
         );
         assert!(
             ConfigValue::StringArray(vec!["a".to_string()])
-                .to_storage_for_type(SystemConfigValueType::String)
+                .to_storage_for_type(ConfigValueType::String)
                 .is_err()
         );
     }
@@ -472,7 +468,7 @@ mod tests {
     #[test]
     fn system_config_response_redacts_sensitive_values_and_parses_lists() {
         let mut model = system_config_model("demo.list", r#"["a","b"]"#);
-        model.value_type = SystemConfigValueType::StringArray;
+        model.value_type = ConfigValueType::StringArray;
         let config = super::SystemConfig::from(model);
         assert_eq!(
             config.value,
@@ -488,7 +484,7 @@ mod tests {
         );
 
         let mut invalid_list = system_config_model("demo.invalid", "not json");
-        invalid_list.value_type = SystemConfigValueType::StringArray;
+        invalid_list.value_type = ConfigValueType::StringArray;
         let config = super::SystemConfig::from(invalid_list);
         assert_eq!(config.value, ConfigValue::StringArray(Vec::new()));
     }
@@ -498,11 +494,11 @@ mod tests {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: String::new(),
             description: String::new(),
@@ -527,7 +523,7 @@ mod tests {
             initial.value,
             ConfigValue::String("AsterYggdrasil".to_string())
         );
-        assert_eq!(initial.source, SystemConfigSource::System);
+        assert_eq!(initial.source, ConfigSource::System);
 
         let updated = set(&state, BRANDING_TITLE_KEY, "  Template Title  ", 42)
             .await
@@ -593,7 +589,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(config.value, "false");
-        assert_eq!(config.source, SystemConfigSource::System);
+        assert_eq!(config.source, ConfigSource::System);
     }
 
     #[tokio::test]
@@ -619,13 +615,13 @@ mod tests {
             &state,
             "custom.banner",
             "hello",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             7,
         )
         .await
         .unwrap();
-        assert_eq!(custom.source, SystemConfigSource::Custom);
-        assert_eq!(custom.visibility, SystemConfigVisibility::Public);
+        assert_eq!(custom.source, ConfigSource::Custom);
+        assert_eq!(custom.visibility, ConfigVisibility::Public);
         assert_eq!(
             state.runtime_config().get("custom.banner").as_deref(),
             Some("hello")
@@ -635,13 +631,13 @@ mod tests {
             &state,
             "custom.banner",
             "hello again",
-            Some(SystemConfigVisibility::Authenticated),
+            Some(ConfigVisibility::Authenticated),
             8,
         )
         .await
         .unwrap();
         assert_eq!(updated.id, custom.id);
-        assert_eq!(updated.visibility, SystemConfigVisibility::Authenticated);
+        assert_eq!(updated.visibility, ConfigVisibility::Authenticated);
         assert_eq!(
             state.runtime_config().get("custom.banner").as_deref(),
             Some("hello again")
@@ -651,7 +647,7 @@ mod tests {
             &state,
             BRANDING_TITLE_KEY,
             "Visible Title",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             9,
         )
         .await
@@ -670,7 +666,7 @@ mod tests {
             &state,
             "custom.delete_me",
             "value",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             7,
         )
         .await
@@ -727,7 +723,7 @@ mod tests {
             &state,
             "custom.audit_delete",
             "value",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             99,
         )
         .await

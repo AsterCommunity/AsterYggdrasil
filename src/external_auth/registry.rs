@@ -1,4 +1,4 @@
-//! Yggdrasil-facing registry facade over shared Forge external-auth drivers.
+//! Yggdrasil-facing registry boundary over shared Forge external-auth drivers.
 
 use std::sync::{Arc, OnceLock};
 
@@ -11,7 +11,7 @@ use super::{
     ExternalAuthProviderDescriptor, map_external_auth_error, map_external_auth_provider_descriptor,
 };
 
-/// Registry facade for feature-enabled external authentication provider drivers.
+/// Registry boundary for feature-enabled external authentication provider drivers.
 pub struct ExternalAuthProviderRegistry {
     inner: aster_forge_external_auth::ExternalAuthProviderRegistry,
 }

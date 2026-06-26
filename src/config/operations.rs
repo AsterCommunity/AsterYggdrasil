@@ -97,19 +97,17 @@ mod tests {
     };
     use crate::config::{RuntimeConfig, definitions::CONFIG_CATEGORY_RUNTIME_TASKS};
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     fn model(key: &str, value: &str) -> system_config::Model {
         system_config::Model {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: CONFIG_CATEGORY_RUNTIME_TASKS.to_string(),
             description: "test runtime operation config".to_string(),

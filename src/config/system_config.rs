@@ -4,7 +4,7 @@ use crate::config::RuntimeConfig;
 use crate::config::definitions::{CONFIG_REGISTRY, ConfigDef};
 use crate::entities::system_config;
 use crate::errors::Result;
-use crate::types::config::{SystemConfigSource, SystemConfigValueType};
+use aster_forge_config::{ConfigSource, ConfigValueType};
 use aster_forge_config::{ConfigValueLookup, StoredConfig};
 
 impl ConfigValueLookup for RuntimeConfig {
@@ -17,8 +17,8 @@ pub fn get_definition(key: &str) -> Option<&'static ConfigDef> {
     CONFIG_REGISTRY.get(key)
 }
 
-pub fn validate_value_type(value_type: SystemConfigValueType, value: &str) -> Result<()> {
-    aster_forge_config::validate_storage_value(value_type.into(), value).map_err(Into::into)
+pub fn validate_value_type(value_type: ConfigValueType, value: &str) -> Result<()> {
+    aster_forge_config::validate_storage_value(value_type, value).map_err(Into::into)
 }
 
 pub fn normalize_system_value<L>(lookup: &L, key: &str, value: &str) -> Result<String>
@@ -31,15 +31,15 @@ where
 }
 
 pub fn apply_definition(mut config: system_config::Model) -> system_config::Model {
-    if config.source != SystemConfigSource::System {
+    if config.source != ConfigSource::System {
         return config;
     }
 
     let stored = CONFIG_REGISTRY.apply_definition(model_to_stored_config(&config));
-    config.value_type = stored.value_type.into();
+    config.value_type = stored.value_type;
     config.requires_restart = stored.requires_restart;
     config.is_sensitive = stored.is_sensitive;
-    config.visibility = stored.visibility.into();
+    config.visibility = stored.visibility;
     config.category = stored.category;
     config.description = stored.description;
     config
@@ -50,11 +50,11 @@ fn model_to_stored_config(config: &system_config::Model) -> StoredConfig {
         id: config.id,
         key: config.key.clone(),
         value: config.value.clone(),
-        value_type: config.value_type.into(),
+        value_type: config.value_type,
         requires_restart: config.requires_restart,
         is_sensitive: config.is_sensitive,
-        source: config.source.into(),
-        visibility: config.visibility.into(),
+        source: config.source,
+        visibility: config.visibility,
         category: config.category.clone(),
         description: config.description.clone(),
     }
@@ -71,19 +71,17 @@ mod tests {
     use crate::config::yggdrasil::{YGGDRASIL_MAX_ACTIVE_TOKENS_KEY, YGGDRASIL_TOKEN_TTL_DAYS_KEY};
     use crate::config::{audit, cors, operations};
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
-    fn model(key: &str, value: &str, source: SystemConfigSource) -> system_config::Model {
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
+    fn model(key: &str, value: &str, source: ConfigSource) -> system_config::Model {
         system_config::Model {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart: false,
             is_sensitive: false,
             source,
-            visibility: SystemConfigVisibility::Private,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: String::new(),
             description: String::new(),
@@ -94,21 +92,21 @@ mod tests {
 
     #[test]
     fn validate_value_type_enforces_declared_types() {
-        assert!(validate_value_type(SystemConfigValueType::Boolean, "true").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::Boolean, "false").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::Boolean, " yes ").is_err());
+        assert!(validate_value_type(ConfigValueType::Boolean, "true").is_ok());
+        assert!(validate_value_type(ConfigValueType::Boolean, "false").is_ok());
+        assert!(validate_value_type(ConfigValueType::Boolean, " yes ").is_err());
 
-        assert!(validate_value_type(SystemConfigValueType::Number, "42").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::Number, "1.5").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::Number, "nope").is_err());
+        assert!(validate_value_type(ConfigValueType::Number, "42").is_ok());
+        assert!(validate_value_type(ConfigValueType::Number, "1.5").is_ok());
+        assert!(validate_value_type(ConfigValueType::Number, "nope").is_err());
 
-        assert!(validate_value_type(SystemConfigValueType::StringArray, r#"["a"]"#).is_ok());
-        assert!(validate_value_type(SystemConfigValueType::StringArray, r#""a""#).is_err());
-        assert!(validate_value_type(SystemConfigValueType::StringEnumSet, r#"["a"]"#).is_ok());
-        assert!(validate_value_type(SystemConfigValueType::StringEnumSet, r#""a""#).is_err());
-        assert!(validate_value_type(SystemConfigValueType::StringEnum, "a").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::String, "anything").is_ok());
-        assert!(validate_value_type(SystemConfigValueType::Multiline, "line\nline").is_ok());
+        assert!(validate_value_type(ConfigValueType::StringArray, r#"["a"]"#).is_ok());
+        assert!(validate_value_type(ConfigValueType::StringArray, r#""a""#).is_err());
+        assert!(validate_value_type(ConfigValueType::StringEnumSet, r#"["a"]"#).is_ok());
+        assert!(validate_value_type(ConfigValueType::StringEnumSet, r#""a""#).is_err());
+        assert!(validate_value_type(ConfigValueType::StringEnum, "a").is_ok());
+        assert!(validate_value_type(ConfigValueType::String, "anything").is_ok());
+        assert!(validate_value_type(ConfigValueType::Multiline, "line\nline").is_ok());
     }
 
     #[test]
@@ -221,16 +219,16 @@ mod tests {
         let config = apply_definition(model(
             PUBLIC_SITE_URL_KEY,
             r#"["https://forge.example.com"]"#,
-            SystemConfigSource::System,
+            ConfigSource::System,
         ));
-        assert_eq!(config.value_type, SystemConfigValueType::StringArray);
+        assert_eq!(config.value_type, ConfigValueType::StringArray);
         assert_eq!(config.category, CONFIG_CATEGORY_SITE_PUBLIC);
         assert_eq!(
             config.description,
             "Public origins used to build externally visible application URLs"
         );
 
-        let custom = apply_definition(model("custom.demo", "value", SystemConfigSource::Custom));
+        let custom = apply_definition(model("custom.demo", "value", ConfigSource::Custom));
         assert_eq!(custom.category, "");
         assert_eq!(custom.description, "");
     }

@@ -454,19 +454,17 @@ fn skin_domain_matches_host(domain: &str, host: &str) -> bool {
 mod tests {
     use super::*;
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     fn config_model(key: &str, value: &str) -> system_config::Model {
         system_config::Model {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::StringArray,
+            value_type: ConfigValueType::StringArray,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: String::new(),
             description: String::new(),
@@ -568,12 +566,12 @@ mod tests {
     fn uploadable_textures_follow_runtime_switches() {
         let runtime_config = RuntimeConfig::new();
         runtime_config.apply(system_config::Model {
-            value_type: SystemConfigValueType::Boolean,
+            value_type: ConfigValueType::Boolean,
             ..config_model(YGGDRASIL_ALLOW_SKIN_UPLOAD_KEY, "false")
         });
         runtime_config.apply(system_config::Model {
             id: 2,
-            value_type: SystemConfigValueType::Boolean,
+            value_type: ConfigValueType::Boolean,
             ..config_model(YGGDRASIL_ALLOW_CAPE_UPLOAD_KEY, "true")
         });
 
@@ -590,12 +588,12 @@ mod tests {
         assert!(policy.enable_mojang_anti_features);
 
         runtime_config.apply(system_config::Model {
-            value_type: SystemConfigValueType::Boolean,
+            value_type: ConfigValueType::Boolean,
             ..config_model(YGGDRASIL_ENABLE_PROFILE_KEY_KEY, "false")
         });
         runtime_config.apply(system_config::Model {
             id: 2,
-            value_type: SystemConfigValueType::Boolean,
+            value_type: ConfigValueType::Boolean,
             ..config_model(YGGDRASIL_ENABLE_MOJANG_ANTI_FEATURES_KEY, "false")
         });
 

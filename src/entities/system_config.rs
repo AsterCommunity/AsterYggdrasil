@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-use crate::types::{
-    config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-};
+use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -19,11 +17,11 @@ pub struct Model {
     #[sea_orm(unique)]
     pub key: String,
     pub value: String,
-    pub value_type: SystemConfigValueType,
+    pub value_type: ConfigValueType,
     pub requires_restart: bool,
     pub is_sensitive: bool,
-    pub source: SystemConfigSource,
-    pub visibility: SystemConfigVisibility,
+    pub source: ConfigSource,
+    pub visibility: ConfigVisibility,
     pub namespace: String,
     pub category: String,
     pub description: String,

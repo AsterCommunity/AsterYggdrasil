@@ -141,10 +141,8 @@ mod tests {
     use crate::config::{RuntimeConfig, site_url};
     use crate::entities::system_config;
     use crate::errors::AsterError;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
     use aster_forge_actix_middleware::csrf::{RequestSourceMode, build_csrf_token};
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
 
     use super::{ensure_double_submit_token, ensure_request_source_allowed, token_names};
     fn error_code(error: &AsterError) -> Option<AsterErrorCode> {
@@ -159,11 +157,11 @@ mod tests {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: String::new(),
             description: "test".to_string(),

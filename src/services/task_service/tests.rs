@@ -12,10 +12,8 @@ use crate::services::task_service::spec::SystemRuntimeTask;
 use crate::services::task_service::types::{
     RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult,
 };
-use crate::types::{
-    config::SystemConfigSource, config::SystemConfigVisibility, task::BackgroundTaskKind,
-    task::BackgroundTaskStatus, task::StoredTaskPayload,
-};
+use crate::types::{task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload};
+use aster_forge_config::{ConfigSource, ConfigVisibility};
 use aster_forge_tasks::{
     TaskExecutionContext, TaskLease, TaskLeaseGuard, TaskStepInfo, TaskStepStatus,
 };
@@ -137,11 +135,11 @@ async fn typed_task_create_builds_active_model_with_truncation_and_runtime_defau
             id: 999,
             key: operations::TASK_RETENTION_HOURS_KEY.to_string(),
             value: "48".to_string(),
-            value_type: crate::types::config::SystemConfigValueType::Number,
+            value_type: aster_forge_config::ConfigValueType::Number,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: String::new(),
             description: String::new(),

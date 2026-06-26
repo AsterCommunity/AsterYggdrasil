@@ -3,11 +3,9 @@
 use crate::config::definitions::{CONFIG_REGISTRY, ConfigDef, DEPRECATED_SYSTEM_CONFIG_KEYS};
 use crate::entities::system_config::{self, Entity as SystemConfig};
 use crate::errors::{AsterError, Result};
-use crate::types::{
-    config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-};
 use aster_forge_api::CursorSlice;
 use aster_forge_config::ConfigSeedRecord;
+use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait,
@@ -27,11 +25,11 @@ fn build_system_active_model(
     system_config::ActiveModel {
         key: Set(def.key.to_string()),
         value: Set(value),
-        value_type: Set(def.value_type.into()),
+        value_type: Set(def.value_type),
         requires_restart: Set(def.requires_restart),
         is_sensitive: Set(def.is_sensitive),
-        source: Set(SystemConfigSource::System),
-        visibility: Set(def.visibility.into()),
+        source: Set(ConfigSource::System),
+        visibility: Set(def.visibility),
         namespace: Set(String::new()),
         category: Set(def.category.to_string()),
         description: Set(def.description.to_string()),
@@ -49,11 +47,11 @@ fn build_system_active_model_from_seed(
     system_config::ActiveModel {
         key: Set(seed.key),
         value: Set(seed.value),
-        value_type: Set(seed.value_type.into()),
+        value_type: Set(seed.value_type),
         requires_restart: Set(seed.requires_restart),
         is_sensitive: Set(seed.is_sensitive),
-        source: Set(seed.source.into()),
-        visibility: Set(seed.visibility.into()),
+        source: Set(seed.source),
+        visibility: Set(seed.visibility),
         namespace: Set(String::new()),
         category: Set(seed.category),
         description: Set(seed.description),
@@ -66,17 +64,17 @@ fn build_system_active_model_from_seed(
 fn build_custom_active_model(
     key: &str,
     value: String,
-    visibility: SystemConfigVisibility,
+    visibility: ConfigVisibility,
     now: chrono::DateTime<Utc>,
     updated_by: Option<i64>,
 ) -> system_config::ActiveModel {
     system_config::ActiveModel {
         key: Set(key.to_string()),
         value: Set(value),
-        value_type: Set(SystemConfigValueType::String),
+        value_type: Set(ConfigValueType::String),
         requires_restart: Set(false),
         is_sensitive: Set(false),
-        source: Set(SystemConfigSource::Custom),
+        source: Set(ConfigSource::Custom),
         visibility: Set(visibility),
         namespace: Set(String::new()),
         category: Set(String::new()),
@@ -137,14 +135,14 @@ pub async fn find_visible_custom<C: ConnectionTrait>(
     include_authenticated: bool,
 ) -> Result<Vec<system_config::Model>> {
     let mut visibility_filter =
-        Condition::any().add(system_config::Column::Visibility.eq(SystemConfigVisibility::Public));
+        Condition::any().add(system_config::Column::Visibility.eq(ConfigVisibility::Public));
     if include_authenticated {
         visibility_filter = visibility_filter
-            .add(system_config::Column::Visibility.eq(SystemConfigVisibility::Authenticated));
+            .add(system_config::Column::Visibility.eq(ConfigVisibility::Authenticated));
     }
 
     SystemConfig::find()
-        .filter(system_config::Column::Source.eq(SystemConfigSource::Custom))
+        .filter(system_config::Column::Source.eq(ConfigSource::Custom))
         .filter(visibility_filter)
         .order_by_asc(system_config::Column::Key)
         .all(db)
@@ -190,7 +188,7 @@ pub async fn upsert_with_options<C: ConnectionTrait>(
     db: &C,
     key: &str,
     value: &str,
-    visibility: Option<SystemConfigVisibility>,
+    visibility: Option<ConfigVisibility>,
     updated_by: Option<i64>,
 ) -> Result<system_config::Model> {
     let now = Utc::now();
@@ -246,7 +244,7 @@ pub async fn delete_by_key<C: ConnectionTrait>(db: &C, key: &str) -> Result<()> 
         .await?
         .ok_or_else(|| AsterError::record_not_found(format!("config key '{key}'")))?;
 
-    if existing.source == SystemConfigSource::System {
+    if existing.source == ConfigSource::System {
         return Err(AsterError::auth_forbidden(
             "cannot delete system configuration",
         ));
@@ -342,11 +340,11 @@ pub async fn ensure_defaults<C: ConnectionTrait>(db: &C) -> Result<usize> {
             .await?
             .ok_or_else(|| AsterError::record_not_found(format!("config key '{}'", def.key)))?;
         let mut active: system_config::ActiveModel = existing.into();
-        active.source = Set(SystemConfigSource::System);
-        active.value_type = Set(def.value_type.into());
+        active.source = Set(ConfigSource::System);
+        active.value_type = Set(def.value_type);
         active.requires_restart = Set(def.requires_restart);
         active.is_sensitive = Set(def.is_sensitive);
-        active.visibility = Set(def.visibility.into());
+        active.visibility = Set(def.visibility);
         active.category = Set(def.category.to_string());
         active.description = Set(def.description.to_string());
         active.update(db).await.map_err(AsterError::from)?;
@@ -376,9 +374,7 @@ mod tests {
         },
     };
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     async fn build_test_db() -> sea_orm::DatabaseConnection {
         let db = crate::db::connect_with_metrics(
             &DatabaseConfig {
@@ -409,8 +405,8 @@ mod tests {
             .unwrap()
             .unwrap()
             .into();
-        active.source = Set(SystemConfigSource::Custom);
-        active.value_type = Set(SystemConfigValueType::Number);
+        active.source = Set(ConfigSource::Custom);
+        active.value_type = Set(ConfigValueType::Number);
         active.requires_restart = Set(true);
         active.is_sensitive = Set(true);
         active.category = Set("wrong".to_string());
@@ -419,8 +415,8 @@ mod tests {
 
         assert_eq!(ensure_defaults(&db).await.unwrap(), 0);
         let repaired = find_by_key(&db, BRANDING_TITLE_KEY).await.unwrap().unwrap();
-        assert_eq!(repaired.source, SystemConfigSource::System);
-        assert_eq!(repaired.value_type, SystemConfigValueType::String);
+        assert_eq!(repaired.source, ConfigSource::System);
+        assert_eq!(repaired.value_type, ConfigValueType::String);
         assert!(!repaired.requires_restart);
         assert!(!repaired.is_sensitive);
         assert_eq!(repaired.category, "site.branding");
@@ -467,9 +463,9 @@ mod tests {
             .unwrap();
         assert_eq!(system.value, "Custom Title");
         assert_eq!(system.updated_by, Some(42));
-        assert_eq!(system.source, SystemConfigSource::System);
-        assert_eq!(system.visibility, SystemConfigVisibility::Private);
-        assert_eq!(system.value_type, SystemConfigValueType::String);
+        assert_eq!(system.source, ConfigSource::System);
+        assert_eq!(system.visibility, ConfigVisibility::Private);
+        assert_eq!(system.value_type, ConfigValueType::String);
 
         let updated_system = upsert_with_actor(&db, BRANDING_TITLE_KEY, "New Title", None)
             .await
@@ -482,31 +478,28 @@ mod tests {
             &db,
             "custom_public_banner",
             "hello",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             Some(7),
         )
         .await
         .unwrap();
-        assert_eq!(custom.source, SystemConfigSource::Custom);
-        assert_eq!(custom.visibility, SystemConfigVisibility::Public);
-        assert_eq!(custom.value_type, SystemConfigValueType::String);
+        assert_eq!(custom.source, ConfigSource::Custom);
+        assert_eq!(custom.visibility, ConfigVisibility::Public);
+        assert_eq!(custom.value_type, ConfigValueType::String);
         assert_eq!(custom.updated_by, Some(7));
 
         let updated_custom = upsert_with_options(
             &db,
             "custom_public_banner",
             "hello again",
-            Some(SystemConfigVisibility::Authenticated),
+            Some(ConfigVisibility::Authenticated),
             None,
         )
         .await
         .unwrap();
         assert_eq!(updated_custom.id, custom.id);
         assert_eq!(updated_custom.value, "hello again");
-        assert_eq!(
-            updated_custom.visibility,
-            SystemConfigVisibility::Authenticated
-        );
+        assert_eq!(updated_custom.visibility, ConfigVisibility::Authenticated);
         assert_eq!(updated_custom.updated_by, None);
 
         db.close().await.unwrap();
@@ -520,7 +513,7 @@ mod tests {
             &db,
             "visible_public",
             "public",
-            Some(SystemConfigVisibility::Public),
+            Some(ConfigVisibility::Public),
             None,
         )
         .await
@@ -529,7 +522,7 @@ mod tests {
             &db,
             "visible_authenticated",
             "authenticated",
-            Some(SystemConfigVisibility::Authenticated),
+            Some(ConfigVisibility::Authenticated),
             None,
         )
         .await
@@ -538,7 +531,7 @@ mod tests {
             &db,
             "visible_private",
             "private",
-            Some(SystemConfigVisibility::Private),
+            Some(ConfigVisibility::Private),
             None,
         )
         .await
@@ -639,7 +632,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(stored.value, r#"["https://example.com"]"#);
-        assert_eq!(stored.value_type, SystemConfigValueType::StringArray);
+        assert_eq!(stored.value_type, ConfigValueType::StringArray);
 
         let unknown = ensure_system_value_if_missing(&db, "unknown_config_key", "value")
             .await

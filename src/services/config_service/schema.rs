@@ -5,7 +5,7 @@ use crate::config::definitions::{
 };
 use crate::config::texture_preview::{TexturePreviewEngine, TexturePreviewQualityProfile};
 use crate::types::audit::AuditAction;
-use crate::types::config::SystemConfigValueType;
+use aster_forge_config::ConfigValueType;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
@@ -16,7 +16,7 @@ pub struct ConfigSchemaItem {
     pub key: String,
     pub label_i18n_key: String,
     pub description_i18n_key: String,
-    pub value_type: SystemConfigValueType,
+    pub value_type: ConfigValueType,
     pub category: String,
     pub description: String,
     pub requires_restart: bool,
@@ -40,7 +40,7 @@ pub fn get_schema() -> Vec<ConfigSchemaItem> {
             key: def.key.to_string(),
             label_i18n_key: def.label_i18n_key.to_string(),
             description_i18n_key: def.description_i18n_key.to_string(),
-            value_type: def.value_type.into(),
+            value_type: def.value_type,
             category: def.category.to_string(),
             description: def.description.to_string(),
             requires_restart: def.requires_restart,
@@ -103,7 +103,7 @@ mod tests {
             .find(|item| item.key == AUDIT_LOG_RECORDED_ACTIONS_KEY)
             .expect("audit action scope config should be in schema");
 
-        assert_eq!(item.value_type, SystemConfigValueType::StringEnumSet);
+        assert_eq!(item.value_type, ConfigValueType::StringEnumSet);
         assert_eq!(item.options.len(), AuditAction::COUNT);
 
         for (option, action) in item.options.iter().zip(AuditAction::ALL) {
@@ -123,7 +123,7 @@ mod tests {
             .find(|item| item.key == AUTH_CAPTCHA_PRESET_KEY)
             .expect("captcha preset config should be in schema");
 
-        assert_eq!(item.value_type, SystemConfigValueType::StringEnum);
+        assert_eq!(item.value_type, ConfigValueType::StringEnum);
         assert_eq!(item.options.len(), CaptchaRenderPreset::ALL.len());
 
         for (option, preset) in item.options.iter().zip(CaptchaRenderPreset::ALL) {
@@ -143,7 +143,7 @@ mod tests {
             .find(|item| item.key == TEXTURE_PREVIEW_ENGINE_KEY)
             .expect("texture preview engine config should be in schema");
 
-        assert_eq!(item.value_type, SystemConfigValueType::StringEnum);
+        assert_eq!(item.value_type, ConfigValueType::StringEnum);
         assert_eq!(item.options.len(), TexturePreviewEngine::ALL.len());
 
         for (option, engine) in item.options.iter().zip(TexturePreviewEngine::ALL) {
@@ -166,7 +166,7 @@ mod tests {
             .find(|item| item.key == TEXTURE_PREVIEW_PROFILE_KEY)
             .expect("texture preview profile config should be in schema");
 
-        assert_eq!(item.value_type, SystemConfigValueType::StringEnum);
+        assert_eq!(item.value_type, ConfigValueType::StringEnum);
         assert_eq!(item.options.len(), TexturePreviewQualityProfile::ALL.len());
 
         for (option, profile) in item.options.iter().zip(TexturePreviewQualityProfile::ALL) {

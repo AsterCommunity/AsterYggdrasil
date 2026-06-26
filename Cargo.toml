@@ -85,7 +85,7 @@ aster_forge_api = { git = "https://github.com/AsterCommunity/AsterForge", packag
 aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api_docs_macros" }
 aster_forge_audit = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_audit" }
 aster_forge_cache = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_cache", features = ["memory", "redis"] }
-aster_forge_config = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_config", features = ["redis-pubsub"] }
+aster_forge_config = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_config", features = ["redis-pubsub", "sea-orm", "openapi"] }
 aster_forge_crypto = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_crypto" }
 aster_forge_db = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db" }
 aster_forge_external_auth = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_external_auth", features = ["github", "google", "microsoft", "qq"] }

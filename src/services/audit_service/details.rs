@@ -6,16 +6,15 @@ use crate::types::yggdrasil::{
     MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureReportReason,
     MinecraftTextureReportStatus, MinecraftTextureType,
 };
-use crate::types::{
-    config::SystemConfigVisibility, task::BackgroundTaskKind, task::BackgroundTaskStatus,
-};
+use crate::types::{task::BackgroundTaskKind, task::BackgroundTaskStatus};
+use aster_forge_config::ConfigVisibility;
 
 #[derive(Serialize)]
 pub struct ConfigUpdateDetails<'a> {
     pub value: &'a str,
-    pub visibility: SystemConfigVisibility,
+    pub visibility: ConfigVisibility,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prior_visibility: Option<SystemConfigVisibility>,
+    pub prior_visibility: Option<ConfigVisibility>,
 }
 
 #[derive(Serialize)]
@@ -258,15 +257,15 @@ mod tests {
         details,
     };
     use crate::types::{
-        config::SystemConfigVisibility, task::BackgroundTaskKind, task::BackgroundTaskStatus,
-        user::UserRole, user::UserStatus,
+        task::BackgroundTaskKind, task::BackgroundTaskStatus, user::UserRole, user::UserStatus,
     };
+    use aster_forge_config::ConfigVisibility;
     #[test]
     fn details_serializes_config_update_and_omits_missing_prior_visibility() {
         assert_eq!(
             details(ConfigUpdateDetails {
                 value: "public title",
-                visibility: SystemConfigVisibility::Public,
+                visibility: ConfigVisibility::Public,
                 prior_visibility: None,
             })
             .unwrap(),
@@ -279,8 +278,8 @@ mod tests {
         assert_eq!(
             details(ConfigUpdateDetails {
                 value: "***REDACTED***",
-                visibility: SystemConfigVisibility::Authenticated,
-                prior_visibility: Some(SystemConfigVisibility::Private),
+                visibility: ConfigVisibility::Authenticated,
+                prior_visibility: Some(ConfigVisibility::Private),
             })
             .unwrap(),
             serde_json::json!({

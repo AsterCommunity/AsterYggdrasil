@@ -129,9 +129,8 @@ mod tests {
     use crate::db;
     use crate::db::repository::system_config_repo;
     use crate::entities::system_config;
-    use crate::types::{
-        audit::AuditAction, config::SystemConfigSource, config::SystemConfigValueType,
-    };
+    use crate::types::audit::AuditAction;
+    use aster_forge_config::{ConfigSource, ConfigValueType};
     async fn setup_db() -> sea_orm::DatabaseConnection {
         let db = db::connect_with_metrics(
             &DatabaseConfig {
@@ -153,11 +152,11 @@ mod tests {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: crate::types::config::SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: aster_forge_config::ConfigVisibility::Private,
             namespace: String::new(),
             category: CONFIG_CATEGORY_SITE_BRANDING.to_string(),
             description: "test".to_string(),

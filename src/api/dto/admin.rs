@@ -17,20 +17,20 @@ use crate::services::yggdrasil_session_forward_service::{
     CreateYggdrasilSessionForwardServerInput, UpdateYggdrasilSessionForwardServerInput,
 };
 use crate::types::{
-    config::SystemConfigVisibility, external_auth::ExternalAuthKind,
-    external_auth::ExternalAuthProviderOptions, task::BackgroundTaskKind,
-    task::BackgroundTaskStatus, user::OperatorScope, user::UserBanScope, user::UserBanStatus,
-    user::UserRole, user::UserStatus, yggdrasil::YggdrasilSessionForwardEndpointKind,
-    yggdrasil::YggdrasilSessionForwardServerSortBy,
+    external_auth::ExternalAuthKind, external_auth::ExternalAuthProviderOptions,
+    task::BackgroundTaskKind, task::BackgroundTaskStatus, user::OperatorScope, user::UserBanScope,
+    user::UserBanStatus, user::UserRole, user::UserStatus,
+    yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardServerSortBy,
 };
 use aster_forge_api::NullablePatch;
 use aster_forge_config::ConfigValue;
+use aster_forge_config::ConfigVisibility;
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct SetConfigReq {
     pub value: ConfigValue,
-    pub visibility: Option<SystemConfigVisibility>,
+    pub visibility: Option<ConfigVisibility>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

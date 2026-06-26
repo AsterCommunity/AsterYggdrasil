@@ -30,9 +30,7 @@ mod tests {
     use super::{gravatar_base_url_or_default, normalize_gravatar_base_url_config_value};
     use crate::config::RuntimeConfig;
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     #[test]
     fn gravatar_base_url_normalization_rejects_query_and_bad_scheme() {
         assert_eq!(
@@ -55,9 +53,9 @@ mod tests {
             id: 1,
             key: super::GRAVATAR_BASE_URL_KEY.to_string(),
             value: "   ".to_string(),
-            value_type: SystemConfigValueType::String,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            value_type: ConfigValueType::String,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             requires_restart: false,
             is_sensitive: false,
             category: crate::config::definitions::CONFIG_CATEGORY_USER_AVATAR.to_string(),

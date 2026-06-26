@@ -440,9 +440,7 @@ mod tests {
 
     use super::*;
     use crate::entities::system_config;
-    use crate::types::{
-        config::SystemConfigSource, config::SystemConfigValueType, config::SystemConfigVisibility,
-    };
+    use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     #[test]
     fn normalizes_background_aliases_and_hex() {
         assert_eq!(
@@ -555,11 +553,11 @@ mod tests {
             id: 1,
             key: key.to_string(),
             value: value.to_string(),
-            value_type: SystemConfigValueType::String,
+            value_type: ConfigValueType::String,
             requires_restart: false,
             is_sensitive: false,
-            source: SystemConfigSource::System,
-            visibility: SystemConfigVisibility::Private,
+            source: ConfigSource::System,
+            visibility: ConfigVisibility::Private,
             namespace: String::new(),
             category: crate::config::definitions::CONFIG_CATEGORY_TEXTURE_PREVIEW.to_string(),
             description: "test".to_string(),
