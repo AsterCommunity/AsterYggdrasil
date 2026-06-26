@@ -59,6 +59,7 @@ openapi = [
     "dep:utoipa-swagger-ui",
     "aster_forge_api/openapi",
     "aster_forge_api_docs_macros/openapi",
+    "aster_forge_config/openapi",
     "aster_forge_mail/openapi",
     "aster_forge_runtime/openapi",
     "aster_forge_tasks/openapi",

@@ -36,9 +36,9 @@ pub const FRONTEND_CSP_HEADER: &str = concat!(
     "style-src 'self' 'unsafe-inline'; ",
     "img-src 'self' data: blob: http: https:; ",
     "font-src 'self' data:; ",
-    // Presigned upload/download URLs and remote followers may point at external
-    // object storage, so the panel must be allowed to connect to arbitrary
-    // HTTP(S) and WebSocket endpoints.
+    // Presigned upload/download URLs and deployment-specific integrations may
+    // point at external object storage, so the panel must be allowed to connect
+    // to arbitrary HTTP(S) and WebSocket endpoints.
     "connect-src 'self' http: https: ws: wss:; ",
     "media-src 'self' blob:; ",
     "worker-src 'self' blob:; ",

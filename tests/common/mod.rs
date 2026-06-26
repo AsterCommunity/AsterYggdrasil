@@ -1,6 +1,6 @@
 //! Shared integration test helpers.
 
-use aster_yggdrasil::runtime::AppState;
+use aster_yggdrasil::runtime::{AppState, AppStateParts};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -773,7 +773,7 @@ pub async fn setup_with_memory_cache() -> AppState {
     };
     let cache = aster_forge_cache::create_cache(&cache_config).await;
 
-    AppState {
+    AppState::from_parts(AppStateParts {
         db_handles: base.db_handles,
         config: base.config.clone(),
         runtime_config: base.runtime_config,
@@ -781,16 +781,8 @@ pub async fn setup_with_memory_cache() -> AppState {
         object_storage: base.object_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
-        started_at: aster_yggdrasil::runtime::AppState::new_started_at(),
-        yggdrasil_rate_limiter: aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(
-            &base.config,
-        ),
-        yggdrasil_session_forward_http_client:
-            aster_yggdrasil::runtime::AppState::new_yggdrasil_session_forward_http_client()
-                .expect("Yggdrasil session forward HTTP client should build"),
-        background_task_dispatch_wakeup:
-            aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
-    }
+    })
+    .expect("memory-cache test AppState should build")
 }
 
 fn should_use_mysql_schema_template(database_url: &str) -> bool {
@@ -980,10 +972,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     )
     .await
     .expect("test db handles should initialize");
-    let yggdrasil_rate_limiter =
-        aster_yggdrasil::runtime::AppState::new_yggdrasil_rate_limiter(&config);
-
-    AppState {
+    AppState::from_parts(AppStateParts {
         db_handles,
         config,
         runtime_config,
@@ -991,14 +980,8 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         object_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
-        started_at: aster_yggdrasil::runtime::AppState::new_started_at(),
-        yggdrasil_rate_limiter,
-        yggdrasil_session_forward_http_client:
-            aster_yggdrasil::runtime::AppState::new_yggdrasil_session_forward_http_client()
-                .expect("Yggdrasil session forward HTTP client should build"),
-        background_task_dispatch_wakeup:
-            aster_yggdrasil::runtime::AppState::new_background_task_dispatch_wakeup(),
-    }
+    })
+    .expect("integration test AppState should build")
 }
 
 #[allow(dead_code)]

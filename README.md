@@ -46,7 +46,7 @@ The current version is not the right fit when:
 
 - You need a finished commercial-grade operations panel ready for large long-term public traffic without your own validation.
 - You need client-side presigned uploads directly to S3/MinIO. Uploads are server-side streaming only.
-- You need multi-primary high availability, automatic failover, a complete ban system, or enterprise compliance guarantees.
+- You need multi-instance high availability, automatic failover, a complete ban system, or enterprise compliance guarantees.
 - You need full Minecraft game server lifecycle management such as world hosting, plugin management, console access, or scheduled server operations.
 - You need a public replacement for Mojang official online-mode auth for arbitrary clients.
 
@@ -244,7 +244,7 @@ See [docs/deployment/docker.md](docs/deployment/docker.md) for full deployment n
 - Configure `public_site_url` or `yggdrasil_public_base_url` before real use; otherwise textures properties cannot include client-reachable absolute URLs.
 - Back up the database, `data/config.toml`, and the object storage backend or local object storage directory.
 - Treat the Yggdrasil signing private key as sensitive config. Rotate it through the config action instead of editing database rows directly.
-- In multi-instance deployments, only one instance should use `start_mode = "primary"` for periodic maintenance.
+- Current deployment docs cover a single task owner. For multi-instance deployments, ensure externally that only one instance starts the full background task set.
 - The production object storage backend can be local, S3, or MinIO. Textures and uploaded avatars use the same backend.
 - For publicly readable S3/MinIO buckets or CDNs, `yggdrasil_texture_public_base_url` can make uploaded texture URLs point directly at object storage while default skins still use the Yggdrasil API.
 

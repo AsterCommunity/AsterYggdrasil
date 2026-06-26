@@ -15,8 +15,8 @@ pub mod definitions;
 mod loader;
 pub mod local_email_policy;
 pub mod mail;
-pub mod node_mode;
 pub mod operations;
+pub mod runtime;
 mod runtime_config;
 mod schema;
 pub mod site_url;
@@ -29,7 +29,7 @@ pub use runtime_config::RuntimeConfig;
 pub use schema::{
     AuthConfig, CacheConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,
     DatabaseConfig, LoggingConfig, NetworkTrustConfig, ObjectStorageConfig, RateLimitConfig,
-    RateLimitTier, S3ObjectStorageConfig, ServerConfig, ServerFollowerConfig,
+    RateLimitTier, S3ObjectStorageConfig, ServerConfig,
 };
 
 use std::sync::Arc;

@@ -244,7 +244,7 @@ docker run -d \
 - 正式使用前配置 `public_site_url` 或 `yggdrasil_public_base_url`，否则 textures property 无法生成客户端可访问的绝对 URL。
 - 备份数据库、`data/config.toml` 和 object storage backend 或 local object storage 目录。
 - Yggdrasil 签名私钥属于敏感配置。使用 config action 轮换，不要直接手写数据库。
-- 多实例部署时，只让一个实例使用 `start_mode = "primary"` 执行周期维护任务。
+- 当前部署文档只覆盖单个任务 owner。多实例部署时，请先在外层保证只有一个实例启动完整后台任务。
 - 当前生产可用的 object storage backend 是 local、S3 或 MinIO。材质和上传头像都会走同一个 backend。
 - 对公开读的 S3/MinIO bucket 或 CDN，可以配置 `yggdrasil_texture_public_base_url` 让已上传材质 URL 直接指向对象存储；默认皮肤仍走 Yggdrasil API。
 

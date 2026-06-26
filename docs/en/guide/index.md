@@ -45,7 +45,7 @@ Administrators need to keep three layers separate: startup config, runtime confi
 - [Capability Bans](./user-bans): restrict user access to Yggdrasil, profiles, texture upload, and public texture library interactions by scope
 - [Config and Keys](./configuration): `config.toml`, `system_config`, public URLs, and signing key rotation
 - [Object Storage](./storage): local/S3/MinIO backends, storage paths, public URLs, and consistency checks
-- [Audit and Tasks](./audit-tasks): audit coverage, runtime tasks, primary/follower mode, and maintenance guidance
+- [Audit and Tasks](./audit-tasks): audit coverage, runtime tasks, multiple-instance boundaries, and maintenance guidance
 - [Deployment Overview](/en/deployment/) and [Docker Deployment](/en/deployment/docker): persistent data, reverse proxy, trusted proxies, multiple instances, and backups
 
 ## Project Reference

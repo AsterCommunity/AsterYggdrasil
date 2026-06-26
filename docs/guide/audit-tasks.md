@@ -33,7 +33,7 @@ POST /api/v1/admin/tasks/{id}/retry
 
 ## Runtime Tasks
 
-primary 节点会运行周期任务：
+服务实例会运行周期任务：
 
 ```text
 background-task-dispatch
@@ -54,18 +54,11 @@ Yggdrasil 相关任务：
 - `yggdrasil-storage-consistency-check`: 检查 texture DB 记录指向的对象是否缺失，以及 object storage key 是否仍匹配记录的 hash。
 - `yggdrasil-texture-cleanup`: 删除 storage 中没有 DB 引用的孤儿对象。
 
-## primary/follower
+## 多实例边界
 
-周期维护任务只应在 primary 节点运行。follower 节点可以服务请求，但不应该重复执行有外部副作用或全局清理语义的任务。
+周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前运行时假设只有一个任务 owner；生产环境先按单实例运行，或在外层部署确保只有一个实例启动完整后台任务。
 
-生产部署如果有多个实例，确保只有一个实例使用：
-
-```toml
-[server]
-start_mode = "primary"
-```
-
-其他实例使用 follower 模式。
+多实例高可用后续应通过 Forge runtime 的租约/锁能力承载，而不是在产品配置里恢复旧的主从分支。
 
 ## 运维建议
 

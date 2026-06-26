@@ -1,5 +1,7 @@
 //! Mail outbox dispatch service.
 
+pub mod runtime;
+
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};

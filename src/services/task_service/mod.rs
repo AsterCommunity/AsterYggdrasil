@@ -36,6 +36,7 @@ use lease::{
 };
 use presentation::build_task_presentation;
 use registry::{decode_task_payload, decode_task_result};
+pub(crate) use runtime::registered_system_runtime_tasks;
 pub use runtime::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind, record_runtime_task_run};
 use spec::BackgroundTaskSpec;
 use steps::{parse_task_steps_json, serialize_task_steps};

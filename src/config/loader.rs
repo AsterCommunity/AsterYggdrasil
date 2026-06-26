@@ -55,7 +55,6 @@ fn load_from_dir(
     }
 
     let raw = builder.build().map_aster_err(AsterError::config_error)?;
-    reject_deprecated_config_keys(&raw)?;
 
     let mut cfg = raw
         .try_deserialize::<Config>()
@@ -68,15 +67,6 @@ fn load_from_dir(
         config_path.display()
     );
     Ok(cfg)
-}
-
-fn reject_deprecated_config_keys(raw: &RawConfig) -> Result<()> {
-    if raw.get_string("server.managed_ingress_local_root").is_ok() {
-        return Err(AsterError::config_error(
-            "server.managed_ingress_local_root has moved to server.follower.managed_ingress_local_root",
-        ));
-    }
-    Ok(())
 }
 
 fn ensure_default_config_exists(config_path: &Path, default: &Config) -> Result<()> {
@@ -179,11 +169,6 @@ fn resolve_loaded_paths(base_dir: &Path, config_path: &Path, cfg: &mut Config) -
     let config_dir = config_path.parent().unwrap_or(base_dir);
 
     cfg.server.temp_dir = resolve_config_relative_path(base_dir, config_dir, &cfg.server.temp_dir)?;
-    cfg.server.follower.managed_ingress_local_root = resolve_config_relative_path(
-        base_dir,
-        config_dir,
-        &cfg.server.follower.managed_ingress_local_root,
-    )?;
     cfg.object_storage.local_root =
         resolve_config_relative_path(base_dir, config_dir, &cfg.object_storage.local_root)?;
     cfg.database.url = resolve_config_relative_sqlite_url(base_dir, config_dir, &cfg.database.url)?;
@@ -192,8 +177,7 @@ fn resolve_loaded_paths(base_dir: &Path, config_path: &Path, cfg: &mut Config) -
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_default_config_exists, load_from_dir};
-    use crate::config::{Config, node_mode::NodeRuntimeMode};
+    use super::load_from_dir;
     use crate::utils::paths::{
         DEFAULT_CONFIG_PATH, DEFAULT_SQLITE_DATABASE_PATH, DEFAULT_SQLITE_DATABASE_URL,
         DEFAULT_TEMP_DIR,
@@ -224,44 +208,21 @@ mod tests {
         let generated = std::fs::read_to_string(dir.join(DEFAULT_CONFIG_PATH)).unwrap();
 
         assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
-        assert_eq!(cfg.server.start_mode, NodeRuntimeMode::Primary);
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
-        assert_eq!(
-            cfg.server.follower.managed_ingress_local_root,
-            "data/managed-ingress"
-        );
         assert_eq!(cfg.object_storage.backend, "local");
         assert_eq!(cfg.object_storage.local_root, "data/storage");
         assert!(cfg.network_trust.trusted_proxies.is_empty());
         assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
         assert!(generated.contains("# AsterYggdrasil configuration file"));
         assert!(generated.contains("[server]"));
-        assert!(generated.contains(r#"start_mode = "primary""#));
         assert!(generated.contains(r#"url = "sqlite://asteryggdrasil.db?mode=rwc""#));
         assert!(generated.contains(r#"temp_dir = ".tmp""#));
-        assert!(generated.contains("[server.follower]"));
-        assert!(generated.contains(r#"managed_ingress_local_root = "managed-ingress""#));
         assert!(generated.contains("[object_storage]"));
         assert!(generated.contains(r#"backend = "local""#));
         assert!(generated.contains(r#"local_root = "storage""#));
         assert!(generated.contains("[object_storage.s3]"));
         assert!(generated.contains("[network_trust]"));
         assert!(generated.contains(r#"trusted_proxies = []"#));
-
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn ensure_default_config_exists_can_seed_follower_mode() {
-        let dir = make_temp_dir("create-follower-default");
-        let config_path = dir.join(DEFAULT_CONFIG_PATH);
-        let mut default = Config::default();
-        default.server.start_mode = NodeRuntimeMode::Follower;
-
-        ensure_default_config_exists(&config_path, &default).unwrap();
-
-        let generated = std::fs::read_to_string(&config_path).unwrap();
-        assert!(generated.contains(r#"start_mode = "follower""#));
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -310,9 +271,6 @@ url = "sqlite://data/asteryggdrasil.db?mode=rwc"
 [server]
 temp_dir = "data/.tmp"
 
-[server.follower]
-managed_ingress_local_root = "data/managed-ingress"
-
 [object_storage]
 local_root = "data/storage"
 "#,
@@ -322,10 +280,6 @@ local_root = "data/storage"
 
         assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
-        assert_eq!(
-            cfg.server.follower.managed_ingress_local_root,
-            "data/managed-ingress"
-        );
         assert_eq!(cfg.object_storage.local_root, "data/storage");
 
         let _ = std::fs::remove_dir_all(dir);
@@ -365,26 +319,6 @@ local_root = "legacy-textures"
 
         assert_eq!(cfg.object_storage.backend, "local");
         assert_eq!(cfg.object_storage.local_root, "data/legacy-textures");
-
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn load_rejects_deprecated_server_managed_ingress_root() {
-        let dir = make_temp_dir("deprecated-managed-ingress-root");
-        write(
-            &dir.join(DEFAULT_CONFIG_PATH),
-            br#"[server]
-managed_ingress_local_root = "custom-managed-ingress"
-"#,
-        );
-
-        let error = load_from_dir(&dir, None, false).unwrap_err();
-        assert!(
-            error
-                .message()
-                .contains("server.follower.managed_ingress_local_root")
-        );
 
         let _ = std::fs::remove_dir_all(dir);
     }

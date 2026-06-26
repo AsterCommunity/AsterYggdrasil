@@ -530,7 +530,7 @@ mod tests {
         user_profile_repo,
     };
     use crate::entities::{auth_session, minecraft_profile, minecraft_texture, user_profile};
-    use crate::runtime::AppState;
+    use crate::runtime::{AppState, AppStateParts};
     use crate::types::{
         AvatarSource, MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility,
     };
@@ -582,8 +582,7 @@ mod tests {
         let cache = aster_forge_cache::create_cache(&config.cache).await;
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("admin user test object storage should initialize");
-        let yggdrasil_rate_limiter = AppState::new_yggdrasil_rate_limiter(&config);
-        let state = AppState {
+        let state = AppState::from_parts(AppStateParts {
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,
@@ -591,13 +590,8 @@ mod tests {
             object_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             metrics: aster_forge_metrics::NoopMetrics::arc(),
-            started_at: AppState::new_started_at(),
-            yggdrasil_rate_limiter,
-            yggdrasil_session_forward_http_client:
-                AppState::new_yggdrasil_session_forward_http_client()
-                    .expect("Yggdrasil session forward HTTP client should build"),
-            background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
-        };
+        })
+        .expect("admin user test AppState should build");
         TestContext {
             state,
             texture_root,

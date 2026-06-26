@@ -211,7 +211,7 @@ mod tests {
 
     use super::BackgroundTaskExecutionStore;
     use crate::entities::background_task;
-    use crate::runtime::AppState;
+    use crate::runtime::{AppState, AppStateParts};
     use crate::types::{BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload};
     use aster_forge_tasks::{ClaimedTaskExecutionStore, TaskLease};
 
@@ -242,23 +242,19 @@ mod tests {
         })
         .await;
         let config = Arc::new(crate::config::Config::default());
+        let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
+            .expect("object storage should initialize");
 
-        AppState {
+        AppState::from_parts(AppStateParts {
             db_handles: aster_forge_db::DbHandles::single(db),
-            config: config.clone(),
+            config,
             runtime_config,
             cache,
-            object_storage: crate::object_storage::create_object_storage(&config.object_storage)
-                .expect("object storage should initialize"),
+            object_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             metrics: aster_forge_metrics::NoopMetrics::arc(),
-            started_at: AppState::new_started_at(),
-            yggdrasil_rate_limiter: AppState::new_yggdrasil_rate_limiter(&config),
-            yggdrasil_session_forward_http_client:
-                AppState::new_yggdrasil_session_forward_http_client()
-                    .expect("Yggdrasil session forward HTTP client should build"),
-            background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
-        }
+        })
+        .expect("task dispatch execute test AppState should build")
     }
 
     #[tokio::test]

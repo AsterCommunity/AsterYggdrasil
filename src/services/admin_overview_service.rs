@@ -501,7 +501,7 @@ mod tests {
     use crate::entities::{
         audit_log, auth_session, background_task, minecraft_profile, minecraft_texture, user,
     };
-    use crate::runtime::AppState;
+    use crate::runtime::{AppState, AppStateParts};
     use crate::services::task_service::types::{
         RuntimeSystemHealthComponent, RuntimeSystemHealthResult, RuntimeSystemHealthStatus,
     };
@@ -559,21 +559,16 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("admin overview test object storage should initialize");
 
-        AppState {
+        AppState::from_parts(AppStateParts {
             db_handles: aster_forge_db::DbHandles::single(db),
-            config: config.clone(),
+            config,
             runtime_config,
             cache,
             object_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             metrics: aster_forge_metrics::NoopMetrics::arc(),
-            started_at: AppState::new_started_at(),
-            yggdrasil_rate_limiter: AppState::new_yggdrasil_rate_limiter(&config),
-            yggdrasil_session_forward_http_client:
-                AppState::new_yggdrasil_session_forward_http_client()
-                    .expect("Yggdrasil session forward HTTP client should build"),
-            background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
-        }
+        })
+        .expect("admin overview test AppState should build")
     }
 
     async fn insert_user(state: &AppState, username: &str) -> crate::entities::user::Model {

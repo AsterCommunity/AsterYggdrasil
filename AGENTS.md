@@ -80,7 +80,7 @@ bun run test:e2e
 - 邮件: SMTP runtime 配置、模板变量、持久 outbox、测试邮件、邮件审计
 - 审计: buffered async audit、展示层元数据、管理端查询
 - 后台任务: task record、dispatch、lease/heartbeat、retry、cleanup、presentation
-- 运行时: primary/follower 启动模式、优雅关闭、健康检查、metrics、CORS、CSRF、安全头、限流
+- 运行时: Forge runtime 组件装配、优雅关闭、健康检查、metrics、CORS、CSRF、安全头、限流
 
 这些是地基，不等于 Minecraft/Yggdrasil 域已经完成。新增 Yggdrasil 能力时应该复用这些基础设施，而不是另起一套认证、配置、任务或邮件系统。
 

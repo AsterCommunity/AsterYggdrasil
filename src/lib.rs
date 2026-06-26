@@ -23,5 +23,6 @@ pub mod metrics;
 pub mod object_storage;
 pub mod runtime;
 pub mod services;
+pub mod tasks;
 pub mod types;
 pub mod utils;

@@ -19,7 +19,6 @@ Example static config:
 [server]
 host = "0.0.0.0"
 port = 3000
-start_mode = "primary"
 temp_dir = ".tmp"
 
 [database]
@@ -95,14 +94,9 @@ Use the real source address or CIDR used between the proxy and the application.
 
 ## Multiple Instances
 
-Periodic maintenance tasks should run on only one primary node:
+Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. The current Docker guide covers single-instance deployments.
 
-```toml
-[server]
-start_mode = "primary"
-```
-
-Other instances should use follower mode to avoid duplicate global cleanup, mail outbox, and background task dispatch work.
+For multi-instance production deployments, ensure externally that only one instance starts the full background task set. Future high availability should be carried by Forge runtime lease/lock support.
 
 ## Signing Key
 

@@ -8,84 +8,11 @@ use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::audit_service::{self, AuditContext};
 use crate::types::{SystemConfigSource, SystemConfigValueType, SystemConfigVisibility};
 use aster_forge_api::{CursorPage, IdCursor};
-use aster_forge_config::ConfigValue;
+pub use aster_forge_config::ConfigValue as SystemConfigValue;
 use sea_orm::ConnectionTrait;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub enum SystemConfigValue {
-    String(String),
-    StringArray(Vec<String>),
-}
-
-impl SystemConfigValue {
-    fn from_storage(value_type: SystemConfigValueType, value: String) -> Self {
-        match ConfigValue::from_storage(value_type.into(), value) {
-            Ok(ConfigValue::String(value)) => Self::String(value),
-            Ok(ConfigValue::StringArray(items)) => Self::StringArray(items),
-            Err(error) => {
-                tracing::warn!(
-                    error = %error,
-                    value_type = %value_type,
-                    "invalid stored config value; returning an empty array for list values"
-                );
-                if value_type.is_string_list() {
-                    Self::StringArray(Vec::new())
-                } else {
-                    Self::String(String::new())
-                }
-            }
-        }
-    }
-
-    pub fn to_storage_for_type(&self, value_type: SystemConfigValueType) -> Result<String> {
-        let value = ConfigValue::from(self);
-        value
-            .to_storage_for_type(value_type.into())
-            .map_err(Into::into)
-    }
-
-    pub fn to_audit_string(&self) -> String {
-        ConfigValue::from(self).to_audit_string()
-    }
-}
-
-impl From<&SystemConfigValue> for ConfigValue {
-    fn from(value: &SystemConfigValue) -> Self {
-        match value {
-            SystemConfigValue::String(value) => Self::String(value.clone()),
-            SystemConfigValue::StringArray(values) => Self::StringArray(values.clone()),
-        }
-    }
-}
-
-impl From<&str> for SystemConfigValue {
-    fn from(value: &str) -> Self {
-        Self::String(value.to_string())
-    }
-}
-
-impl From<&String> for SystemConfigValue {
-    fn from(value: &String) -> Self {
-        Self::String(value.clone())
-    }
-}
-
-impl From<String> for SystemConfigValue {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-impl From<Vec<String>> for SystemConfigValue {
-    fn from(value: Vec<String>) -> Self {
-        Self::StringArray(value)
-    }
-}
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -122,11 +49,18 @@ pub struct SystemConfigWarning {
 
 impl From<system_config::Model> for SystemConfig {
     fn from(model: system_config::Model) -> Self {
-        let value = if model.is_sensitive {
-            SystemConfigValue::String("***REDACTED***".to_string())
-        } else {
-            SystemConfigValue::from_storage(model.value_type, model.value)
-        };
+        let value = SystemConfigValue::for_presentation(
+            model.value_type,
+            model.value,
+            model.is_sensitive,
+            |error| {
+                tracing::warn!(
+                    error = %error,
+                    value_type = %model.value_type,
+                    "invalid stored config value; returning an empty presentation value"
+                );
+            },
+        );
         Self {
             id: model.id,
             key: model.key,
@@ -332,19 +266,8 @@ async fn save_config(
 ) -> Result<system_config::Model> {
     validate_direct_config_update_target(key)?;
     validate_visibility_target(key, visibility)?;
-    let value_type = CONFIG_REGISTRY
-        .get(key)
-        .map(|def| SystemConfigValueType::from(def.value_type))
-        .unwrap_or(SystemConfigValueType::String);
-    let mut normalized_value = value.to_storage_for_type(value_type)?;
-
-    if CONFIG_REGISTRY.contains_key(key) {
-        normalized_value = CONFIG_REGISTRY.normalize_value(
-            state.runtime_config().as_ref(),
-            key,
-            &normalized_value,
-        )?;
-    }
+    let normalized_value =
+        CONFIG_REGISTRY.value_to_storage_for_key(state.runtime_config().as_ref(), key, value)?;
 
     let saved = system_config_repo::upsert_with_options(
         state.writer_db(),
@@ -374,10 +297,20 @@ async fn audit_config_update(
         Some(&config.key),
         || {
             let audit_value = if config.is_sensitive {
-                "***REDACTED***".to_string()
+                SystemConfigValue::REDACTED.to_string()
             } else {
-                SystemConfigValue::from_storage(config.value_type, config.value.clone())
-                    .to_audit_string()
+                SystemConfigValue::from_storage_lossy(
+                    config.value_type,
+                    config.value.clone(),
+                    |error| {
+                        tracing::warn!(
+                            error = %error,
+                            value_type = %config.value_type,
+                            "invalid stored config value; returning an empty audit value"
+                        );
+                    },
+                )
+                .to_audit_string()
             };
             audit_service::details(audit_service::ConfigUpdateDetails {
                 value: &audit_value,
@@ -468,9 +401,7 @@ mod tests {
         let cache = aster_forge_cache::create_cache(&config.cache).await;
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
-        let yggdrasil_rate_limiter = AppState::new_yggdrasil_rate_limiter(&config);
-
-        AppState {
+        AppState::from_parts(crate::runtime::AppStateParts {
             db_handles: DbHandles::single(db),
             config,
             runtime_config,
@@ -478,13 +409,8 @@ mod tests {
             object_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             metrics: aster_forge_metrics::NoopMetrics::arc(),
-            started_at: AppState::new_started_at(),
-            yggdrasil_rate_limiter,
-            yggdrasil_session_forward_http_client:
-                AppState::new_yggdrasil_session_forward_http_client()
-                    .expect("Yggdrasil session forward HTTP client should build"),
-            background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
-        }
+        })
+        .expect("config service test AppState should build")
     }
 
     #[test]

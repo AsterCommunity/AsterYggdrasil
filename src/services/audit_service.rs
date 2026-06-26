@@ -7,6 +7,7 @@ mod manager;
 mod models;
 mod presentation;
 mod query;
+pub mod runtime;
 
 pub use crate::types::{AuditAction, AuditEntityType};
 pub use context::{AuditContext, AuditRequestInfo};

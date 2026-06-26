@@ -1,6 +1,6 @@
 use super::*;
 use crate::entities::background_task;
-use crate::runtime::AppState;
+use crate::runtime::{AppState, AppStateParts};
 use crate::services::task_service::admin::{build_task_info, validate_admin_task_cleanup_status};
 use crate::services::task_service::create::create_typed_task_record;
 use crate::services::task_service::lease::{
@@ -64,9 +64,7 @@ async fn test_state() -> AppState {
     let cache = aster_forge_cache::create_cache(&config.cache).await;
     let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
         .expect("object storage should initialize");
-    let yggdrasil_rate_limiter = AppState::new_yggdrasil_rate_limiter(&config);
-
-    AppState {
+    AppState::from_parts(AppStateParts {
         db_handles: aster_forge_db::DbHandles::single(db),
         config,
         runtime_config,
@@ -74,13 +72,8 @@ async fn test_state() -> AppState {
         object_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
-        started_at: AppState::new_started_at(),
-        yggdrasil_rate_limiter,
-        yggdrasil_session_forward_http_client: AppState::new_yggdrasil_session_forward_http_client(
-        )
-        .expect("Yggdrasil session forward HTTP client should build"),
-        background_task_dispatch_wakeup: AppState::new_background_task_dispatch_wakeup(),
-    }
+    })
+    .expect("task service test AppState should build")
 }
 
 fn task_model(

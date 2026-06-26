@@ -52,14 +52,9 @@ If that address works only from the server host, launchers and Minecraft clients
 
 ## Multiple Instance Boundary
 
-These docs cover one primary node and optional follower instances. Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks should run on only one primary node.
+Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. These docs currently cover single-instance deployments.
 
-```toml
-[server]
-start_mode = "primary"
-```
-
-Use follower mode for other instances. Do not run global cleanup tasks from multiple instances at the same time.
+For multi-instance production deployments, ensure externally that only one instance starts the full background task set. Future high availability should be carried by Forge runtime lease/lock support instead of a Yggdrasil-specific instance-role branch.
 
 ## What to Back Up
 

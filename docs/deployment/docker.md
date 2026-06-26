@@ -19,7 +19,6 @@
 [server]
 host = "0.0.0.0"
 port = 3000
-start_mode = "primary"
 temp_dir = ".tmp"
 
 [database]
@@ -95,14 +94,9 @@ trusted_proxies = ["127.0.0.1"]
 
 ## 多实例
 
-周期维护任务应该只在一个 primary 节点运行：
+周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前 Docker 文档只覆盖单实例部署。
 
-```toml
-[server]
-start_mode = "primary"
-```
-
-其他实例使用 follower 模式，避免重复执行清理、邮件 outbox、后台任务 dispatch 等全局任务。
+如果生产环境需要多实例，请先在外层部署保证只有一个实例启动完整后台任务。后续多实例高可用应由 Forge runtime 的租约/锁机制承载。
 
 ## 签名 key
 

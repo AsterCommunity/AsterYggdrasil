@@ -154,6 +154,10 @@ pub async fn ensure_signature_key<C: ConnectionTrait>(db: &C) -> Result<Option<S
     Ok(Some(saved.value))
 }
 
+pub async fn prepare_runtime_signature_key<C: ConnectionTrait>(db: &C) -> Result<Option<String>> {
+    ensure_signature_key(db).await
+}
+
 pub fn generate_private_key_pem(bits: usize) -> Result<String> {
     tracing::debug!(bits, "generating yggdrasil signature private key");
     let mut rng = rand::rng();

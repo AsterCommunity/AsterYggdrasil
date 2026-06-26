@@ -18,6 +18,9 @@ use super::{
     truncate_status_text,
 };
 
+pub(crate) type SystemRuntimeTaskDefinition =
+    aster_forge_tasks::RuntimeTaskDefinition<SystemRuntimeTaskKind, TaskPresentationCode>;
+
 pub(crate) fn system_runtime_payload_json(
     task_name: SystemRuntimeTaskKind,
 ) -> Result<StoredTaskPayload> {
@@ -124,6 +127,10 @@ impl SystemRuntimeTaskKind {
     pub fn from_wire_value(value: &str) -> Option<Self> {
         system_runtime_task_registry::from_wire_value(value)
     }
+}
+
+pub(crate) fn registered_system_runtime_tasks() -> &'static [SystemRuntimeTaskDefinition] {
+    system_runtime_task_registry::DEFINITIONS
 }
 
 impl aster_forge_tasks::RegisteredRuntimeTaskKind for SystemRuntimeTaskKind {
@@ -374,9 +381,7 @@ mod tests {
         let cache = aster_forge_cache::create_cache(&config.cache).await;
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
-        let yggdrasil_rate_limiter = crate::runtime::AppState::new_yggdrasil_rate_limiter(&config);
-
-        crate::runtime::AppState {
+        crate::runtime::AppState::from_parts(crate::runtime::AppStateParts {
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,
@@ -384,14 +389,8 @@ mod tests {
             object_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             metrics: aster_forge_metrics::NoopMetrics::arc(),
-            started_at: crate::runtime::AppState::new_started_at(),
-            yggdrasil_rate_limiter,
-            yggdrasil_session_forward_http_client:
-                crate::runtime::AppState::new_yggdrasil_session_forward_http_client()
-                    .expect("Yggdrasil session forward HTTP client should build"),
-            background_task_dispatch_wakeup:
-                crate::runtime::AppState::new_background_task_dispatch_wakeup(),
-        }
+        })
+        .expect("runtime task test AppState should build")
     }
 
     fn health(status: RuntimeSystemHealthStatus) -> RuntimeSystemHealthResult {

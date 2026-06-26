@@ -7,38 +7,79 @@ use actix_web::web;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
-use crate::config::node_mode::NodeRuntimeMode;
 use crate::config::operations;
 use crate::runtime::{AppState, SharedRuntimeState};
 use crate::services::task_service::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
 use aster_forge_metrics::SharedMetricsRecorder;
+use aster_forge_runtime::{
+    RuntimeComponentBundle, RuntimeComponentBundleRegistration, RuntimeComponentKind,
+    RuntimeComponentRegistry, runtime_component,
+};
 use aster_forge_tasks::BackgroundTasks;
 
 const MAINTENANCE_CLEANUP_JITTER_CAP: Duration = Duration::from_secs(30);
+
+/// Runtime component that owns spawned background task handles.
+pub struct BackgroundTaskRuntimeComponent {
+    background_tasks: BackgroundTasks,
+}
+
+impl BackgroundTaskRuntimeComponent {
+    /// Creates a background task runtime component from spawned task handles.
+    pub const fn new(background_tasks: BackgroundTasks) -> Self {
+        Self { background_tasks }
+    }
+}
+
+impl RuntimeComponentBundle for BackgroundTaskRuntimeComponent {
+    fn register(self, registry: &mut RuntimeComponentRegistry) {
+        register_system_runtime_task_descriptors(registry);
+        register_background_tasks_shutdown(registry, self.background_tasks);
+    }
+}
+
+/// Creates the background task runtime component used by the product entrypoint.
+pub fn task_component(
+    background_tasks: BackgroundTasks,
+) -> RuntimeComponentBundleRegistration<BackgroundTaskRuntimeComponent> {
+    runtime_component(BackgroundTaskRuntimeComponent::new(background_tasks))
+}
+
+/// Registers graceful shutdown for all spawned runtime background tasks.
+pub fn register_background_tasks_shutdown(
+    registry: &mut RuntimeComponentRegistry,
+    background_tasks: BackgroundTasks,
+) {
+    registry.component_shutdown_once(
+        "background_tasks",
+        RuntimeComponentKind::Tasks,
+        "background_tasks",
+        None,
+        background_tasks,
+        |background_tasks| async move {
+            background_tasks.shutdown().await;
+            Ok(())
+        },
+    );
+}
+
+/// Registers static metadata for runtime tasks owned by the background task component.
+pub fn register_system_runtime_task_descriptors(registry: &mut RuntimeComponentRegistry) {
+    for task in crate::services::task_service::registered_system_runtime_tasks() {
+        registry.component_task(
+            "background_tasks",
+            RuntimeComponentKind::Tasks,
+            task.wire_value,
+            task.display_name,
+        );
+    }
+}
 
 pub fn spawn_runtime_background_tasks(
     state: web::Data<AppState>,
     shutdown_token: CancellationToken,
 ) -> BackgroundTasks {
-    match state.config().server.start_mode {
-        NodeRuntimeMode::Primary => spawn_primary_background_tasks(state, shutdown_token),
-        NodeRuntimeMode::Follower => spawn_follower_background_tasks(state, shutdown_token),
-    }
-}
-
-pub fn spawn_follower_background_tasks(
-    state: web::Data<AppState>,
-    shutdown_token: CancellationToken,
-) -> BackgroundTasks {
-    tracing::info!("starting follower runtime background tasks");
-    build_background_tasks_base(state.metrics(), shutdown_token)
-}
-
-pub fn spawn_primary_background_tasks(
-    state: web::Data<AppState>,
-    shutdown_token: CancellationToken,
-) -> BackgroundTasks {
-    tracing::info!("starting primary runtime background tasks");
+    tracing::info!("starting runtime background tasks");
     let mut tasks = build_background_tasks_base(state.metrics(), shutdown_token);
     let shutdown_token = tasks.shutdown_token();
 
@@ -47,7 +88,7 @@ pub fn spawn_primary_background_tasks(
         state.clone(),
     ));
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::MailOutboxDispatch,
         mail_outbox_dispatch_interval,
@@ -57,7 +98,7 @@ pub fn spawn_primary_background_tasks(
         run_mail_outbox_dispatch,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::SystemHealthCheck,
         maintenance_cleanup_interval,
@@ -67,7 +108,7 @@ pub fn spawn_primary_background_tasks(
         run_system_health_check,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::AuthSessionCleanup,
         maintenance_cleanup_interval,
@@ -77,7 +118,7 @@ pub fn spawn_primary_background_tasks(
         run_auth_session_cleanup,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::ExternalAuthFlowCleanup,
         maintenance_cleanup_interval,
@@ -87,7 +128,7 @@ pub fn spawn_primary_background_tasks(
         run_external_auth_flow_cleanup,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::YggdrasilTokenCleanup,
         maintenance_cleanup_interval,
@@ -97,7 +138,7 @@ pub fn spawn_primary_background_tasks(
         run_yggdrasil_token_cleanup,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::AuditCleanup,
         maintenance_cleanup_interval,
@@ -107,7 +148,7 @@ pub fn spawn_primary_background_tasks(
         run_audit_cleanup,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::TaskCleanup,
         maintenance_cleanup_interval,
@@ -117,7 +158,7 @@ pub fn spawn_primary_background_tasks(
         run_task_cleanup,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::YggdrasilStorageConsistencyCheck,
         maintenance_cleanup_interval,
@@ -127,7 +168,7 @@ pub fn spawn_primary_background_tasks(
         run_yggdrasil_storage_consistency_check,
     );
 
-    push_primary_periodic_task(
+    push_recorded_periodic_task(
         &mut tasks,
         SystemRuntimeTaskKind::YggdrasilTextureCleanup,
         maintenance_cleanup_interval,
@@ -140,7 +181,7 @@ pub fn spawn_primary_background_tasks(
     tasks
 }
 
-fn push_primary_periodic_task<F, I, Fut>(
+fn push_recorded_periodic_task<F, I, Fut>(
     tasks: &mut BackgroundTasks,
     name: SystemRuntimeTaskKind,
     interval_fn: I,
@@ -623,7 +664,49 @@ mod tests {
         ObjectStorageConsistencyIssue, ObjectStorageConsistencyIssueKind,
         ObjectStorageConsistencyReport,
     };
-    use aster_forge_runtime::{HealthComponentReport, SystemHealthReport};
+    use aster_forge_runtime::{HealthComponentReport, RuntimeComponentBundle, SystemHealthReport};
+
+    #[test]
+    fn task_component_registers_background_task_shutdown() {
+        let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
+            task_component(BackgroundTasks::new()).register(registry);
+        });
+
+        let descriptor = registry
+            .descriptor("background_tasks")
+            .expect("background task component should be registered");
+        assert_eq!(
+            descriptor.kind,
+            aster_forge_runtime::RuntimeComponentKind::Tasks
+        );
+        assert_eq!(
+            descriptor
+                .shutdown
+                .expect("background task shutdown should be registered")
+                .phase_name,
+            "background_tasks"
+        );
+        assert_eq!(
+            descriptor
+                .tasks
+                .iter()
+                .map(|task| task.task_name)
+                .collect::<Vec<_>>(),
+            crate::services::task_service::registered_system_runtime_tasks()
+                .iter()
+                .map(|task| task.wire_value)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn task_shutdown_registrar_can_be_used_directly() {
+        let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
+            register_background_tasks_shutdown(registry, BackgroundTasks::new());
+        });
+
+        assert!(registry.descriptor("background_tasks").is_some());
+    }
 
     #[tokio::test]
     async fn shutdown_only_awaits_each_handle_once() {

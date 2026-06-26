@@ -14,7 +14,6 @@ AsterYggdrasil 的配置分成静态配置和运行时配置。
 host = "127.0.0.1"
 port = 3000
 temp_dir = ".tmp"
-start_mode = "primary"
 
 [database]
 url = "sqlite://asteryggdrasil.db?mode=rwc"

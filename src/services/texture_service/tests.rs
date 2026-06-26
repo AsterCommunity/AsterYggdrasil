@@ -53,9 +53,7 @@ async fn test_state(texture_root: String) -> AppState {
     let cache = aster_forge_cache::create_cache(&config.cache).await;
     let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
         .expect("texture cleanup storage should initialize");
-    let yggdrasil_rate_limiter = crate::runtime::AppState::new_yggdrasil_rate_limiter(&config);
-
-    AppState {
+    AppState::from_parts(crate::runtime::AppStateParts {
         db_handles: aster_forge_db::DbHandles::single(db),
         config,
         runtime_config,
@@ -63,14 +61,8 @@ async fn test_state(texture_root: String) -> AppState {
         object_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
-        started_at: crate::runtime::AppState::new_started_at(),
-        yggdrasil_rate_limiter,
-        yggdrasil_session_forward_http_client:
-            crate::runtime::AppState::new_yggdrasil_session_forward_http_client()
-                .expect("Yggdrasil session forward HTTP client should build"),
-        background_task_dispatch_wakeup:
-            crate::runtime::AppState::new_background_task_dispatch_wakeup(),
-    }
+    })
+    .expect("texture service test AppState should build")
 }
 
 async fn create_profile_texture_asset(

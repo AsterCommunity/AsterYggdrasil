@@ -97,6 +97,12 @@ pub async fn ensure_builtin_servers(db: &sea_orm::DatabaseConnection) -> Result<
     Ok(inserted)
 }
 
+pub async fn prepare_runtime_session_forward_servers(
+    db: &sea_orm::DatabaseConnection,
+) -> Result<usize> {
+    ensure_builtin_servers(db).await
+}
+
 pub async fn list_servers<S>(
     state: &S,
     limit: u64,

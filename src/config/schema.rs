@@ -46,33 +46,6 @@ pub struct ServerConfig {
     pub workers: usize,
     #[serde(default = "ServerConfig::default_temp_dir")]
     pub temp_dir: String,
-    #[serde(default)]
-    pub follower: ServerFollowerConfig,
-    /// Static node role selected at startup. Changing it requires a process restart.
-    #[serde(default)]
-    pub start_mode: crate::config::node_mode::NodeRuntimeMode,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ServerFollowerConfig {
-    /// Root directory for follower local ingress profiles managed by the primary.
-    /// Local destinations pushed by the primary must be relative paths under this root.
-    #[serde(default = "ServerFollowerConfig::default_managed_ingress_local_root")]
-    pub managed_ingress_local_root: String,
-}
-
-impl Default for ServerFollowerConfig {
-    fn default() -> Self {
-        Self {
-            managed_ingress_local_root: Self::default_managed_ingress_local_root(),
-        }
-    }
-}
-
-impl ServerFollowerConfig {
-    fn default_managed_ingress_local_root() -> String {
-        "managed-ingress".to_string()
-    }
 }
 
 impl Default for ServerConfig {
@@ -82,8 +55,6 @@ impl Default for ServerConfig {
             port: Self::default_port(),
             workers: 0,
             temp_dir: Self::default_temp_dir(),
-            follower: ServerFollowerConfig::default(),
-            start_mode: crate::config::node_mode::NodeRuntimeMode::Primary,
         }
     }
 }

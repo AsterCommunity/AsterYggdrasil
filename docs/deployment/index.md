@@ -52,14 +52,9 @@ https://skin.example.com/api/yggdrasil/textures/{hash}
 
 ## 多实例边界
 
-当前文档只覆盖单 primary 部署和 follower 辅助实例。周期维护任务、邮件 outbox、审计清理和材质一致性检查应只在一个 primary 节点运行。
+周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前文档只覆盖单实例部署。
 
-```toml
-[server]
-start_mode = "primary"
-```
-
-其他实例使用 follower 模式。不要让多个实例同时跑全局清理任务。
+如果生产环境需要多实例，请先在外层部署保证只有一个实例启动完整后台任务。后续多实例高可用应由 Forge runtime 的租约/锁机制承载，不应在 Yggdrasil 里维护独立主从分支。
 
 ## 备份对象
 

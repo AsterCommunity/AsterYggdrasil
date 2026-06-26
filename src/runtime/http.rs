@@ -1,0 +1,62 @@
+//! HTTP runtime component construction.
+//!
+//! This module owns the Actix server assembly for the product runtime. The
+//! entrypoint provides already prepared state and runtime handles, while this
+//! module turns them into the Forge service component consumed by
+//! `AsterRuntime`.
+
+use std::io;
+
+use actix_web::{App, HttpServer, middleware, web};
+use aster_forge_runtime::{RuntimeComponentKind, RuntimeServiceComponent};
+use tokio_util::sync::CancellationToken;
+
+const HTTP_SHUTDOWN_TIMEOUT_SECS: u64 = 8;
+
+/// Configuration needed to build the HTTP service component.
+pub struct HttpRuntimeConfig<'a> {
+    /// Bind host.
+    pub host: &'a str,
+    /// Bind port.
+    pub port: u16,
+    /// Actix worker count.
+    pub workers: usize,
+}
+
+/// Builds the HTTP service component used by the product entrypoint.
+pub fn http_component(
+    config: HttpRuntimeConfig<'_>,
+    state: web::Data<crate::runtime::AppState>,
+    shutdown_data: web::Data<CancellationToken>,
+    metrics_data: web::Data<aster_forge_metrics::SharedMetricsRecorder>,
+) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
+    let shutdown_token = shutdown_data.get_ref().clone();
+    let server = HttpServer::new(move || {
+        App::new()
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
+            .wrap(aster_forge_actix_middleware::request_id::RequestIdMiddleware)
+            .wrap(crate::api::middleware::cors::RuntimeCors)
+            .wrap(aster_forge_actix_middleware::security_headers::default_headers())
+            .wrap(aster_forge_actix_middleware::metrics::MetricsMiddleware)
+            .app_data(state.clone())
+            .app_data(shutdown_data.clone())
+            .app_data(metrics_data.clone())
+            .configure(crate::api::configure)
+    })
+    .workers(config.workers)
+    .bind((config.host, config.port))?
+    .shutdown_timeout(HTTP_SHUTDOWN_TIMEOUT_SECS)
+    .disable_signals()
+    .run();
+    let handle = server.handle();
+    Ok(RuntimeServiceComponent::new(
+        "http",
+        RuntimeComponentKind::Core,
+        server,
+        shutdown_token,
+        move || async move {
+            handle.stop(true).await;
+        },
+    ))
+}

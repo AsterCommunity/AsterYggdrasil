@@ -33,7 +33,7 @@ Tasks and audit logs include presentation fields. Frontends should use stable pr
 
 ## Runtime Tasks
 
-Primary nodes run periodic tasks:
+The service instance runs periodic tasks:
 
 ```text
 background-task-dispatch
@@ -54,18 +54,11 @@ Yggdrasil-specific tasks:
 - `yggdrasil-storage-consistency-check`: checks whether texture DB rows point to missing objects and whether object storage keys still match their recorded hashes.
 - `yggdrasil-texture-cleanup`: deletes orphan objects with no DB references.
 
-## primary/follower
+## Multiple Instance Boundary
 
-Periodic maintenance should run only on primary nodes. Followers can serve requests, but should not duplicate tasks with external side effects or global cleanup semantics.
+Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. The current runtime assumes a single task owner; production deployments should run a single service instance or ensure externally that only one instance starts the full background task set.
 
-In multi-instance production deployments, make sure only one instance uses:
-
-```toml
-[server]
-start_mode = "primary"
-```
-
-Other instances should use follower mode.
+Future multi-instance high availability should be carried by Forge runtime lease/lock support instead of reintroducing product-level instance-role branches.
 
 ## Operational Advice
 

@@ -322,8 +322,7 @@ fn normalize_captcha_action_values(
                 "unknown captcha config key: {key}"
             )));
         };
-        let value_type = definition.value_type.into();
-        let storage_value = value.to_storage_for_type(value_type)?;
+        let storage_value = value.to_storage_for_type(definition.value_type)?;
         let normalized_value = CONFIG_REGISTRY.normalize_value(
             state.runtime_config().as_ref(),
             key,
