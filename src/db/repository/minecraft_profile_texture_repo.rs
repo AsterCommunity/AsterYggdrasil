@@ -193,9 +193,8 @@ pub async fn delete_by_texture_id<C: ConnectionTrait>(
 ) -> Result<Vec<ProfileTexture>> {
     let bindings = list_by_texture_id(db, texture_id).await?;
     for binding in &bindings {
-        let active: minecraft_profile_texture::ActiveModel = binding.binding.clone().into();
-        active
-            .delete(db)
+        MinecraftProfileTexture::delete_by_id(binding.binding.id)
+            .exec(db)
             .await
             .map_aster_err(AsterError::database_operation)?;
     }
@@ -210,9 +209,8 @@ pub async fn delete_for_profile<C: ConnectionTrait>(
     let Some(existing) = find_by_profile_and_type(db, profile_id, texture_type).await? else {
         return Ok(None);
     };
-    let active: minecraft_profile_texture::ActiveModel = existing.binding.clone().into();
-    active
-        .delete(db)
+    MinecraftProfileTexture::delete_by_id(existing.binding.id)
+        .exec(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
     Ok(Some(existing))

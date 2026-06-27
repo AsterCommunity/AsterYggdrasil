@@ -4,11 +4,11 @@ pub mod runtime;
 
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 
 use crate::config::RuntimeConfig;
-use crate::errors::{AsterError, Result};
+use crate::errors::Result;
 use crate::runtime::MailRuntimeState;
 use crate::services::{
     mail_audit_service, mail_service,
@@ -81,114 +81,50 @@ pub async fn dispatch_due_with(
     mail_sender: &Arc<dyn MailSender>,
 ) -> Result<DispatchStats> {
     let store = aster_forge_db::MailOutboxDbStore::new(db.clone());
-    aster_forge_mail::dispatch_mail_outbox(
-        &MAIL_OUTBOX_DISPATCH_CONFIG,
-        {
-            let store = store.clone();
-            move |batch_size, stale_secs| {
-                let store = store.clone();
-                async move {
-                    let now = Utc::now();
-                    let stale_before = now - Duration::seconds(stale_secs);
-                    store
-                        .list_claimable(now, stale_before, batch_size)
-                        .await
-                        .map_err(AsterError::from)
-                }
-            }
-        },
-        {
-            let store = store.clone();
-            move |row| {
-                let store = store.clone();
-                async move {
-                    let now = Utc::now();
-                    let stale_before = now - Duration::seconds(MAIL_OUTBOX_PROCESSING_STALE_SECS);
-                    store
-                        .try_claim(row.id, now, stale_before)
-                        .await
-                        .map_err(AsterError::from)
-                }
-            }
-        },
-        |row| async move { deliver_one(runtime_config, mail_sender, &row).await },
-        {
-            let store = store.clone();
-            move |id, _attempt| {
-                let store = store.clone();
-                async move {
-                    store
-                        .mark_sent(id, Utc::now())
-                        .await
-                        .map_err(AsterError::from)
-                }
-            }
-        },
-        {
-            let store = store.clone();
-            move |row, attempt_count, retry_delay_secs, error_message| {
-                let store = store.clone();
-                async move {
-                    let retry_at = Utc::now() + Duration::seconds(retry_delay_secs);
-                    store
-                        .mark_retry(row.id, attempt_count, retry_at, &error_message)
-                        .await
-                        .map_err(AsterError::from)
-                }
-            }
-        },
-        {
-            let store = store.clone();
-            move |row, attempt_count, error_message| {
-                let store = store.clone();
-                async move {
-                    store
-                        .mark_failed(row.id, attempt_count, Utc::now(), &error_message)
-                        .await
-                        .map_err(AsterError::from)
-                }
-            }
-        },
-        |row, attempt_count, subject| async move {
-            mail_audit_service::log_send_with_db(
-                db,
-                runtime_config,
-                mail_audit_service::MailAuditInput {
-                    actor_user_id: 0,
-                    ip_address: None,
-                    user_agent: None,
-                    to_address: &row.to_address,
-                    to_name: row.to_name.as_deref(),
-                    template_code: row.template_code.as_str(),
-                    subject: Some(&subject),
-                    outbox_id: Some(row.id),
-                    attempt_count: Some(attempt_count),
-                    error: None,
-                },
-            )
-            .await;
-        },
-        |row, attempt_count, error_message| async move {
-            mail_audit_service::log_delivery_failed_with_db(
-                db,
-                runtime_config,
-                mail_audit_service::MailAuditInput {
-                    actor_user_id: 0,
-                    ip_address: None,
-                    user_agent: None,
-                    to_address: &row.to_address,
-                    to_name: row.to_name.as_deref(),
-                    template_code: row.template_code.as_str(),
-                    subject: None,
-                    outbox_id: Some(row.id),
-                    attempt_count: Some(attempt_count),
-                    error: Some(&error_message),
-                },
-            )
-            .await;
-        },
-    )
-    .await
+    store
+        .dispatch_due(
+            &MAIL_OUTBOX_DISPATCH_CONFIG,
+            |row| async move { deliver_one(runtime_config, mail_sender, &row).await },
+            |context, attempt_count, subject| async move {
+                mail_audit_service::log_send_with_db(
+                    db,
+                    runtime_config,
+                    mail_audit_service::MailAuditInput {
+                        actor_user_id: 0,
+                        ip_address: None,
+                        user_agent: None,
+                        to_address: &context.to_address,
+                        to_name: context.to_name.as_deref(),
+                        template_code: &context.template_code,
+                        subject: Some(&subject),
+                        outbox_id: Some(context.id),
+                        attempt_count: Some(attempt_count),
+                        error: None,
+                    },
+                )
+                .await;
+            },
+            |context, attempt_count, error_message| async move {
+                mail_audit_service::log_delivery_failed_with_db(
+                    db,
+                    runtime_config,
+                    mail_audit_service::MailAuditInput {
+                        actor_user_id: 0,
+                        ip_address: None,
+                        user_agent: None,
+                        to_address: &context.to_address,
+                        to_name: context.to_name.as_deref(),
+                        template_code: &context.template_code,
+                        subject: None,
+                        outbox_id: Some(context.id),
+                        attempt_count: Some(attempt_count),
+                        error: Some(&error_message),
+                    },
+                )
+                .await;
+            },
+        )
+        .await
 }
 
 pub async fn drain(state: &impl MailRuntimeState) -> Result<DispatchStats> {

@@ -17,7 +17,8 @@ pub async fn run(state: crate::runtime::AppState) -> io::Result<()> {
     tracing::info!(host = %host, port, workers, "starting AsterYggdrasil HTTP service");
 
     let state = web::Data::new(state);
-    let metrics_data = web::Data::new(state.get_ref().metrics.clone());
+    let metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder> =
+        web::Data::from(state.get_ref().metrics.clone());
     let app_state = state.get_ref();
 
     let runtime = aster_forge_runtime::AsterRuntime::builder()

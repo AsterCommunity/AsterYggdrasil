@@ -29,7 +29,7 @@ pub struct HttpRuntimeConfig<'a> {
 pub fn http_component(
     config: HttpRuntimeConfig<'_>,
     state: web::Data<crate::runtime::AppState>,
-    metrics_data: web::Data<aster_forge_metrics::SharedMetricsRecorder>,
+    metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder>,
 ) -> TryRuntimeComponentWithShutdown<
     RuntimeServiceComponent<actix_web::dev::Server>,
     impl FnOnce(CancellationToken) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>>,
@@ -44,7 +44,7 @@ fn build_http_service_component(
     config: HttpRuntimeConfig<'_>,
     state: web::Data<crate::runtime::AppState>,
     shutdown_token: CancellationToken,
-    metrics_data: web::Data<aster_forge_metrics::SharedMetricsRecorder>,
+    metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder>,
 ) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
     let shutdown_data = web::Data::new(shutdown_token.clone());
     let server = HttpServer::new(move || {

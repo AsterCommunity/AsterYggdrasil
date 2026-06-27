@@ -117,9 +117,8 @@ pub async fn delete_by_id<C: ConnectionTrait>(
     else {
         return Ok(None);
     };
-    let active: minecraft_profile::ActiveModel = existing.clone().into();
-    active
-        .delete(db)
+    MinecraftProfile::delete_by_id(id)
+        .exec(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
     Ok(Some(existing))

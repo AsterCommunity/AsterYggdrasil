@@ -375,9 +375,8 @@ pub async fn bump_session_version<C: ConnectionTrait>(db: &C, user_id: i64) -> R
 
 pub async fn delete_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<user::Model> {
     let user = find_by_id(db, id).await?;
-    let active: user::ActiveModel = user.clone().into();
-    active
-        .delete(db)
+    User::delete_by_id(id)
+        .exec(db)
         .await
         .map_aster_err(AsterError::database_operation)?;
     Ok(user)
