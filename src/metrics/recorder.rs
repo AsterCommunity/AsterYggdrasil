@@ -2,13 +2,13 @@
 
 pub struct PrometheusMetricsRecorder;
 
-impl aster_forge_db::DbMetricsRecorder for PrometheusMetricsRecorder {
+impl aster_forge_metrics::DbMetricsRecorder for PrometheusMetricsRecorder {
     fn enabled(&self) -> bool {
         true
     }
 
-    fn record_db_query(&self, info: &sea_orm::metric::Info<'_>) {
-        super::registry::record_db_query(info);
+    fn record_db_query(&self, metric: &aster_forge_metrics::DbQueryMetric) {
+        super::registry::record_db_query(metric);
     }
 }
 

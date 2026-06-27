@@ -6,7 +6,6 @@ use prometheus::{
     Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
     TextEncoder,
 };
-use sea_orm::DbBackend;
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -54,7 +53,7 @@ impl Metrics {
         let db_queries_total = IntCounterVec::new(
             Opts::new(
                 "db_queries_total",
-                "Total database queries observed through SeaORM",
+                "Total database queries observed through the shared database metrics adapter",
             ),
             &["backend", "kind", "status"],
         )?;
@@ -244,14 +243,14 @@ pub fn record_http_request(method: &str, route: &str, status: u16, duration_seco
         .observe(duration_seconds);
 }
 
-pub fn record_db_query(info: &sea_orm::metric::Info<'_>) {
+pub fn record_db_query(metric: &aster_forge_metrics::DbQueryMetric) {
     let Some(metrics) = get_metrics() else {
         return;
     };
 
-    let backend = backend_label(info.statement.db_backend);
-    let kind = query_kind_from_sql(&info.statement.sql);
-    let status = if info.failed { "error" } else { "ok" };
+    let backend = metric.backend.as_label();
+    let kind = metric.kind.as_label();
+    let status = metric.status_label();
 
     metrics
         .db_queries_total
@@ -260,7 +259,7 @@ pub fn record_db_query(info: &sea_orm::metric::Info<'_>) {
     metrics
         .db_query_duration_seconds
         .with_label_values(&[backend, kind, status])
-        .observe(info.elapsed.as_secs_f64());
+        .observe(metric.elapsed.as_secs_f64());
 }
 
 pub fn record_auth_event(action: &'static str, status: &'static str, reason: &'static str) {
@@ -358,47 +357,6 @@ pub fn record_health_component(
         .health_component_duration_seconds
         .with_label_values(&[scope, component, status.as_str()])
         .observe(duration_seconds);
-}
-
-fn backend_label(backend: DbBackend) -> &'static str {
-    match backend {
-        DbBackend::MySql => "mysql",
-        DbBackend::Postgres => "postgres",
-        DbBackend::Sqlite => "sqlite",
-        _ => "other",
-    }
-}
-
-fn query_kind_from_sql(sql: &str) -> &'static str {
-    let token = sql.split_whitespace().next().unwrap_or_default();
-    if token.eq_ignore_ascii_case("SELECT") {
-        "select"
-    } else if token.eq_ignore_ascii_case("INSERT") {
-        "insert"
-    } else if token.eq_ignore_ascii_case("UPDATE") {
-        "update"
-    } else if token.eq_ignore_ascii_case("DELETE") {
-        "delete"
-    } else if token.eq_ignore_ascii_case("WITH") {
-        "with"
-    } else if token.eq_ignore_ascii_case("BEGIN")
-        || token.eq_ignore_ascii_case("COMMIT")
-        || token.eq_ignore_ascii_case("ROLLBACK")
-        || token.eq_ignore_ascii_case("SAVEPOINT")
-        || token.eq_ignore_ascii_case("RELEASE")
-    {
-        "transaction"
-    } else if token.eq_ignore_ascii_case("CREATE")
-        || token.eq_ignore_ascii_case("ALTER")
-        || token.eq_ignore_ascii_case("DROP")
-        || token.eq_ignore_ascii_case("TRUNCATE")
-    {
-        "ddl"
-    } else if token.eq_ignore_ascii_case("PRAGMA") {
-        "pragma"
-    } else {
-        "other"
-    }
 }
 
 const fn health_status_value(status: HealthStatus) -> f64 {

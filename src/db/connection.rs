@@ -1,7 +1,5 @@
 //! Database connection wiring backed by the shared AsterForge implementation.
 
-use std::sync::Arc;
-
 use crate::config::DatabaseConfig;
 use crate::errors::Result;
 use aster_forge_metrics::SharedMetricsRecorder;
@@ -15,16 +13,12 @@ fn forge_database_config(cfg: &DatabaseConfig) -> aster_forge_db::DatabaseConfig
     }
 }
 
-fn forge_metrics(metrics: SharedMetricsRecorder) -> aster_forge_db::SharedDbMetricsRecorder {
-    metrics as Arc<dyn aster_forge_db::DbMetricsRecorder>
-}
-
 /// Connects to the configured database and installs a metrics callback.
 pub async fn connect_with_metrics(
     cfg: &DatabaseConfig,
     metrics: SharedMetricsRecorder,
 ) -> Result<DatabaseConnection> {
-    aster_forge_db::connect_with_metrics(&forge_database_config(cfg), forge_metrics(metrics))
+    aster_forge_db::connect_with_metrics(&forge_database_config(cfg), metrics)
         .await
         .map_err(Into::into)
 }
@@ -38,7 +32,7 @@ pub async fn connect_reader_for_writer_with_metrics(
     aster_forge_db::connect_reader_for_writer_with_metrics(
         &forge_database_config(cfg),
         writer,
-        forge_metrics(metrics),
+        metrics,
     )
     .await
     .map_err(Into::into)

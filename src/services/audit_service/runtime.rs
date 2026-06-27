@@ -49,10 +49,15 @@ impl RuntimeConfigRuntimeState for AuditRuntimeResources {
 pub fn audit_component(
     resources: AuditRuntimeResources,
 ) -> RuntimeComponentBundleRegistration<impl aster_forge_runtime::RuntimeComponentBundle> {
-    aster_forge_audit::audit_component(resources, record_server_shutdown_on_shutdown, |()| async {
-        super::shutdown_global_audit_log_manager().await;
-        Ok(())
-    })
+    aster_forge_audit::audit_component(
+        resources,
+        record_server_start_on_startup,
+        record_server_shutdown_on_shutdown,
+        |()| async {
+            super::shutdown_global_audit_log_manager().await;
+            Ok(())
+        },
+    )
 }
 
 /// Creates the full audit runtime component from product state.
@@ -62,18 +67,7 @@ pub fn audit_runtime_component<S>(
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
-    let resources = AuditRuntimeResources::from_state(state);
-    aster_forge_runtime::runtime_component((
-        audit_component(resources.clone()),
-        server_start_audit_component(resources),
-    ))
-}
-
-/// Creates the server-start audit startup component.
-pub fn server_start_audit_component(
-    resources: AuditRuntimeResources,
-) -> RuntimeComponentBundleRegistration<impl aster_forge_runtime::RuntimeComponentBundle> {
-    aster_forge_audit::server_start_audit_component(resources, record_server_start_on_startup)
+    audit_component(AuditRuntimeResources::from_state(state))
 }
 
 /// Initializes the global audit log manager for runtime writes.

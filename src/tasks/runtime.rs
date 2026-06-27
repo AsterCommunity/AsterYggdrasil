@@ -19,28 +19,21 @@ const BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL: Duration = Duration::from_se
 const BACKGROUND_TASK_RUNTIME_LEASE_STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULED_TASK_CLAIM_TTL: Duration = Duration::from_secs(120);
 
-/// Runtime component factory for Yggdrasil background workers.
-pub struct BackgroundTasksRuntimeComponent {
-    state: web::Data<AppState>,
-}
+type BackgroundTasksComponent<F> =
+    aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponentFromShutdown<
+        SystemRuntimeTaskKind,
+        crate::services::task_service::types::TaskPresentationCode,
+        F,
+    >;
 
 /// Creates the background task component used by the product entrypoint.
-pub fn background_tasks_component(state: web::Data<AppState>) -> BackgroundTasksRuntimeComponent {
-    BackgroundTasksRuntimeComponent { state }
-}
-
-impl<S> aster_forge_runtime::AsterRuntimeComponent<S> for BackgroundTasksRuntimeComponent {
-    type Output = aster_forge_runtime::AsterRuntimeBuilder<S>;
-
-    fn apply(self, builder: aster_forge_runtime::AsterRuntimeBuilder<S>) -> Self::Output {
-        aster_forge_runtime::AsterRuntimeComponent::apply(
-            aster_forge_runtime::runtime_component_with_shutdown(move |shutdown_token| {
-                let background_tasks = spawn_runtime_background_tasks(self.state, shutdown_token);
-                task_component(background_tasks)
-            }),
-            builder,
-        )
-    }
+pub fn background_tasks_component(
+    state: web::Data<AppState>,
+) -> BackgroundTasksComponent<impl FnOnce(CancellationToken) -> BackgroundTasks> {
+    aster_forge_tasks::background_task_component_with_definitions_from_shutdown(
+        crate::services::task_service::registered_system_runtime_tasks(),
+        move |shutdown_token| spawn_runtime_background_tasks(state, shutdown_token),
+    )
 }
 
 /// Creates the background task runtime component used by the product entrypoint.
