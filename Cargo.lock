@@ -725,7 +725,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_actix_middleware"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "actix-governor",
  "actix-web",
@@ -742,17 +742,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "aster_forge_actix_observability"
+version = "0.1.0"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
+dependencies = [
+ "actix-web",
+ "aster_forge_metrics",
+ "tracing",
+]
+
+[[package]]
 name = "aster_forge_alloc"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
+ "tikv-jemalloc-ctl",
  "tracing",
 ]
 
 [[package]]
 name = "aster_forge_api"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "chrono",
  "serde",
@@ -763,7 +774,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_api_docs_macros"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -773,7 +784,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_audit"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_mail",
  "aster_forge_runtime",
@@ -782,7 +793,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_cache"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_runtime",
  "async-trait",
@@ -799,7 +810,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_config"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_utils",
  "async-trait",
@@ -818,7 +829,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_crypto"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "argon2",
  "rand_core 0.6.4",
@@ -829,7 +840,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_db"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_config",
  "aster_forge_mail",
@@ -848,7 +859,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_external_auth"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_crypto",
  "aster_forge_utils",
@@ -869,7 +880,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_logging"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "serde",
  "tracing-appender",
@@ -879,7 +890,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_mail"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_runtime",
  "aster_forge_tasks",
@@ -897,9 +908,14 @@ dependencies = [
 [[package]]
 name = "aster_forge_metrics"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
+ "aster_forge_alloc",
+ "aster_forge_runtime",
+ "prometheus",
+ "sysinfo",
  "thiserror 2.0.18",
+ "tokio",
  "tokio-util",
  "tracing",
 ]
@@ -907,7 +923,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_panic"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "chrono",
 ]
@@ -915,7 +931,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_runtime"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_utils",
  "async-trait",
@@ -932,7 +948,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_storage_core"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "http 1.4.2",
  "thiserror 2.0.18",
@@ -941,7 +957,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_tasks"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "aster_forge_runtime",
  "aster_forge_utils",
@@ -961,7 +977,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_utils"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "http 1.4.2",
  "ipnet",
@@ -977,7 +993,7 @@ dependencies = [
 [[package]]
 name = "aster_forge_validation"
 version = "0.1.0"
-source = "git+https://github.com/AsterCommunity/AsterForge#abcd052b313c76735cb914ee582c4ae79b91dbc5"
+source = "git+https://github.com/AsterCommunity/AsterForge#bff1eb4e0e0d95ebed16cbfb41dc759e02a3e017"
 dependencies = [
  "thiserror 2.0.18",
  "unicode-normalization",
@@ -994,6 +1010,7 @@ dependencies = [
  "argon2",
  "aster-texture-renderer",
  "aster_forge_actix_middleware",
+ "aster_forge_actix_observability",
  "aster_forge_alloc",
  "aster_forge_api",
  "aster_forge_api_docs_macros",
@@ -1034,7 +1051,6 @@ dependencies = [
  "num_cpus",
  "openidconnect",
  "parking_lot",
- "prometheus",
  "rand 0.10.1",
  "rand 0.8.6",
  "reqwest 0.13.4",
@@ -1046,9 +1062,7 @@ dependencies = [
  "serde_json",
  "sha1 0.11.0",
  "sha2 0.11.0",
- "sysinfo",
  "testcontainers",
- "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",
  "tokio-util",
@@ -3551,9 +3565,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9155a582abd142abc056962c29e3ce5ff2ad5469f4246b537ed42c5deba857da"
+checksum = "818356c5132c1fede50f837ca96afbe78ff42413047f4abb886217845e1b6c8c"
 dependencies = [
  "serde",
  "typenum",
@@ -5594,9 +5608,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.2.4"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bae41a63fd0b8a5372f82b21e810e09a316f5dd7efd96bf08e678fb240fc1918"
+checksum = "2fa6f8e4b491d7a8ef3a9550a4d71969bd0064f46e32b8dbbcc7fc60dad94fed"
 dependencies = [
  "arc-swap",
  "arcstr",

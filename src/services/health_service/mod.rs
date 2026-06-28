@@ -74,11 +74,7 @@ where
 }
 
 fn record_health_metrics(scope: HealthCheckScope, report: &SystemHealthReport) {
-    #[cfg(feature = "metrics")]
-    report.record_metrics(scope.as_str(), &crate::metrics::PrometheusMetricsRecorder);
-
-    #[cfg(not(feature = "metrics"))]
-    let _ = (scope, report);
+    crate::metrics::record_health_report(scope, report);
 }
 
 #[cfg(test)]

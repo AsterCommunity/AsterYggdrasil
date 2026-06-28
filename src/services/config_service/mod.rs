@@ -7,9 +7,10 @@ mod schema;
 mod system;
 
 pub use crate::services::mail_template::list_template_variable_groups;
+pub(crate) use actions::execute_action_with_audit;
 pub use actions::{
     ConfigActionResult, ConfigActionType, ExecuteConfigActionInput, MAIL_CONFIG_ACTION_KEY,
-    YGGDRASIL_CONFIG_ACTION_KEY, execute_action_with_audit,
+    YGGDRASIL_CONFIG_ACTION_KEY,
 };
 pub use public::{
     PUBLIC_CONFIG_CACHE_CONTROL, PublicBranding, PublicCaptchaConfig, PublicFrontendConfig,
@@ -20,6 +21,8 @@ pub use public::{
 pub use schema::{ConfigSchemaItem, ConfigSchemaOption, get_schema};
 pub use system::{
     SystemConfig, SystemConfigUpdateResult, SystemConfigWarning, bootstrap_insecure_cookies,
-    delete, delete_with_audit, ensure_defaults, get_by_key, list_cursor, set, set_with_audit,
-    set_with_audit_and_visibility, set_with_audit_and_visibility_result, set_with_visibility,
+    ensure_defaults,
+};
+pub(crate) use system::{
+    delete_with_audit, get_by_key, list_cursor, set_with_audit_and_visibility_result,
 };

@@ -7,7 +7,7 @@ use crate::config::yggdrasil::{
 use crate::config::{auth_runtime, mail, system_config as runtime_system_config};
 use crate::db::repository::{system_config_repo, user_repo};
 use crate::errors::{AsterError, Result};
-use crate::runtime::MailRuntimeState;
+use crate::runtime::{ConfigSyncRuntimeState, MailRuntimeState, MetricsRuntimeState};
 use crate::services::{
     audit_service::{self, AuditContext},
     captcha_service, mail_audit_service, mail_service, yggdrasil_signature,
@@ -21,6 +21,16 @@ use aster_forge_config::ConfigValue;
 pub const MAIL_CONFIG_ACTION_KEY: &str = "mail";
 pub const AUTH_CAPTCHA_CONFIG_ACTION_KEY: &str = "auth_captcha";
 pub const YGGDRASIL_CONFIG_ACTION_KEY: &str = "yggdrasil";
+
+pub(crate) trait ConfigActionRuntimeState:
+    MailRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
+{
+}
+
+impl<T> ConfigActionRuntimeState for T where
+    T: MailRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
+{
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,8 +73,8 @@ pub struct ExecuteConfigActionInput<'a> {
     pub values: Option<&'a BTreeMap<String, ConfigValue>>,
 }
 
-pub async fn execute_action_with_audit(
-    state: &impl MailRuntimeState,
+pub(crate) async fn execute_action_with_audit(
+    state: &impl ConfigActionRuntimeState,
     input: ExecuteConfigActionInput<'_>,
     audit_ctx: &AuditContext,
 ) -> Result<ConfigActionResult> {
@@ -110,7 +120,7 @@ pub async fn execute_action_with_audit(
 }
 
 async fn execute_mail_action(
-    state: &impl MailRuntimeState,
+    state: &impl ConfigActionRuntimeState,
     input: ExecuteConfigActionInput<'_>,
     audit_ctx: &AuditContext,
 ) -> Result<ConfigActionResult> {
@@ -226,7 +236,7 @@ fn mail_action_target_email(
 }
 
 async fn execute_auth_captcha_action(
-    state: &impl MailRuntimeState,
+    state: &impl ConfigActionRuntimeState,
     input: ExecuteConfigActionInput<'_>,
 ) -> Result<ConfigActionResult> {
     match input.action {
@@ -252,7 +262,7 @@ async fn execute_auth_captcha_action(
 }
 
 async fn execute_yggdrasil_action(
-    state: &impl MailRuntimeState,
+    state: &impl ConfigActionRuntimeState,
     input: ExecuteConfigActionInput<'_>,
 ) -> Result<ConfigActionResult> {
     match input.action {
@@ -282,6 +292,15 @@ async fn execute_yggdrasil_action(
             .await?;
             state.runtime_config().apply(private_saved);
             state.runtime_config().apply(public_saved);
+            super::system::publish_config_reload(
+                state,
+                [
+                    YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY,
+                    YGGDRASIL_SIGNATURE_PUBLIC_KEY_KEY,
+                ],
+                "upsert",
+            )
+            .await?;
             tracing::debug!(
                 actor_user_id = input.actor_user_id,
                 "yggdrasil signature key rotated"
@@ -303,7 +322,7 @@ async fn execute_yggdrasil_action(
 }
 
 fn normalize_captcha_action_values(
-    state: &impl MailRuntimeState,
+    state: &impl ConfigActionRuntimeState,
     values: Option<&BTreeMap<String, ConfigValue>>,
 ) -> Result<BTreeMap<String, String>> {
     let mut overrides = BTreeMap::new();

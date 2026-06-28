@@ -15,10 +15,7 @@ pub fn routes() -> actix_web::Scope {
         .route("/ready", web::get().to(ready))
         .route("/ready", web::head().to(ready));
 
-    #[cfg(feature = "metrics")]
-    let scope = scope.route("/metrics", web::get().to(metrics));
-
-    scope
+    crate::metrics::configure_route(scope)
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -82,25 +79,4 @@ pub fn system_info_response(state: &AppState) -> crate::api::response::SystemInf
 #[inline]
 pub(crate) fn compile_time() -> &'static str {
     option_env!("ASTER_BUILD_TIME").unwrap_or("unknown")
-}
-
-#[cfg(feature = "metrics")]
-async fn metrics() -> HttpResponse {
-    let Some(metrics) = crate::metrics::get_metrics() else {
-        tracing::debug!("metrics probe failed because metrics are not initialized");
-        return HttpResponse::ServiceUnavailable().body("metrics not initialized");
-    };
-
-    match metrics.export() {
-        Ok(body) => {
-            tracing::debug!(bytes = body.len(), "metrics probe exported metrics");
-            HttpResponse::Ok()
-                .content_type("text/plain; version=0.0.4; charset=utf-8")
-                .body(body)
-        }
-        Err(error) => {
-            tracing::debug!(error = %error, "metrics probe export failed");
-            HttpResponse::InternalServerError().body(error)
-        }
-    }
 }

@@ -40,6 +40,9 @@ to the transport-specific channel name. Notifications only carry reload hints an
 processes reload runtime config from the database instead of trusting values from pub/sub. Forge
 generates a process-level runtime ID automatically to ignore local notification echoes; products do
 not configure it.
+When the metrics feature is enabled, config writes, deletes, signing-key rotation, and remote reload
+handling emit low-cardinality metrics. Labels include source, operation or decision, status, and
+changed-key count; concrete config key names are not used as labels.
 
 ## Yggdrasil Runtime Config
 
@@ -60,6 +63,10 @@ yggdrasil_texture_public_base_url
 yggdrasil_signature_public_key
 yggdrasil_signature_private_key
 ```
+
+`yggdrasil_signature_private_key` cannot be written through the normal config update endpoint. Admins
+should rotate signing keys through the Yggdrasil config action; the action updates both public/private
+key runtime snapshots and publishes a Forge config-sync reload hint.
 
 The public texture library also uses runtime config:
 

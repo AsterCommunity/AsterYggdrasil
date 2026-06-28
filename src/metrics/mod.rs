@@ -1,14 +1,21 @@
-//! Prometheus metrics implementation.
+//! Metrics backend provided by AsterForge.
 
-mod recorder;
-mod registry;
-mod system;
+use actix_web::Scope;
+use aster_forge_runtime::{HealthCheckScope, SystemHealthReport};
 
-pub use recorder::PrometheusMetricsRecorder;
-pub use registry::{
-    get_metrics, init_metrics, record_application_event, record_auth_event,
-    record_background_task_transition, record_db_query, record_external_operation,
-    record_health_component, record_health_report, record_http_request,
-    set_background_tasks_pending,
-};
-pub use system::system_metrics_updater_task;
+#[cfg(feature = "metrics")]
+use aster_forge_metrics::prometheus::PrometheusMetricsRecorder;
+
+/// Records a health report when metrics are enabled.
+pub fn record_health_report(scope: HealthCheckScope, report: &SystemHealthReport) {
+    #[cfg(feature = "metrics")]
+    report.record_metrics(scope.as_str(), &PrometheusMetricsRecorder);
+
+    #[cfg(not(feature = "metrics"))]
+    let _ = (scope, report);
+}
+
+/// Adds the metrics HTTP route when the metrics feature is enabled.
+pub fn configure_route(scope: Scope) -> Scope {
+    aster_forge_actix_observability::configure_prometheus_route(scope)
+}

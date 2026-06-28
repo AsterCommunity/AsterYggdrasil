@@ -8,11 +8,12 @@
 
 use std::sync::Arc;
 
-use aster_forge_config::ConfigSyncRuntime;
+use aster_forge_config::{ConfigReloadObservation, ConfigSyncRuntime};
+use aster_forge_metrics::SharedMetricsRecorder;
 use tokio_util::sync::CancellationToken;
 
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{DatabaseRuntimeState, MetricsRuntimeState, RuntimeConfigRuntimeState};
 
 /// Product namespace used for cross-process config reload notifications.
 pub const CONFIG_RELOAD_NAMESPACE: &str = "aster_yggdrasil";
@@ -24,29 +25,56 @@ pub async fn run_config_reload_subscription<S>(
     shutdown: CancellationToken,
 ) -> Result<()>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + Send + Sync + 'static,
+    S: DatabaseRuntimeState
+        + RuntimeConfigRuntimeState
+        + MetricsRuntimeState
+        + Send
+        + Sync
+        + 'static,
 {
+    let metrics = state.metrics().clone();
+    let observer = move |observation: ConfigReloadObservation| {
+        record_config_reload_observation(&metrics, observation);
+    };
+
     runtime
-        .run_reload_subscription(shutdown, move |message| {
-            let state = state.clone();
-            async move {
-                tracing::debug!(
-                    keys = ?message.keys,
-                    origin_runtime_id = %message.origin_runtime_id,
-                    "reloading runtime config after remote config sync notification"
-                );
-                state
-                    .runtime_config()
-                    .reload(state.reader_db())
-                    .await
-                    .map_err(|error| {
-                        aster_forge_config::ConfigCoreError::store(error.to_string())
-                    })?;
-                Ok(())
-            }
-        })
+        .run_reload_subscription_with_observer(
+            shutdown,
+            move |message| {
+                let state = state.clone();
+                async move {
+                    tracing::debug!(
+                        keys = ?message.keys,
+                        origin_runtime_id = %message.origin_runtime_id,
+                        "reloading runtime config after remote config sync notification"
+                    );
+                    state
+                        .runtime_config()
+                        .reload(state.reader_db())
+                        .await
+                        .map_err(|error| {
+                            aster_forge_config::ConfigCoreError::store(error.to_string())
+                        })?;
+                    Ok(())
+                }
+            },
+            Some(&observer),
+        )
         .await
         .map_err(map_config_core_error)
+}
+
+fn record_config_reload_observation(
+    metrics: &SharedMetricsRecorder,
+    observation: ConfigReloadObservation,
+) {
+    metrics.record_config_reload(
+        observation.source,
+        observation.decision.as_label(),
+        observation.status,
+        observation.changed_keys,
+        observation.duration_seconds,
+    );
 }
 
 pub(crate) fn map_config_core_error(error: aster_forge_config::ConfigCoreError) -> AsterError {

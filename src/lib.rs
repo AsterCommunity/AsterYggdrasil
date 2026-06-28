@@ -18,7 +18,6 @@ pub mod db;
 pub mod entities;
 pub mod errors;
 pub mod external_auth;
-#[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod object_storage;
 pub mod runtime;

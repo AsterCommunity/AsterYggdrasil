@@ -53,7 +53,13 @@ members = [".", "migration", "crates/aster-texture-renderer"]
 default = ["server"]
 server = []
 cli = ["server", "dep:clap"]
-metrics = ["server", "dep:prometheus", "dep:sysinfo"]
+metrics = [
+    "server",
+    "aster_forge_actix_observability/prometheus",
+    "aster_forge_metrics/allocator-metrics",
+    "aster_forge_metrics/backend-prometheus",
+    "aster_forge_metrics/runtime-health",
+]
 openapi = [
     "dep:utoipa",
     "dep:utoipa-swagger-ui",
@@ -65,12 +71,10 @@ openapi = [
     "aster_forge_tasks/openapi",
 ]
 full = ["server", "cli", "metrics", "openapi"]
-jemalloc = ["dep:tikv-jemallocator"]
+jemalloc = ["dep:tikv-jemallocator", "aster_forge_alloc/jemalloc"]
 jemalloc-stats = [
     "jemalloc",
-    "tikv-jemallocator/stats",
-    "dep:tikv-jemalloc-ctl",
-    "tikv-jemalloc-ctl/stats",
+    "aster_forge_alloc/jemalloc-stats",
 ]
 jemalloc-profiling = ["jemalloc-stats", "tikv-jemallocator/profiling"]
 
@@ -80,6 +84,7 @@ actix-multipart = "0.8.0"
 actix-governor = "0.10"
 aster-texture-renderer = { path = "crates/aster-texture-renderer" }
 aster_forge_actix_middleware = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_actix_middleware", features = ["metrics"] }
+aster_forge_actix_observability = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_actix_observability" }
 aster_forge_alloc = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_alloc" }
 aster_forge_api = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api" }
 aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api_docs_macros" }
@@ -119,7 +124,6 @@ migration = { version = "0.1.0", path = "migration" }
 num_cpus = "1.17.0"
 parking_lot = "0.12"
 openidconnect = "4.0.1"
-prometheus = { version = "0.14", optional = true, default-features = false }
 rand = { version = "0.10.1", default-features = false, features = ["std", "std_rng", "thread_rng"] }
 reqwest = { version = "0.13", features = ["stream", "json"] }
 rsa = { version = "0.10.0-rc.18", features = ["sha1"] }
@@ -129,9 +133,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 sha1 = "0.11"
 sha2 = "0.11"
-sysinfo = { version = "0.39", optional = true, default-features = false, features = ["system"] }
 tikv-jemallocator = { version = "0.7", optional = true }
-tikv-jemalloc-ctl = { version = "0.7", optional = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "fs", "io-util"] }
 tokio-util = { version = "0.7", features = ["io", "io-util"] }
 toml = "1.1"

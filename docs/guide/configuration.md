@@ -37,6 +37,7 @@ local_root = "storage"
 当前可用 backend 是 `redis`，`endpoint` 填 Redis URL，`topic` 是逻辑主题；服务内部会把它映射到具体 transport 的通道名。
 通知只携带“哪些 key 变了”的 reload hint，不携带配置值；其他进程收到后会从数据库重新加载 runtime config。
 进程级 runtime ID 由 Forge 自动生成，用于忽略本进程发出的 reload 回声，不需要在业务配置里指定。
+启用 metrics feature 时，配置写入、删除、签名 key 轮换和远端 reload 处理都会记录低基数指标；指标只记录来源、操作、结果和 key 数量，不把具体 key 名称放进 label。
 
 ## Yggdrasil 运行时配置
 
@@ -57,6 +58,8 @@ yggdrasil_texture_public_base_url
 yggdrasil_signature_public_key
 yggdrasil_signature_private_key
 ```
+
+`yggdrasil_signature_private_key` 不能通过普通配置更新接口直接写入。管理员应使用 Yggdrasil 配置 action 轮换签名 key；轮换会同时更新 public/private key 的 runtime snapshot，并通过 Forge config sync 发布 reload hint。
 
 公共材质库也使用运行时配置：
 

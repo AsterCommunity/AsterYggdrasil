@@ -3,7 +3,9 @@ use crate::config::system_config as shared_system_config;
 use crate::config::yggdrasil::YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY;
 use crate::db::repository::system_config_repo;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{ConfigSyncRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::audit_service::{self, AuditContext};
 use aster_forge_api::{CursorPage, IdCursor};
 use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
@@ -14,6 +16,19 @@ use sea_orm::ConnectionTrait;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
+
+pub(crate) trait SystemConfigMutationState:
+    DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
+{
+}
+
+impl<T> SystemConfigMutationState for T where
+    T: DatabaseRuntimeState
+        + RuntimeConfigRuntimeState
+        + ConfigSyncRuntimeState
+        + MetricsRuntimeState
+{
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -101,7 +116,7 @@ pub async fn bootstrap_insecure_cookies<C: ConnectionTrait>(
     Ok(())
 }
 
-pub async fn list_cursor(
+pub(crate) async fn list_cursor(
     state: &impl DatabaseRuntimeState,
     limit: u64,
     after_id: Option<i64>,
@@ -134,7 +149,10 @@ pub async fn list_cursor(
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
-pub async fn get_by_key(state: &impl DatabaseRuntimeState, key: &str) -> Result<SystemConfig> {
+pub(crate) async fn get_by_key(
+    state: &impl DatabaseRuntimeState,
+    key: &str,
+) -> Result<SystemConfig> {
     tracing::debug!(key, "loading system config by key");
     system_config_repo::find_by_key(state.reader_db(), key)
         .await?
@@ -146,18 +164,9 @@ pub async fn get_by_key(state: &impl DatabaseRuntimeState, key: &str) -> Result<
         })
 }
 
-pub async fn set(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
-    key: &str,
-    value: impl Into<ConfigValue>,
-    updated_by: i64,
-) -> Result<SystemConfig> {
-    tracing::debug!(key, "setting system config");
-    set_with_visibility(state, key, value, None, updated_by).await
-}
-
-pub async fn set_with_visibility(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
+#[cfg(test)]
+async fn set_with_visibility(
+    state: &impl SystemConfigMutationState,
     key: &str,
     value: impl Into<ConfigValue>,
     visibility: Option<ConfigVisibility>,
@@ -175,27 +184,30 @@ pub async fn set_with_visibility(
     Ok(saved.into())
 }
 
-pub async fn delete(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
-    key: &str,
-) -> Result<()> {
+pub(crate) async fn delete(state: &impl SystemConfigMutationState, key: &str) -> Result<()> {
     tracing::debug!(key, "deleting system config");
-    system_config_repo::delete_by_key(state.writer_db(), key).await?;
-    state.runtime_config().remove(key);
-    state
-        .config_sync()
-        .publish_reload(
-            [key.to_string()],
-            aster_forge_config::ConfigNotificationSource::Api,
-        )
-        .await
-        .map_err(super::runtime::map_config_core_error)?;
+    let result: Result<()> = async {
+        system_config_repo::delete_by_key(state.writer_db(), key).await?;
+        state.runtime_config().remove(key);
+        state
+            .config_sync()
+            .publish_reload(
+                [key.to_string()],
+                aster_forge_config::ConfigNotificationSource::Api,
+            )
+            .await
+            .map_err(super::runtime::map_config_core_error)?;
+        Ok(())
+    }
+    .await;
+    record_config_mutation_result(state, "delete", result.is_ok());
+    result?;
     tracing::debug!(key, "deleted runtime config");
     Ok(())
 }
 
-pub async fn delete_with_audit(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
+pub(crate) async fn delete_with_audit(
+    state: &impl SystemConfigMutationState,
     key: &str,
     audit_ctx: &AuditContext,
 ) -> Result<()> {
@@ -219,35 +231,24 @@ pub async fn delete_with_audit(
     Ok(())
 }
 
-pub async fn set_with_audit(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
+#[cfg(test)]
+async fn set_with_audit(
+    state: &impl SystemConfigMutationState,
     key: &str,
     value: &ConfigValue,
     updated_by: i64,
     audit_ctx: &AuditContext,
 ) -> Result<SystemConfig> {
     tracing::debug!(key, "setting system config with audit");
-    set_with_audit_and_visibility(state, key, value, None, updated_by, audit_ctx).await
-}
-
-pub async fn set_with_audit_and_visibility(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
-    key: &str,
-    value: &ConfigValue,
-    visibility: Option<ConfigVisibility>,
-    updated_by: i64,
-    audit_ctx: &AuditContext,
-) -> Result<SystemConfig> {
-    tracing::debug!(key, "setting system config with audit and visibility");
     Ok(
-        set_with_audit_and_visibility_result(state, key, value, visibility, updated_by, audit_ctx)
+        set_with_audit_and_visibility_result(state, key, value, None, updated_by, audit_ctx)
             .await?
             .config,
     )
 }
 
-pub async fn set_with_audit_and_visibility_result(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
+pub(crate) async fn set_with_audit_and_visibility_result(
+    state: &impl SystemConfigMutationState,
     key: &str,
     value: &ConfigValue,
     visibility: Option<ConfigVisibility>,
@@ -267,36 +268,86 @@ pub async fn set_with_audit_and_visibility_result(
 }
 
 async fn save_config(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState),
+    state: &impl SystemConfigMutationState,
     key: &str,
     value: &ConfigValue,
     visibility: Option<ConfigVisibility>,
     updated_by: Option<i64>,
 ) -> Result<system_config::Model> {
-    validate_direct_config_update_target(key)?;
-    validate_visibility_target(key, visibility)?;
-    let normalized_value =
-        CONFIG_REGISTRY.value_to_storage_for_key(state.runtime_config().as_ref(), key, value)?;
+    let result: Result<system_config::Model> = async {
+        validate_direct_config_update_target(key)?;
+        validate_visibility_target(key, visibility)?;
+        let normalized_value = CONFIG_REGISTRY.value_to_storage_for_key(
+            state.runtime_config().as_ref(),
+            key,
+            value,
+        )?;
 
-    let saved = system_config_repo::upsert_with_options(
-        state.writer_db(),
-        key,
-        &normalized_value,
-        visibility,
-        updated_by,
-    )
-    .await?;
-    let saved = apply_system_config_definition(saved);
-    state.runtime_config().apply(saved.clone());
-    state
+        let saved = system_config_repo::upsert_with_options(
+            state.writer_db(),
+            key,
+            &normalized_value,
+            visibility,
+            updated_by,
+        )
+        .await?;
+        let saved = apply_system_config_definition(saved);
+        state.runtime_config().apply(saved.clone());
+        state
+            .config_sync()
+            .publish_reload(
+                [saved.key.clone()],
+                aster_forge_config::ConfigNotificationSource::Api,
+            )
+            .await
+            .map_err(super::runtime::map_config_core_error)?;
+        Ok(saved)
+    }
+    .await;
+    record_config_mutation_result(state, "upsert", result.is_ok());
+    result
+}
+
+pub(crate) async fn publish_config_reload(
+    state: &(impl ConfigSyncRuntimeState + MetricsRuntimeState),
+    keys: impl IntoIterator<Item = impl Into<String>>,
+    operation: &'static str,
+) -> Result<()> {
+    let keys = keys.into_iter().map(Into::into).collect::<Vec<_>>();
+    let result = state
         .config_sync()
         .publish_reload(
-            [saved.key.clone()],
+            keys.iter().cloned(),
             aster_forge_config::ConfigNotificationSource::Api,
         )
         .await
-        .map_err(super::runtime::map_config_core_error)?;
-    Ok(saved)
+        .map_err(super::runtime::map_config_core_error);
+    record_config_mutation_status(
+        state,
+        operation,
+        if result.is_ok() { "ok" } else { "error" },
+        u64::try_from(keys.len()).unwrap_or(u64::MAX),
+    );
+    result
+}
+
+fn record_config_mutation_result(
+    state: &impl MetricsRuntimeState,
+    operation: &'static str,
+    ok: bool,
+) {
+    record_config_mutation_status(state, operation, if ok { "ok" } else { "error" }, 1);
+}
+
+fn record_config_mutation_status(
+    state: &impl MetricsRuntimeState,
+    operation: &'static str,
+    status: &'static str,
+    changed_keys: u64,
+) {
+    state
+        .metrics()
+        .record_config_mutation("api", operation, status, changed_keys);
 }
 
 async fn audit_config_update(
@@ -370,7 +421,7 @@ mod tests {
 
     use super::{
         ConfigValue, bootstrap_insecure_cookies, delete, delete_with_audit, ensure_defaults,
-        get_by_key, list_cursor, set, set_with_audit, set_with_visibility,
+        get_by_key, list_cursor, set_with_audit, set_with_visibility,
     };
     use crate::config::definitions::{
         ALL_CONFIGS, AUTH_COOKIE_SECURE_KEY, BRANDING_TITLE_KEY, PUBLIC_SITE_URL_KEY,
@@ -380,6 +431,8 @@ mod tests {
     use crate::db::repository::system_config_repo;
     use crate::runtime::AppState;
     use crate::services::audit_service::{AuditContext, flush_global_audit_log_manager};
+    use crate::services::config_service::SystemConfig;
+    use crate::services::config_service::system::SystemConfigMutationState;
     use aster_forge_cache::CacheConfig;
     use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     use aster_forge_db::DbHandles;
@@ -428,6 +481,16 @@ mod tests {
             metrics: aster_forge_metrics::NoopMetrics::arc(),
         })
         .expect("config service test AppState should build")
+    }
+
+    async fn set(
+        state: &impl SystemConfigMutationState,
+        key: &str,
+        value: impl Into<ConfigValue>,
+        updated_by: i64,
+    ) -> crate::errors::Result<SystemConfig> {
+        tracing::debug!(key, "setting system config");
+        set_with_visibility(state, key, value, None, updated_by).await
     }
 
     #[test]
