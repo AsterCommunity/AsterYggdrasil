@@ -55,13 +55,15 @@ pub fn core_health_component<S>(
 where
     S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState,
 {
-    aster_forge_runtime::runtime_component((
-        aster_forge_db::database_health_component(state.reader_db().clone()),
-        aster_forge_cache::cache_health_component(
-            state.config().cache.clone(),
-            state.cache().clone(),
-        ),
-    ))
+    let database = aster_forge_db::database_health_component(state.reader_db().clone());
+    let cache = aster_forge_cache::cache_health_component(
+        state.config().cache.clone(),
+        state.cache().clone(),
+    );
+
+    aster_forge_runtime::runtime_component(move |registry: &mut RuntimeComponentRegistry| {
+        registry.register_bundle(database).register_bundle(cache);
+    })
 }
 
 async fn run_health_scope<B>(scope: HealthCheckScope, bundle: B) -> SystemHealthReport
