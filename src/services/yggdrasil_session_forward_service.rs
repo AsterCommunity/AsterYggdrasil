@@ -486,7 +486,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_builtin_servers_seeds_empty_migrated_database_once() {
         let db_cfg = crate::config::DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };

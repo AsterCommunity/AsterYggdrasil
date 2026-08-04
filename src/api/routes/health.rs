@@ -7,6 +7,7 @@ use crate::services::health_service;
 use actix_web::{HttpResponse, web};
 
 const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
+const READY_RUNTIME_UNAVAILABLE_MESSAGE: &str = "Runtime unavailable";
 
 pub fn routes() -> actix_web::Scope {
     let scope = web::scope("/health")
@@ -49,16 +50,22 @@ pub async fn ready(state: web::Data<AppState>) -> HttpResponse {
             tracing::debug!("readiness probe succeeded");
             HttpResponse::Ok().json(ApiResponse::ok(status_response("ready")))
         }
-        Err(error) => ready_database_error(error),
+        Err(error) => ready_error(error),
     }
 }
 
-fn ready_database_error(error: crate::errors::AsterError) -> HttpResponse {
-    tracing::error!(error = %error, "health readiness database ping failed");
+fn ready_error(error: crate::errors::AsterError) -> HttpResponse {
+    let code = error.api_error_code();
+    let message = if code == AsterErrorCode::DatabaseError {
+        READY_DB_UNAVAILABLE_MESSAGE
+    } else {
+        READY_RUNTIME_UNAVAILABLE_MESSAGE
+    };
+    tracing::error!(error = %error, api_code = %code, "health readiness check failed");
     HttpResponse::ServiceUnavailable().json(ApiResponse::<()>::error_body(
-        AsterErrorCode::DatabaseError,
-        READY_DB_UNAVAILABLE_MESSAGE,
-        Some(true),
+        code,
+        message,
+        error.retryable(),
     ))
 }
 

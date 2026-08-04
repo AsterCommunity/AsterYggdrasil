@@ -550,7 +550,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("asteryggdrasil-admin-users-{suffix}"));
         let texture_root = root.join("storage");
         let db_cfg = crate::config::DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };

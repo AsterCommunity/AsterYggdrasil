@@ -114,14 +114,14 @@ mod tests {
             runtime_config: Arc::new(crate::config::RuntimeConfig::new()),
             mail_sender: aster_forge_mail::memory_sender(),
         };
-        let components = (
-            crate::tasks::runtime::task_component(aster_forge_tasks::BackgroundTasks::new()),
-            crate::services::mail_outbox_service::runtime::mail_runtime_component(&state),
-            crate::services::audit_service::runtime::audit_runtime_component(&state),
-            crate::db::runtime::database_component(db_handles),
-        );
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            components.register(registry);
+            crate::tasks::runtime::task_component(aster_forge_tasks::BackgroundTasks::new())
+                .register(registry);
+            crate::services::mail_outbox_service::runtime::mail_runtime_component(&state)
+                .register(registry);
+            crate::services::audit_service::runtime::audit_runtime_component(&state)
+                .register(registry);
+            crate::db::runtime::database_component(db_handles).register(registry);
         });
 
         registry
@@ -151,11 +151,9 @@ mod tests {
             audit_logs.startup[0].phase_name,
             aster_forge_audit::SERVER_START_AUDIT_PHASE
         );
+        assert_eq!(audit_logs.shutdown.len(), 1);
         assert_eq!(
-            audit_logs
-                .shutdown
-                .expect("audit logs shutdown should be registered")
-                .phase_name,
+            audit_logs.shutdown[0].phase_name,
             aster_forge_audit::SERVER_SHUTDOWN_AUDIT_PHASE
         );
         assert_eq!(

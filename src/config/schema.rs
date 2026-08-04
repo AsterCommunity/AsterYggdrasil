@@ -19,6 +19,8 @@ pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Config {
     #[serde(default)]
+    pub deployment: crate::config::deployment::DeploymentConfig,
+    #[serde(default)]
     pub server: ServerConfig,
     #[serde(default)]
     pub database: DatabaseConfig,
@@ -84,7 +86,7 @@ impl ServerConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatabaseConfig {
     #[serde(default = "DatabaseConfig::default_url")]
-    pub url: String,
+    pub url: aster_forge_db::DatabaseUrl,
     #[serde(default = "DatabaseConfig::default_pool_size")]
     pub pool_size: u32,
     #[serde(default = "DatabaseConfig::default_retry_count")]
@@ -102,8 +104,8 @@ impl Default for DatabaseConfig {
 }
 
 impl DatabaseConfig {
-    fn default_url() -> String {
-        crate::utils::paths::DEFAULT_CONFIG_SQLITE_DATABASE_URL.to_string()
+    fn default_url() -> aster_forge_db::DatabaseUrl {
+        crate::utils::paths::DEFAULT_CONFIG_SQLITE_DATABASE_URL.into()
     }
     fn default_pool_size() -> u32 {
         10
@@ -191,6 +193,10 @@ impl ObjectStorageConfig {
 
     fn default_local_root() -> String {
         "storage".to_string()
+    }
+
+    pub fn normalized_backend(&self) -> String {
+        self.backend.trim().to_ascii_lowercase()
     }
 }
 

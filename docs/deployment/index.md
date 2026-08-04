@@ -54,7 +54,7 @@ https://skin.example.com/api/yggdrasil/textures/{hash}
 
 周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前文档只覆盖单实例部署。
 
-如果生产环境需要多实例，请先在外层部署保证只有一个实例启动完整后台任务。后续多实例高可用应由 Forge runtime 的租约/锁机制承载，不应在 Yggdrasil 里维护独立主从分支。
+在 `[deployment]` 中选择运行策略：默认 `profile = "single"`，允许 cache 失败后回退到 memory；`profile = "cluster"` 要求 PostgreSQL/MySQL、Redis cache、Redis config-sync 和 S3/MinIO，Redis degraded/unhealthy 时 readiness 返回 503。Forge runtime lease/claim 会协调周期任务、邮件 outbox、审计清理和材质一致性任务，不需要产品级 primary/follower 分支。
 
 ## 备份对象
 

@@ -56,9 +56,7 @@ Yggdrasil 相关任务：
 
 ## 多实例边界
 
-周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前运行时假设只有一个任务 owner；生产环境先按单实例运行，或在外层部署确保只有一个实例启动完整后台任务。
-
-多实例高可用后续应通过 Forge runtime 的租约/锁能力承载，而不是在产品配置里恢复旧的主从分支。
+周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。`deployment.profile = "cluster"` 使用 Forge runtime lease/claim 协调这些任务，多个实例可以运行完整服务而不需要产品级主从分支。cluster 还要求共享 PostgreSQL/MySQL、Redis cache、Redis config-sync 和 S3/MinIO。
 
 ## 运维建议
 

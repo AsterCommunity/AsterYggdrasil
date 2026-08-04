@@ -28,7 +28,7 @@ pub(super) async fn prepare_common_state(config: Arc<Config>) -> Result<AppState
     .await?;
     crate::services::yggdrasil_signature::prepare_runtime_signature_key(db_handles.writer())
         .await?;
-    let cache = aster_forge_cache::create_cache(&config.cache).await;
+    let cache = create_runtime_cache(config.as_ref()).await?;
     let object_storage = object_storage::create_object_storage(&config.object_storage)?;
     let config_sync = aster_forge_config::build_config_sync_runtime(
         &config.config_sync,
@@ -51,4 +51,55 @@ pub(super) async fn prepare_common_state(config: Arc<Config>) -> Result<AppState
         config_sync,
         metrics,
     })
+}
+
+async fn create_runtime_cache(
+    config: &Config,
+) -> Result<std::sync::Arc<dyn aster_forge_cache::CacheBackend>> {
+    let failure_policy = if config.deployment.requires_shared_runtime() {
+        aster_forge_cache::CacheBackendFailurePolicy::ReturnError
+    } else {
+        aster_forge_cache::CacheBackendFailurePolicy::FallbackToMemory
+    };
+
+    aster_forge_cache::create_cache_with_policy(&config.cache, failure_policy)
+        .await
+        .map_err(|error| {
+            AsterError::config_error(format!(
+                "configured cache backend could not be created: {error}"
+            ))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_runtime_cache;
+    use crate::config::{Config, DeploymentProfile};
+
+    fn redis_config(profile: DeploymentProfile) -> Config {
+        let mut config = Config::default();
+        config.deployment.profile = profile;
+        config.cache.backend = "redis".to_string();
+        config.cache.endpoint = "redis://127.0.0.1:1/0".into();
+        config
+    }
+
+    #[tokio::test]
+    async fn single_profile_falls_back_to_memory_when_redis_is_unavailable() {
+        let cache = create_runtime_cache(&redis_config(DeploymentProfile::Single))
+            .await
+            .expect("single profile should fall back to memory cache");
+
+        assert_eq!(cache.backend_name(), "memory");
+    }
+
+    #[tokio::test]
+    async fn cluster_profile_returns_error_when_redis_is_unavailable() {
+        let error = match create_runtime_cache(&redis_config(DeploymentProfile::Cluster)).await {
+            Ok(_) => panic!("cluster profile should require redis cache"),
+            Err(error) => error,
+        };
+
+        assert!(error.message().contains("cache backend"));
+    }
 }

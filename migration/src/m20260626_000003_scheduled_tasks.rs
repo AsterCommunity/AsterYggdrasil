@@ -22,12 +22,18 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_index(aster_forge_db::drop_scheduled_tasks_next_run_index())
-            .await?;
-        manager
-            .drop_index(aster_forge_db::drop_scheduled_tasks_namespace_name_unique_index())
-            .await?;
+        aster_forge_db_migration::drop_index_if_exists(
+            manager.get_connection(),
+            aster_forge_db::SCHEDULED_TASKS_TABLE,
+            aster_forge_db::SCHEDULED_TASK_NEXT_RUN_INDEX,
+        )
+        .await?;
+        aster_forge_db_migration::drop_index_if_exists(
+            manager.get_connection(),
+            aster_forge_db::SCHEDULED_TASKS_TABLE,
+            aster_forge_db::SCHEDULED_TASK_NAMESPACE_NAME_UNIQUE_INDEX,
+        )
+        .await?;
         manager
             .drop_table(aster_forge_db::drop_scheduled_tasks_table())
             .await

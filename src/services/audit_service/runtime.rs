@@ -54,7 +54,7 @@ pub fn audit_component(
         record_server_start_on_startup,
         record_server_shutdown_on_shutdown,
         |()| async {
-            super::shutdown_global_audit_log_manager().await;
+            aster_forge_audit::shutdown_global_audit_log_manager().await;
             Ok(())
         },
     )
@@ -72,7 +72,7 @@ where
 
 /// Initializes the global audit log manager for runtime writes.
 pub fn prepare_runtime_audit_manager(db: DatabaseConnection) {
-    super::init_global_audit_log_manager(db);
+    aster_forge_audit::init_global_audit_log_manager(db);
 }
 
 async fn record_server_shutdown_on_shutdown(
@@ -153,11 +153,9 @@ mod tests {
             descriptor.dependencies,
             vec![aster_forge_mail::MAIL_OUTBOX_COMPONENT]
         );
+        assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
-            descriptor
-                .shutdown
-                .expect("server shutdown audit should be registered")
-                .phase_name,
+            descriptor.shutdown[0].phase_name,
             aster_forge_audit::SERVER_SHUTDOWN_AUDIT_PHASE
         );
 
@@ -168,11 +166,9 @@ mod tests {
             descriptor.dependencies,
             vec![aster_forge_audit::AUDIT_LOGS_COMPONENT]
         );
+        assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
-            descriptor
-                .shutdown
-                .expect("audit manager shutdown should be registered")
-                .phase_name,
+            descriptor.shutdown[0].phase_name,
             aster_forge_audit::AUDIT_MANAGER_FLUSH_SHUTDOWN_PHASE
         );
     }

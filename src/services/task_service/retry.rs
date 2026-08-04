@@ -16,10 +16,12 @@ pub(super) fn default_retry_class(error: &AsterError) -> aster_forge_tasks::Task
             aster_forge_tasks::TaskRetryClass::Auto
         }
         AsterError::DatabaseOperation(_)
+        | AsterError::DatabaseOperationClassified { .. }
         | AsterError::ConfigError(_)
         | AsterError::ExternalAuthError(_)
         | AsterError::InternalError(_) => aster_forge_tasks::TaskRetryClass::Manual,
-        AsterError::ValidationError(_)
+        AsterError::DatabaseCommitOutcomeUnknown { .. }
+        | AsterError::ValidationError(_)
         | AsterError::AuthInvalidCredentials(_)
         | AsterError::AuthTokenInvalid(_)
         | AsterError::AuthTokenExpired(_)
@@ -77,5 +79,20 @@ mod tests {
         ] {
             assert_eq!(default_retry_class(&error), TaskRetryClass::Never);
         }
+
+        assert_eq!(
+            default_retry_class(&AsterError::database_operation_classified(
+                "deadlock",
+                aster_forge_db::DatabaseErrorKind::Deadlock,
+            )),
+            TaskRetryClass::Manual
+        );
+        assert_eq!(
+            default_retry_class(&AsterError::database_commit_outcome_unknown(
+                "commit outcome unknown",
+                None,
+            )),
+            TaskRetryClass::Never
+        );
     }
 }

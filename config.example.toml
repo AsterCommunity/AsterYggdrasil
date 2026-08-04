@@ -2,6 +2,11 @@
 # The runtime default path is data/config.toml.
 # Relative paths are resolved against data/ when the config file lives there.
 
+[deployment]
+# `single` permits instance-local cache/storage fallback. `cluster` requires
+# PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO object storage.
+profile = "single"
+
 [server]
 host = "127.0.0.1"
 port = 3000
@@ -10,6 +15,9 @@ temp_dir = ".tmp"
 
 [database]
 url = "sqlite://asteryggdrasil.db?mode=rwc"
+# Structured credentials are also accepted and keep raw credentials out of
+# debug output:
+# url = { base_url = "postgres://db:5432/asteryggdrasil", username = "RAW_USERNAME", password = "RAW_PASSWORD" }
 pool_size = 10
 retry_count = 3
 

@@ -351,7 +351,7 @@ async fn drop_stale_test_databases(
     use sea_orm::ConnectionTrait;
 
     let admin_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: admin_database_url.to_string(),
+        url: admin_database_url.into(),
         pool_size: 1,
         retry_count: 0,
     };
@@ -378,7 +378,7 @@ async fn ensure_mysql_test_user_access(admin_database_url: &str, username: &str)
     use sea_orm::ConnectionTrait;
 
     let admin_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: admin_database_url.to_string(),
+        url: admin_database_url.into(),
         pool_size: 1,
         retry_count: 0,
     };
@@ -423,7 +423,7 @@ async fn wait_for_database(database_url: &str) {
     let ready = tokio::time::timeout(std::time::Duration::from_secs(60), async {
         loop {
             let cfg = aster_yggdrasil::config::DatabaseConfig {
-                url: database_url.to_string(),
+                url: database_url.into(),
                 pool_size: 1,
                 retry_count: 0,
             };
@@ -647,7 +647,7 @@ async fn provision_isolated_test_database_url_with_template(
     use sea_orm::ConnectionTrait;
 
     let admin_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: admin_database_url.to_string(),
+        url: admin_database_url.into(),
         pool_size: 1,
         retry_count: 0,
     };
@@ -704,7 +704,7 @@ async fn build_postgres_database_template() -> PostgresDatabaseTemplate {
         provision_isolated_test_database_url(&admin_database_url, &database_url).await;
 
     let db_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: template_database_url.clone(),
+        url: template_database_url.clone().into(),
         pool_size: 1,
         retry_count: 0,
     };
@@ -853,7 +853,7 @@ async fn build_mysql_schema_template() -> MySqlSchemaTemplate {
         provision_isolated_test_database_url(&admin_database_url, &database_url).await;
 
     let db_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: template_database_url.clone(),
+        url: template_database_url.clone().into(),
         pool_size: 1,
         retry_count: 0,
     };
@@ -908,7 +908,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     init_test_process_state();
 
     let db_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: database_url.to_string(),
+        url: database_url.into(),
         pool_size: 1,
         retry_count: 0,
     };

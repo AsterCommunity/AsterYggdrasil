@@ -171,7 +171,9 @@ fn resolve_loaded_paths(base_dir: &Path, config_path: &Path, cfg: &mut Config) -
     cfg.server.temp_dir = resolve_config_relative_path(base_dir, config_dir, &cfg.server.temp_dir)?;
     cfg.object_storage.local_root =
         resolve_config_relative_path(base_dir, config_dir, &cfg.object_storage.local_root)?;
-    cfg.database.url = resolve_config_relative_sqlite_url(base_dir, config_dir, &cfg.database.url)?;
+    if let aster_forge_db::DatabaseUrl::Url(url) = &cfg.database.url {
+        cfg.database.url = resolve_config_relative_sqlite_url(base_dir, config_dir, url)?.into();
+    }
     Ok(())
 }
 
@@ -207,7 +209,7 @@ mod tests {
         let cfg = load_from_dir(&dir, None, false).unwrap();
         let generated = std::fs::read_to_string(dir.join(DEFAULT_CONFIG_PATH)).unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
         assert_eq!(cfg.object_storage.backend, "local");
         assert_eq!(cfg.object_storage.local_root, "data/storage");
@@ -239,7 +241,7 @@ url = "sqlite://custom.db?mode=rwc"
 
         let cfg = load_from_dir(&dir, None, false).unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert!(dir.join("config.toml").exists());
         assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
 
@@ -253,7 +255,7 @@ url = "sqlite://custom.db?mode=rwc"
 
         let cfg = load_from_dir(&dir, None, false).unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert!(dir.join("asteryggdrasil.db").exists());
         assert!(!dir.join(DEFAULT_SQLITE_DATABASE_PATH).exists());
 
@@ -278,7 +280,7 @@ local_root = "data/storage"
 
         let cfg = load_from_dir(&dir, None, false).unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
         assert_eq!(cfg.object_storage.local_root, "data/storage");
 
@@ -330,7 +332,7 @@ local_root = "legacy-textures"
 
         let cfg = load_from_dir(&dir, Some("sqlite://custom.db?mode=rwc"), false).unwrap();
 
-        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc");
+        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc".into());
         assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
         assert!(dir.join("asteryggdrasil.db").exists());
         assert!(!dir.join(DEFAULT_SQLITE_DATABASE_PATH).exists());
@@ -344,7 +346,7 @@ local_root = "legacy-textures"
 
         let cfg = load_from_dir(&dir, Some("sqlite://data/custom.db?mode=rwc"), false).unwrap();
 
-        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc");
+        assert_eq!(cfg.database.url, "sqlite://data/custom.db?mode=rwc".into());
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -356,7 +358,7 @@ local_root = "legacy-textures"
 
         let cfg = load_from_dir(&dir, Some("sqlite://asteryggdrasil.db?mode=rwc"), false).unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -373,7 +375,7 @@ local_root = "legacy-textures"
         )
         .unwrap();
 
-        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL);
+        assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
 
         let _ = std::fs::remove_dir_all(dir);
     }

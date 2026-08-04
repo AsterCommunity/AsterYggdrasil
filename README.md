@@ -244,7 +244,7 @@ See [docs/deployment/docker.md](docs/deployment/docker.md) for full deployment n
 - Configure `public_site_url` or `yggdrasil_public_base_url` before real use; otherwise textures properties cannot include client-reachable absolute URLs.
 - Back up the database, `data/config.toml`, and the object storage backend or local object storage directory.
 - Treat the Yggdrasil signing private key as sensitive config. Rotate it through the config action instead of editing database rows directly.
-- Current deployment docs cover a single task owner. For multi-instance deployments, ensure externally that only one instance starts the full background task set.
+- Set `[deployment].profile = "single"` for an instance-local deployment. `cluster` requires PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO object storage; Redis degradation makes readiness fail. Forge runtime lease/claim coordinates globally scoped background tasks across instances.
 - The production object storage backend can be local, S3, or MinIO. Textures and uploaded avatars use the same backend.
 - For publicly readable S3/MinIO buckets or CDNs, `yggdrasil_texture_public_base_url` can make uploaded texture URLs point directly at object storage while default skins still use the Yggdrasil API.
 

@@ -9,6 +9,7 @@ const DATABASE_SHUTDOWN_DEPENDENCIES: &[&str] = &[
     aster_forge_mail::MAIL_OUTBOX_COMPONENT,
     aster_forge_audit::AUDIT_MANAGER_COMPONENT,
 ];
+const DATABASE_MIGRATION_LOCK_NAMESPACE: &str = "aster_yggdrasil:database_migrations";
 
 /// Creates the database runtime component used by the product entrypoint.
 pub fn database_component(
@@ -24,9 +25,15 @@ pub async fn prepare_database_handles(
     metrics: SharedMetricsRecorder,
 ) -> Result<DbHandles> {
     let writer = crate::db::connect_with_metrics(config, metrics.clone()).await?;
-    migration::Migrator::up(&writer, None)
-        .await
-        .map_aster_err(AsterError::database_operation)?;
+    let migration_lock =
+        aster_forge_db_migration::MigrationLockOptions::new(DATABASE_MIGRATION_LOCK_NAMESPACE);
+    aster_forge_db_migration::run_migrator_with_lock::<migration::Migrator>(
+        &writer,
+        &migration_lock,
+        None,
+    )
+    .await
+    .map_aster_err(AsterError::database_operation)?;
     crate::db::connect_reader_for_writer_with_metrics(config, writer, metrics).await
 }
 
@@ -63,11 +70,9 @@ mod tests {
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT
             ]
         );
+        assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
-            descriptor
-                .shutdown
-                .expect("database shutdown should be registered")
-                .phase_name,
+            descriptor.shutdown[0].phase_name,
             aster_forge_db::DATABASE_CONNECTIONS_SHUTDOWN_PHASE
         );
         assert_eq!(descriptor.health_checks.len(), 1);
@@ -76,7 +81,7 @@ mod tests {
     #[tokio::test]
     async fn prepare_database_handles_connects_and_migrates_database() {
         let config = DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };
@@ -93,7 +98,7 @@ mod tests {
     async fn database_component_reports_ping_success_and_failure() {
         let db = crate::db::connect_with_metrics(
             &DatabaseConfig {
-                url: "sqlite::memory:".to_string(),
+                url: "sqlite::memory:".into(),
                 pool_size: 1,
                 retry_count: 0,
             },
@@ -118,7 +123,7 @@ mod tests {
     async fn database_health_check_registers_readiness_component() {
         let db = crate::db::connect_with_metrics(
             &DatabaseConfig {
-                url: "sqlite::memory:".to_string(),
+                url: "sqlite::memory:".into(),
                 pool_size: 1,
                 retry_count: 0,
             },

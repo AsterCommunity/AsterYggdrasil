@@ -671,11 +671,9 @@ mod tests {
             descriptor.kind,
             aster_forge_runtime::RuntimeComponentKind::Tasks
         );
+        assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
-            descriptor
-                .shutdown
-                .expect("background task shutdown should be registered")
-                .phase_name,
+            descriptor.shutdown[0].phase_name,
             aster_forge_tasks::BACKGROUND_TASKS_SHUTDOWN_PHASE
         );
         assert_eq!(

@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use chrono::Utc;
 
 use super::filters::AuditLogFilters;
-use super::manager::flush_global_audit_log_manager;
 use super::models::{AuditLogEntry, AuditUserSummary};
 use super::presentation::build_audit_presentation;
 use crate::db::repository::{audit_log_repo, user_repo};
@@ -73,7 +72,7 @@ pub async fn query<S: DatabaseRuntimeState>(
     limit: u64,
     cursor: Option<(chrono::DateTime<chrono::Utc>, i64)>,
 ) -> crate::errors::Result<CursorPage<AuditLogEntry, DateTimeIdCursor>> {
-    flush_global_audit_log_manager().await;
+    aster_forge_audit::flush_global_audit_log_manager().await;
     let limit = limit.clamp(1, 200);
     let page = audit_log_repo::find_with_filters_cursor(
         state.reader_db(),

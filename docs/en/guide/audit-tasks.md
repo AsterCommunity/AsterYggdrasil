@@ -56,9 +56,7 @@ Yggdrasil-specific tasks:
 
 ## Multiple Instance Boundary
 
-Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. The current runtime assumes a single task owner; production deployments should run a single service instance or ensure externally that only one instance starts the full background task set.
-
-Future multi-instance high availability should be carried by Forge runtime lease/lock support instead of reintroducing product-level instance-role branches.
+Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. Set `deployment.profile = "cluster"` for multi-instance deployments; Forge runtime lease/claim coordinates those tasks across instances. Cluster mode requires shared PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO, and does not permit cache fallback.
 
 ## Operational Advice
 

@@ -78,7 +78,7 @@ frontend-panel/src/pages/      需要时增加页面
 3. `src/runtime/components.rs` 构建产品 runtime bundle，并注册后台任务、mail outbox、audit 和 database component。
 4. `AsterRuntime::builder().component(http).component(product_components).run().await` 运行服务，等待退出信号并按 component dependency graph 关闭。
 
-当前不再维护 primary/follower 启动分支。多实例部署仍需要外层保证不会重复执行完整后台任务；后续跨进程任务租约或配置同步能力应继续由 Forge/共享机制承载，而不是在 Yggdrasil 里恢复本地 start mode 分支。
+当前使用 `[deployment].profile = "single" | "cluster"` 选择部署策略，不维护 primary/follower 启动分支。`cluster` 要求 PostgreSQL/MySQL、Redis cache、Redis config-sync 和 S3/MinIO；Forge runtime 的 lease/claim 负责协调多实例后台任务，配置同步断线重连后会从 writer DB 全量 reconcile。
 
 ## 优雅退出
 

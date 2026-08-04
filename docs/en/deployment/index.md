@@ -54,7 +54,7 @@ If that address works only from the server host, launchers and Minecraft clients
 
 Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. These docs currently cover single-instance deployments.
 
-For multi-instance production deployments, ensure externally that only one instance starts the full background task set. Future high availability should be carried by Forge runtime lease/lock support instead of a Yggdrasil-specific instance-role branch.
+Use `[deployment].profile = "single"` (the default) for an instance-local deployment. Use `profile = "cluster"` only with shared PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO object storage. Cluster startup rejects Redis cache construction failures and readiness returns 503 for cache degradation. Forge runtime lease/claim coordinates globally scoped background tasks without a product-level primary/follower branch.
 
 ## What to Back Up
 

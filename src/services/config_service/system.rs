@@ -438,7 +438,7 @@ mod tests {
     use aster_forge_db::DbHandles;
     async fn build_test_state() -> AppState {
         let db_cfg = DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };
@@ -637,7 +637,7 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_insecure_cookies_seeds_cookie_secure_false_when_missing() {
         let db_cfg = DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };

@@ -119,11 +119,9 @@ mod tests {
             descriptor.dependencies,
             vec![aster_forge_tasks::BACKGROUND_TASKS_COMPONENT]
         );
+        assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
-            descriptor
-                .shutdown
-                .expect("mail outbox shutdown should be registered")
-                .phase_name,
+            descriptor.shutdown[0].phase_name,
             aster_forge_mail::MAIL_OUTBOX_DRAIN_SHUTDOWN_PHASE
         );
     }

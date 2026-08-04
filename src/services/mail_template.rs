@@ -563,8 +563,8 @@ pub fn render(
     };
 
     Ok(aster_forge_mail::render_template(
-        mail::template_subject(runtime_config, template_code),
-        mail::template_html(runtime_config, template_code),
+        &mail::template_subject(runtime_config, template_code),
+        &mail::template_html(runtime_config, template_code),
         &placeholders,
     ))
 }

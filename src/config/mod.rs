@@ -12,6 +12,7 @@ pub mod avatar;
 pub mod branding;
 pub mod cors;
 pub mod definitions;
+pub mod deployment;
 mod loader;
 pub mod local_email_policy;
 pub mod mail;
@@ -25,6 +26,7 @@ pub mod texture_library;
 pub mod texture_preview;
 pub mod yggdrasil;
 
+pub use deployment::{DeploymentConfig, DeploymentProfile};
 pub use runtime_config::RuntimeConfig;
 pub use schema::{
     AuthConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,

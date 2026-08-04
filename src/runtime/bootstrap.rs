@@ -18,6 +18,7 @@ pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
     dotenvy::dotenv().ok();
 
     let config = crate::config::init_config()?;
+    crate::config::deployment::validate_static(config.as_ref())?;
     crate::api::middleware::csrf::init_token_names_from_auth_config(&config.auth)?;
 
     let logging = aster_forge_logging::init_logging(&config.logging);

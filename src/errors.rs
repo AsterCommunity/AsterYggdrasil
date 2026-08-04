@@ -19,6 +19,14 @@ pub enum AsterError {
     },
     DatabaseConnection(String),
     DatabaseOperation(String),
+    DatabaseOperationClassified {
+        message: String,
+        kind: aster_forge_db::DatabaseErrorKind,
+    },
+    DatabaseCommitOutcomeUnknown {
+        message: String,
+        kind: Option<aster_forge_db::DatabaseErrorKind>,
+    },
     ConfigError(String),
     ValidationError(String),
     AuthInvalidCredentials(String),
@@ -131,6 +139,38 @@ impl AsterError {
         Self::DatabaseOperation(message.into())
     }
 
+    pub fn database_operation_classified(
+        message: impl Into<String>,
+        kind: aster_forge_db::DatabaseErrorKind,
+    ) -> Self {
+        Self::DatabaseOperationClassified {
+            message: message.into(),
+            kind,
+        }
+    }
+
+    pub fn database_commit_outcome_unknown(
+        message: impl Into<String>,
+        kind: Option<aster_forge_db::DatabaseErrorKind>,
+    ) -> Self {
+        Self::DatabaseCommitOutcomeUnknown {
+            message: message.into(),
+            kind,
+        }
+    }
+
+    pub fn database_error_kind(&self) -> Option<aster_forge_db::DatabaseErrorKind> {
+        match self {
+            Self::DatabaseOperationClassified { kind, .. } => Some(*kind),
+            Self::DatabaseCommitOutcomeUnknown { kind, .. } => *kind,
+            _ => None,
+        }
+    }
+
+    pub fn database_commit_outcome_is_unknown(&self) -> bool {
+        matches!(self, Self::DatabaseCommitOutcomeUnknown { .. })
+    }
+
     pub fn config_error(message: impl Into<String>) -> Self {
         Self::ConfigError(message.into())
     }
@@ -199,7 +239,9 @@ impl AsterError {
         match self {
             Self::Public { internal_code, .. } => internal_code,
             Self::DatabaseConnection(_) => "E001",
-            Self::DatabaseOperation(_) => "E002",
+            Self::DatabaseOperation(_)
+            | Self::DatabaseOperationClassified { .. }
+            | Self::DatabaseCommitOutcomeUnknown { .. } => "E002",
             Self::ConfigError(_) => "E003",
             Self::InternalError(_) => "E004",
             Self::ValidationError(_) => "E005",
@@ -217,9 +259,10 @@ impl AsterError {
     pub fn api_error_code(&self) -> AsterErrorCode {
         match self {
             Self::Public { code, .. } => *code,
-            Self::DatabaseConnection(_) | Self::DatabaseOperation(_) => {
-                AsterErrorCode::DatabaseError
-            }
+            Self::DatabaseConnection(_)
+            | Self::DatabaseOperation(_)
+            | Self::DatabaseOperationClassified { .. }
+            | Self::DatabaseCommitOutcomeUnknown { .. } => AsterErrorCode::DatabaseError,
             Self::ConfigError(_) => AsterErrorCode::ConfigError,
             Self::ValidationError(_) => AsterErrorCode::BadRequest,
             Self::AuthInvalidCredentials(_) => AsterErrorCode::AuthCredentialsFailed,
@@ -244,7 +287,10 @@ impl AsterError {
     pub fn retryable(&self) -> Option<bool> {
         match self {
             Self::Public { retryable, .. } => *retryable,
-            Self::DatabaseConnection(_) | Self::DatabaseOperation(_) => Some(true),
+            Self::DatabaseConnection(_)
+            | Self::DatabaseOperation(_)
+            | Self::DatabaseOperationClassified { .. } => Some(true),
+            Self::DatabaseCommitOutcomeUnknown { .. } => Some(false),
             Self::MailDeliveryFailed(_) => Some(true),
             Self::MailNotConfigured(_) => Some(false),
             _ => None,
@@ -267,6 +313,8 @@ impl AsterError {
             | Self::MailNotConfigured(message)
             | Self::MailDeliveryFailed(message)
             | Self::InternalError(message) => message,
+            Self::DatabaseOperationClassified { message, .. }
+            | Self::DatabaseCommitOutcomeUnknown { message, .. } => message,
         }
     }
 
@@ -285,6 +333,8 @@ impl AsterError {
             }
             Self::DatabaseConnection(_)
             | Self::DatabaseOperation(_)
+            | Self::DatabaseOperationClassified { .. }
+            | Self::DatabaseCommitOutcomeUnknown { .. }
             | Self::ConfigError(_)
             | Self::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -331,7 +381,12 @@ impl ResponseError for AsterError {
 
 impl From<sea_orm::DbErr> for AsterError {
     fn from(value: sea_orm::DbErr) -> Self {
-        Self::database_operation(value.to_string())
+        let kind = aster_forge_db::database_error_kind(&value);
+        let message = value.to_string();
+        match kind {
+            Some(kind) => Self::database_operation_classified(message, kind),
+            None => Self::database_operation(message),
+        }
     }
 }
 
@@ -343,6 +398,12 @@ impl From<aster_forge_db::DbError> for AsterError {
             }
             aster_forge_db::DbError::DatabaseOperation(message)
             | aster_forge_db::DbError::NonRetryable(message) => Self::database_operation(message),
+            aster_forge_db::DbError::DatabaseOperationClassified { message, kind } => {
+                Self::database_operation_classified(message, kind)
+            }
+            aster_forge_db::DbError::CommitOutcomeUnknown { message, kind } => {
+                Self::database_commit_outcome_unknown(message, kind)
+            }
             aster_forge_db::DbError::RetryExhausted => Self::database_operation("retry exhausted"),
         }
     }
@@ -591,6 +652,35 @@ mod tests {
             assert_eq!(error.retryable(), retryable);
             assert_eq!(error.to_string(), error.message());
         }
+    }
+
+    #[test]
+    fn classified_database_errors_preserve_kind_and_commit_retry_boundary() {
+        let classified = AsterError::from(aster_forge_db::DbError::database_operation_classified(
+            "deadlock",
+            aster_forge_db::DatabaseErrorKind::Deadlock,
+        ));
+        assert_eq!(
+            classified.database_error_kind(),
+            Some(aster_forge_db::DatabaseErrorKind::Deadlock)
+        );
+        assert!(!classified.database_commit_outcome_is_unknown());
+        assert_eq!(classified.retryable(), Some(true));
+
+        let commit_unknown = AsterError::from(aster_forge_db::DbError::commit_outcome_unknown(
+            "connection lost during commit",
+            Some(aster_forge_db::DatabaseErrorKind::LockTimeout),
+        ));
+        assert_eq!(
+            commit_unknown.database_error_kind(),
+            Some(aster_forge_db::DatabaseErrorKind::LockTimeout)
+        );
+        assert!(commit_unknown.database_commit_outcome_is_unknown());
+        assert_eq!(commit_unknown.retryable(), Some(false));
+        assert_eq!(
+            commit_unknown.api_error_code(),
+            AsterErrorCode::DatabaseError
+        );
     }
 
     #[actix_web::test]

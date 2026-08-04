@@ -19,7 +19,7 @@ fn png(width: u32, height: u32) -> Vec<u8> {
 
 async fn test_state(texture_root: String) -> AppState {
     let db_cfg = crate::config::DatabaseConfig {
-        url: "sqlite::memory:".to_string(),
+        url: "sqlite::memory:".into(),
         pool_size: 1,
         retry_count: 0,
     };

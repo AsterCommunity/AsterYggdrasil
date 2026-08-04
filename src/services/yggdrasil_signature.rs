@@ -381,7 +381,7 @@ mod tests {
     async fn ensure_signature_key_generates_when_missing_and_keeps_existing_value() {
         let db = crate::db::connect_with_metrics(
             &crate::config::DatabaseConfig {
-                url: "sqlite::memory:".to_string(),
+                url: "sqlite::memory:".into(),
                 pool_size: 1,
                 retry_count: 0,
             },
@@ -426,7 +426,7 @@ mod tests {
     async fn ensure_signature_key_replaces_blank_default_value() {
         let db = crate::db::connect_with_metrics(
             &crate::config::DatabaseConfig {
-                url: "sqlite::memory:".to_string(),
+                url: "sqlite::memory:".into(),
                 pool_size: 1,
                 retry_count: 0,
             },
@@ -469,7 +469,7 @@ mod tests {
     async fn ensure_signature_key_repairs_missing_public_key_for_existing_private_key() {
         let db = crate::db::connect_with_metrics(
             &crate::config::DatabaseConfig {
-                url: "sqlite::memory:".to_string(),
+                url: "sqlite::memory:".into(),
                 pool_size: 1,
                 retry_count: 0,
             },

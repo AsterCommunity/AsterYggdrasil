@@ -96,7 +96,7 @@ Use the real source address or CIDR used between the proxy and the application.
 
 Periodic maintenance, mail outbox dispatch, audit cleanup, and texture consistency checks have global side effects. The current Docker guide covers single-instance deployments.
 
-For multi-instance production deployments, ensure externally that only one instance starts the full background task set. Future high availability should be carried by Forge runtime lease/lock support.
+For multi-instance production deployments, set `deployment.profile = "cluster"` and provide shared PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO object storage. Cache fallback is disabled in cluster mode, readiness returns 503 for cache degradation, and Forge runtime lease/claim coordinates the global background tasks.
 
 ## Signing Key
 

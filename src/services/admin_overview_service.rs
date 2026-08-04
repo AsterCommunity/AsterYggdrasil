@@ -527,7 +527,7 @@ mod tests {
             uuid::Uuid::new_v4()
         ));
         let db_cfg = crate::config::DatabaseConfig {
-            url: "sqlite::memory:".to_string(),
+            url: "sqlite::memory:".into(),
             pool_size: 1,
             retry_count: 0,
         };

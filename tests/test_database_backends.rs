@@ -280,7 +280,7 @@ async fn test_sqlite_transactions_are_serialized_by_single_connection_pool() {
     );
     let database_url = format!("sqlite://{database_path}");
     let cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: database_url,
+        url: database_url.into(),
         pool_size: 8,
         retry_count: 0,
     };

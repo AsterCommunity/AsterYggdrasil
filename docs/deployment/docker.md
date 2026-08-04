@@ -96,7 +96,7 @@ trusted_proxies = ["127.0.0.1"]
 
 周期维护任务、邮件 outbox、审计清理和材质一致性检查都带有全局副作用。当前 Docker 文档只覆盖单实例部署。
 
-如果生产环境需要多实例，请先在外层部署保证只有一个实例启动完整后台任务。后续多实例高可用应由 Forge runtime 的租约/锁机制承载。
+多实例部署应使用 `[deployment].profile = "cluster"`，并配置共享 PostgreSQL/MySQL、Redis cache、Redis config-sync 和 S3/MinIO。cluster 下 cache 不会回退到 memory，Redis degraded/unhealthy 会让 readiness 返回 503；Forge runtime lease/claim 负责协调全局后台任务。
 
 ## 签名 key
 

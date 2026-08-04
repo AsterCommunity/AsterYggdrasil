@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn normalize_origin_rejects_non_http_scheme() {
         let err = normalize_origin("ftp://app.example.com", false).unwrap_err();
-        assert!(err.message().contains("must use http or https"));
+        assert!(err.message().contains("scheme is not supported"));
     }
 
     #[test]
