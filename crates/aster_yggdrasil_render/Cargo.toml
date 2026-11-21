@@ -1,8 +1,8 @@
 [package]
-name = "aster-texture-renderer"
+name = "aster_yggdrasil_render"
 description = "Minecraft skin and cape rendering helpers."
 version = "0.1.0"
-homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster-texture-renderer"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_render"
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
@@ -19,7 +19,7 @@ image = { workspace = true, default-features = false, features = ["png", "webp"]
 sysinfo = { workspace = true }
 
 [lib]
-name = "aster_texture_renderer"
+name = "aster_yggdrasil_render"
 doctest = false
 
 [[example]]

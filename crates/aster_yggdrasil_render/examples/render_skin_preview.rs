@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     OutputFormat, PreviewEngine, RenderError, Skin2dPreviewOptions, SkinModel, SkinPreviewOptions,
     SkinPreviewProfile, TexturePreviewOptions, render_preview_bytes,
 };

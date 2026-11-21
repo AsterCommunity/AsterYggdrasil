@@ -1,6 +1,6 @@
 //! Runtime texture preview rendering configuration.
 
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     Skin2dPreviewOptions, SkinPreviewOptions, SkinPreviewProfile, TexturePreviewOptions,
 };
 use image::Rgba;

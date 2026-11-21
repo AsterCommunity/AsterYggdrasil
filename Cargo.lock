@@ -728,14 +728,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aster-texture-renderer"
-version = "0.1.0"
-dependencies = [
- "image",
- "sysinfo 0.39.6",
-]
-
-[[package]]
 name = "aster_forge_alloc"
 version = "0.1.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1117,7 +1109,6 @@ dependencies = [
  "actix-http",
  "actix-multipart",
  "actix-web",
- "aster-texture-renderer",
  "aster_forge_alloc",
  "aster_forge_api",
  "aster_forge_api_docs_macros",
@@ -1142,6 +1133,7 @@ dependencies = [
  "aster_forge_validation",
  "aster_yggdrasil_migration",
  "aster_yggdrasil_model",
+ "aster_yggdrasil_render",
  "async-trait",
  "aws-credential-types",
  "aws-sdk-s3",
@@ -1214,6 +1206,14 @@ dependencies = [
  "serde_json",
  "tracing",
  "utoipa",
+]
+
+[[package]]
+name = "aster_yggdrasil_render"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "sysinfo 0.39.6",
 ]
 
 [[package]]

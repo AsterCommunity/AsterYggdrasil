@@ -1,4 +1,4 @@
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     OutputFormat, Skin2dPreviewOptions, SkinModel, SkinPreviewOptions, TexturePreviewOptions,
     render_preview, render_skin_preview, render_skin_preview_bytes,
 };

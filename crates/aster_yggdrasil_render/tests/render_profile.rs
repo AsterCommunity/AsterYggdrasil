@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     DecodedSkin, OutputFormat, RenderWorkspace, Skin2dPreviewOptions, SkinModel,
     SkinPreviewOptions, TexturePreviewOptions, render_decoded_preview_with_workspace,
     render_preview, render_preview_bytes, render_preview_with_workspace,

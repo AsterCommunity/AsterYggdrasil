@@ -3,7 +3,7 @@
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     DecodedSkin, RenderWorkspace, SkinModel, render_decoded_preview_with_workspace,
 };
 use image::{ExtendedColorType, ImageEncoder};
@@ -189,7 +189,7 @@ async fn render_preview_png(
     .map_aster_err_ctx("render texture preview task", AsterError::internal_error)?
 }
 
-fn render_error(error: aster_texture_renderer::RenderError) -> AsterError {
+fn render_error(error: aster_yggdrasil_render::RenderError) -> AsterError {
     AsterError::internal_error_code(
         AsterErrorCode::MinecraftTextureInvalidPng,
         format!("failed to render texture preview: {error}"),

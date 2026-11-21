@@ -84,7 +84,7 @@ Decode each source skin once and reuse one workspace per worker. This avoids
 repeated PNG decoding and keeps the reusable output/supersampling buffers hot:
 
 ```rust
-use aster_texture_renderer::{
+use aster_yggdrasil_render::{
     DecodedSkin, RenderWorkspace, SkinModel, SkinPreviewOptions,
     SkinPreviewProfile, TexturePreviewOptions, render_decoded_preview_with_workspace,
 };
