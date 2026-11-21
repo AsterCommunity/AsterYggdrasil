@@ -1,15 +1,41 @@
 [package]
 name = "migration"
+description = "AsterYggdrasil database migrations."
 version = "0.1.0"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/migration"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 edition = "2024"
+rust-version = "1.95.0"
 publish = false
 
+[lints]
+workspace = true
+
+[features]
+default = []
+cli = ["sea-orm-migration/cli"]
+
 [dependencies]
-async-trait = "0.1"
-aster_forge_db = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db", features = ["audit-log", "mail-outbox", "runtime-lease", "scheduled-task", "system-config"] }
-aster_forge_db_migration = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db_migration" }
-sea-orm-migration = { version = "2.0.1", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+async-trait = { workspace = true }
+aster_forge_db = { workspace = true, features = ["audit-log", "mail-outbox", "runtime-lease", "scheduled-task", "system-config"] }
+aster_forge_db_migration = { workspace = true }
+sea-orm-migration = { workspace = true, features = [
+  # Enable at least one `ASYNC_RUNTIME` and `DATABASE_DRIVER` feature if you want to run migration via CLI.
+  # View the list of supported features at https://www.sea-ql.org/SeaORM/docs/install-and-config/database-and-async-runtime.
+  # e.g.
+  "runtime-tokio-rustls",  # `ASYNC_RUNTIME` feature
+  "sqlx-postgres",         # `DATABASE_DRIVER` feature
+  "sqlx-mysql",
+  "sqlx-sqlite",
+] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lib]
 doctest = false
+
+[[bin]]
+name = "migration"
+path = "src/main.rs"
+required-features = ["cli"]

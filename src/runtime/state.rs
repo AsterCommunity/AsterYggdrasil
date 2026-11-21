@@ -30,6 +30,7 @@ pub struct AppState {
     pub mail_sender: Arc<dyn MailSender>,
     pub config_sync: ConfigSyncRuntime,
     pub metrics: SharedMetricsRecorder,
+    pub audit_writer: Arc<aster_forge_audit::AuditWriter>,
     pub started_at: Instant,
     pub yggdrasil_rate_limiter: YggdrasilRateLimiter,
     pub yggdrasil_session_forward_http_client: reqwest::Client,
@@ -45,6 +46,7 @@ pub struct AppStateParts {
     pub mail_sender: Arc<dyn MailSender>,
     pub config_sync: ConfigSyncRuntime,
     pub metrics: SharedMetricsRecorder,
+    pub audit_writer: Arc<aster_forge_audit::AuditWriter>,
 }
 
 impl AppState {
@@ -62,6 +64,7 @@ impl AppState {
             mail_sender: parts.mail_sender,
             config_sync: parts.config_sync,
             metrics: parts.metrics,
+            audit_writer: parts.audit_writer,
             started_at: Self::new_started_at(),
             yggdrasil_rate_limiter,
             yggdrasil_session_forward_http_client,
@@ -127,6 +130,10 @@ impl AppState {
 
     pub fn metrics(&self) -> &SharedMetricsRecorder {
         &self.metrics
+    }
+
+    pub fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter> {
+        &self.audit_writer
     }
 
     pub fn uptime(&self) -> Duration {

@@ -41,6 +41,10 @@ pub trait MetricsRuntimeState {
     fn metrics(&self) -> &SharedMetricsRecorder;
 }
 
+pub trait AuditRuntimeState {
+    fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter>;
+}
+
 pub trait YggdrasilSessionForwardRuntimeState {
     fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client;
 }
@@ -52,6 +56,7 @@ pub trait SharedRuntimeState:
     + CacheRuntimeState
     + ObjectStorageRuntimeState
     + MetricsRuntimeState
+    + AuditRuntimeState
 {
 }
 
@@ -62,6 +67,7 @@ impl<T> SharedRuntimeState for T where
         + CacheRuntimeState
         + ObjectStorageRuntimeState
         + MetricsRuntimeState
+        + AuditRuntimeState
 {
 }
 
@@ -116,6 +122,12 @@ impl ObjectStorageRuntimeState for AppState {
 impl MetricsRuntimeState for AppState {
     fn metrics(&self) -> &SharedMetricsRecorder {
         self.metrics()
+    }
+}
+
+impl AuditRuntimeState for AppState {
+    fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter> {
+        self.audit_writer()
     }
 }
 

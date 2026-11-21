@@ -1,5 +1,5 @@
 //! System runtime task records stored in the background task table.
-#![allow(dead_code)]
+#![expect(dead_code, reason = "Task subsystem exposes registry/wire helpers ahead of their dispatch call sites; drop once fully wired.")]
 
 use chrono::{DateTime, Utc};
 
@@ -427,6 +427,9 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
         crate::runtime::AppState::from_parts(crate::runtime::AppStateParts {
+            audit_writer: std::sync::Arc::new(
+                aster_forge_audit::AuditWriter::new(db.clone()),
+            ),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,

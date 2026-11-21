@@ -101,29 +101,23 @@ async fn dispatch_lane(
     tracing::debug!(
         lane = ?lane_config.lane,
         limit = lane_config.limit,
-        fast_continue = lane_config.fast_continue,
         "dispatching background task lane"
     );
 
-    loop {
-        if shutdown_token.is_cancelled() {
-            tracing::debug!(lane = ?lane_config.lane, "background task lane dispatch stopped by shutdown");
-            break;
-        }
-
+    // One batch per dispatch round: the periodic dispatcher wakes up again on
+    // its interval or on the dispatcher wake signal, so continuing to claim
+    // inside a single round is unnecessary for this product.
+    if !shutdown_token.is_cancelled() {
         let claimed_tasks = claim_due_for_lane(state, lane_config).await?;
         if claimed_tasks.is_empty() {
             tracing::debug!(lane = ?lane_config.lane, "background task lane had no claimable tasks");
-            break;
+        } else {
+            let claimed = claimed_tasks.len();
+            total.claimed += claimed;
+            total.add(run_claimed_tasks(state, claimed_tasks, shutdown_token.clone()).await?);
         }
-
-        let claimed = claimed_tasks.len();
-        total.claimed += claimed;
-        total.add(run_claimed_tasks(state, claimed_tasks, shutdown_token.clone()).await?);
-
-        if !lane_config.fast_continue {
-            break;
-        }
+    } else {
+        tracing::debug!(lane = ?lane_config.lane, "background task lane dispatch stopped by shutdown");
     }
 
     tracing::debug!(

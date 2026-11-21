@@ -13,8 +13,8 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
 use crate::entities::yggdrasil_session_forward_server;
 use crate::runtime::{
-    AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
-    YggdrasilSessionForwardRuntimeState,
+    AppConfigRuntimeState, AuditRuntimeState, CacheRuntimeState, DatabaseRuntimeState,
+    RuntimeConfigRuntimeState, YggdrasilSessionForwardRuntimeState,
 };
 use crate::services::{audit_service, ban_service, yggdrasil_signature};
 use crate::types::user::UserBanScope;
@@ -37,7 +37,11 @@ pub async fn join<S>(
     req: &HttpRequest,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: AppConfigRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + CacheRuntimeState,
+    S: AppConfigRuntimeState
+        + AuditRuntimeState
+        + CacheRuntimeState
+        + DatabaseRuntimeState
+        + RuntimeConfigRuntimeState,
 {
     let server_id_hash = sha256_hex(body.server_id.as_bytes());
     tracing::debug!(
@@ -123,7 +127,7 @@ fn real_join_client_ip<S: AppConfigRuntimeState>(state: &S, req: &HttpRequest) -
     // reverse proxy, record the same forwarded client IP instead of the proxy
     // socket address so prevent-proxy-connections checks can match.
     Some(
-        aster_forge_actix_middleware::client_ip::real_ip_from_headers(
+        aster_forge_middleware::actix::client_ip::real_ip_from_headers(
             req.headers(),
             peer,
             &state.config().network_trust.trusted_proxies,
@@ -140,7 +144,8 @@ pub async fn has_joined<S>(
     request_info: audit_service::AuditRequestInfo,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
-    S: DatabaseRuntimeState
+    S: AuditRuntimeState
+        + DatabaseRuntimeState
         + AppConfigRuntimeState
         + RuntimeConfigRuntimeState
         + CacheRuntimeState
@@ -265,7 +270,8 @@ async fn orchestrated_has_joined<S>(
     request_info: &audit_service::AuditRequestInfo,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
-    S: DatabaseRuntimeState
+    S: AuditRuntimeState
+        + DatabaseRuntimeState
         + AppConfigRuntimeState
         + RuntimeConfigRuntimeState
         + CacheRuntimeState
@@ -449,7 +455,7 @@ async fn log_forward_check<S>(
     request_info: &audit_service::AuditRequestInfo,
     event: ForwardCheckAuditEvent<'_>,
 ) where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     let ctx = request_info.to_context(0);
     let upstream = event.upstream;
@@ -772,33 +778,43 @@ where
 fn encode_forwarded_texture_ticket<S>(
     state: &S,
     ticket: ForwardedTextureTicket,
-) -> jsonwebtoken::errors::Result<String>
+) -> crate::errors::Result<String>
 where
     S: AppConfigRuntimeState,
 {
-    encode(
-        &Header::new(Algorithm::HS256),
-        &ticket,
-        &EncodingKey::from_secret(state.config().auth.jwt_secret.as_bytes()),
-    )
+    let encoding_key = EncodingKey::from_secret(state.config().auth.jwt_secret.as_bytes())
+        .map_err(|error| {
+            crate::errors::AsterError::internal_error(format!("jwt encoding key: {error}"))
+        })?;
+    encode(&Header::new(Algorithm::HS256), &ticket, &encoding_key)
+        .map_err(|error| {
+            crate::errors::AsterError::internal_error(format!(
+                "failed to sign forwarded texture ticket: {error}"
+            ))
+        })
 }
 
 fn decode_forwarded_texture_ticket<S>(
     state: &S,
     ticket: &str,
-) -> jsonwebtoken::errors::Result<ForwardedTextureTicket>
+) -> crate::errors::Result<ForwardedTextureTicket>
 where
     S: AppConfigRuntimeState,
 {
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = false;
     validation.required_spec_claims.clear();
-    decode::<ForwardedTextureTicket>(
-        ticket,
-        &DecodingKey::from_secret(state.config().auth.jwt_secret.as_bytes()),
-        &validation,
-    )
-    .map(|data| data.claims)
+    let decoding_key = DecodingKey::from_secret(state.config().auth.jwt_secret.as_bytes())
+        .map_err(|error| {
+            crate::errors::AsterError::internal_error(format!("jwt decoding key: {error}"))
+        })?;
+    decode::<ForwardedTextureTicket>(ticket, &decoding_key, &validation)
+        .map(|data| data.claims)
+        .map_err(|error| {
+            crate::errors::AsterError::internal_error(format!(
+                "forwarded texture ticket was invalid: {error}"
+            ))
+        })
 }
 
 fn forwarded_texture_hash(url: &str) -> String {

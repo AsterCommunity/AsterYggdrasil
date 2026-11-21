@@ -1,5 +1,5 @@
 //! Persisted background task subsystem.
-#![allow(dead_code)]
+#![expect(dead_code, reason = "Task subsystem exposes registry/wire helpers ahead of their dispatch call sites; drop once fully wired.")]
 
 mod admin;
 mod create;

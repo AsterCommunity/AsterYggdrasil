@@ -48,13 +48,23 @@ fn build_http_service_component(
 ) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
     let shutdown_data = web::Data::new(shutdown_token.clone());
     let server = HttpServer::new(move || {
-        App::new()
-            .wrap(middleware::Compress::default())
+        // The Prometheus export resource reads the instance-owned Forge provider
+        // from app data; it is only present when the metrics backend is enabled.
+        #[cfg(feature = "metrics")]
+        let app = match metrics_data.provider() {
+            Some(provider) => {
+                App::new().app_data(web::Data::new(provider))
+            }
+            None => App::new(),
+        };
+        #[cfg(not(feature = "metrics"))]
+        let app = App::new();
+        app.wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .wrap(aster_forge_actix_middleware::request_id::RequestIdMiddleware)
+            .wrap(aster_forge_middleware::actix::request_id::RequestIdMiddleware)
             .wrap(crate::api::middleware::cors::RuntimeCors)
-            .wrap(aster_forge_actix_middleware::security_headers::default_headers())
-            .wrap(aster_forge_actix_middleware::metrics::MetricsMiddleware)
+            .wrap(aster_forge_middleware::actix::security_headers::default_headers())
+            .wrap(aster_forge_middleware::actix::metrics::MetricsMiddleware)
             .app_data(state.clone())
             .app_data(shutdown_data.clone())
             .app_data(metrics_data.clone())

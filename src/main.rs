@@ -17,9 +17,14 @@
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(all(feature = "jemalloc", not(target_env = "msvc"), target_os = "linux"))]
-#[allow(non_upper_case_globals)]
+#[expect(
+    non_upper_case_globals,
+    reason = "jemalloc reads this exact symbol name; renaming breaks allocator configuration."
+)]
 #[unsafe(export_name = "_rjem_malloc_conf")]
 pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
+    // SAFETY: the union only reads a static byte-string literal, which is always
+    // initialized for the lifetime of the program.
     union Conf {
         bytes: &'static u8,
         ptr: &'static std::ffi::c_char,
@@ -43,9 +48,14 @@ pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
         target_os = "openbsd"
     )
 ))]
-#[allow(non_upper_case_globals)]
+#[expect(
+    non_upper_case_globals,
+    reason = "jemalloc reads this exact symbol name; renaming breaks allocator configuration."
+)]
 #[unsafe(export_name = "_rjem_malloc_conf")]
 pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
+    // SAFETY: the union only reads a static byte-string literal, which is always
+    // initialized for the lifetime of the program.
     union Conf {
         bytes: &'static u8,
         ptr: &'static std::ffi::c_char,

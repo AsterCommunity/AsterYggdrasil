@@ -224,21 +224,20 @@ describe("fixed public routes", () => {
 		expect(screen.queryByTestId("init-page")).not.toBeInTheDocument();
 	});
 
-	it.each([
-		publicPaths.login,
-		publicPaths.register,
-		publicPaths.resetPassword,
-	])("blocks guest-only route %s for authenticated users without redirecting", async (path) => {
-		setAuthenticatedState();
+	it.each([publicPaths.login, publicPaths.register, publicPaths.resetPassword])(
+		"blocks guest-only route %s for authenticated users without redirecting",
+		async (path) => {
+			setAuthenticatedState();
 
-		renderPublicRoute(path);
+			renderPublicRoute(path);
 
-		expect(await screen.findByText("Already signed in")).toBeInTheDocument();
-		expect(
-			screen.getByRole("link", { name: "Open workbench" }),
-		).toHaveAttribute("href", "/account");
-		expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
-	});
+			expect(await screen.findByText("Already signed in")).toBeInTheDocument();
+			expect(
+				screen.getByRole("link", { name: "Open workbench" }),
+			).toHaveAttribute("href", "/account");
+			expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
+		},
+	);
 
 	it("keeps the root public connect page reachable for authenticated users", async () => {
 		setAuthenticatedState();

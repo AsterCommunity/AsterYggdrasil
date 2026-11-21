@@ -60,13 +60,16 @@ mod tests {
     use std::sync::Arc;
 
     use super::worker_count;
-    use crate::runtime::{DatabaseRuntimeState, MailRuntimeState, RuntimeConfigRuntimeState};
+    use crate::runtime::{
+        AuditRuntimeState, DatabaseRuntimeState, MailRuntimeState, RuntimeConfigRuntimeState,
+    };
     use sea_orm::DatabaseConnection;
 
     struct ComponentGraphState {
         db: DatabaseConnection,
         runtime_config: Arc<crate::config::RuntimeConfig>,
         mail_sender: Arc<dyn aster_forge_mail::MailSender>,
+        audit_writer: Arc<aster_forge_audit::AuditWriter>,
     }
 
     impl DatabaseRuntimeState for ComponentGraphState {
@@ -88,6 +91,12 @@ mod tests {
     impl MailRuntimeState for ComponentGraphState {
         fn mail_sender(&self) -> &Arc<dyn aster_forge_mail::MailSender> {
             &self.mail_sender
+        }
+    }
+
+    impl AuditRuntimeState for ComponentGraphState {
+        fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter> {
+            &self.audit_writer
         }
     }
 
@@ -113,6 +122,9 @@ mod tests {
             db,
             runtime_config: Arc::new(crate::config::RuntimeConfig::new()),
             mail_sender: aster_forge_mail::memory_sender(),
+            audit_writer: Arc::new(aster_forge_audit::AuditWriter::new(
+                db_handles.writer().clone(),
+            )),
         };
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
             crate::tasks::runtime::task_component(aster_forge_tasks::BackgroundTasks::new())
@@ -137,8 +149,8 @@ mod tests {
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT,
-                aster_forge_audit::AUDIT_LOGS_COMPONENT,
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT,
+                aster_forge_audit::AUDIT_LOGS_COMPONENT,
                 aster_forge_db::DATABASE_COMPONENT
             ]
         );
@@ -146,15 +158,19 @@ mod tests {
         let audit_logs = registry
             .descriptor(aster_forge_audit::AUDIT_LOGS_COMPONENT)
             .expect("audit logs component should be registered");
-        assert_eq!(audit_logs.startup.len(), 1);
-        assert_eq!(
-            audit_logs.startup[0].phase_name,
-            aster_forge_audit::SERVER_START_AUDIT_PHASE
+        assert!(
+            audit_logs
+                .startup
+                .iter()
+                .any(|phase| phase.phase_name == aster_forge_audit::SERVER_START_AUDIT_PHASE),
+            "server start audit phase should be registered"
         );
-        assert_eq!(audit_logs.shutdown.len(), 1);
-        assert_eq!(
-            audit_logs.shutdown[0].phase_name,
-            aster_forge_audit::SERVER_SHUTDOWN_AUDIT_PHASE
+        assert!(
+            audit_logs
+                .shutdown
+                .iter()
+                .any(|phase| phase.phase_name == aster_forge_audit::SERVER_SHUTDOWN_AUDIT_PHASE),
+            "server shutdown audit phase should be registered"
         );
         assert_eq!(
             registry

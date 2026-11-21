@@ -1,7 +1,7 @@
 use sea_orm::DatabaseConnection;
 
 use crate::config::RuntimeConfig;
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::audit_service::{self, AuditContext};
 
 const MAIL_ENTITY_NAME: &str = "mail";
@@ -22,7 +22,7 @@ pub struct MailAuditInput<'a> {
 }
 
 pub async fn log_send(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState),
+    state: &(impl AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState),
     input: MailAuditInput<'_>,
 ) {
     let ctx = AuditContext {

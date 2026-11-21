@@ -4,7 +4,8 @@ use crate::config::yggdrasil::YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY;
 use crate::db::repository::system_config_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
-    ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState, RuntimeConfigRuntimeState,
+    AuditRuntimeState, ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState,
+    RuntimeConfigRuntimeState,
 };
 use crate::services::audit_service::{self, AuditContext};
 use aster_forge_api::{CursorPage, IdCursor};
@@ -18,12 +19,17 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 pub(crate) trait SystemConfigMutationState:
-    DatabaseRuntimeState + RuntimeConfigRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
+    AuditRuntimeState
+    + DatabaseRuntimeState
+    + RuntimeConfigRuntimeState
+    + ConfigSyncRuntimeState
+    + MetricsRuntimeState
 {
 }
 
 impl<T> SystemConfigMutationState for T where
-    T: DatabaseRuntimeState
+    T: AuditRuntimeState
+        + DatabaseRuntimeState
         + RuntimeConfigRuntimeState
         + ConfigSyncRuntimeState
         + MetricsRuntimeState
@@ -351,7 +357,7 @@ fn record_config_mutation_status(
 }
 
 async fn audit_config_update(
-    state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState),
+    state: &(impl AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState),
     audit_ctx: &AuditContext,
     config: &system_config::Model,
     prior_visibility: Option<ConfigVisibility>,
@@ -430,7 +436,7 @@ mod tests {
     use crate::db;
     use crate::db::repository::system_config_repo;
     use crate::runtime::AppState;
-    use crate::services::audit_service::{AuditContext, flush_global_audit_log_manager};
+    use crate::services::audit_service::AuditContext;
     use crate::services::config_service::SystemConfig;
     use crate::services::config_service::system::SystemConfigMutationState;
     use aster_forge_cache::CacheConfig;
@@ -469,6 +475,9 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
         AppState::from_parts(crate::runtime::AppStateParts {
+            audit_writer: std::sync::Arc::new(
+                aster_forge_audit::AuditWriter::new(db.clone()),
+            ),
             db_handles: DbHandles::single(db),
             config,
             runtime_config,
@@ -795,7 +804,6 @@ mod tests {
         delete_with_audit(&state, "custom.audit_delete", &audit_ctx)
             .await
             .unwrap();
-        flush_global_audit_log_manager().await;
 
         assert!(state.runtime_config().get("custom.audit_delete").is_none());
     }

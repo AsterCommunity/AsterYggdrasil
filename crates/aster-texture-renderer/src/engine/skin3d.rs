@@ -426,26 +426,26 @@ fn edge(a: Vec2, b: Vec2, c: Vec2) -> f32 {
 }
 
 fn floor_min(value: f32) -> u32 {
-    value.floor().max(0.0) as u32
+    crate::convert::floor_to_u32(value)
 }
 
 fn ceil_max(value: f32, limit: u32) -> u32 {
-    value.ceil().clamp(0.0, limit as f32) as u32
+    crate::convert::ceil_to_u32(value).min(limit)
 }
 
 fn sample_texture(texture: &RgbaImage, layout: TextureLayout, uv: Vec2) -> Rgba<u8> {
     let max_x = texture.width().saturating_sub(1);
     let max_y = texture.height().saturating_sub(1);
-    let x = ((uv.x * layout.ratio).floor() as u32).min(max_x);
-    let y = ((uv.y * layout.ratio).floor() as u32).min(max_y);
+    let x = crate::convert::floor_to_u32(uv.x * layout.ratio).min(max_x);
+    let y = crate::convert::floor_to_u32(uv.y * layout.ratio).min(max_y);
     *texture.get_pixel(x, y)
 }
 
 fn uv_rect_has_visible_pixel(texture: &RgbaImage, layout: TextureLayout, uv: UvRect) -> bool {
-    let x0 = ((uv.x * layout.ratio).floor() as u32).min(texture.width());
-    let y0 = ((uv.y * layout.ratio).floor() as u32).min(texture.height());
-    let x1 = (((uv.x + uv.width) * layout.ratio).ceil() as u32).min(texture.width());
-    let y1 = (((uv.y + uv.height) * layout.ratio).ceil() as u32).min(texture.height());
+    let x0 = crate::convert::floor_to_u32(uv.x * layout.ratio).min(texture.width());
+    let y0 = crate::convert::floor_to_u32(uv.y * layout.ratio).min(texture.height());
+    let x1 = crate::convert::ceil_to_u32((uv.x + uv.width) * layout.ratio).min(texture.width());
+    let y1 = crate::convert::ceil_to_u32((uv.y + uv.height) * layout.ratio).min(texture.height());
 
     for y in y0..y1 {
         for x in x0..x1 {

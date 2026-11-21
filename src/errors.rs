@@ -704,9 +704,10 @@ mod tests {
 
     #[test]
     fn jsonwebtoken_errors_map_expired_signature_to_expired_token() {
+        let decoding_key = jsonwebtoken::DecodingKey::from_secret(b"secret").unwrap();
         let token_error = jsonwebtoken::decode::<serde_json::Value>(
             "not-a-jwt",
-            &jsonwebtoken::DecodingKey::from_secret(b"secret"),
+            &decoding_key,
             &jsonwebtoken::Validation::default(),
         )
         .unwrap_err();

@@ -315,14 +315,19 @@ describe("LoginPage", () => {
 		],
 		["/login?external_auth=error&message=provider%20down", "provider down"],
 		["/login?external_auth=error", "login.externalAuthFailed"],
-	] as const)("shows external auth callback error for %s", async (entry, message) => {
-		renderLoginPage(entry);
+	] as const)(
+		"shows external auth callback error for %s",
+		async (entry, message) => {
+			renderLoginPage(entry);
 
-		await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(message));
-		await waitFor(() =>
-			expect(screen.getByTestId("location")).toHaveTextContent("/login"),
-		);
-	});
+			await waitFor(() =>
+				expect(toastMock.error).toHaveBeenCalledWith(message),
+			);
+			await waitFor(() =>
+				expect(screen.getByTestId("location")).toHaveTextContent("/login"),
+			);
+		},
+	);
 
 	it("disables password login until required fields are valid", async () => {
 		renderLoginPage();

@@ -1,7 +1,7 @@
 //! Generic health and readiness checks.
 
 use crate::errors::{AsterError, Result};
-use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState};
+use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState};
 use aster_forge_runtime::{
     HealthCheckScope, HealthStatus, RuntimeComponentBundle, RuntimeComponentBundleRegistration,
     RuntimeComponentRegistry, SystemHealthReport,
@@ -9,7 +9,7 @@ use aster_forge_runtime::{
 
 pub async fn check_ready<S>(state: &S) -> Result<()>
 where
-    S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState,
+    S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState + MetricsRuntimeState,
 {
     tracing::debug!("running readiness check");
     let mut report = run_health_scope(
@@ -18,7 +18,7 @@ where
     )
     .await;
     if report.has_issues() {
-        record_health_metrics(HealthCheckScope::Readiness, &report);
+        record_health_metrics(state.metrics(), HealthCheckScope::Readiness, &report);
         return Err(AsterError::database_connection(report.issue_details()));
     }
 
@@ -28,7 +28,7 @@ where
     let cache_status = cache_report.status;
     let cache_message = cache_report.message.clone();
     report.components.push(cache_report);
-    record_health_metrics(HealthCheckScope::Readiness, &report);
+    record_health_metrics(state.metrics(), HealthCheckScope::Readiness, &report);
 
     match cache_status {
         HealthStatus::Healthy => {}
@@ -49,12 +49,12 @@ where
 
 pub async fn run_system_health_checks<S>(state: &S) -> SystemHealthReport
 where
-    S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState,
+    S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState + MetricsRuntimeState,
 {
     tracing::debug!("running system health checks");
     let report =
         run_health_scope(HealthCheckScope::Diagnostics, core_health_component(state)).await;
-    record_health_metrics(HealthCheckScope::Diagnostics, &report);
+    record_health_metrics(state.metrics(), HealthCheckScope::Diagnostics, &report);
     tracing::debug!(
         component_count = report.components.len(),
         unhealthy_count = report
@@ -98,15 +98,19 @@ where
     registry.run_health(scope).await
 }
 
-fn record_health_metrics(scope: HealthCheckScope, report: &SystemHealthReport) {
-    crate::metrics::record_health_report(scope, report);
+fn record_health_metrics(
+    metrics: &aster_forge_metrics::SharedMetricsRecorder,
+    scope: HealthCheckScope,
+    report: &SystemHealthReport,
+) {
+    crate::metrics::record_health_report(metrics, scope, report);
 }
 
 #[cfg(test)]
 mod tests {
     use super::{HealthStatus, core_health_component};
     use crate::config::{Config, DatabaseConfig};
-    use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState};
+    use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState};
     use aster_forge_cache::CacheBackend;
     use aster_forge_runtime::RuntimeComponentBundle;
     use sea_orm::DatabaseConnection;
@@ -116,6 +120,7 @@ mod tests {
         db: DatabaseConnection,
         config: Arc<Config>,
         cache: Arc<dyn CacheBackend>,
+        metrics: aster_forge_metrics::SharedMetricsRecorder,
     }
 
     impl DatabaseRuntimeState for HealthState {
@@ -140,6 +145,12 @@ mod tests {
         }
     }
 
+    impl MetricsRuntimeState for HealthState {
+        fn metrics(&self) -> &aster_forge_metrics::SharedMetricsRecorder {
+            &self.metrics
+        }
+    }
+
     #[tokio::test]
     async fn core_health_component_registers_database_and_cache_components() {
         let db = crate::db::connect_with_metrics(
@@ -154,7 +165,12 @@ mod tests {
         .unwrap();
         let config = Arc::new(Config::default());
         let cache: Arc<dyn CacheBackend> = Arc::new(aster_forge_cache::MemoryCache::new(60));
-        let state = HealthState { db, config, cache };
+        let state = HealthState {
+            db,
+            config,
+            cache,
+            metrics: aster_forge_metrics::NoopMetrics::arc(),
+        };
         let mut registry = aster_forge_runtime::RuntimeComponentRegistry::new();
 
         core_health_component(&state).register(&mut registry);
@@ -191,6 +207,7 @@ mod tests {
             db,
             config: Arc::new(config),
             cache: Arc::new(aster_forge_cache::MemoryCache::new(60)),
+            metrics: aster_forge_metrics::NoopMetrics::arc(),
         };
 
         super::check_ready(&state)
@@ -218,6 +235,7 @@ mod tests {
             db,
             config: Arc::new(config),
             cache: Arc::new(aster_forge_cache::MemoryCache::new(60)),
+            metrics: aster_forge_metrics::NoopMetrics::arc(),
         };
 
         let error = super::check_ready(&state)

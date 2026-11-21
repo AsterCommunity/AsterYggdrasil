@@ -221,9 +221,9 @@ pub(crate) fn blend_pixel(target: &mut Rgba<u8>, source: Rgba<u8>) {
         let value = (source_value * source_alpha
             + target_value * target_alpha * (1.0 - source_alpha))
             / out_alpha;
-        out[channel] = (value * 255.0).round().clamp(0.0, 255.0) as u8;
+        out[channel] = crate::convert::round_clamp_to_u8(value * 255.0);
     }
-    out[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
+    out[3] = crate::convert::round_clamp_to_u8(out_alpha * 255.0);
     *target = Rgba(out);
 }
 

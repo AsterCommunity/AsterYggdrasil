@@ -1,16 +1,22 @@
 [package]
 name = "aster-texture-renderer"
+description = "Minecraft skin and cape rendering helpers."
 version = "0.1.0"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster-texture-renderer"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 edition = "2024"
-license = "MIT"
+rust-version = "1.95.0"
 publish = false
-readme = "README.md"
 
+[lints]
+workspace = true
 [dependencies]
-image = { version = "0.25.10", default-features = false, features = ["png", "webp"] }
+image = { workspace = true, default-features = false, features = ["png", "webp"] }
 
 [dev-dependencies]
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+sysinfo = { workspace = true }
 
 [lib]
 name = "aster_texture_renderer"

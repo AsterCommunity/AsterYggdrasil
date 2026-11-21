@@ -1,6 +1,6 @@
 //! Product boundary for runtime CORS middleware.
 //!
-//! `aster_forge_actix_middleware::cors` owns the Actix middleware mechanics: origin parsing,
+//! `aster_forge_middleware::actix::cors` owns the Actix middleware mechanics: origin parsing,
 //! preflight validation, response header application, and `Vary` handling. This module keeps
 //! Yggdrasil-specific concerns at the edge by injecting `AppState`, runtime config policy,
 //! product static-asset exemptions, dynamic CSRF header names, and `AsterError` mapping.
@@ -13,7 +13,7 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     web,
 };
-use aster_forge_actix_middleware::cors::{
+use aster_forge_middleware::actix::cors::{
     CorsMiddlewareError, RuntimeCors as ForgeRuntimeCors, RuntimeCorsConfig,
 };
 use futures::future::Ready;

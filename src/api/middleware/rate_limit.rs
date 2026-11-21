@@ -20,13 +20,13 @@ use crate::config::RateLimitTier;
 
 #[derive(Debug, Clone)]
 pub struct AsterIpKeyExtractor {
-    inner: aster_forge_actix_middleware::rate_limit::TrustedProxyIpKeyExtractor,
+    inner: aster_forge_middleware::actix::rate_limit::TrustedProxyIpKeyExtractor,
 }
 
 impl AsterIpKeyExtractor {
     pub fn new(trusted_proxies: &[String]) -> Self {
         Self {
-            inner: aster_forge_actix_middleware::rate_limit::TrustedProxyIpKeyExtractor::new(
+            inner: aster_forge_middleware::actix::rate_limit::TrustedProxyIpKeyExtractor::new(
                 trusted_proxies,
             ),
         }
@@ -51,7 +51,7 @@ impl KeyExtractor for AsterIpKeyExtractor {
         negative: &NotUntil<QuantaInstant>,
         _response: HttpResponseBuilder,
     ) -> HttpResponse {
-        let wait_time = aster_forge_actix_middleware::rate_limit::retry_after_seconds(negative);
+        let wait_time = aster_forge_middleware::actix::rate_limit::retry_after_seconds(negative);
         let msg = format!("Too Many Requests, retry after {wait_time}s");
         HttpResponse::TooManyRequests()
             .insert_header(("Retry-After", wait_time.to_string()))
@@ -126,7 +126,10 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn extract_uses_leftmost_forwarded_ip_only_from_trusted_peer() {
+    async fn extract_uses_last_untrusted_forwarded_ip_from_trusted_peer() {
+        // Forge walks X-Forwarded-For right to left and skips trusted hops, so the
+        // last untrusted hop is used as the client key instead of the spoofable
+        // leftmost entry.
         let ext = AsterIpKeyExtractor::new(&["10.0.0.0/8".to_string()]);
         let req = actix_test::TestRequest::default()
             .peer_addr("10.0.0.5:12345".parse().unwrap())
@@ -135,7 +138,7 @@ mod tests {
 
         assert_eq!(
             ext.extract(&req).unwrap(),
-            "203.0.113.10".parse::<IpAddr>().unwrap()
+            "198.51.100.2".parse::<IpAddr>().unwrap()
         );
     }
 

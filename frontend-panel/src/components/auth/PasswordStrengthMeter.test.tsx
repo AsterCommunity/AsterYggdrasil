@@ -46,30 +46,28 @@ describe("PasswordStrengthMeter", () => {
 			score: 5,
 			value: "Strong",
 		},
-	])("uses $expectedClass for active segments at score $score", ({
-		expectedClass,
-		expectedTextClass,
-		score,
-		value,
-	}) => {
-		const { container } = render(
-			<PasswordStrengthMeter
-				label="Password strength"
-				value={value}
-				score={score}
-			/>,
-		);
+	])(
+		"uses $expectedClass for active segments at score $score",
+		({ expectedClass, expectedTextClass, score, value }) => {
+			const { container } = render(
+				<PasswordStrengthMeter
+					label="Password strength"
+					value={value}
+					score={score}
+				/>,
+			);
 
-		const segments = activeSegments(container);
-		const activeCount = Math.min(score, 4);
+			const segments = activeSegments(container);
+			const activeCount = Math.min(score, 4);
 
-		expect(screen.getByText(value)).toHaveClass(expectedTextClass);
-		for (const segment of segments.slice(0, activeCount)) {
-			expect(segment).toHaveClass(expectedClass);
-		}
-		for (const segment of segments.slice(activeCount)) {
-			expect(segment).toHaveClass("bg-black/10", "dark:bg-white/8");
-			expect(segment).not.toHaveClass(expectedClass);
-		}
-	});
+			expect(screen.getByText(value)).toHaveClass(expectedTextClass);
+			for (const segment of segments.slice(0, activeCount)) {
+				expect(segment).toHaveClass(expectedClass);
+			}
+			for (const segment of segments.slice(activeCount)) {
+				expect(segment).toHaveClass("bg-black/10", "dark:bg-white/8");
+				expect(segment).not.toHaveClass(expectedClass);
+			}
+		},
+	);
 });

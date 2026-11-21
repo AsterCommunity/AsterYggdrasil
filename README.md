@@ -300,4 +300,5 @@ tmp/authlib-injector/wiki/   authlib-injector/Yggdrasil reference entrypoint
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Dual-licensed under MIT or Apache-2.0, at your option. See [LICENSE-MIT](LICENSE-MIT)
+and [LICENSE-APACHE](LICENSE-APACHE).

@@ -13,7 +13,7 @@ use crate::api::request_auth::access_cookie_token;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::services::auth_service;
-use aster_forge_actix_middleware::csrf::{RequestSourceMode, is_unsafe_method};
+use aster_forge_middleware::actix::csrf::{RequestSourceMode, is_unsafe_method};
 
 pub struct JwtAuth;
 

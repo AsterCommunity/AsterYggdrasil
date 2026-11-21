@@ -13,7 +13,7 @@ use crate::services::{auth_service, external_auth_service};
 use crate::types::external_auth::ExternalAuthProviderKind;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
-use aster_forge_actix_middleware::csrf::RequestSourceMode;
+use aster_forge_middleware::actix::csrf::RequestSourceMode;
 use aster_forge_api::{
     CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor, parse_string_id_cursor,
 };

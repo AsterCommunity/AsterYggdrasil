@@ -26,7 +26,7 @@ use crate::types::auth::VerificationPurpose;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
-use aster_forge_actix_middleware::csrf::{RequestSourceMode, build_csrf_token};
+use aster_forge_middleware::actix::csrf::{RequestSourceMode, build_csrf_token};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, DateTimeIdCursor, DateTimeStringCursor};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_datetime_string_cursor};

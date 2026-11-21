@@ -1,21 +1,30 @@
 //! Metrics backend provided by AsterForge.
 
 use actix_web::Scope;
+use aster_forge_metrics::SharedMetricsRecorder;
 use aster_forge_runtime::{HealthCheckScope, SystemHealthReport};
 
-#[cfg(feature = "metrics")]
-use aster_forge_metrics::prometheus::PrometheusMetricsRecorder;
-
-/// Records a health report when metrics are enabled.
-pub fn record_health_report(scope: HealthCheckScope, report: &SystemHealthReport) {
+/// Records a health report when the metrics backend is enabled.
+pub fn record_health_report(
+    metrics: &SharedMetricsRecorder,
+    scope: HealthCheckScope,
+    report: &SystemHealthReport,
+) {
     #[cfg(feature = "metrics")]
-    report.record_metrics(scope.as_str(), &PrometheusMetricsRecorder);
+    metrics.record_health(scope.as_str(), report);
 
     #[cfg(not(feature = "metrics"))]
-    let _ = (scope, report);
+    let _ = (metrics, scope, report);
 }
 
 /// Adds the metrics HTTP route when the metrics feature is enabled.
 pub fn configure_route(scope: Scope) -> Scope {
-    aster_forge_actix_observability::configure_prometheus_route(scope)
+    #[cfg(feature = "metrics")]
+    return scope.service(aster_forge_observability::actix::prometheus_resource("/metrics"));
+
+    #[cfg(not(feature = "metrics"))]
+    {
+        let _ = scope;
+        scope
+    }
 }

@@ -10,7 +10,7 @@
 use std::sync::OnceLock;
 
 use actix_web::{HttpRequest, dev::ServiceRequest};
-use aster_forge_actix_middleware::csrf::{
+use aster_forge_middleware::actix::csrf::{
     CsrfError, CsrfErrorKind, CsrfTokenNames, RequestSourceMode,
 };
 
@@ -93,12 +93,12 @@ fn map_csrf_error(error: CsrfError) -> AsterError {
 }
 
 pub fn ensure_double_submit_token(req: &HttpRequest) -> Result<()> {
-    aster_forge_actix_middleware::csrf::ensure_double_submit_token_with_names(req, token_names())
+    aster_forge_middleware::actix::csrf::ensure_double_submit_token_with_names(req, token_names())
         .map_err(map_csrf_error)
 }
 
 pub fn ensure_service_double_submit_token(req: &ServiceRequest) -> Result<()> {
-    aster_forge_actix_middleware::csrf::ensure_service_double_submit_token_with_names(
+    aster_forge_middleware::actix::csrf::ensure_service_double_submit_token_with_names(
         req,
         token_names(),
     )
@@ -110,7 +110,7 @@ pub fn ensure_request_source_allowed(
     runtime_config: &RuntimeConfig,
     mode: RequestSourceMode,
 ) -> Result<()> {
-    aster_forge_actix_middleware::csrf::ensure_request_source_allowed(
+    aster_forge_middleware::actix::csrf::ensure_request_source_allowed(
         req,
         &site_url::public_site_urls(runtime_config),
         mode,
@@ -123,7 +123,7 @@ pub fn ensure_service_request_source_allowed(
     runtime_config: &RuntimeConfig,
     mode: RequestSourceMode,
 ) -> Result<()> {
-    aster_forge_actix_middleware::csrf::ensure_service_request_source_allowed(
+    aster_forge_middleware::actix::csrf::ensure_service_request_source_allowed(
         req,
         &site_url::public_site_urls(runtime_config),
         mode,
@@ -140,7 +140,7 @@ mod tests {
     use crate::api::error_code::AsterErrorCode;
     use crate::config::{RuntimeConfig, site_url};
     use crate::errors::AsterError;
-    use aster_forge_actix_middleware::csrf::{RequestSourceMode, build_csrf_token};
+    use aster_forge_middleware::actix::csrf::{RequestSourceMode, build_csrf_token};
     use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
     use aster_forge_db::system_config;
 

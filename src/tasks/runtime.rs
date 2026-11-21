@@ -93,7 +93,7 @@ async fn run_background_runtime_group(
 
     config
         .run(shutdown_token, |runtime| {
-            runtime.worker(spawn_background_task_dispatcher);
+            runtime.singleton_worker(spawn_background_task_dispatcher);
             runtime.scheduled(
                 SystemRuntimeTaskKind::MailOutboxDispatch,
                 mail_outbox_dispatch_interval_for_web_state,

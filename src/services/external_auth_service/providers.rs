@@ -238,6 +238,7 @@ fn external_auth_provider_config_from_test_params(
         groups_claim: None,
         avatar_url_claim: None,
         outbound_http_user_agent: Some(OUTBOUND_HTTP_USER_AGENT.to_string()),
+        outbound_http_client: None,
     })
 }
 

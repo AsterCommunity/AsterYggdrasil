@@ -2,11 +2,11 @@
 //!
 //! This module keeps Yggdrasil's runtime configuration keys, defaults, and error
 //! mapping while delegating the product-neutral policy shape and origin matching
-//! mechanics to `aster_forge_actix_middleware`.
+//! mechanics to `aster_forge_middleware::actix`.
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
-use aster_forge_actix_middleware::cors::{CorsAllowedOrigins, RuntimeCorsPolicy};
+use aster_forge_middleware::actix::cors::{CorsAllowedOrigins, RuntimeCorsPolicy};
 use aster_forge_config::{
     normalize_non_negative_u64_config_value, normalize_strict_bool_config_value,
 };

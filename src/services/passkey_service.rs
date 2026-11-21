@@ -5,7 +5,7 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, DbErr, SqlErr};
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::{
-    CreationChallengeResponse, CredentialID, DiscoverableAuthentication, DiscoverableKey, Passkey,
+    CreationChallengeResponse, CredentialID, DiscoverableAuthentication, Passkey,
     PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential,
     RequestChallengeResponse, Uuid, Webauthn, WebauthnBuilder, WebauthnError,
 };
@@ -807,9 +807,8 @@ pub async fn finish_login(
     }
     ensure_login_user(&user)?;
     let mut stored = passkey_from_json(&passkey.credential)?;
-    let discoverable = DiscoverableKey::from(&stored);
     let result = webauthn
-        .finish_discoverable_authentication(&credential, challenge.state, &[discoverable])
+        .finish_discoverable_authentication_v2(&credential, challenge.state, &stored)
         .map_err(webauthn_error)?;
     if !result.user_verified() {
         tracing::debug!(

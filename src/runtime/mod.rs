@@ -10,7 +10,8 @@ pub mod state_traits;
 
 pub use state::{AppState, AppStateParts};
 pub use state_traits::{
-    AppConfigRuntimeState, CacheRuntimeState, ConfigSyncRuntimeState, DatabaseRuntimeState,
-    MailRuntimeState, MetricsRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
-    SharedRuntimeState, TaskRuntimeState, YggdrasilSessionForwardRuntimeState,
+    AppConfigRuntimeState, AuditRuntimeState, CacheRuntimeState, ConfigSyncRuntimeState,
+    DatabaseRuntimeState, MailRuntimeState, MetricsRuntimeState, ObjectStorageRuntimeState,
+    RuntimeConfigRuntimeState, SharedRuntimeState, TaskRuntimeState,
+    YggdrasilSessionForwardRuntimeState,
 };

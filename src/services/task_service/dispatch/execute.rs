@@ -15,7 +15,9 @@ use crate::services::task_service::{
     steps::{parse_task_steps_json, serialize_task_steps},
 };
 use crate::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
-use aster_forge_tasks::{DispatchStats, TaskLease, mark_active_step_failed};
+use aster_forge_tasks::{
+    DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed,
+};
 
 pub(super) async fn run_claimed_tasks(
     state: &AppState,
@@ -43,6 +45,12 @@ pub(super) async fn run_claimed_tasks(
 }
 
 impl aster_forge_tasks::ExecutableTaskRecord<BackgroundTaskKind> for background_task::Model {
+    fn cancellation_requested(&self) -> bool {
+        // The product has no user-facing task cancellation yet; reclaimed
+        // snapshots are never awaiting a cancellation acknowledgement.
+        false
+    }
+
     fn attempt_count(&self) -> i32 {
         self.attempt_count
     }
@@ -66,15 +74,16 @@ impl aster_forge_tasks::TaskHeartbeatStore for BackgroundTaskExecutionStore {
         lease: TaskLease,
         now: chrono::DateTime<Utc>,
         lease_expires_at: chrono::DateTime<Utc>,
-    ) -> Result<bool> {
-        background_task_repo::touch_heartbeat(
+    ) -> std::result::Result<TaskHeartbeatOutcome, AsterError> {
+        let renewed = background_task_repo::touch_heartbeat(
             self.state.writer_db(),
             lease.task_id,
             lease.processing_token,
             now,
             lease_expires_at,
         )
-        .await
+        .await?;
+        Ok(TaskHeartbeatOutcome::from(renewed))
     }
 }
 
@@ -90,6 +99,25 @@ impl aster_forge_tasks::ClaimedTaskExecutionStore<background_task::Model, Backgr
         registry::process_task(&self.state, task, context).await
     }
 
+    /// Confirms that the task body persisted its terminal success for this
+    /// exact lease. Task bodies write `Succeeded` through the repo during
+    /// execution, so this validates the row carries that state under the
+    /// current processing token.
+    async fn confirm_task_succeeded(
+        &self,
+        _task: &background_task::Model,
+        lease: TaskLease,
+    ) -> Result<bool> {
+        let current = background_task_repo::find_by_id(self.state.writer_db(), lease.task_id)
+            .await
+            .ok();
+        match current {
+            Some(current) => Ok(current.processing_token == lease.processing_token
+                && current.status == BackgroundTaskStatus::Succeeded),
+            None => Ok(false),
+        }
+    }
+
     fn is_lease_lost_error(&self, error: &AsterError) -> bool {
         super::super::is_task_lease_lost(error)
     }
@@ -100,6 +128,20 @@ impl aster_forge_tasks::ClaimedTaskExecutionStore<background_task::Model, Backgr
 
     fn is_worker_shutdown_requested_error(&self, error: &AsterError) -> bool {
         super::super::is_task_worker_shutdown_requested(error)
+    }
+
+    fn is_cancellation_requested_error(&self, _error: &AsterError) -> bool {
+        // The product has no user-facing task cancellation yet.
+        false
+    }
+
+    async fn cancel_task_if_requested(
+        &self,
+        _task: &background_task::Model,
+        _lease: TaskLease,
+    ) -> Result<bool> {
+        // No cancellation requests can exist without the cancellation feature.
+        Ok(false)
     }
 
     fn retry_class(
@@ -247,6 +289,9 @@ mod tests {
             .expect("object storage should initialize");
 
         AppState::from_parts(AppStateParts {
+            audit_writer: std::sync::Arc::new(
+                aster_forge_audit::AuditWriter::new(db.clone()),
+            ),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,

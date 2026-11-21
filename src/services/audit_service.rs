@@ -10,10 +10,6 @@ mod query;
 pub mod runtime;
 
 pub use crate::types::audit::{AuditAction, AuditEntityType};
-pub use aster_forge_audit::{
-    flush_global_audit_log_manager, init_global_audit_log_manager,
-    shutdown_global_audit_log_manager,
-};
 pub use context::{AuditContext, AuditRequestInfo};
 pub use details::{
     AdminTaskCleanupAuditDetails, AuthSessionAuditDetails, ConfigActionDetails,

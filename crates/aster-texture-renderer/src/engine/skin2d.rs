@@ -113,10 +113,12 @@ fn draw_player_views(
     let available_height = options.output_height.saturating_sub(options.padding * 2);
     let available_width = available_width.saturating_sub(options.view_spacing);
     let total_model_width = layout.player_width * 2;
-    let scale = (available_width as f32 / total_model_width as f32)
-        .min(available_height as f32 / PLAYER_HEIGHT as f32)
-        .floor()
-        .max(1.0) as u32;
+    let scale = crate::convert::floor_to_u32(
+        (available_width as f32 / total_model_width as f32)
+            .min(available_height as f32 / PLAYER_HEIGHT as f32)
+            .floor(),
+    )
+    .max(1);
     let rendered_width = total_model_width * scale + options.view_spacing;
     let rendered_height = PLAYER_HEIGHT * scale;
     let start_x = (options.output_width - rendered_width) / 2;
@@ -268,7 +270,7 @@ fn draw_flat_player(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "Renderer rasterization needs the full parameter set per sprite part.")]
 fn draw_part(
     texture: &RgbaImage,
     output: &mut RgbaImage,

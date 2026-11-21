@@ -1,5 +1,4 @@
-use chrono::{DateTime, Utc};
-
+use crate::config::operations;
 use crate::db::{
     repository::{background_task_repo, system_config_repo},
     transaction,
@@ -31,49 +30,26 @@ where
 {
     type Error = crate::errors::AsterError;
 
-    async fn list_claimable_by_kinds(
+    /// Atomically claims up to `request.max_claim` due tasks for the lane.
+    ///
+    /// Selection, the shared concurrency quota recheck, and the per-row
+    /// processing-token CAS all run inside one transaction: the shared quota
+    /// row is locked first, the currently active task count is rechecked
+    /// against `lane_config.limit`, and only then are due rows claimed with
+    /// fenced token updates.
+    async fn claim(
         &self,
-        now: DateTime<Utc>,
-        stale_before: DateTime<Utc>,
-        kinds: &'static [BackgroundTaskKind],
-        limit: u64,
-    ) -> Result<Vec<background_task::Model>> {
-        background_task_repo::list_claimable_by_kinds(
-            self.state.writer_db(),
-            now,
-            stale_before,
-            kinds,
-            limit,
-        )
-        .await
-    }
-
-    async fn count_active_processing_by_kinds(
-        &self,
-        now: DateTime<Utc>,
-        kinds: &'static [BackgroundTaskKind],
-    ) -> Result<u64> {
-        background_task_repo::count_active_processing_by_kinds(self.state.writer_db(), now, kinds)
-            .await
-    }
-
-    async fn claim_candidates_for_lane(
-        &self,
-        lane_config: TaskLaneConfig,
-        candidates: &[aster_forge_tasks::TaskClaimCandidate],
-        stale_before: DateTime<Utc>,
-        claimed_at: DateTime<Utc>,
-        lease_expires_at: DateTime<Utc>,
-    ) -> Result<Vec<aster_forge_tasks::ClaimedTask>> {
-        if candidates.is_empty() {
-            return Ok(Vec::new());
-        }
+        request: aster_forge_tasks::TaskClaimRequest<BackgroundTaskKind, TaskLane>,
+    ) -> Result<Vec<(background_task::Model, TaskLease)>> {
+        let lane_config = request.lane;
+        let claim_limit = aster_forge_tasks::claim_limit_to_u64(request.max_claim);
 
         transaction::with_transaction(self.state.writer_db(), async |txn| {
-            system_config_repo::lock_by_key(txn, lane_config.lock_key).await?;
+            system_config_repo::lock_by_key(txn, operations::BACKGROUND_TASK_MAX_CONCURRENCY_KEY)
+                .await?;
             let active = background_task_repo::count_active_processing_by_kinds(
                 txn,
-                claimed_at,
+                request.now,
                 lane_config.kinds,
             )
             .await?;
@@ -88,7 +64,17 @@ where
                 return Ok(Vec::new());
             }
 
-            let mut claimed = Vec::with_capacity(available.min(candidates.len()));
+            let due = background_task_repo::list_claimable_by_kinds(
+                txn,
+                request.now,
+                request.stale_before,
+                lane_config.kinds,
+                claim_limit,
+            )
+            .await?;
+            let candidates = aster_forge_tasks::task_claim_candidates(&due)?;
+
+            let mut claimed = Vec::with_capacity(candidates.len());
             for candidate in candidates {
                 if claimed.len() >= available {
                     break;
@@ -98,21 +84,22 @@ where
                     txn,
                     candidate.task_id,
                     candidate.expected_processing_token,
-                    claimed_at,
-                    stale_before,
+                    request.now,
+                    request.stale_before,
                     candidate.next_processing_token,
-                    lease_expires_at,
+                    request.lease_expires_at,
                 )
                 .await?;
                 if !did_claim {
                     continue;
                 }
 
-                claimed.push(aster_forge_tasks::ClaimedTask {
-                    index: candidate.index,
-                    task_id: candidate.task_id,
-                    processing_token: candidate.next_processing_token,
-                });
+                if let Some(row) = due.iter().find(|row| row.id == candidate.task_id) {
+                    claimed.push((
+                        row.clone(),
+                        TaskLease::new(candidate.task_id, candidate.next_processing_token),
+                    ));
+                }
             }
 
             Ok(claimed)
@@ -128,6 +115,7 @@ pub(super) async fn claim_due_for_lane(
     aster_forge_tasks::claim_due_for_lane(
         &BackgroundTaskClaimStore { state },
         lane_config,
+        lane_config.limit,
         TASK_PROCESSING_STALE_SECS,
         task_lane,
     )

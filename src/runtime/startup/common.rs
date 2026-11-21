@@ -36,10 +36,9 @@ pub(super) async fn prepare_common_state(config: Arc<Config>) -> Result<AppState
     )
     .map_err(crate::services::config_service::runtime::map_config_core_error)?;
 
-    crate::services::audit_service::runtime::prepare_runtime_audit_manager(
+    let audit_writer = std::sync::Arc::new(aster_forge_audit::AuditWriter::new(
         db_handles.writer().clone(),
-    );
-
+    ));
     let mail_sender = crate::services::mail_service::runtime_sender(runtime_config.clone());
     AppState::from_parts(AppStateParts {
         db_handles,
@@ -50,6 +49,7 @@ pub(super) async fn prepare_common_state(config: Arc<Config>) -> Result<AppState
         mail_sender,
         config_sync,
         metrics,
+        audit_writer,
     })
 }
 

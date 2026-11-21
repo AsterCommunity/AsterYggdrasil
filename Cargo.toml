@@ -1,15 +1,105 @@
-[package]
-name = "aster_yggdrasil"
-version = "0.1.0-beta.1"
-description = "Self-hosted Minecraft skin site and Yggdrasil authentication server."
+[workspace]
+members = [".", "migration", "crates/aster-texture-renderer"]
+
+[workspace.package]
 authors = [
     "AptS-1547 <apts-1547@esaps.net>",
     "AptS-1548 <apts-1548@esaps.net>",
 ]
 repository = "https://github.com/AsterCommunity/AsterYggdrasil"
-license = "MIT"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+aster-texture-renderer = { path = "crates/aster-texture-renderer" }
+migration = { path = "migration" }
+# Pin all Forge mechanisms together to the exact published crates.io versions;
+# members add only their required features.
+aster_forge_middleware = { version = "=0.1.0-alpha.3" }
+aster_forge_observability = { version = "=0.1.0-alpha.3" }
+aster_forge_alloc = { version = "=0.1.0-alpha.1" }
+aster_forge_api = { version = "=0.1.0-alpha.1" }
+aster_forge_api_docs_macros = { version = "=0.1.0-alpha.1" }
+aster_forge_audit = { version = "=0.1.0-alpha.3" }
+aster_forge_cache = { version = "=0.1.0-alpha.2", default-features = false }
+aster_forge_config = { version = "=0.1.0-alpha.2" }
+aster_forge_crypto = { version = "=0.1.0-alpha.2" }
+aster_forge_db = { version = "=0.1.0-alpha.3", default-features = false }
+aster_forge_db_migration = { version = "=0.1.0-alpha.1" }
+aster_forge_external_auth = { version = "=0.1.0-alpha.3" }
+aster_forge_logging = { version = "=0.1.0-alpha.1" }
+aster_forge_mail = { version = "=0.1.0-alpha.2" }
+aster_forge_metrics = { version = "=0.1.0-alpha.3" }
+aster_forge_panic = { version = "=0.1.0-alpha.2" }
+aster_forge_runtime = { version = "=0.1.0-alpha.2" }
+aster_forge_storage_core = { version = "=0.1.0-alpha.1" }
+aster_forge_tasks = { version = "=0.1.0-alpha.2", default-features = false }
+aster_forge_utils = { version = "=0.1.0-alpha.2" }
+aster_forge_validation = { version = "=0.1.0-alpha.1" }
+actix-web = { version = "4.20.0", features = ["compress-brotli", "compress-gzip"] }
+actix-multipart = "0.8.9"
+actix-governor = "0.10"
+actix-http = "3"
+async-trait = "0.1"
+aws-credential-types = { version = "1.3.1", features = ["hardcoded-credentials"] }
+aws-sdk-s3 = { version = "1.161.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
+base64 = "0.23"
+captcha-rs = "0.5"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+config = { version = "0.15", default-features = false, features = ["toml"] }
+dotenvy = "0.15"
+fs2 = "0.4"
+futures = "0.3"
+getrandom = "0.4"
+governor = "0.10"
+hex = "0.4"
+image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+jsonwebtoken = { version = "12", features = ["aws_lc_rs"] }
+num_cpus = "1.17.0"
+parking_lot = "0.13"
+rand = { version = "0.10.4", default-features = false, features = ["std", "std_rng", "thread_rng"] }
+rand_08 = { package = "rand", version = "0.8" }
+reqwest = { version = "0.13.5", features = ["stream", "json"] }
+ring = "0.17"
+# Keep the rc line: rsa 0.10.0 dropped the `sha2` feature that crypto-glue (webauthn
+# chain) still requires, so 0.10.0 fails to resolve. Revisit when crypto-glue /
+# webauthn-rs release a compatible version. See RUSTSEC-2023-0071 in .cargo/audit.toml.
+rsa = { version = "^0.10.0-rc.18", features = ["sha1"] }
+rust-embed = "8"
+sea-orm = { version = "2.0.4", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-rustls"] }
+sea-orm-migration = { version = "2.0.4", default-features = false }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha1 = "0.11"
+sha2 = "0.11"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+testcontainers = { version = "0.28", features = ["reusable-containers"] }
+tikv-jemallocator = { version = "0.7" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "fs", "io-util"] }
+tokio-util = { version = "0.7", features = ["io", "io-util"] }
+toml = "1.2"
+toml_edit = "0.25"
+tracing = { version = "0.1.44", default-features = false }
+utoipa = { version = "6.0.0", features = ["chrono", "actix_extras", "repr"] }
+utoipa-swagger-ui = { version = "10.0.2", features = ["actix-web"] }
+url = "2"
+urlencoding = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+validator = { version = "0.21", features = ["derive"] }
+webauthn-rs = { version = "0.6.2", default-features = false, features = ["conditional-ui", "danger-allow-state-serialisation"] }
+webauthn-rs-proto = "0.6.2"
+webauthn-authenticator-rs = { version = "0.6.2", features = ["softpasskey"] }
+
+[package]
+name = "aster_yggdrasil"
+description = "Self-hosted Minecraft skin site and Yggdrasil authentication server."
+version = "0.1.0-beta.1"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 edition = "2024"
 rust-version = "1.95.0"
+publish = false
 
 # 优化配置
 [profile.dev]
@@ -46,16 +136,27 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
-[workspace]
-members = [".", "migration", "crates/aster-texture-renderer"]
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
 
+[workspace.lints.clippy]
+# Suppressions must remain observable: `expect` reports when its justification goes stale.
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
+multiple_unsafe_ops_per_block = "deny"
+undocumented_unsafe_blocks = "deny"
+
+[lints]
+workspace = true
 [features]
 default = ["server"]
 server = []
 cli = ["server", "dep:clap"]
 metrics = [
     "server",
-    "aster_forge_actix_observability/prometheus",
+    "aster_forge_observability/prometheus",
     "aster_forge_metrics/allocator-metrics",
     "aster_forge_metrics/backend-prometheus",
     "aster_forge_metrics/runtime-health",
@@ -79,83 +180,83 @@ jemalloc-stats = [
 jemalloc-profiling = ["jemalloc-stats", "tikv-jemallocator/profiling"]
 
 [dependencies]
-actix-web = { version = "4.14.0", features = ["compress-brotli", "compress-gzip"] }
-actix-multipart = "0.8.0"
-actix-governor = "0.10"
-aster-texture-renderer = { path = "crates/aster-texture-renderer" }
-aster_forge_actix_middleware = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_actix_middleware", features = ["metrics"] }
-aster_forge_actix_observability = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_actix_observability" }
-aster_forge_alloc = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_alloc" }
-aster_forge_api = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api" }
-aster_forge_api_docs_macros = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_api_docs_macros" }
-aster_forge_audit = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_audit", features = ["db-writer", "mail-outbox-dependency"] }
-aster_forge_cache = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_cache", default-features = false, features = ["memory", "redis", "runtime-component"] }
-aster_forge_config = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_config", features = ["redis-pubsub", "sea-orm"] }
-aster_forge_crypto = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_crypto" }
-aster_forge_db = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db", features = ["audit-log", "mail-outbox", "runtime-component", "runtime-lease", "scheduled-task", "system-config"] }
-aster_forge_db_migration = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_db_migration" }
-aster_forge_external_auth = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_external_auth", features = ["github", "google", "microsoft", "qq"] }
-aster_forge_logging = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_logging" }
-aster_forge_metrics = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_metrics" }
-aster_forge_panic = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_panic" }
-aster_forge_runtime = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_runtime" }
-aster_forge_mail = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_mail", features = ["persistence", "runtime-component"] }
-aster_forge_storage_core = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_storage_core" }
-aster_forge_tasks = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_tasks", features = ["runtime-component"] }
-aster_forge_utils = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_utils" }
-aster_forge_validation = { git = "https://github.com/AsterCommunity/AsterForge", package = "aster_forge_validation" }
-async-trait = "0.1"
-aws-credential-types = { version = "1.3.0", features = ["hardcoded-credentials"] }
-aws-sdk-s3 = { version = "1.140.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
-base64 = "0.23"
-captcha-rs = "0.5"
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
-clap = { version = "4", features = ["derive", "env"], optional = true }
-config = { version = "0.15", default-features = false, features = ["toml"] }
-dotenvy = "0.15"
-futures = "0.3"
-governor = "0.10"
-hex = "0.4"
-image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
-jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
-migration = { version = "0.1.0", path = "migration" }
-num_cpus = "1.17.0"
-parking_lot = "0.12"
-rand = { version = "0.10.2", default-features = false, features = ["std", "std_rng", "thread_rng"] }
-reqwest = { version = "0.13", features = ["stream", "json"] }
-rsa = { version = "0.10.0-rc.18", features = ["sha1"] }
-rust-embed = "8"
-sea-orm = { version = "2.0.1", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-rustls"] }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
-sha1 = "0.11"
-sha2 = "0.11"
-tikv-jemallocator = { version = "0.7", optional = true }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "fs", "io-util"] }
-tokio-util = { version = "0.7", features = ["io", "io-util"] }
-toml = "1.1"
-toml_edit = "0.25"
-tracing = { version = "0.1.44", default-features = false }
-utoipa = { version = "5.5.0", features = ["chrono", "actix_extras", "repr"], optional = true }
-utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"], optional = true }
-url = "2"
-urlencoding = "2"
-uuid = { version = "1", features = ["v4", "serde"] }
-validator = { version = "0.21", features = ["derive"] }
-webauthn-rs = { version = "0.6.1-dev", default-features = false, features = ["conditional-ui", "danger-allow-state-serialisation"] }
-webauthn-rs-proto = "0.6.1-dev"
+aster-texture-renderer = { workspace = true }
+migration = { workspace = true }
+aster_forge_middleware = { workspace = true, features = ["metrics"] }
+aster_forge_observability = { workspace = true }
+aster_forge_alloc = { workspace = true }
+aster_forge_api = { workspace = true }
+aster_forge_api_docs_macros = { workspace = true }
+aster_forge_audit = { workspace = true, features = ["db-writer", "mail-outbox-dependency"] }
+aster_forge_cache = { workspace = true, features = ["memory", "redis", "runtime-component"] }
+aster_forge_config = { workspace = true, features = ["redis-pubsub", "sea-orm"] }
+aster_forge_crypto = { workspace = true, features = ["password", "sha256"] }
+aster_forge_db = { workspace = true, features = ["audit-log", "mail-outbox", "runtime-component", "runtime-lease", "scheduled-task", "system-config"] }
+aster_forge_db_migration = { workspace = true }
+aster_forge_external_auth = { workspace = true, features = ["github", "google", "microsoft", "qq"] }
+aster_forge_logging = { workspace = true }
+aster_forge_metrics = { workspace = true }
+aster_forge_panic = { workspace = true }
+aster_forge_runtime = { workspace = true }
+aster_forge_mail = { workspace = true, features = ["persistence", "runtime-component"] }
+aster_forge_storage_core = { workspace = true }
+aster_forge_tasks = { workspace = true, features = ["runtime-component"] }
+aster_forge_utils = { workspace = true }
+aster_forge_validation = { workspace = true }
+actix-web = { workspace = true }
+actix-multipart = { workspace = true }
+actix-governor = { workspace = true }
+async-trait = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+base64 = { workspace = true }
+captcha-rs = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, optional = true }
+config = { workspace = true }
+dotenvy = { workspace = true }
+futures = { workspace = true }
+governor = { workspace = true }
+hex = { workspace = true }
+image = { workspace = true }
+jsonwebtoken = { workspace = true }
+num_cpus = { workspace = true }
+parking_lot = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+rsa = { workspace = true }
+rust-embed = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+tikv-jemallocator = { workspace = true, optional = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+tracing = { workspace = true }
+utoipa = { workspace = true, optional = true }
+utoipa-swagger-ui = { workspace = true, optional = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+webauthn-rs = { workspace = true }
+webauthn-rs-proto = { workspace = true }
 
 [build-dependencies]
-chrono = "0.4"
+chrono = { workspace = true, default-features = false, features = ["clock"] }
 
 [dev-dependencies]
-actix-http = "3"
-fs2 = "0.4"
-rand_08 = { package = "rand", version = "0.8" }
-getrandom = "0.4"
-ring = "0.17"
-testcontainers = { version = "0.27", features = ["reusable-containers"] }
-webauthn-authenticator-rs = { version = "0.6.1-dev", features = ["softpasskey"] }
+actix-http = { workspace = true }
+fs2 = { workspace = true }
+rand_08 = { workspace = true }
+getrandom = { workspace = true }
+ring = { workspace = true }
+testcontainers = { workspace = true }
+webauthn-authenticator-rs = { workspace = true }
 
 [lib]
 doctest = false

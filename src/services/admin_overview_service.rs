@@ -563,6 +563,9 @@ mod tests {
             .expect("admin overview test object storage should initialize");
 
         AppState::from_parts(AppStateParts {
+            audit_writer: std::sync::Arc::new(
+                aster_forge_audit::AuditWriter::new(db.clone()),
+            ),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,
