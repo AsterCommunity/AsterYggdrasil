@@ -2023,12 +2023,10 @@ async fn auth_errors_use_stable_public_codes_without_internal_code() {
 
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::AuthCredentialsFailed.as_str());
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::AuthCredentialsFailed.as_str()
-    );
+    // The redundant per-error code was dropped with the Forge envelope move;
+    // the top-level code is the stable public contract.
+    assert!(body["error"].is_null());
     assert!(body["internal_code"].is_null());
-    assert!(body["error"]["internal_code"].is_null());
 }
 
 #[actix_web::test]

@@ -172,12 +172,12 @@ async function fetchAllTextureLibraryTags(): Promise<MinecraftTextureTagList> {
 	do {
 		const page = await yggdrasilService.listTextureLibraryTagsPage({
 			limit: TEXTURE_TAG_PAGE_SIZE,
-			after_sort_order: cursor?.sort_order,
+			after_sort_order: cursor?.sort_order ?? undefined,
 			after_name: cursor?.name,
 			after_id: cursor?.id,
 		});
 		items.push(...page.items);
-		cursor = page.next_cursor;
+		cursor = page.next_cursor ?? undefined;
 	} while (cursor);
 
 	return items;

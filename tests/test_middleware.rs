@@ -49,10 +49,8 @@ async fn jwt_auth_invalid_token_returns_api_error() {
     let body = to_bytes(resp.into_body()).await.unwrap();
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["code"], AsterErrorCode::AuthTokenInvalid.as_str());
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::AuthTokenInvalid.as_str()
-    );
+    // auth_token_invalid carries no retryability metadata; error object omitted
+    assert!(body["error"].is_null());
     assert!(body["internal_code"].is_null());
 }
 

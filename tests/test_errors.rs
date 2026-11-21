@@ -19,12 +19,9 @@ async fn internal_error_uses_stable_public_code_without_internal_code() {
 
     let body = response_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::InternalServerError.as_str());
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::InternalServerError.as_str()
-    );
     assert!(body["internal_code"].is_null());
-    assert!(body["error"]["internal_code"].is_null());
+    // internal errors carry no retryability metadata; the error object is omitted
+    assert!(body["error"].is_null());
 }
 
 #[actix_web::test]
@@ -36,10 +33,6 @@ async fn database_error_marks_retryable() {
 
     let body = response_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::DatabaseError.as_str());
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::DatabaseError.as_str()
-    );
     assert_eq!(body["error"]["retryable"], true);
 }
 
@@ -53,8 +46,8 @@ async fn validation_error_keeps_message_and_uses_bad_request_code() {
     let body = response_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::BadRequest.as_str());
     assert_eq!(body["msg"], "value cannot be empty");
-    assert_eq!(body["error"]["code"], AsterErrorCode::BadRequest.as_str());
-    assert!(body["error"]["retryable"].is_null());
+    // validation errors carry no retryability metadata; error object omitted
+    assert!(body["error"].is_null());
 }
 
 #[actix_web::test]
@@ -66,9 +59,6 @@ async fn auth_token_invalid_uses_auth_token_invalid_code() {
 
     let body = response_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::AuthTokenInvalid.as_str());
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::AuthTokenInvalid.as_str()
-    );
     assert!(body["internal_code"].is_null());
+    assert!(body["error"].is_null());
 }

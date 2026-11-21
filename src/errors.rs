@@ -694,12 +694,10 @@ mod tests {
             value["code"],
             AsterErrorCode::AuthCredentialsFailed.as_str()
         );
-        assert_eq!(
-            value["error"]["code"],
-            AsterErrorCode::AuthCredentialsFailed.as_str()
-        );
         assert!(value.get("internal_code").is_none());
-        assert!(value["error"].get("internal_code").is_none());
+        // auth_invalid_credentials carries no retryability metadata, so the
+        // Forge envelope omits the error object entirely.
+        assert!(value["error"].is_null());
     }
 
     #[test]

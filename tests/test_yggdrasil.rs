@@ -7064,7 +7064,8 @@ where
     assert_eq!(resp.status(), 403);
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["code"], "user_ban.forbidden");
-    assert_eq!(body["error"]["code"], "user_ban.forbidden");
+    // ban rejections carry no retryability metadata; error object omitted
+    assert!(body["error"].is_null());
 }
 
 fn assert_unsigned_uuid(value: &str) {

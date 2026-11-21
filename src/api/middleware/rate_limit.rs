@@ -191,7 +191,6 @@ mod tests {
 
         let body: serde_json::Value = actix_test::read_body_json(response).await;
         assert_eq!(body["code"], AsterErrorCode::RateLimited.as_str());
-        assert_eq!(body["error"]["code"], AsterErrorCode::RateLimited.as_str());
         assert_eq!(body["error"]["retryable"], true);
         assert!(body["data"].is_null());
     }

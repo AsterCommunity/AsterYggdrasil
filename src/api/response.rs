@@ -1,17 +1,98 @@
-//! API response envelope.
+//! 统一 API 响应封装。
+//!
+//! Serialization and OpenAPI composition are delegated to the shared Forge
+//! envelope; this module only injects the product error code and retryability
+//! policy. The wire shape is `{"code","msg","data"?,"error"?}` where `error`
+//! carries `{retryable}` (AsterDrive-style; the redundant per-error code that
+//! older clients saw was dropped when the envelope moved to Forge).
 
 use crate::api::error_code::AsterErrorCode;
 use actix_web::HttpResponse;
+use aster_forge_api::response::{
+    ApiErrorInfo as ForgeApiErrorInfo, ApiResponse as ForgeApiResponse, ApiResponseCode,
+    ResponseEnvelopeError,
+};
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct ApiErrorInfo {
-    pub code: AsterErrorCode,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retryable: Option<bool>,
+impl ApiResponseCode for AsterErrorCode {
+    fn is_success(&self) -> bool {
+        *self == AsterErrorCode::Success
+    }
+}
+
+pub type ApiErrorInfo = ForgeApiErrorInfo<()>;
+
+/// AsterYggdrasil's REST adapter binds the product error code to Forge's
+/// validated envelope.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct ApiResponse<T: Serialize>(ForgeApiResponse<T, AsterErrorCode>);
+
+#[cfg(all(debug_assertions, feature = "openapi"))]
+impl<T: Serialize + ToSchema> ToSchema for ApiResponse<T> {
+    fn name() -> std::borrow::Cow<'static, str> {
+        // Utoipa appends this product adapter's generic arguments itself.
+        std::borrow::Cow::Borrowed("ApiResponse")
+    }
+
+    fn schemas(
+        schemas: &mut Vec<(
+            String,
+            utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+        )>,
+    ) {
+        <ForgeApiResponse<T, AsterErrorCode> as ToSchema>::schemas(schemas);
+    }
+}
+
+#[cfg(all(debug_assertions, feature = "openapi"))]
+impl<T: Serialize + ToSchema> utoipa::__dev::ComposeSchema for ApiResponse<T> {
+    fn compose(
+        generics: Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>,
+    ) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        <ForgeApiResponse<T, AsterErrorCode> as utoipa::__dev::ComposeSchema>::compose(generics)
+    }
+}
+
+#[expect(
+    clippy::expect_used,
+    reason = "Yggdrasil supplies a fixed success code or an AsterError-mapped failure code; a classification mismatch is a product programming error"
+)]
+fn adapt_envelope<T: Serialize>(
+    response: Result<ForgeApiResponse<T, AsterErrorCode>, ResponseEnvelopeError>,
+) -> ApiResponse<T> {
+    ApiResponse(response.expect("Yggdrasil response code must match the envelope state"))
+}
+
+/// Injects the success code while keeping the wire envelope owned by Forge.
+pub fn success<T: Serialize>(data: T) -> ApiResponse<T> {
+    adapt_envelope(ForgeApiResponse::ok(AsterErrorCode::Success, data))
+}
+
+/// Builds the successful response whose `data` field is omitted.
+pub fn empty_success() -> ApiResponse<()> {
+    adapt_envelope(ForgeApiResponse::ok_empty(AsterErrorCode::Success))
+}
+
+/// Builds a failure with `retryable: false` and no error metadata, matching an
+/// ordinary AsterYggdrasil error.
+pub fn failure(code: AsterErrorCode, message: impl Into<String>) -> ApiResponse<()> {
+    adapt_envelope(ForgeApiResponse::error(code, message))
+}
+
+/// Builds a failure with the product-owned retryability policy.
+pub fn failure_with_retryability(
+    code: AsterErrorCode,
+    message: impl Into<String>,
+    retryable: Option<bool>,
+) -> ApiResponse<()> {
+    let error = retryable.map(|retryable| ForgeApiErrorInfo {
+        retryable,
+        diagnostic: None,
+    });
+    adapt_envelope(ForgeApiResponse::error_with_details(code, message, error))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -28,57 +109,9 @@ pub struct SystemInfoResponse {
     pub uptime_seconds: u64,
 }
 
-#[derive(Debug, Serialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct ApiResponse<T>
-where
-    T: Serialize,
-{
-    pub code: AsterErrorCode,
-    pub msg: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<ApiErrorInfo>,
-}
-
-impl<T> ApiResponse<T>
-where
-    T: Serialize,
-{
+impl<T: Serialize> ApiResponse<T> {
     pub fn ok(data: T) -> Self {
-        Self {
-            code: AsterErrorCode::Success,
-            msg: String::new(),
-            data: Some(data),
-            error: None,
-        }
-    }
-
-    pub fn ok_empty() -> ApiResponse<()> {
-        ApiResponse {
-            code: AsterErrorCode::Success,
-            msg: String::new(),
-            data: None,
-            error: None,
-        }
-    }
-
-    pub fn error(code: AsterErrorCode, message: impl Into<String>) -> ApiResponse<()> {
-        Self::error_with_details(code, message, None)
-    }
-
-    pub fn error_with_details(
-        code: AsterErrorCode,
-        message: impl Into<String>,
-        error: Option<ApiErrorInfo>,
-    ) -> ApiResponse<()> {
-        ApiResponse {
-            code,
-            msg: message.into(),
-            data: None,
-            error,
-        }
+        success(data)
     }
 
     pub fn into_response(self) -> HttpResponse {
@@ -87,23 +120,34 @@ where
 }
 
 impl ApiResponse<()> {
+    pub fn ok_empty() -> Self {
+        empty_success()
+    }
+
+    pub fn error(code: AsterErrorCode, message: impl Into<String>) -> Self {
+        failure(code, message)
+    }
+
+    pub fn error_with_details(
+        code: AsterErrorCode,
+        message: impl Into<String>,
+        retryable: Option<bool>,
+    ) -> Self {
+        failure_with_retryability(code, message, retryable)
+    }
+
     pub fn error_body(
         code: AsterErrorCode,
         message: impl Into<String>,
         retryable: Option<bool>,
     ) -> Self {
-        Self {
-            code,
-            msg: message.into(),
-            data: None,
-            error: Some(ApiErrorInfo { code, retryable }),
-        }
+        failure_with_retryability(code, message, retryable)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ApiErrorInfo, ApiResponse};
+    use super::ApiResponse;
     use crate::api::error_code::AsterErrorCode;
     use actix_web::body::to_bytes;
 
@@ -117,12 +161,12 @@ mod tests {
         assert_eq!(value["code"], AsterErrorCode::Success.as_str());
         assert_eq!(value["msg"], "");
         assert_eq!(value["data"]["ready"], true);
-        assert!(value.get("error").is_none() || value["error"].is_null());
+        assert!(value.get("error").is_none());
     }
 
     #[test]
     fn ok_empty_omits_data_and_error_fields() {
-        let value = serde_json::to_value(ApiResponse::<()>::ok_empty()).unwrap();
+        let value = serde_json::to_value(ApiResponse::ok_empty()).unwrap();
 
         assert_eq!(value["code"], AsterErrorCode::Success.as_str());
         assert!(value.get("data").is_none());
@@ -139,23 +183,17 @@ mod tests {
         assert_eq!(plain["code"], AsterErrorCode::BadRequest.as_str());
         assert_eq!(plain["msg"], "bad input");
         assert!(plain.get("data").is_none());
-        assert!(plain.get("error").is_none());
+        assert_eq!(plain["error"]["retryable"], false);
 
         let detailed = serde_json::to_value(ApiResponse::<()>::error_with_details(
             AsterErrorCode::DatabaseError,
             "database unavailable",
-            Some(ApiErrorInfo {
-                code: AsterErrorCode::DatabaseError,
-                retryable: Some(true),
-            }),
+            Some(true),
         ))
         .unwrap();
         assert_eq!(detailed["code"], AsterErrorCode::DatabaseError.as_str());
-        assert_eq!(
-            detailed["error"]["code"],
-            AsterErrorCode::DatabaseError.as_str()
-        );
         assert_eq!(detailed["error"]["retryable"], true);
+        assert!(detailed["error"].get("code").is_none());
 
         let body = serde_json::to_value(ApiResponse::<()>::error_body(
             AsterErrorCode::RateLimited,
@@ -164,7 +202,6 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(body["code"], AsterErrorCode::RateLimited.as_str());
-        assert_eq!(body["error"]["code"], AsterErrorCode::RateLimited.as_str());
         assert_eq!(body["error"]["retryable"], true);
     }
 
@@ -179,10 +216,9 @@ mod tests {
         assert_eq!(value["data"]["value"], 42);
     }
 
-    /// Byte-exact wire contract. The frontend and API consumers depend on these
-    /// exact shapes; any envelope change (including a future migration onto a
-    /// shared Forge envelope) must keep these strings stable or be a reviewed
-    /// breaking change.
+    /// Byte-level wire contract after the Forge envelope migration. The plain
+    /// error now carries `error:{"retryable":false}` (Forge-validated state);
+    /// the redundant per-error `code` field is gone.
     #[test]
     fn wire_bytes_are_stable() {
         assert_eq!(
@@ -190,7 +226,7 @@ mod tests {
             r#"{"code":"success","msg":"","data":{"ready":true}}"#
         );
         assert_eq!(
-            serde_json::to_string(&ApiResponse::<()>::ok_empty()).unwrap(),
+            serde_json::to_string(&ApiResponse::ok_empty()).unwrap(),
             r#"{"code":"success","msg":""}"#
         );
         assert_eq!(
@@ -199,19 +235,16 @@ mod tests {
                 "bad input"
             ))
             .unwrap(),
-            r#"{"code":"bad_request","msg":"bad input"}"#
+            r#"{"code":"bad_request","msg":"bad input","error":{"retryable":false}}"#
         );
         assert_eq!(
             serde_json::to_string(&ApiResponse::<()>::error_with_details(
                 AsterErrorCode::DatabaseError,
                 "database unavailable",
-                Some(ApiErrorInfo {
-                    code: AsterErrorCode::DatabaseError,
-                    retryable: Some(true),
-                }),
+                Some(true),
             ))
             .unwrap(),
-            r#"{"code":"database.error","msg":"database unavailable","error":{"code":"database.error","retryable":true}}"#
+            r#"{"code":"database.error","msg":"database unavailable","error":{"retryable":true}}"#
         );
         assert_eq!(
             serde_json::to_string(&ApiResponse::<()>::error_body(
@@ -220,7 +253,7 @@ mod tests {
                 None,
             ))
             .unwrap(),
-            r#"{"code":"rate_limited","msg":"retry later","error":{"code":"rate_limited"}}"#
+            r#"{"code":"rate_limited","msg":"retry later"}"#
         );
     }
 }

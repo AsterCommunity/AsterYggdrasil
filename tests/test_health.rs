@@ -123,13 +123,8 @@ async fn ready_redacts_database_error() {
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["code"], AsterErrorCode::DatabaseError.as_str());
     assert_eq!(body["msg"], "Database unavailable");
-    assert_eq!(
-        body["error"]["code"],
-        AsterErrorCode::DatabaseError.as_str()
-    );
     assert_eq!(body["error"]["retryable"], true);
     assert!(body["internal_code"].is_null());
-    assert!(body["error"]["internal_code"].is_null());
     assert!(
         !body["msg"]
             .as_str()

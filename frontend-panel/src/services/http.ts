@@ -6,7 +6,7 @@ import type {
 } from "axios";
 import axios, { AxiosHeaders } from "axios";
 import { config } from "@/config/app";
-import type { ApiErrorInfo, ApiResponse, AsterErrorCode } from "@/types/api";
+import type { ApiResponse, AsterErrorCode } from "@/types/api";
 import { getCsrfHeaderName, getCsrfToken } from "./csrf";
 
 type FrontendTransportErrorCode = "network_error" | "request_timeout";
@@ -42,7 +42,7 @@ export class ApiError extends Error {
 	constructor(
 		code: ApiClientErrorCode,
 		message: string,
-		details: Pick<ApiErrorInfo, "retryable"> = {},
+		details: { retryable?: boolean } = {},
 	) {
 		super(message);
 		this.code = code;
@@ -55,9 +55,7 @@ function isApiEnvelope(value: unknown): value is ApiResponse<unknown> {
 	return "code" in value && "msg" in value;
 }
 
-function normalizeApiErrorInfo(
-	value: unknown,
-): Pick<ApiErrorInfo, "retryable"> {
+function normalizeApiErrorInfo(value: unknown): { retryable?: boolean } {
 	if (typeof value !== "object" || value === null) return {};
 	const retryable = "retryable" in value ? value.retryable : undefined;
 	return typeof retryable === "boolean" ? { retryable } : {};

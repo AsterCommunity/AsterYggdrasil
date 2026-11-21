@@ -2332,8 +2332,12 @@ export interface components {
             weight: number;
         };
         ApiErrorInfo: {
-            code: components["schemas"]["AsterErrorCode"];
-            retryable?: boolean | null;
+            diagnostic?: null;
+            retryable: boolean;
+        };
+        ApiErrorInfo_TupleUnit: {
+            diagnostic?: null;
+            retryable: boolean;
         };
         /** @enum {string} */
         AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.captcha_required" | "auth.captcha_invalid" | "auth.captcha_expired" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "user_ban.not_found" | "user_ban.already_active" | "user_ban.not_active" | "user_ban.duration_invalid" | "user_ban.reason_invalid" | "user_ban.forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "wardrobe.texture_name_invalid" | "wardrobe.texture_name_taken" | "texture_library.tag_not_found" | "texture_library.tag_name_invalid" | "texture_library.tag_color_invalid" | "texture_library.tag_name_taken" | "texture_library.texture_not_found" | "texture_library.disabled" | "texture_library.texture_not_public" | "texture_library.texture_not_pending" | "texture_library.texture_not_published" | "texture_library.review_note_invalid" | "texture_report.texture_not_reportable" | "texture_report.self_report_not_allowed" | "texture_report.pending_exists" | "texture_report.message_invalid" | "texture_report.not_found" | "texture_report.not_pending" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
@@ -3483,6 +3487,23 @@ export interface components {
             return_path?: string | null;
             status: string;
         };
+        ExternalAuthLinkInfo: {
+            created_at: string;
+            display_name_snapshot?: string | null;
+            email_snapshot?: string | null;
+            /** Format: int64 */
+            id: number;
+            issuer: string;
+            last_login_at?: string | null;
+            provider_display_name: string;
+            provider_icon_url?: string | null;
+            /** Format: int64 */
+            provider_id: number;
+            provider_key: string;
+            provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+            subject: string;
+            updated_at: string;
+        };
         ExternalAuthPasswordLinkRequest: {
             flow_token: string;
             identifier: string;
@@ -4108,6 +4129,11 @@ export interface components {
             summary?: string | null;
             system_health?: components["schemas"]["RuntimeSystemHealthResult"] | null;
         };
+        SessionForwardServerCursor: {
+            call_order: components["schemas"]["EnabledPriorityIdCursor"];
+        } | {
+            id: components["schemas"]["IdCursor"];
+        };
         SetConfigReq: {
             value: components["schemas"]["ConfigValue"];
             visibility?: components["schemas"]["ConfigVisibility"] | null;
@@ -4607,45 +4633,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                action: components["schemas"]["AuditAction"];
-                                created_at: string;
-                                details?: string | null;
-                                /** Format: int64 */
-                                entity_id?: number | null;
-                                entity_name?: string | null;
-                                entity_type: components["schemas"]["AuditEntityType"];
-                                /** Format: int64 */
-                                id: number;
-                                ip_address?: string | null;
-                                presentation?: components["schemas"]["AuditPresentation"] | null;
-                                user?: components["schemas"]["AuditUserSummary"] | null;
-                                user_agent?: string | null;
-                                /** Format: int64 */
-                                user_id: number;
-                            }[];
+                            items: components["schemas"]["AuditLogEntry"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -4687,43 +4688,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                effective: boolean;
-                                effective_status: components["schemas"]["UserBanStatus"];
-                                expires_at?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                public_reason?: string | null;
-                                reason: string;
-                                revoked_at?: string | null;
-                                scopes: components["schemas"]["UserBanScope"][];
-                                starts_at: string;
-                                status: components["schemas"]["UserBanStatus"];
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["AccountUserBanInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -4759,7 +4737,7 @@ export interface operations {
                             profile_count: number;
                             recent_activity: components["schemas"]["AuditLogEntry"][];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -4804,45 +4782,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                action: components["schemas"]["AuditAction"];
-                                created_at: string;
-                                details?: string | null;
-                                /** Format: int64 */
-                                entity_id?: number | null;
-                                entity_name?: string | null;
-                                entity_type: components["schemas"]["AuditEntityType"];
-                                /** Format: int64 */
-                                id: number;
-                                ip_address?: string | null;
-                                presentation?: components["schemas"]["AuditPresentation"] | null;
-                                user?: components["schemas"]["AuditUserSummary"] | null;
-                                user_agent?: string | null;
-                                /** Format: int64 */
-                                user_id: number;
-                            }[];
+                            items: components["schemas"]["AuditLogEntry"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -4931,43 +4884,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                category: string;
-                                description: string;
-                                /** Format: int64 */
-                                id: number;
-                                is_sensitive: boolean;
-                                key: string;
-                                namespace: string;
-                                requires_restart: boolean;
-                                source: components["schemas"]["ConfigSource"];
-                                updated_at: string;
-                                /** Format: int64 */
-                                updated_by?: number | null;
-                                value: components["schemas"]["ConfigValue"];
-                                value_type: components["schemas"]["ConfigValueType"];
-                                visibility: components["schemas"]["ConfigVisibility"];
-                            }[];
+                            items: components["schemas"]["SystemConfig"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Numeric id cursor for resources sorted by id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor id.
-                                 */
-                                id: number;
-                            };
+                            next_cursor?: components["schemas"]["IdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5016,7 +4946,7 @@ export interface operations {
                             requires_restart: boolean;
                             value_type: components["schemas"]["ConfigValueType"];
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5064,7 +4994,7 @@ export interface operations {
                             /** @description Variables accepted by the template. */
                             variables: components["schemas"]["TemplateVariableItem"][];
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5122,7 +5052,7 @@ export interface operations {
                             value_type: components["schemas"]["ConfigValueType"];
                             visibility: components["schemas"]["ConfigVisibility"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5178,7 +5108,7 @@ export interface operations {
                             config: components["schemas"]["SystemConfig"];
                             warnings: components["schemas"]["SystemConfigWarning"][];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5276,7 +5206,7 @@ export interface operations {
                             message: string;
                             value?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5350,7 +5280,7 @@ export interface operations {
                             token_url_required: boolean;
                             userinfo_url_required: boolean;
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5396,60 +5326,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                allowed_domains: string[];
-                                authorization_url?: string | null;
-                                auto_link_verified_email_enabled: boolean;
-                                auto_provision_enabled: boolean;
-                                avatar_url_claim?: string | null;
-                                client_id: string;
-                                client_secret?: string | null;
-                                client_secret_configured: boolean;
-                                created_at: string;
-                                display_name: string;
-                                display_name_claim?: string | null;
-                                email_claim?: string | null;
-                                email_verified_claim?: string | null;
-                                enabled: boolean;
-                                groups_claim?: string | null;
-                                icon_url?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                issuer_url?: string | null;
-                                key: string;
-                                options: components["schemas"]["ExternalAuthProviderOptions"];
-                                protocol: components["schemas"]["ExternalAuthProtocol"];
-                                provider_kind: components["schemas"]["ExternalAuthProviderKind"];
-                                require_email_verified: boolean;
-                                scopes: string;
-                                subject_claim?: string | null;
-                                token_url?: string | null;
-                                updated_at: string;
-                                userinfo_url?: string | null;
-                                username_claim?: string | null;
-                            }[];
+                            items: components["schemas"]["AdminExternalAuthProviderInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor string value. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["StringIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5523,7 +5413,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5581,7 +5471,7 @@ export interface operations {
                             token_endpoint?: string | null;
                             userinfo_endpoint?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5661,7 +5551,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5787,7 +5677,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5851,7 +5741,7 @@ export interface operations {
                             token_endpoint?: string | null;
                             userinfo_endpoint?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5914,38 +5804,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                name: string;
-                                texture_model: components["schemas"]["MinecraftTextureModel"];
-                                updated_at: string;
-                                uploadable_textures: string;
-                                /** Format: int64 */
-                                user_id: number;
-                                uuid: string;
-                            }[];
+                            items: components["schemas"]["MinecraftProfileInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Numeric id cursor for resources sorted by id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor id.
-                                 */
-                                id: number;
-                            };
+                            next_cursor?: components["schemas"]["IdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -5998,7 +5870,7 @@ export interface operations {
                             user_id: number;
                             uuid: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6118,7 +5990,7 @@ export interface operations {
                             user_id: number;
                             uuid: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6201,7 +6073,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6347,7 +6219,7 @@ export interface operations {
                             system_health: components["schemas"]["AdminOverviewSystemHealthSummary"];
                             system_info: components["schemas"]["SystemInfoResponse"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6391,7 +6263,7 @@ export interface operations {
                             uptime_seconds: number;
                             version: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6439,61 +6311,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                /** Format: int32 */
-                                attempt_count: number;
-                                can_retry: boolean;
-                                created_at: string;
-                                creator?: components["schemas"]["TaskCreatorSummary"] | null;
-                                /** Format: int64 */
-                                creator_user_id?: number | null;
-                                display_name: string;
-                                expires_at: string;
-                                finished_at?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                kind: components["schemas"]["BackgroundTaskKind"];
-                                last_error?: string | null;
-                                lease_expires_at?: string | null;
-                                /** Format: int32 */
-                                max_attempts: number;
-                                payload: components["schemas"]["TaskPayload"];
-                                presentation?: components["schemas"]["TaskPresentation"] | null;
-                                /** Format: int64 */
-                                progress_current: number;
-                                /** Format: int32 */
-                                progress_percent: number;
-                                /** Format: int64 */
-                                progress_total: number;
-                                result?: components["schemas"]["TaskResult"] | null;
-                                started_at?: string | null;
-                                status: components["schemas"]["BackgroundTaskStatus"];
-                                status_text?: string | null;
-                                steps: components["schemas"]["TaskStepInfo"][];
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["TaskInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6539,7 +6370,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6620,7 +6451,7 @@ export interface operations {
                             steps: components["schemas"]["TaskStepInfo"][];
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6683,44 +6514,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                admin_note?: string | null;
-                                created_at: string;
-                                handled_at: string;
-                                handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                                /** Format: int64 */
-                                id: number;
-                                message?: string | null;
-                                reason: components["schemas"]["MinecraftTextureReportReason"];
-                                reporter?: components["schemas"]["TextureReportUserInfo"] | null;
-                                status: components["schemas"]["MinecraftTextureReportStatus"];
-                                texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                                /** Format: int64 */
-                                texture_id: number;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["TextureReportInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6777,7 +6584,7 @@ export interface operations {
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6845,7 +6652,7 @@ export interface operations {
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6920,7 +6727,7 @@ export interface operations {
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -6981,43 +6788,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                color: string;
-                                created_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                name: string;
-                                /** Format: int32 */
-                                sort_order: number;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["MinecraftTextureTagInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor display or storage name. */
-                                name: string;
-                                /**
-                                 * Format: int32
-                                 * @description Cursor sort order value.
-                                 */
-                                sort_order: number;
-                            };
+                            next_cursor?: components["schemas"]["SortOrderNameIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7069,7 +6853,7 @@ export interface operations {
                             sort_order: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7173,7 +6957,7 @@ export interface operations {
                             sort_order: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7240,55 +7024,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                display_name?: string | null;
-                                /** Format: int64 */
-                                file_size: number;
-                                hash: string;
-                                /** Format: int32 */
-                                height: number;
-                                /** Format: int64 */
-                                id: number;
-                                library_review_note?: string | null;
-                                library_reviewed_at: string;
-                                library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
-                                library_submitted_at: string;
-                                mime_type: string;
-                                name: string;
-                                preview_url?: string | null;
-                                tags: components["schemas"]["MinecraftTextureTagInfo"][];
-                                texture_model: components["schemas"]["MinecraftTextureModel"];
-                                texture_type: components["schemas"]["MinecraftTextureType"];
-                                updated_at: string;
-                                uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
-                                url: string;
-                                visibility: components["schemas"]["MinecraftTextureVisibility"];
-                                /** Format: int32 */
-                                width: number;
-                            }[];
+                            items: components["schemas"]["PublicTextureLibraryTextureMetadata"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7356,7 +7105,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7477,7 +7226,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7563,7 +7312,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7649,7 +7398,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7713,51 +7462,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                admin_note?: string | null;
-                                created_at: string;
-                                /** Format: int64 */
-                                created_by_user_id?: number | null;
-                                effective: boolean;
-                                effective_status: components["schemas"]["UserBanStatus"];
-                                expires_at?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                public_reason?: string | null;
-                                reason: string;
-                                revoke_note?: string | null;
-                                revoked_at?: string | null;
-                                /** Format: int64 */
-                                revoked_by_user_id?: number | null;
-                                scopes: components["schemas"]["UserBanScope"][];
-                                starts_at: string;
-                                status: components["schemas"]["UserBanStatus"];
-                                updated_at: string;
-                                /** Format: int64 */
-                                user_id: number;
-                            }[];
+                            items: components["schemas"]["UserBanInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7821,7 +7539,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7896,7 +7614,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -7968,7 +7686,7 @@ export interface operations {
                             previous_scopes?: components["schemas"]["UserBanScope"][] | null;
                             previous_status?: components["schemas"]["UserBanStatus"] | null;
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8043,7 +7761,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8106,49 +7824,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                /** Format: int64 */
-                                active_session_count: number;
-                                created_at: string;
-                                email: string;
-                                email_verified_at?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                must_change_password: boolean;
-                                operator_scopes: components["schemas"]["OperatorScope"][];
-                                pending_email?: string | null;
-                                profile: components["schemas"]["UserProfileInfo"];
-                                /** Format: int64 */
-                                profile_count: number;
-                                role: components["schemas"]["UserRole"];
-                                /** Format: int64 */
-                                session_version: number;
-                                status: components["schemas"]["UserStatus"];
-                                updated_at: string;
-                                username: string;
-                            }[];
+                            items: components["schemas"]["AdminUserInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8194,7 +7883,7 @@ export interface operations {
                             generated_password?: string | null;
                             user: components["schemas"]["AdminUserInfo"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8249,45 +7938,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                accepted_at?: string | null;
-                                /** Format: int64 */
-                                accepted_user_id?: number | null;
-                                created_at: string;
-                                email: string;
-                                expires_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                invitation_url?: string | null;
-                                /** Format: int64 */
-                                invited_by: number;
-                                mail_queued: boolean;
-                                revoked_at?: string | null;
-                                status: components["schemas"]["UserInvitationStatus"];
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["AdminUserInvitationInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8346,7 +8010,7 @@ export interface operations {
                             status: components["schemas"]["UserInvitationStatus"];
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8411,7 +8075,7 @@ export interface operations {
                             status: components["schemas"]["UserInvitationStatus"];
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8487,7 +8151,7 @@ export interface operations {
                             updated_at: string;
                             username: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8545,7 +8209,7 @@ export interface operations {
                             revoked_yggdrasil_token_count: number;
                             user: components["schemas"]["AdminUserInfo"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8618,7 +8282,7 @@ export interface operations {
                             updated_at: string;
                             username: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8677,7 +8341,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8752,7 +8416,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8818,31 +8482,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                id: string;
-                                name: string;
-                                properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
-                            }[];
+                            items: components["schemas"]["YggdrasilProfile"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Numeric id cursor for resources sorted by id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor id.
-                                 */
-                                id: number;
-                            };
+                            next_cursor?: components["schemas"]["IdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -8901,53 +8554,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                base_url?: string | null;
-                                builtin: boolean;
-                                /** Format: date-time */
-                                created_at: string;
-                                deletable: boolean;
-                                display_name: string;
-                                enabled: boolean;
-                                endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-                                /** Format: int64 */
-                                id: number;
-                                /** Format: date-time */
-                                last_checked_at?: string | null;
-                                /** Format: date-time */
-                                last_failure_at?: string | null;
-                                last_failure_message?: string | null;
-                                /** Format: date-time */
-                                last_success_at?: string | null;
-                                local: boolean;
-                                /** Format: int32 */
-                                priority: number;
-                                provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
-                                texture_forward_enabled: boolean;
-                                /** Format: int32 */
-                                timeout_ms: number;
-                                /** Format: date-time */
-                                updated_at: string;
-                                /** Format: int32 */
-                                weight: number;
-                            }[];
+                            items: components["schemas"]["AdminYggdrasilSessionForwardServerInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            next_cursor?: {
-                                call_order: components["schemas"]["EnabledPriorityIdCursor"];
-                            } | {
-                                id: components["schemas"]["IdCursor"];
-                            };
+                            next_cursor?: components["schemas"]["SessionForwardServerCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9019,7 +8639,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9097,7 +8717,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9228,7 +8848,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9287,7 +8907,7 @@ export interface operations {
                             image_base64: string;
                             mime: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9318,7 +8938,7 @@ export interface operations {
                             register_activation_resend_required: boolean;
                             register_required: boolean;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9345,7 +8965,7 @@ export interface operations {
                         data?: {
                             initialized: boolean;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9406,7 +9026,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9454,7 +9074,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9519,7 +9139,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9567,45 +9187,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                display_name_snapshot?: string | null;
-                                email_snapshot?: string | null;
-                                /** Format: int64 */
-                                id: number;
-                                issuer: string;
-                                last_login_at?: string | null;
-                                provider_display_name: string;
-                                provider_icon_url?: string | null;
-                                /** Format: int64 */
-                                provider_id: number;
-                                provider_key: string;
-                                provider_kind: components["schemas"]["ExternalAuthProviderKind"];
-                                subject: string;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["ExternalAuthLinkInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9682,7 +9277,7 @@ export interface operations {
                             return_path?: string | null;
                             status: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9728,34 +9323,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                display_name: string;
-                                icon_url?: string | null;
-                                key: string;
-                                kind: components["schemas"]["ExternalAuthProviderKind"];
-                            }[];
+                            items: components["schemas"]["ExternalAuthPublicProvider"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor string value. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["StringIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9790,34 +9371,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                display_name: string;
-                                icon_url?: string | null;
-                                key: string;
-                                kind: components["schemas"]["ExternalAuthProviderKind"];
-                            }[];
+                            items: components["schemas"]["ExternalAuthPublicProvider"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor string value. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["StringIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9888,7 +9455,7 @@ export interface operations {
                         data?: {
                             authorization_url: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9933,7 +9500,7 @@ export interface operations {
                             email: string;
                             expires_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -9984,7 +9551,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10024,7 +9591,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10069,7 +9636,7 @@ export interface operations {
                         data?: {
                             revoked: boolean;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10106,7 +9673,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10152,41 +9719,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                backed_up: boolean;
-                                backup_eligible: boolean;
-                                created_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                last_used_at?: string | null;
-                                name: string;
-                                /** Format: int64 */
-                                sign_count: number;
-                                transports?: string[] | null;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["PasskeyInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10226,7 +9772,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10265,7 +9811,7 @@ export interface operations {
                             flow_id: string;
                             public_key: unknown;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10313,7 +9859,7 @@ export interface operations {
                             transports?: string[] | null;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10359,7 +9905,7 @@ export interface operations {
                             flow_id: string;
                             public_key: unknown;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10445,7 +9991,7 @@ export interface operations {
                             transports?: string[] | null;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10499,7 +10045,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10544,7 +10090,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10589,7 +10135,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10628,7 +10174,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10674,7 +10220,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10721,7 +10267,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10803,7 +10349,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10843,7 +10389,7 @@ export interface operations {
                             expires_in: number;
                             requires_activation: boolean;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10888,7 +10434,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10920,35 +10466,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                id: string;
-                                ip_address?: string | null;
-                                is_current: boolean;
-                                last_seen_at: string;
-                                refresh_expires_at: string;
-                                revoked: boolean;
-                                user_agent?: string | null;
-                            }[];
+                            items: components["schemas"]["AuthSessionInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus string id cursor for resources sorted by time and then string id. */
-                            next_cursor?: {
-                                /** @description Cursor string id used as a stable tie breaker. */
-                                id: string;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeStringCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -10990,7 +10521,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11079,7 +10610,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11118,31 +10649,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                id: string;
-                                name: string;
-                                properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
-                            }[];
+                            items: components["schemas"]["YggdrasilProfile"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Numeric id cursor for resources sorted by id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor id.
-                                 */
-                                id: number;
-                            };
+                            next_cursor?: components["schemas"]["IdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11182,7 +10702,7 @@ export interface operations {
                             name: string;
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11274,7 +10794,7 @@ export interface operations {
                             name: string;
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11350,7 +10870,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         }[];
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11432,7 +10952,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11543,7 +11063,7 @@ export interface operations {
                             version: number;
                             yggdrasil: components["schemas"]["PublicYggdrasilConfig"];
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11577,43 +11097,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                color: string;
-                                created_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                name: string;
-                                /** Format: int32 */
-                                sort_order: number;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["MinecraftTextureTagInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor display or storage name. */
-                                name: string;
-                                /**
-                                 * Format: int32
-                                 * @description Cursor sort order value.
-                                 */
-                                sort_order: number;
-                            };
+                            next_cursor?: components["schemas"]["SortOrderNameIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11649,55 +11146,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                display_name?: string | null;
-                                /** Format: int64 */
-                                file_size: number;
-                                hash: string;
-                                /** Format: int32 */
-                                height: number;
-                                /** Format: int64 */
-                                id: number;
-                                library_review_note?: string | null;
-                                library_reviewed_at: string;
-                                library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
-                                library_submitted_at: string;
-                                mime_type: string;
-                                name: string;
-                                preview_url?: string | null;
-                                tags: components["schemas"]["MinecraftTextureTagInfo"][];
-                                texture_model: components["schemas"]["MinecraftTextureModel"];
-                                texture_type: components["schemas"]["MinecraftTextureType"];
-                                updated_at: string;
-                                uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
-                                url: string;
-                                visibility: components["schemas"]["MinecraftTextureVisibility"];
-                                /** Format: int32 */
-                                width: number;
-                            }[];
+                            items: components["schemas"]["PublicTextureLibraryTextureMetadata"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11758,7 +11220,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11822,7 +11284,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11890,7 +11352,7 @@ export interface operations {
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -11977,43 +11439,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                color: string;
-                                created_at: string;
-                                /** Format: int64 */
-                                id: number;
-                                name: string;
-                                /** Format: int32 */
-                                sort_order: number;
-                                updated_at: string;
-                            }[];
+                            items: components["schemas"]["MinecraftTextureTagInfo"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor display or storage name. */
-                                name: string;
-                                /**
-                                 * Format: int32
-                                 * @description Cursor sort order value.
-                                 */
-                                sort_order: number;
-                            };
+                            next_cursor?: components["schemas"]["SortOrderNameIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12056,54 +11495,20 @@ export interface operations {
                         /** @description Serialized cursor page response. */
                         data?: {
                             /** @description Items in the current page. */
-                            items: {
-                                created_at: string;
-                                display_name?: string | null;
-                                /** Format: int64 */
-                                file_size: number;
-                                hash: string;
-                                /** Format: int32 */
-                                height: number;
-                                /** Format: int64 */
-                                id: number;
-                                library_review_note?: string | null;
-                                library_reviewed_at: string;
-                                library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
-                                library_submitted_at: string;
-                                mime_type: string;
-                                name: string;
-                                preview_url?: string | null;
-                                tags: components["schemas"]["MinecraftTextureTagInfo"][];
-                                texture_model: components["schemas"]["MinecraftTextureModel"];
-                                texture_type: components["schemas"]["MinecraftTextureType"];
-                                updated_at: string;
-                                url: string;
-                                visibility: components["schemas"]["MinecraftTextureVisibility"];
-                                /** Format: int32 */
-                                width: number;
-                            }[];
+                            items: components["schemas"]["MinecraftWardrobeTextureMetadata"][];
                             /**
                              * Format: int64
                              * @description Effective page size.
                              */
                             limit: number;
-                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
-                            next_cursor?: {
-                                /**
-                                 * Format: int64
-                                 * @description Cursor numeric id used as a stable tie breaker.
-                                 */
-                                id: number;
-                                /** @description Cursor timestamp. */
-                                value: string;
-                            };
+                            next_cursor?: components["schemas"]["DateTimeIdCursor"] | null;
                             /**
                              * Format: int64
                              * @description Total number of items matching the query.
                              */
                             total: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12209,7 +11614,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12283,7 +11688,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12357,7 +11762,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12428,7 +11833,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -12507,7 +11912,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
@@ -13300,7 +12705,7 @@ export interface operations {
                         data?: {
                             status: string;
                         };
-                        error?: components["schemas"]["ApiErrorInfo"] | null;
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
                         msg: string;
                     };
                 };
