@@ -3,7 +3,7 @@
 use actix_web::HttpRequest;
 use sea_orm::ConnectionTrait;
 
-use super::{is_email_verified, update_password_in_connection};
+use super::shared::{is_email_verified, update_password_in_connection};
 use crate::api::error_code::AsterErrorCode;
 use crate::db::{repository::user_repo, transaction};
 use crate::errors::{AsterError, Result};
