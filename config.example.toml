@@ -24,6 +24,11 @@ retry_count = 3
 [auth]
 jwt_secret = "replace-with-a-long-random-secret"
 mfa_secret_key = "replace-with-another-long-random-secret"
+# Per-process cap for concurrent Argon2 hash/verify jobs. Each job reserves
+# about 64 MiB of working memory, so 2 allows roughly 128 MiB of concurrent
+# Argon2 memory. Small instances can use 1; restart required. The default
+# mirrors aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY.
+password_hash_max_concurrency = 2
 bootstrap_insecure_cookies = false
 
 [cache]

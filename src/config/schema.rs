@@ -16,6 +16,11 @@ use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
 pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_yggdrasil_csrf";
 pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 
+/// Default per-process limit for concurrent Argon2 password hash/verify jobs,
+/// sourced from `aster_forge_auth` so Aster product defaults stay coherent.
+pub const DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY: usize =
+    aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY;
+
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Config {
     #[serde(default)]
@@ -126,6 +131,12 @@ pub struct AuthConfig {
     pub csrf_cookie_name: String,
     #[serde(default = "AuthConfig::default_csrf_header_name")]
     pub csrf_header_name: String,
+    /// Per-process cap for concurrent Argon2 password hash/verify jobs.
+    ///
+    /// Each job reserves about 64 MiB of Argon2 working memory. Changing this
+    /// value requires a restart.
+    #[serde(default = "AuthConfig::default_password_hash_max_concurrency")]
+    pub password_hash_max_concurrency: usize,
     /// Whether the first system_config seed should set auth_cookie_secure to false.
     #[serde(default = "AuthConfig::default_bootstrap_insecure_cookies")]
     pub bootstrap_insecure_cookies: bool,
@@ -138,6 +149,7 @@ impl Default for AuthConfig {
             mfa_secret_key: Self::default_mfa_secret_key(),
             csrf_cookie_name: Self::default_csrf_cookie_name(),
             csrf_header_name: Self::default_csrf_header_name(),
+            password_hash_max_concurrency: Self::default_password_hash_max_concurrency(),
             bootstrap_insecure_cookies: Self::default_bootstrap_insecure_cookies(),
         }
     }
@@ -161,6 +173,9 @@ impl AuthConfig {
     }
     fn default_csrf_header_name() -> String {
         DEFAULT_AUTH_CSRF_HEADER_NAME.to_string()
+    }
+    fn default_password_hash_max_concurrency() -> usize {
+        DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY
     }
     fn default_bootstrap_insecure_cookies() -> bool {
         false
@@ -329,5 +344,14 @@ mod tests {
     fn rate_limit_defaults_to_enabled() {
         assert!(RateLimitConfig::default().enabled);
         assert!(Config::default().rate_limit.enabled);
+    }
+
+    #[test]
+    fn auth_config_uses_forge_password_hash_concurrency_default() {
+        let config = Config::default();
+        assert_eq!(
+            config.auth.password_hash_max_concurrency,
+            aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY
+        );
     }
 }

@@ -33,6 +33,10 @@ local_root = "storage"
 
 相对路径按 `data/config.toml` 所在目录解析。默认 `local_root = "storage"` 会落到 `data/storage`。材质和用户上传头像都走这个对象存储配置。
 
+### Argon2 并发
+
+`auth.password_hash_max_concurrency` 控制每个进程同时执行的 Argon2 哈希/验证任务数，默认 `2`（取自 Forge 的 `DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`）。每个任务约占用 64 MiB 工作内存，因此默认峰值约 128 MiB；小内存实例可以设为 `1`。提高前请结合实例内存和登录并发评估。该值是静态配置，修改后需要重启。
+
 `config_sync` 用于多进程部署时同步运行时配置 reload 信号。默认 `disabled`，单进程部署不需要配置。
 当前可用 backend 是 `redis`，`endpoint` 填 Redis URL，`topic` 是逻辑主题；服务内部会把它映射到具体 transport 的通道名。
 通知只携带“哪些 key 变了”的 reload hint，不携带配置值；其他进程收到后会从数据库重新加载 runtime config。

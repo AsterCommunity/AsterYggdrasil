@@ -14,12 +14,12 @@ use aster_forge_db::system_config;
 
 pub const JWT_ISSUER: &str = "aster_yggdrasil";
 pub const JWT_AUDIENCE: &str = "aster_yggdrasil";
-const PASSWORD_HASH_MAX_CONCURRENCY: usize = 8;
 
-/// Forge auth runtimes built from the static JWT secret and hot-reloadable TTLs.
+/// Forge auth runtimes built from the static JWT secret, the startup runtime
+/// snapshot, and the static password-hash concurrency limit.
 ///
-/// TTL changes rebuild the signer/verifier policies on config apply; the secret
-/// is boot-time-only, so rotating it still requires a restart.
+/// The JWT signer/verifier policy and password hash runtime are installed once
+/// during startup.
 pub struct AuthRuntimes {
     jwt_signer: JwtSigner,
     jwt_verifier: JwtVerifier,
@@ -28,15 +28,18 @@ pub struct AuthRuntimes {
 }
 
 impl AuthRuntimes {
-    /// Builds the auth runtimes for a JWT secret and TTL snapshot.
+    /// Builds the auth runtimes for a JWT secret, TTL snapshot, and Argon2
+    /// concurrency limit.
     ///
     /// # Errors
-    /// Returns an error when the secret or the TTLs are invalid for Forge JWT,
-    /// or when the dummy hash cannot be produced.
+    /// Returns an error when the secret or TTLs are invalid for Forge JWT,
+    /// when Forge rejects the password hash concurrency, or when the dummy hash
+    /// cannot be produced.
     pub async fn new(
         jwt_secret: &str,
         access_ttl_secs: u64,
         refresh_ttl_secs: u64,
+        password_hash_max_concurrency: usize,
     ) -> Result<Arc<Self>> {
         use aster_forge_auth::JwtKey;
 
@@ -46,10 +49,8 @@ impl AuthRuntimes {
             .map_err(|error| AsterError::internal_error(format!("jwt policy: {error}")))?;
         let jwt_signer = JwtSigner::with_system_clock(key.clone(), policy.clone());
         let jwt_verifier = JwtVerifier::with_system_clock(key, policy);
-        let password_hash_runtime = PasswordHashRuntime::new(PASSWORD_HASH_MAX_CONCURRENCY)
-            .map_err(|error| {
-                AsterError::internal_error(format!("password hash runtime: {error}"))
-            })?;
+        let password_hash_runtime = PasswordHashRuntime::new(password_hash_max_concurrency)
+            .map_err(|error| AsterError::config_error(format!("password hash runtime: {error}")))?;
         // Burned against unknown identifiers so login timing does not reveal
         // whether an account exists.
         let dummy_password = format!("dummy:{}", uuid::Uuid::new_v4());
@@ -101,12 +102,19 @@ impl RuntimeConfig {
         }
     }
 
-    /// Installs the auth runtimes after the runtime snapshot has been loaded,
-    /// reading the TTL values from it.
+    /// Installs the auth runtimes after the runtime snapshot has been loaded.
+    ///
+    /// JWT TTLs are read from the runtime snapshot; `password_hash_max_concurrency`
+    /// comes from static configuration. Both are installed at startup.
     ///
     /// # Errors
-    /// Returns an error when the JWT secret or TTL snapshot values are invalid.
-    pub async fn install_auth_runtimes(&self, jwt_secret: &str) -> Result<()> {
+    /// Returns an error when the JWT secret, TTL snapshot values, or password
+    /// hash concurrency are invalid.
+    pub async fn install_auth_runtimes(
+        &self,
+        jwt_secret: &str,
+        password_hash_max_concurrency: usize,
+    ) -> Result<()> {
         use crate::config::auth_runtime::{
             AUTH_ACCESS_TOKEN_TTL_SECS_KEY, AUTH_REFRESH_TOKEN_TTL_SECS_KEY,
             DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS, DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS,
@@ -121,8 +129,15 @@ impl RuntimeConfig {
             i64::try_from(DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS).unwrap_or(604_800),
         ))
         .unwrap_or(DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS);
-        *self.auth_runtimes.write() =
-            Some(AuthRuntimes::new(jwt_secret, access_ttl_secs, refresh_ttl_secs).await?);
+        *self.auth_runtimes.write() = Some(
+            AuthRuntimes::new(
+                jwt_secret,
+                access_ttl_secs,
+                refresh_ttl_secs,
+                password_hash_max_concurrency,
+            )
+            .await?,
+        );
         Ok(())
     }
 
@@ -227,7 +242,7 @@ fn build_audit_log_settings(
 mod tests {
     use chrono::Utc;
 
-    use super::RuntimeConfig;
+    use super::{AuthRuntimes, RuntimeConfig};
     use crate::config::DatabaseConfig;
     use crate::config::audit;
     use crate::config::definitions::{
@@ -340,6 +355,49 @@ mod tests {
         assert_eq!(
             runtime_config.get("test.requires_restart").as_deref(),
             Some("old")
+        );
+    }
+
+    #[tokio::test]
+    async fn third_password_job_waits_for_a_permit() {
+        let runtimes = AuthRuntimes::new(crate::config::TEST_JWT_SECRET, 900, 604_800, 2)
+            .await
+            .unwrap();
+
+        let runtime = runtimes.password_hash_runtime();
+        let hash = runtimes.dummy_password_hash();
+
+        let mut first = Box::pin(runtime.try_verify_password("probe", hash));
+        let mut second = Box::pin(runtime.try_verify_password("probe", hash));
+        assert!(futures::poll!(first.as_mut()).is_pending());
+        assert!(futures::poll!(second.as_mut()).is_pending());
+
+        // Non-blocking verification observes the saturated pool immediately.
+        assert!(matches!(
+            runtime.try_verify_password("probe", hash).await,
+            Err(aster_forge_auth::PasswordWorkError::Busy)
+        ));
+
+        // A normal hash queues instead of failing.
+        let mut third = Box::pin(runtime.hash_password("queued-password"));
+        assert!(futures::poll!(third.as_mut()).is_pending());
+
+        assert!(!first.await.unwrap().is_valid);
+        assert!(!second.await.unwrap().is_valid);
+        assert!(
+            third
+                .await
+                .unwrap()
+                .starts_with("$argon2id$v=19$m=65536,t=3,p=4$")
+        );
+    }
+
+    #[tokio::test]
+    async fn auth_runtimes_rejects_zero_password_hash_concurrency() {
+        assert!(
+            AuthRuntimes::new(crate::config::TEST_JWT_SECRET, 900, 604_800, 0)
+                .await
+                .is_err()
         );
     }
 }

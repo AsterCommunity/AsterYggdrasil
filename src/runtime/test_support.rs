@@ -35,7 +35,10 @@ pub async fn setup_state_with_config(
         .await
         .expect("runtime config should load in test state");
     runtime_config
-        .install_auth_runtimes(crate::config::TEST_JWT_SECRET)
+        .install_auth_runtimes(
+            crate::config::TEST_JWT_SECRET,
+            config.auth.password_hash_max_concurrency,
+        )
         .await
         .expect("auth runtimes should install in test state");
     let cache = aster_forge_cache::create_cache(&config.cache).await;

@@ -33,6 +33,10 @@ local_root = "storage"
 
 Relative paths resolve against the directory containing `data/config.toml`. The default `local_root = "storage"` resolves to `data/storage`. Textures and uploaded user avatars both use this object storage config.
 
+### Argon2 Concurrency
+
+`auth.password_hash_max_concurrency` caps the number of Argon2 hash/verify jobs per process. The default is `2`, sourced from Forge's `DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`. Each job reserves about 64 MiB of working memory, so the default allows roughly 128 MiB of concurrent Argon2 memory. Small instances can use `1`; before increasing it, account for instance memory and concurrent logins. This is static config and requires a restart.
+
 `config_sync` synchronizes runtime-config reload hints in multi-process deployments. It is disabled by
 default and is not needed for single-process deployments. The currently implemented backend is
 `redis`: `endpoint` is the Redis URL, and `topic` is the logical reload topic that the service maps

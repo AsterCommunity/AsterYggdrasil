@@ -225,6 +225,11 @@ mod tests {
         assert!(generated.contains("[object_storage.s3]"));
         assert!(generated.contains("[network_trust]"));
         assert!(generated.contains(r#"trusted_proxies = []"#));
+        let default_concurrency = aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY;
+        assert!(generated.contains(&format!(
+            "password_hash_max_concurrency = {default_concurrency}"
+        )));
+        assert_eq!(cfg.auth.password_hash_max_concurrency, default_concurrency);
 
         let _ = std::fs::remove_dir_all(dir);
     }
