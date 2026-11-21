@@ -114,7 +114,7 @@ Project API requests blocked by a capability ban return `403` with:
 {
   "code": "user_ban.forbidden",
   "error": {
-    "code": "user_ban.forbidden"
+    "retryable": false
   }
 }
 ```

@@ -114,7 +114,7 @@ GET /api/v1/account/bans?effective_only=true
 {
   "code": "user_ban.forbidden",
   "error": {
-    "code": "user_ban.forbidden"
+    "retryable": false
   }
 }
 ```
