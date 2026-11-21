@@ -11,9 +11,7 @@ use crate::db::repository::{
 };
 use aster_yggdrasil_model::entities::{auth_session, contact_verification_token, user};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::{
-    AppConfigRuntimeState, AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
-};
+use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{
     audit_service, mail_outbox_service, mail_service, mail_template::MailTemplatePayload,
@@ -260,7 +258,7 @@ pub async fn setup_first_admin<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         username,
@@ -333,7 +331,7 @@ pub async fn register<S>(
     req: &HttpRequest,
 ) -> Result<RegisterOutcome>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(username, "starting local user registration");
     let auth_policy =
@@ -430,7 +428,7 @@ pub async fn login<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         identifier_len = identifier.len(),
@@ -494,7 +492,7 @@ pub async fn refresh<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!("starting local refresh token rotation");
     let claims = decode_claims(state, refresh_token)?;
@@ -587,7 +585,7 @@ where
 
 pub async fn logout<S>(state: &S, refresh_token: &str, req: &HttpRequest) -> Result<bool>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!("starting local logout");
     let claims = match decode_claims(state, refresh_token) {
@@ -665,7 +663,7 @@ pub async fn revoke_session<S>(
     req: &HttpRequest,
 ) -> Result<bool>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(user_id, session_id, "revoking auth session");
     let current_refresh_jti = optional_refresh_jti_from_token(state, current_refresh_token);
@@ -721,7 +719,7 @@ pub async fn revoke_other_sessions<S>(
     req: &HttpRequest,
 ) -> Result<u64>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(user_id, "revoking other auth sessions");
     let current_refresh_jti = refresh_jti_from_token(state, current_refresh_token)?;
@@ -1655,7 +1653,7 @@ fn validate_identity_input(username: &str, email: &str, password: &str) -> Resul
 
 async fn issue_tokens<S>(state: &S, user: user::Model, req: &HttpRequest) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let password_change_required = user.must_change_password;
     let tokens = create_token_pair(
@@ -1692,7 +1690,7 @@ pub async fn issue_tokens_for_authenticated_user<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     issue_tokens(state, user, req).await
 }
@@ -1703,7 +1701,7 @@ pub async fn issue_tokens_for_user<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     issue_tokens(state, user, req).await
 }
@@ -1714,7 +1712,7 @@ pub async fn issue_tokens_for_user_id<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let user = user_repo::find_by_id(state.reader_db(), user_id).await?;
     issue_tokens(state, user, req).await
@@ -1727,7 +1725,7 @@ async fn rotate_tokens<S>(
     req: &HttpRequest,
 ) -> Result<AuthTokenBundle>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState + AppConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let tokens = create_token_pair(
         state,

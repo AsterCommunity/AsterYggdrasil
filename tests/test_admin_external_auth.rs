@@ -25,7 +25,7 @@ async fn admin_external_auth_crud_redacts_secret_and_exposes_public_provider() {
         aster_yggdrasil::config::site_url::PUBLIC_SITE_URL_KEY,
         r#"["http://localhost:8080"]"#,
     ));
-    let app = create_test_app!(state);
+    let app = create_test_app!(state.clone());
     let token = setup_admin!(app);
 
     let req = test::TestRequest::post()
@@ -62,7 +62,14 @@ async fn admin_external_auth_crud_redacts_secret_and_exposes_public_provider() {
         "/static/external-auth/example.svg"
     );
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let req = test::TestRequest::get()
         .uri("/api/v1/admin/audit-logs?action=admin_create_external_auth_provider&limit=1")
         .insert_header(common::bearer_header(&token))

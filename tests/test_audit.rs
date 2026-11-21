@@ -215,7 +215,14 @@ async fn audit_log_persists_external_auth_provider_entry() {
         })),
     )
     .await;
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
 
     let entry = audit_log::Entity::find()
         .filter(

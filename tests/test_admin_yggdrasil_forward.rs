@@ -167,7 +167,14 @@ async fn admin_yggdrasil_session_forward_crud_and_local_row_contract() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let create_entry = audit_entry_by_name(
         &state,
         audit_service::AuditAction::AdminCreateYggdrasilSessionForwardServer,

@@ -7,7 +7,7 @@ use super::models::{AuditLogEntry, AuditUserSummary};
 use super::presentation::build_audit_presentation;
 use crate::db::repository::{audit_log_repo, user_repo};
 use aster_yggdrasil_model::entities::audit_log;
-use crate::runtime::{AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{DatabaseRuntimeState, SharedRuntimeState};
 use aster_yggdrasil_model::types::audit::AuditEntityType;
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
@@ -74,7 +74,7 @@ async fn build_audit_entries<S: DatabaseRuntimeState>(
     Ok(items)
 }
 
-pub async fn query<S: DatabaseRuntimeState + AuditRuntimeState>(
+pub async fn query<S: SharedRuntimeState>(
     state: &S,
     filters: AuditLogFilters,
     limit: u64,
@@ -108,7 +108,7 @@ pub async fn query<S: DatabaseRuntimeState + AuditRuntimeState>(
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
-pub async fn recent<S: DatabaseRuntimeState + AuditRuntimeState>(
+pub async fn recent<S: SharedRuntimeState>(
     state: &S,
     filters: AuditLogFilters,
     limit: u64,
@@ -118,7 +118,7 @@ pub async fn recent<S: DatabaseRuntimeState + AuditRuntimeState>(
 
 pub async fn cleanup_expired<S>(state: &S) -> crate::errors::Result<u64>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let retention_days = state
         .runtime_config()

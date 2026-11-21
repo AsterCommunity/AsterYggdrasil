@@ -8,7 +8,7 @@ use crate::api::error_code::AsterErrorCode;
 use crate::db::{repository::user_repo, transaction};
 use aster_yggdrasil_model::entities::user;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, auth_service};
 use aster_forge_crypto::verify_password;
 
@@ -70,7 +70,7 @@ pub async fn change_password_with_audit<S>(
     new_password: &str,
 ) -> Result<auth_service::AuthUserInfo>
 where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let user = change_password(state, user_id, current_password, new_password).await?;
     let audit_ctx = audit_service::AuditContext::from_request(req, user.id);

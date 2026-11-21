@@ -7,7 +7,7 @@ use crate::api::dto::yggdrasil::{
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
 use crate::errors::AsterError;
-use crate::runtime::{AuditRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, ban_service};
 use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_forge_crypto::verify_password;
@@ -26,7 +26,7 @@ pub async fn authenticate<S>(
     req: &HttpRequest,
 ) -> std::result::Result<YggdrasilAuthenticateResp, YggdrasilError>
 where
-    S: AuditRuntimeState + CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         identifier_len = body.username.len(),
@@ -176,7 +176,7 @@ pub async fn refresh<S>(
     req: &HttpRequest,
 ) -> std::result::Result<YggdrasilRefreshResp, YggdrasilError>
 where
-    S: AuditRuntimeState + CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         has_client_token = body
@@ -327,7 +327,7 @@ pub async fn invalidate<S>(
     body: YggdrasilTokenReq,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: AuditRuntimeState + CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         has_client_token = body
@@ -376,7 +376,7 @@ pub async fn signout<S>(
     password: &str,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: AuditRuntimeState + CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     tracing::debug!(
         identifier_len = username.len(),

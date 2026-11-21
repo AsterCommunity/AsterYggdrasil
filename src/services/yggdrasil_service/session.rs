@@ -12,10 +12,7 @@ use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilPr
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
 use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
-use crate::runtime::{
-    AppConfigRuntimeState, AuditRuntimeState, CacheRuntimeState, DatabaseRuntimeState,
-    RuntimeConfigRuntimeState, YggdrasilSessionForwardRuntimeState,
-};
+use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState, YggdrasilSessionForwardRuntimeState};
 use crate::services::{audit_service, ban_service, yggdrasil_signature};
 use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_yggdrasil_model::types::{
@@ -37,11 +34,7 @@ pub async fn join<S>(
     req: &HttpRequest,
 ) -> std::result::Result<(), YggdrasilError>
 where
-    S: AppConfigRuntimeState
-        + AuditRuntimeState
-        + CacheRuntimeState
-        + DatabaseRuntimeState
-        + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let server_id_hash = sha256_hex(body.server_id.as_bytes());
     tracing::debug!(
@@ -144,12 +137,7 @@ pub async fn has_joined<S>(
     request_info: audit_service::AuditRequestInfo,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
-    S: AuditRuntimeState
-        + DatabaseRuntimeState
-        + AppConfigRuntimeState
-        + RuntimeConfigRuntimeState
-        + CacheRuntimeState
-        + YggdrasilSessionForwardRuntimeState,
+    S: YggdrasilSessionForwardRuntimeState,
 {
     let servers = enabled_session_forward_servers(state).await?;
     if servers.is_empty() {
@@ -270,12 +258,7 @@ async fn orchestrated_has_joined<S>(
     request_info: &audit_service::AuditRequestInfo,
 ) -> std::result::Result<Option<YggdrasilProfile>, YggdrasilError>
 where
-    S: AuditRuntimeState
-        + DatabaseRuntimeState
-        + AppConfigRuntimeState
-        + RuntimeConfigRuntimeState
-        + CacheRuntimeState
-        + YggdrasilSessionForwardRuntimeState,
+    S: YggdrasilSessionForwardRuntimeState,
 {
     let server_id_hash = sha256_hex(server_id.as_bytes());
     for upstream in weighted_forward_order(servers) {
@@ -455,7 +438,7 @@ async fn log_forward_check<S>(
     request_info: &audit_service::AuditRequestInfo,
     event: ForwardCheckAuditEvent<'_>,
 ) where
-    S: AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     let ctx = request_info.to_context(0);
     let upstream = event.upstream;

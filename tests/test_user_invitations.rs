@@ -358,7 +358,7 @@ async fn test_invitation_revoke_blocks_accept_and_rejects_non_pending_revoke() {
 async fn test_invitation_create_and_revoke_audit_invitation_entity() {
     let state = common::setup().await;
     let db = state.writer_db().clone();
-    let app = create_test_app!(state);
+    let app = create_test_app!(state.clone());
     let (admin_token, _) = register_and_login!(app);
 
     let invitation = create_invitation!(app, admin_token, "audit-invite@example.com");
@@ -374,7 +374,14 @@ async fn test_invitation_create_and_revoke_audit_invitation_entity() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let entries = audit_log::Entity::find()
         .filter(audit_log::Column::Action.is_in([
             AuditAction::AdminCreateInvitation,

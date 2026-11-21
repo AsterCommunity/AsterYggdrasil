@@ -45,7 +45,7 @@ pub trait AuditRuntimeState {
     fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter>;
 }
 
-pub trait YggdrasilSessionForwardRuntimeState {
+pub trait YggdrasilSessionForwardRuntimeState: SharedRuntimeState {
     fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client;
 }
 
@@ -71,7 +71,7 @@ impl<T> SharedRuntimeState for T where
 {
 }
 
-pub trait MailRuntimeState: DatabaseRuntimeState + RuntimeConfigRuntimeState {
+pub trait MailRuntimeState: SharedRuntimeState {
     fn mail_sender(&self) -> &Arc<dyn MailSender>;
 }
 

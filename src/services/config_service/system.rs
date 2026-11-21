@@ -3,10 +3,7 @@ use crate::config::system_config as shared_system_config;
 use crate::config::yggdrasil::YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY;
 use crate::db::repository::system_config_repo;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{
-    AuditRuntimeState, ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState,
-    RuntimeConfigRuntimeState,
-};
+use crate::runtime::{ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState, SharedRuntimeState};
 use crate::services::audit_service::{self, AuditContext};
 use aster_forge_api::{CursorPage, IdCursor};
 use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
@@ -18,21 +15,11 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-pub(crate) trait SystemConfigMutationState:
-    AuditRuntimeState
-    + DatabaseRuntimeState
-    + RuntimeConfigRuntimeState
-    + ConfigSyncRuntimeState
-    + MetricsRuntimeState
-{
+pub(crate) trait SystemConfigMutationState: SharedRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState {
 }
 
 impl<T> SystemConfigMutationState for T where
-    T: AuditRuntimeState
-        + DatabaseRuntimeState
-        + RuntimeConfigRuntimeState
-        + ConfigSyncRuntimeState
-        + MetricsRuntimeState
+    T: SharedRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
 {
 }
 
@@ -357,7 +344,7 @@ fn record_config_mutation_status(
 }
 
 async fn audit_config_update(
-    state: &(impl AuditRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState),
+    state: &impl SharedRuntimeState,
     audit_ctx: &AuditContext,
     config: &system_config::Model,
     prior_visibility: Option<ConfigVisibility>,

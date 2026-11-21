@@ -351,7 +351,14 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
     );
     assert_eq!(events[2]["event_type"], "created");
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     for (action, entity_id) in [
         (audit_service::AuditAction::AdminCreateUserBan, ban_id),
         (audit_service::AuditAction::AdminUpdateUserBan, ban_id),

@@ -3,7 +3,7 @@ use sea_orm::DatabaseConnection;
 
 use super::context::AuditContext;
 use crate::config::RuntimeConfig;
-use crate::runtime::{AuditRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{AuditRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
 use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
 
 pub fn should_record<S: RuntimeConfigRuntimeState>(state: &S, action: AuditAction) -> bool {
@@ -86,7 +86,7 @@ pub async fn log<S>(
     entity_name: Option<&str>,
     details: Option<serde_json::Value>,
 ) where
-    S: AuditRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
 {
     if !should_record(state, action) {
         return;
@@ -138,7 +138,7 @@ pub async fn log_with_details<S, F>(
     entity_name: Option<&str>,
     details: F,
 ) where
-    S: AuditRuntimeState + RuntimeConfigRuntimeState,
+    S: SharedRuntimeState,
     F: FnOnce() -> Option<serde_json::Value>,
 {
     if !should_record(state, action) {

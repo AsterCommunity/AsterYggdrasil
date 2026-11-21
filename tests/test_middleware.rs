@@ -4,7 +4,7 @@
 mod common;
 
 use actix_web::{App, body::to_bytes, http::header, test, web};
-use aster_forge_actix_middleware::security_headers::{
+use aster_forge_middleware::actix::security_headers::{
     REFERRER_POLICY_VALUE, X_CONTENT_TYPE_OPTIONS_VALUE, X_FRAME_OPTIONS_VALUE,
 };
 use aster_yggdrasil::api::{

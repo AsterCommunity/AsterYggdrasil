@@ -1,6 +1,4 @@
 //! System runtime task records stored in the background task table.
-#![expect(dead_code, reason = "Task subsystem exposes registry/wire helpers ahead of their dispatch call sites; drop once fully wired.")]
-
 use chrono::{DateTime, Utc};
 
 use super::spec::{self, SystemRuntimeTask};

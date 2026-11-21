@@ -57,48 +57,8 @@ fn to_io_error(error: impl ToString) -> io::Error {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::worker_count;
-    use crate::runtime::{
-        AuditRuntimeState, DatabaseRuntimeState, MailRuntimeState, RuntimeConfigRuntimeState,
-    };
-    use sea_orm::DatabaseConnection;
-
-    struct ComponentGraphState {
-        db: DatabaseConnection,
-        runtime_config: Arc<crate::config::RuntimeConfig>,
-        mail_sender: Arc<dyn aster_forge_mail::MailSender>,
-        audit_writer: Arc<aster_forge_audit::AuditWriter>,
-    }
-
-    impl DatabaseRuntimeState for ComponentGraphState {
-        fn writer_db(&self) -> &DatabaseConnection {
-            &self.db
-        }
-
-        fn reader_db(&self) -> &DatabaseConnection {
-            &self.db
-        }
-    }
-
-    impl RuntimeConfigRuntimeState for ComponentGraphState {
-        fn runtime_config(&self) -> &Arc<crate::config::RuntimeConfig> {
-            &self.runtime_config
-        }
-    }
-
-    impl MailRuntimeState for ComponentGraphState {
-        fn mail_sender(&self) -> &Arc<dyn aster_forge_mail::MailSender> {
-            &self.mail_sender
-        }
-    }
-
-    impl AuditRuntimeState for ComponentGraphState {
-        fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter> {
-            &self.audit_writer
-        }
-    }
+    use crate::runtime::{AppState, MailRuntimeState};
 
     #[test]
     fn worker_count_uses_cpu_count_when_configured_zero() {
@@ -114,18 +74,8 @@ mod tests {
     async fn runtime_component_graph_registers_domain_components() {
         use aster_forge_runtime::RuntimeComponentBundle;
 
-        let db = sea_orm::Database::connect("sqlite::memory:")
-            .await
-            .expect("component graph test database should connect");
-        let db_handles = aster_forge_db::DbHandles::single(db.clone());
-        let state = ComponentGraphState {
-            db,
-            runtime_config: Arc::new(crate::config::RuntimeConfig::new()),
-            mail_sender: aster_forge_mail::memory_sender(),
-            audit_writer: Arc::new(aster_forge_audit::AuditWriter::new(
-                db_handles.writer().clone(),
-            )),
-        };
+        let state: AppState = crate::runtime::test_support::setup_state().await;
+        let db_handles = state.db_handles.clone();
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
             crate::tasks::runtime::task_component(aster_forge_tasks::BackgroundTasks::new())
                 .register(registry);

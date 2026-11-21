@@ -788,6 +788,7 @@ pub async fn setup_with_memory_cache() -> AppState {
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
+        audit_writer: base.audit_writer.clone(),
     })
     .expect("memory-cache test AppState should build")
 }
@@ -974,12 +975,12 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
             .expect("object storage should initialize");
     let db_handles = aster_yggdrasil::db::connect_reader_for_writer_with_metrics(
         &db_cfg,
-        writer,
+        writer.clone(),
         aster_forge_metrics::NoopMetrics::arc(),
     )
     .await
     .expect("test db handles should initialize");
-    AppState::from_parts(AppStateParts {
+    let state = AppState::from_parts(AppStateParts {
         db_handles,
         config,
         runtime_config,
@@ -988,8 +989,20 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
+        audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(writer)),
     })
-    .expect("integration test AppState should build")
+    .expect("integration test AppState should build");
+
+    // The runtime component bundle never runs in this process, so start the
+    // writer here for audit-writing endpoints under test.
+    use aster_yggdrasil::runtime::AuditRuntimeState;
+    state
+        .audit_writer()
+        .start()
+        .await
+        .expect("integration test audit writer should start");
+
+    state
 }
 
 #[allow(dead_code)]
@@ -1180,10 +1193,10 @@ macro_rules! create_test_app {
 
         test::init_service(
             App::new()
-                .wrap(aster_forge_actix_middleware::request_id::RequestIdMiddleware)
+                .wrap(aster_forge_middleware::actix::request_id::RequestIdMiddleware)
                 .wrap(aster_yggdrasil::api::middleware::cors::RuntimeCors)
-                .wrap(aster_forge_actix_middleware::security_headers::default_headers())
-                .wrap(aster_forge_actix_middleware::metrics::MetricsMiddleware)
+                .wrap(aster_forge_middleware::actix::security_headers::default_headers())
+                .wrap(aster_forge_middleware::actix::metrics::MetricsMiddleware)
                 .app_data(web::PayloadConfig::new(10 * 1024 * 1024))
                 .app_data(web::JsonConfig::default().limit(1024 * 1024))
                 .app_data(web::Data::new(metrics))

@@ -29,9 +29,10 @@ use webauthn_rs_proto::{AllowCredentials, Mediation, ResidentKeyRequirement};
 const TEST_BROWSER_ORIGIN: &str = "http://localhost:8080";
 
 fn decode_test_claims(token: &str) -> AccessClaims {
+    let decoding_key = DecodingKey::from_secret(b"test-secret-key-for-integration-tests").unwrap();
     jsonwebtoken::decode::<AccessClaims>(
         token,
-        &DecodingKey::from_secret(b"test-secret-key-for-integration-tests"),
+        &decoding_key,
         &Validation::new(jsonwebtoken::Algorithm::HS256),
     )
     .expect("test token should decode")
@@ -1051,7 +1052,7 @@ async fn contact_verification_confirm_rejects_invalid_expired_and_replayed_token
 async fn contact_verification_tokens_allow_only_one_unconsumed_token_per_purpose() {
     let state = common::setup().await;
     let db = state.writer_db().clone();
-    let app = create_test_app!(state);
+    let app = create_test_app!(state.clone());
     let _ = setup_admin!(app);
     let user = user_repo::find_by_email(&db, "admin@example.com")
         .await
@@ -2454,6 +2455,15 @@ async fn admin_create_user_can_generate_temporary_password_without_leaking_audit
     assert!(user.must_change_password);
     assert!(!user.password_hash.contains(&generated_password));
 
+    {
+        let state = state.clone();
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let audit = audit_log::Entity::find()
         .all(&db)
         .await
@@ -2480,7 +2490,7 @@ async fn admin_create_user_can_generate_temporary_password_without_leaking_audit
 async fn admin_can_toggle_forced_password_change_for_existing_users() {
     let state = common::setup().await;
     let db = state.writer_db().clone();
-    let app = create_test_app!(state);
+    let app = create_test_app!(state.clone());
     let admin_token = setup_admin!(app);
 
     let (status, body) = admin_create_user_with_body!(
@@ -2533,6 +2543,15 @@ async fn admin_can_toggle_forced_password_change_for_existing_users() {
     assert_eq!(status, 200);
     assert_eq!(body["data"]["status"], "password_change_required");
 
+    {
+        let state = state.clone();
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let update_details: Vec<String> = audit_log::Entity::find()
         .all(&db)
         .await
@@ -3268,6 +3287,15 @@ async fn password_reset_rotates_session_sends_notice_and_records_audit() {
 
     let _ = login_user!(app, "admin", "newsecret456");
 
+    {
+        let state = state.clone();
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let actions: Vec<String> = audit_log::Entity::find()
         .all(&db)
         .await

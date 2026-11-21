@@ -1722,7 +1722,14 @@ async fn minecraft_profile_rename_updates_name_and_temporarily_invalidates_bound
     let refreshed_access = body["accessToken"].as_str().unwrap().to_string();
     validate_ygg_token_status!(app, &refreshed_access, "rename-client", 204);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let rename_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
     assert_eq!(rename_entry.entity_type, "minecraft_profile");
@@ -1897,7 +1904,14 @@ async fn minecraft_profile_rename_same_name_is_noop_for_tokens() {
     assert!(token.temporarily_invalidated_at.is_none());
     validate_ygg_token_status!(app, &login.access_token, "same-rename-client", 204);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let rename_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
     let details: Value = serde_json::from_str(rename_entry.details.as_ref().unwrap())
@@ -1993,7 +2007,14 @@ async fn minecraft_profile_delete_unbinds_textures_keeps_wardrobe_revokes_tokens
     let resp = test::call_service(&app, req).await;
     assert_ygg_error(resp, 403, "ForbiddenOperationException", "Invalid token").await;
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let delete_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileDelete).await;
     assert_eq!(delete_entry.entity_type, "minecraft_profile");
@@ -2582,7 +2603,14 @@ async fn yggdrasil_texture_upload_public_read_profile_property_and_delete_flow()
     let textures = decode_textures_property(&profile_body);
     assert_default_skin_textures(&textures, &profile_id, "SkinUser");
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let upload_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftTextureUpload).await;
     assert_eq!(upload_entry.entity_type, "minecraft_texture");
@@ -5387,7 +5415,14 @@ async fn admin_minecraft_profiles_can_be_listed_filtered_and_deleted() {
     let resp = test::call_service(&app, req).await;
     assert_ygg_error(resp, 403, "ForbiddenOperationException", "Invalid token").await;
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let delete_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileDelete).await;
     assert_eq!(delete_entry.entity_name.as_deref(), Some("AdminBeta"));
@@ -5471,7 +5506,14 @@ async fn admin_can_rename_any_minecraft_profile_and_duplicate_names_are_rejected
     assert_eq!(body["data"]["uuid"], first_profile);
     assert_eq!(body["data"]["name"], "AdminRenamed");
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let rename_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
     assert_eq!(rename_entry.entity_name.as_deref(), Some("AdminRenamed"));
@@ -5623,7 +5665,14 @@ async fn admin_texture_deletes_by_profile_type_and_hash_with_audit_and_blob_clea
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let delete_count = audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
         .count(state.writer_db())
@@ -5697,7 +5746,14 @@ async fn yggdrasil_actions_write_audit_entries_with_presentation() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 204);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
 
     let profile_entry =
         audit_entry(&state, audit_service::AuditAction::MinecraftProfileCreate).await;
@@ -5965,7 +6021,14 @@ async fn yggdrasil_signout_revokes_all_tokens_and_records_audit() {
         assert_eq!(resp.status(), 403);
     }
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let entry = audit_entry(&state, audit_service::AuditAction::YggdrasilSignout).await;
     assert_eq!(entry.entity_type, "user");
     let details: Value = serde_json::from_str(entry.details.as_deref().unwrap()).unwrap();
@@ -6007,7 +6070,14 @@ async fn yggdrasil_signout_accepts_profile_name_when_profile_name_login_is_enabl
         assert_eq!(resp.status(), 403);
     }
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let entry = audit_entry(&state, audit_service::AuditAction::YggdrasilSignout).await;
     let details: Value = serde_json::from_str(entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["identifier"], "SignoutProfile");
@@ -6465,7 +6535,14 @@ async fn yggdrasil_has_joined_forwards_to_ordered_upstreams_after_local_cache_mi
     assert!(hit.last_success_at.is_some());
     assert!(hit.last_failure_at.is_none());
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let miss_audit = audit_entry_by_entity_name(
         &state,
         audit_service::AuditAction::YggdrasilSessionForwardCheck,
@@ -7097,7 +7174,14 @@ async fn wardrobe_upload_can_be_bound_and_unbound_from_profile_later() {
     assert_eq!(texture_hash_from_property(&textures, "SKIN"), wardrobe_hash);
     assert_eq!(textures["textures"]["SKIN"]["metadata"]["model"], "slim");
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let bind_entry = audit_entry(&state, audit_service::AuditAction::MinecraftTextureBind).await;
     assert_eq!(bind_entry.entity_type, "minecraft_texture");
     assert_eq!(bind_entry.entity_name.as_deref(), Some("WardrobeUser"));
@@ -8440,7 +8524,14 @@ async fn admin_texture_library_delete_removes_texture_profile_bindings_and_audit
     let admin_list: Value = test::read_body_json(resp).await;
     assert_eq!(admin_list["data"]["total"], 0);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let audit = audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
         .filter(audit_log::Column::EntityId.eq(texture_id))
@@ -8506,7 +8597,14 @@ async fn admin_texture_library_delete_published_texture_hides_public_library_ent
     let hidden_public_list: Value = test::read_body_json(resp).await;
     assert_eq!(hidden_public_list["data"]["total"], 0);
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let audit = audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
         .filter(audit_log::Column::EntityId.eq(texture_id))
@@ -8926,7 +9024,14 @@ async fn texture_library_reports_require_login_and_follow_moderation_edges() {
         unpublish_report_id
     );
 
-    audit_service::flush_global_audit_log_manager().await;
+    {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        state
+            .audit_writer()
+            .flush(deadline)
+            .await
+            .expect("audit writer flush should succeed");
+    }
     let report_create_count = audit_log::Entity::find()
         .filter(
             audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureReportCreate),
