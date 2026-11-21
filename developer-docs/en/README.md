@@ -4,6 +4,13 @@ AsterYggdrasil is a self-hosted Minecraft skin site and Yggdrasil authentication
 
 These docs describe the current implementation and extension contracts. New work should model Minecraft/Yggdrasil concepts directly and must not reintroduce old file-drive, team-sharing, or generic starter assumptions.
 
+## Architecture
+
+- [Architecture overview](./architecture/index.md) — workspace crates, runtime model, config tracks, response envelope
+- [Service module ownership](./architecture/service-ownership.md) — subdomain layout, state traits, Forge delegation
+- [Config model](./architecture/config-model.md) — three tracks and their owners
+- [Auth model](./architecture/auth-model.md) — identity chain, roles, operator area grants, capability bans
+
 ## Core Principles
 
 - Read the existing service, repository, DTO, OpenAPI, frontend service, and page patterns before changing code.
@@ -61,7 +68,7 @@ frontend-panel/src/services/   frontend service wrapper
 frontend-panel/src/pages/      UI page when needed
 ```
 
-Object blobs go through `src/object_storage/`; do not bring back the old file-drive model. Yggdrasil behavior belongs under `src/services/yggdrasil_service/`, texture behavior belongs under `src/services/texture_service/`, and handlers should only authenticate, extract HTTP input, call services, and return responses.
+Object blobs go through `src/texture_storage/`; do not bring back the old file-drive model. Yggdrasil behavior belongs under `src/services/yggdrasil_service/`, texture behavior belongs under `src/services/texture_service/`, and handlers should only authenticate, extract HTTP input, call services, and return responses.
 
 ## Runtime Startup
 
@@ -111,7 +118,7 @@ Do not wrap validation, authorization, protocol, or business-state failures as d
 
 ## Background Tasks
 
-The task system lives in `src/services/task_service/` and `src/tasks/runtime.rs`.
+The task system lives in `src/services/task_service/` and `src/runtime/tasks.rs`.
 
 The persisted `BackgroundTaskKind` currently remains `system_runtime`. Concrete system work is distinguished by `SystemRuntimeTaskKind`, currently:
 

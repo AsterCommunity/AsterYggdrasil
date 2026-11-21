@@ -1,4 +1,4 @@
-# aster-texture-renderer
+# aster_yggdrasil_render
 
 Static Minecraft texture preview renderer for AsterYggdrasil.
 
@@ -32,7 +32,7 @@ The default profile renders a transparent 430x430 dual-view preview with 2x
 supersampling:
 
 ```bash
-cargo run -p aster-texture-renderer --example render_skin_preview -- \
+cargo run -p aster_yggdrasil_render --example render_skin_preview -- \
   --input textures/example.png \
   --output /tmp/preview.png \
   --engine skin-3d \
@@ -53,7 +53,7 @@ Use the 2D engine when you need a flat front/back player preview instead of the
 projected 3D preview:
 
 ```bash
-cargo run -p aster-texture-renderer --example render_skin_preview -- \
+cargo run -p aster_yggdrasil_render --example render_skin_preview -- \
   --input textures/example.png \
   --output /tmp/preview-2d.png \
   --engine skin-2d \
@@ -65,7 +65,7 @@ cargo run -p aster-texture-renderer --example render_skin_preview -- \
 Use `--background` when a solid preview is easier to inspect:
 
 ```bash
-cargo run -p aster-texture-renderer --example render_skin_preview -- \
+cargo run -p aster_yggdrasil_render --example render_skin_preview -- \
   --input textures/example.png \
   --output /tmp/preview-white.png \
   --engine skin-3d \
@@ -103,7 +103,7 @@ The profile can be overridden with explicit render options. Put `--profile`
 before overrides so later flags win:
 
 ```bash
-cargo run -p aster-texture-renderer --example render_skin_preview -- \
+cargo run -p aster_yggdrasil_render --example render_skin_preview -- \
   --input textures/example.png \
   --output /tmp/preview-custom.webp \
   --engine skin-3d \
@@ -146,5 +146,5 @@ Supported example flags:
 Profiling tests are ignored by default. Run them manually with output enabled:
 
 ```bash
-cargo test -p aster-texture-renderer --test render_profile -- --ignored --nocapture
+cargo test -p aster_yggdrasil_render --test render_profile -- --ignored --nocapture
 ```

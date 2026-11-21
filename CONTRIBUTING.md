@@ -117,7 +117,7 @@ mismatches at compile time.
 - `aster_yggdrasil` — application shell: API routes, services, runtime assembly
 - `aster_yggdrasil_model` — SeaORM entities and domain types, no business logic, never depends on the application crate
 - `aster_yggdrasil_migration` — database migrations with a standalone CLI binary
-- `aster-texture-renderer` — skin preview rendering
+- `aster_yggdrasil_render` — skin preview rendering
 
 ### Service Module Layout
 

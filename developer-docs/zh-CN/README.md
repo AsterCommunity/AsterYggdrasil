@@ -4,6 +4,14 @@ AsterYggdrasil 是自建 Minecraft 皮肤站和 Yggdrasil 认证服务器，不�
 
 这些文档描述当前实现和扩展约定。新增内容要围绕 Minecraft/Yggdrasil 业务建模，不要把旧模板里的云盘、文件分享、团队协作或通用 starter 叙事带回来。
 
+
+## 架构
+
+- [架构总览](./architecture/index.md) —— workspace crate、运行时模型、配置三轨、响应信封
+- [服务模块所有权](./architecture/service-ownership.md) —— 子域布局、state trait、Forge 委托
+- [配置模型](./architecture/config-model.md) —— 三轨及其归属
+- [认证模型](./architecture/auth-model.md) —— 身份链、角色、operator 区域授权、玩家能力封禁
+
 ## 核心原则
 
 - 先读现有 service、repository、DTO、OpenAPI、前端 service/page pattern，再动手。
@@ -61,7 +69,7 @@ frontend-panel/src/services/   前端 service wrapper
 frontend-panel/src/pages/      需要时增加页面
 ```
 
-对象文件存储走 `src/object_storage/`，不要复活旧云盘文件模型。Yggdrasil 业务逻辑集中在 `src/services/yggdrasil_service/`，材质业务逻辑集中在 `src/services/texture_service/`，handler 只做认证、参数提取、调用 service、返回响应。
+材质文件存储走 `src/texture_storage/`，不要复活旧云盘文件模型。Yggdrasil 业务逻辑集中在 `src/services/yggdrasil_service/`，材质业务逻辑集中在 `src/services/texture_service/`，handler 只做认证、参数提取、调用 service、返回响应。
 
 ## Runtime Startup
 
@@ -111,7 +119,7 @@ audit runtime component、`audit_logs` 共享 schema、基础写入、批量写�
 
 ## 后台任务
 
-任务系统在 `src/services/task_service/` 和 `src/tasks/runtime.rs`。
+任务系统在 `src/services/task_service/` 和 `src/runtime/tasks.rs`。
 
 持久化的 `BackgroundTaskKind` 当前仍只有 `system_runtime`。具体系统任务通过 `SystemRuntimeTaskKind` 区分，当前包括：
 

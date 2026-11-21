@@ -9,7 +9,7 @@ This document describes the current Yggdrasil/authlib-injector implementation in
 | Routes | `src/api/routes/yggdrasil.rs`, `src/api/routes/yggdrasil/texture.rs`, `src/api/routes/yggdrasil/minecraft_services.rs` | Handlers extract HTTP input, perform protocol authentication, call services, and return protocol-shaped responses. |
 | DTOs | `src/api/dto/yggdrasil.rs` | All protocol wire fields belong here. Keep authlib-injector/Mojang wire names stable; do not build protocol responses with ad hoc `json!` in handlers. |
 | Services | `src/services/yggdrasil_service.rs`, `src/services/yggdrasil_service/*` | Token, profile, session, metadata, and minecraftservices behavior lives here. |
-| Textures | `src/services/texture_service/`, `src/object_storage/` | PNG validation, re-encoding, hashing, storage, and public reads go through texture services plus shared object storage. |
+| Textures | `src/services/texture_service/`, `src/texture_storage/` | PNG validation, re-encoding, hashing, storage, and public reads go through texture services plus shared object storage. |
 | Config | `src/config/definitions.rs`, `src/config/yggdrasil.rs` | Runtime Yggdrasil settings are defined and normalized here. |
 | OpenAPI | `src/api/openapi.rs` | Register every changed protocol path and schema. |
 | Tests | `tests/test_yggdrasil.rs` | Covers protocol compatibility, error bodies, token lifecycle, textures, and minecraftservices endpoints. |

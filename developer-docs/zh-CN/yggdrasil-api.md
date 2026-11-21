@@ -9,7 +9,7 @@
 | 路由 | `src/api/routes/yggdrasil.rs`、`src/api/routes/yggdrasil/texture.rs`、`src/api/routes/yggdrasil/minecraft_services.rs` | handler 只做参数提取、协议鉴权、调用 service 和组装协议响应。 |
 | DTO | `src/api/dto/yggdrasil.rs` | 所有协议字段都放这里，保持 wire name 和 authlib-injector/Mojang 兼容。不要在 handler 里临时 `json!` 拼协议响应。 |
 | Service | `src/services/yggdrasil_service.rs`、`src/services/yggdrasil_service/*` | token、profile、session、metadata、minecraftservices 行为在这里实现。 |
-| 材质处理 | `src/services/texture_service/`、`src/object_storage/` | PNG 校验、重编码、hash、存储、公开读取走 texture service 和共享对象存储。 |
+| 材质处理 | `src/services/texture_service/`、`src/texture_storage/` | PNG 校验、重编码、hash、存储、公开读取走 texture service 和共享对象存储。 |
 | 配置 | `src/config/definitions.rs`、`src/config/yggdrasil.rs` | Yggdrasil 运行时配置必须在这里定义和规范化。 |
 | OpenAPI | `src/api/openapi.rs` | 新增或改动协议 DTO/端点后要注册 path 和 schema。 |
 | 测试 | `tests/test_yggdrasil.rs` | 协议兼容、错误体、token 生命周期、材质和 minecraftservices 端点都在这里覆盖。 |

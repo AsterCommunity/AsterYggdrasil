@@ -101,7 +101,7 @@ bun run test
 cd docs && bun install && bun run dev
 ```
 
-Project layout: the `aster_yggdrasil` crate owns the application (API, services, runtime assembly); `aster_yggdrasil_model` owns SeaORM entities and domain types; `aster_yggdrasil_migration` owns database migrations; `aster-texture-renderer` renders skin previews. Shared runtime mechanics come from [`AsterForge`](https://github.com/AsterCommunity/AsterForge) crates pinned on crates.io.
+Project layout: the `aster_yggdrasil` crate owns the application (API, services, runtime assembly); `aster_yggdrasil_model` owns SeaORM entities and domain types; `aster_yggdrasil_migration` owns database migrations; `aster_yggdrasil_render` renders skin previews. Shared runtime mechanics come from [`AsterForge`](https://github.com/AsterCommunity/AsterForge) crates pinned on crates.io.
 
 ## License
 

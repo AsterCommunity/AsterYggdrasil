@@ -14,9 +14,9 @@
 | `src/services/mail_service.rs` | SMTP sender、内存 sender、测试邮件、lettre transport。 |
 | `src/entities/mail_outbox.rs` | `mail_outbox` SeaORM 实体。 |
 | `src/db/repository/mail_outbox_repo.rs` | outbox claim、mark sent、retry、failed 查询和更新。 |
-| `src/services/mail_outbox_service.rs` | enqueue、dispatch due、重试退避、成功/失败 audit。 |
+| `src/services/mail/outbox.rs` | enqueue、dispatch due、重试退避、成功/失败 audit。 |
 | `src/services/mail_audit_service.rs` | 邮件审计 details 和写入入口。 |
-| `src/tasks/runtime.rs` | `mail-outbox-dispatch` scheduled runtime task 注册。 |
+| `src/runtime/tasks.rs` | `mail-outbox-dispatch` scheduled runtime task 注册。 |
 | `src/runtime/startup/` | runtime 组装 SMTP sender、mail outbox drain 和 shutdown 依赖。 |
 
 ## 运行时配置
@@ -72,7 +72,7 @@ login_email_code
 AsterYggdrasil 业务流程不要直接在请求路径里发 SMTP。应该调用：
 
 ```text
-mail_outbox_service::enqueue(...)
+mail::outbox::enqueue(...)
 ```
 
 这样可以把外部副作用移到 background runtime，避免请求阻塞和瞬时 SMTP 故障导致业务状态不可恢复。
@@ -95,7 +95,7 @@ mail_outbox_service::enqueue(...)
 
 - `src/services/task_service/runtime.rs`
 - `src/services/task_service/types.rs`
-- `src/tasks/runtime.rs`
+- `src/runtime/tasks.rs`
 - `frontend-panel/src/lib/presentation.ts`
 
 它由 Forge runtime lease 和 scheduled task catalog 协调，只有拿到 lease 的实例会执行本轮

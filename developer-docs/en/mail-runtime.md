@@ -14,9 +14,9 @@ Main modules:
 | `src/services/mail_service.rs` | SMTP sender, memory sender, test mail, lettre transport. |
 | `src/entities/mail_outbox.rs` | `mail_outbox` SeaORM entity. |
 | `src/db/repository/mail_outbox_repo.rs` | Outbox claim, mark sent, retry, failed updates and queries. |
-| `src/services/mail_outbox_service.rs` | Enqueue, dispatch due, retry backoff, success/failure audit. |
+| `src/services/mail/outbox.rs` | Enqueue, dispatch due, retry backoff, success/failure audit. |
 | `src/services/mail_audit_service.rs` | Mail audit details and write helpers. |
-| `src/tasks/runtime.rs` | `mail-outbox-dispatch` scheduled runtime task registration. |
+| `src/runtime/tasks.rs` | `mail-outbox-dispatch` scheduled runtime task registration. |
 | `src/runtime/startup/` | Runtime assembly for SMTP sender, mail outbox drain, and shutdown dependencies. |
 
 ## Runtime Config
@@ -72,7 +72,7 @@ Template rendering must keep text and HTML values separate. User-controlled valu
 AsterYggdrasil flows should not send SMTP directly on the request path. Use:
 
 ```text
-mail_outbox_service::enqueue(...)
+mail::outbox::enqueue(...)
 ```
 
 This moves external side effects into the background runtime and avoids coupling request success to transient SMTP availability.
@@ -95,7 +95,7 @@ Registration points:
 
 - `src/services/task_service/runtime.rs`
 - `src/services/task_service/types.rs`
-- `src/tasks/runtime.rs`
+- `src/runtime/tasks.rs`
 - `frontend-panel/src/lib/presentation.ts`
 
 It is coordinated by the Forge runtime lease and scheduled task catalog, so only the instance holding
