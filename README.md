@@ -1,304 +1,108 @@
-# AsterYggdrasil
+<p align="center">
+  <img src="docs/public/favicon.svg" alt="AsterYggdrasil" width="112" />
+</p>
 
-Self-hosted Minecraft skin site and Yggdrasil/authlib-injector authentication server.
+<h1 align="center">AsterYggdrasil</h1>
 
-> **Fast development version**
->
-> The current target version is `0.1.0-beta.1` and development is still moving quickly. The project now has implemented flows for accounts, scoped operators, captcha-protected public auth flows, Minecraft profiles, Yggdrasil protocol endpoints, wardrobe textures, the public texture library, runtime config, audit logs, and maintenance tasks. Do not treat this beta as a long-term stable API; read the docs and plan backups before production use.
+<p align="center">
+  A self-hosted Minecraft skin site and Yggdrasil/authlib-injector authentication server in Rust.
+  <br />
+  Site accounts, player profiles, launcher login, join/hasJoined verification, skin and cape hosting, and a public texture library — one dual-licensed single-binary service built on AsterForge.
+</p>
 
-- 中文 README: [README.zh.md](README.zh.md)
-- Documentation site: [yggdrasil.astercosm.com](https://yggdrasil.astercosm.com/)
-- Docs source: [docs/index.md](docs/index.md)
-- Getting started: [docs/guide/getting-started.md](docs/guide/getting-started.md)
-- User guide: [docs/guide/user-guide.md](docs/guide/user-guide.md)
-- Docker deployment: [docs/deployment/docker.md](docs/deployment/docker.md)
-- Example config: [config.example.toml](config.example.toml)
-- Developer docs: [developer-docs/README.md](developer-docs/README.md)
+<p align="center">
+  <a href="https://yggdrasil.astercosm.com/"><img alt="Documentation Site" src="https://img.shields.io/badge/docs-VitePress-0F766E?logo=vitepress&logoColor=white"></a>
+  <a href="README.zh.md"><img alt="中文 README" src="https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-E11D48?style=for-the-badge"></a>
+  <a href="docs/en/guide/getting-started.md"><img alt="Getting Started" src="https://img.shields.io/badge/getting%20started-guide-2563EB?style=for-the-badge"></a>
+  <a href="docs/en/guide/launcher-setup.md"><img alt="Launcher Setup" src="https://img.shields.io/badge/authlib--injector-setup-0EA5E9?style=for-the-badge"></a>
+  <a href="docs/en/deployment/docker.md"><img alt="Docker" src="https://img.shields.io/badge/docker-deployment-2496ED?style=for-the-badge&logo=docker&logoColor=white"></a>
+  <a href="developer-docs/README.md"><img alt="Developer Docs" src="https://img.shields.io/badge/developer-docs-059669?style=for-the-badge"></a>
+  <img alt="Rust 1.95+" src="https://img.shields.io/badge/rust-1.95%2B-B7410E?logo=rust&logoColor=white">
+  <img alt="License MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-0F172A">
+</p>
 
 ## What is AsterYggdrasil?
 
-AsterYggdrasil puts the identity and texture flow needed by private Minecraft deployments into one self-hosted service:
+AsterYggdrasil is a self-hosted identity and texture service for private Minecraft deployments, built on the [AsterForge](https://github.com/AsterCommunity/AsterForge) runtime. It covers the full skin-site workflow: site accounts with captcha-protected auth flows, Minecraft player profiles, launcher login through the Yggdrasil/authlib-injector protocol, server join verification, skin and cape uploads with PNG re-encoding, hash-based public texture reads, a moderated public texture library, and scoped admin/operator workflows.
 
-- Site account registration, login, refresh, logout, and first-admin setup.
-- Separate Minecraft profile records, with multiple profiles per site account.
-- Yggdrasil/authlib-injector protocol root at `/api/yggdrasil`.
-- Launcher login plus token refresh/validate/invalidate/signout.
-- Minecraft join / hasJoined / profile lookup.
-- Skin/cape upload, PNG re-encoding, legacy cape compatibility, hash-based public reads, and local/S3/MinIO object storage.
-- Wardrobe texture management plus public texture library submission, review, publishing, tags, copying, reporting, and unpublishing.
-- Admin and scoped operator workflows for users, profiles, texture library moderation, config, audit, tasks, and external authentication.
-- Runtime config, Yggdrasil signing key rotation, audit logs, and periodic maintenance tasks.
+It focuses on the Minecraft/Yggdrasil domain. It is not a Minecraft server manager, not a Mojang replacement for arbitrary online-mode clients, and not a plugin ecosystem.
 
-AsterYggdrasil focuses on the Minecraft/Yggdrasil domain: accounts, player profiles, skins, capes, launcher login, server join verification, signing keys, texture storage, and admin operations.
+## Where it fits
 
-## Current Fit
+AsterYggdrasil is a good fit when you:
 
-AsterYggdrasil is a good fit when:
+- operate Minecraft servers in the authlib-injector or offline-login ecosystem and want your own auth source
+- want full control of player accounts, profiles, texture files, signing keys, the database, and backups
+- need Yggdrasil/authlib-injector-compatible protocol endpoints your launchers already speak
+- want to start with SQLite and local storage, then move to PostgreSQL/MySQL and S3/MinIO later
+- want a single Rust binary with an embedded frontend instead of a PHP runtime stack
+- want a codebase meant to be read, modified, and self-deployed
 
-- You operate Minecraft servers in the authlib-injector or offline-login ecosystem.
-- You want to control player accounts, Minecraft profiles, texture files, the database, signing keys, and backups.
-- You need Yggdrasil/authlib-injector-compatible protocol endpoints.
-- You want to start with SQLite and local object storage, then expand the database or storage backend later if needed.
-- You want a single-binary deployment model instead of maintaining a PHP runtime, web server modules, and extension dependencies.
-- You want a Rust, Actix Web, SeaORM, React, and Vite codebase for further development.
+It is probably not the right first choice when you need:
 
-The current version is not the right fit when:
+- a commercial-grade operations panel validated for large public traffic, without your own review
+- client-side presigned uploads to S3/MinIO (uploads are server-side streaming)
+- multi-instance high availability with automatic failover
+- Minecraft server lifecycle management (world hosting, plugins, console)
+- a public replacement for Mojang online-mode auth
 
-- You need a finished commercial-grade operations panel ready for large long-term public traffic without your own validation.
-- You need client-side presigned uploads directly to S3/MinIO. Uploads are server-side streaming only.
-- You need multi-instance high availability, automatic failover, a complete ban system, or enterprise compliance guarantees.
-- You need full Minecraft game server lifecycle management such as world hosting, plugin management, console access, or scheduled server operations.
-- You need a public replacement for Mojang official online-mode auth for arbitrary clients.
+## Capabilities
 
-## Implemented Capabilities
+- **Site accounts** — registration, login, refresh, logout, first-admin setup, invitations, contact-verification flows, passkeys, external authentication (GitHub/Google/QQ/OIDC), bans, and scoped operators.
+- **Yggdrasil protocol** — `authenticate`/`refresh`/`validate`/`invalidate`/`signout`, `join`/`hasJoined`, profile lookup, and signed texture properties with a rotatable signing key.
+- **Minecraft profiles** — multiple profiles per account, controlled renames that keep UUIDs and textures while invalidating launcher tokens.
+- **Textures** — skin/cape upload with PNG re-encoding and dimension checks, legacy cape compatibility, hash-addressed public reads, local/S3/MinIO storage, and forwarded-texture URLs for session-forward servers.
+- **Texture library** — public submission, review/publish/unpublish moderation, tags, copying to wardrobe, and reporting.
+- **Operations** — runtime config with hot reload, background tasks with health reporting, Prometheus metrics, CSRF/security headers/rate limiting, and structured error codes.
 
-### Accounts and Site API
+## Quick start
 
-- `POST /api/v1/auth/setup`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `GET /api/v1/auth/me`
-- Session management, passkeys, avatars, external-auth providers, scoped operators, and visual captcha policy.
-- Project APIs use the standard envelope and stable `AsterErrorCode` values.
-
-### Yggdrasil Protocol API
-
-Protocol root:
-
-```text
-/api/yggdrasil
-```
-
-Common endpoints:
-
-```text
-GET  /api/yggdrasil
-POST /api/yggdrasil/authserver/authenticate
-POST /api/yggdrasil/authserver/refresh
-POST /api/yggdrasil/authserver/validate
-POST /api/yggdrasil/authserver/invalidate
-POST /api/yggdrasil/authserver/signout
-
-POST /api/yggdrasil/sessionserver/session/minecraft/join
-GET  /api/yggdrasil/sessionserver/session/minecraft/hasJoined
-GET  /api/yggdrasil/sessionserver/session/minecraft/profile/{uuid}
-
-POST /api/yggdrasil/api/profiles/minecraft
-GET  /api/yggdrasil/textures/{hash}
-```
-
-Protocol endpoints return Yggdrasil/authlib-injector-compatible responses and do not use the `/api/v1` project envelope.
-
-The site homepage `/` returns:
-
-```text
-X-Authlib-Injector-API-Location: /api/yggdrasil/
-```
-
-Launchers that support API Location Indication can discover the protocol root from the site root URL.
-
-### Minecraft Profiles
-
-Current-user APIs:
-
-```text
-GET    /api/v1/profiles/minecraft
-POST   /api/v1/profiles/minecraft
-GET    /api/v1/profiles/minecraft/{uuid}/textures
-PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
-DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
-DELETE /api/v1/profiles/minecraft/{uuid}
-```
-
-Admin APIs:
-
-```text
-GET    /api/v1/admin/minecraft-profiles
-GET    /api/v1/admin/minecraft-profiles/{uuid}
-GET    /api/v1/admin/users/{user_id}/minecraft-profiles
-GET    /api/v1/admin/minecraft-profiles/{uuid}/textures
-DELETE /api/v1/admin/minecraft-profiles/{uuid}/textures/{skin|cape}
-DELETE /api/v1/admin/minecraft-textures/{hash}
-PUT    /api/v1/admin/minecraft-profiles/{uuid}/name
-DELETE /api/v1/admin/minecraft-profiles/{uuid}
-```
-
-Profile names support controlled renames through the user or administrator API. A rename keeps the UUID, texture bindings, and audit chain, then temporarily invalidates Yggdrasil tokens bound to that profile so launchers can refresh into the new name.
-
-### Textures
-
-Site users can upload wardrobe textures first, then bind them to profiles:
-
-```text
-GET    /api/v1/wardrobe/textures
-POST   /api/v1/wardrobe/textures/{skin|cape}
-DELETE /api/v1/wardrobe/textures/{texture_id}
-PUT    /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
-DELETE /api/v1/profiles/minecraft/{uuid}/textures/{skin|cape}
-```
-
-Launchers and compatible tools can use the Yggdrasil texture API:
-
-```text
-PUT    /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
-DELETE /api/yggdrasil/api/user/profile/{uuid}/{skin|cape}
-GET    /api/yggdrasil/textures/{hash}
-```
-
-Uploads must be PNG files. The server validates MIME type, dimensions, upload policy, and profile ownership, then re-encodes the image as a sanitized PNG and hashes the processed bytes.
-
-Public texture library APIs let users publish and reuse wardrobe textures:
-
-```text
-GET    /api/v1/texture-library/tags
-GET    /api/v1/texture-library/textures
-GET    /api/v1/texture-library/textures/{texture_id}
-POST   /api/v1/texture-library/textures/{texture_id}/copy
-POST   /api/v1/texture-library/textures/{texture_id}/reports
-POST   /api/v1/wardrobe/textures/{texture_id}/library-submission
-DELETE /api/v1/wardrobe/textures/{texture_id}/library-submission
-```
-
-Admins and scoped texture-library operators can review submissions, manage tags, handle reports, and unpublish public textures:
-
-```text
-GET  /api/v1/admin/texture-library/textures
-POST /api/v1/admin/texture-library/textures/{texture_id}/approve
-POST /api/v1/admin/texture-library/textures/{texture_id}/reject
-POST /api/v1/admin/texture-library/textures/{texture_id}/unpublish
-
-GET  /api/v1/admin/texture-library/reports
-POST /api/v1/admin/texture-library/reports/{report_id}/accept
-POST /api/v1/admin/texture-library/reports/{report_id}/reject
-```
-
-### Config, Audit, and Tasks
-
-- `system_config` stores runtime config.
-- `texture_library_enabled` and `texture_library_review_required` control the public texture library.
-- `auth_captcha_*` keys control visual captcha policy and preview.
-- `POST /api/v1/admin/config/yggdrasil/action` rotates the Yggdrasil signing key.
-- `POST /api/v1/admin/config/auth_captcha/action` previews captcha rendering.
-- `GET /api/v1/admin/audit-logs` lists audit logs.
-- `GET /api/v1/admin/tasks`, `POST /api/v1/admin/tasks/{id}/retry`, and `POST /api/v1/admin/tasks/cleanup` manage background tasks.
-- Runtime tasks cover token cleanup, texture object cleanup, storage consistency checks, audit cleanup, and task artifact cleanup.
-- Database search helpers and transaction mechanics come from AsterForge, while Yggdrasil keeps product error mapping and repository business semantics.
-
-## Quick Start
-
-### Run From Source
+### Run from source
 
 ```bash
 git clone https://github.com/AsterCommunity/AsterYggdrasil.git
 cd AsterYggdrasil
-
-cd frontend-panel
-bun install
-bun run build
-cd ..
-
 cargo run
 ```
 
-Default address:
+The server boots with SQLite and local storage, seeds defaults, and prints the listen address. The embedded frontend is served from the same port; the Yggdrasil API root lives at `/api/yggdrasil`.
 
-```text
-http://127.0.0.1:3000
-```
+### Docker
 
-On first startup, the service generates `data/config.toml`, creates the default SQLite database, runs migrations, and initializes runtime config.
+See [docs/en/deployment/docker.md](docs/en/deployment/docker.md) for the container deployment and volume layout.
 
-Health checks:
+### Configure a launcher
 
-```text
-GET /health
-GET /health/ready
-```
+Point your authlib-injector launcher at `http://<host>:<port>/api/yggdrasil` (or your reverse-proxied domain). See [launcher setup](docs/en/guide/launcher-setup.md) for per-launcher instructions.
 
-### Docker Trial
+## Documentation
 
-For a local HTTP trial:
+- [Documentation site](https://yggdrasil.astercosm.com/) — Chinese-first, English under `docs/en/`
+- [Getting started](docs/en/guide/getting-started.md) · [launcher setup](docs/en/guide/launcher-setup.md) · [profiles](docs/en/guide/profiles.md) · [configuration](docs/en/guide/configuration.md)
+- [Admin guide](docs/en/guide/admin-guide.md) · [background tasks](docs/en/guide/audit-tasks.md) · [user bans](docs/en/guide/user-bans.md)
+- [Docker deployment](docs/en/deployment/docker.md) · [example config](config.example.toml)
+- [Developer docs](developer-docs/README.md) · [OpenAPI export](tests/generate_openapi.rs) (`cargo test --features openapi --test generate_openapi`)
 
-```bash
-mkdir -p ./data
-
-docker run -d \
-  --name asteryggdrasil \
-  -p 3000:3000 \
-  -e ASTER__SERVER__HOST=0.0.0.0 \
-  -e ASTER__AUTH__BOOTSTRAP_INSECURE_COOKIES=true \
-  -e 'ASTER__DATABASE__URL=sqlite:///data/asteryggdrasil.db?mode=rwc' \
-  -v "$(pwd)/data:/data" \
-  ghcr.io/astercommunity/asteryggdrasil:latest
-```
-
-`ASTER__AUTH__BOOTSTRAP_INSECURE_COOKIES=true` is only for local or internal HTTP testing. Production deployments should use HTTPS and keep secure cookies enabled.
-
-See [docs/deployment/docker.md](docs/deployment/docker.md) for full deployment notes.
-
-## Production Notes
-
-- Do not expose `:3000` directly to the public Internet. Put it behind a reverse proxy for HTTPS, upload limits, and real client IP handling.
-- Configure `public_site_url` or `yggdrasil_public_base_url` before real use; otherwise textures properties cannot include client-reachable absolute URLs.
-- Back up the database, `data/config.toml`, and the object storage backend or local object storage directory.
-- Treat the Yggdrasil signing private key as sensitive config. Rotate it through the config action instead of editing database rows directly.
-- Set `[deployment].profile = "single"` for an instance-local deployment. `cluster` requires PostgreSQL/MySQL, Redis cache, Redis config-sync, and S3/MinIO object storage; Redis degradation makes readiness fail. Forge runtime lease/claim coordinates globally scoped background tasks across instances.
-- The production object storage backend can be local, S3, or MinIO. Textures and uploaded avatars use the same backend.
-- For publicly readable S3/MinIO buckets or CDNs, `yggdrasil_texture_public_base_url` can make uploaded texture URLs point directly at object storage while default skins still use the Yggdrasil API.
-
-## Common Development Commands
+## Development
 
 ```bash
-# Backend
-cargo fmt
+# backend
 cargo check
-cargo test
-cargo test --features openapi --test generate_openapi
-cargo test --features metrics
-cargo run
+cargo test --workspace --lib
+cargo clippy --workspace --all-features
 
-# Frontend
+# frontend
 cd frontend-panel
 bun install
-bun run dev
-bun run build
 bun run check
 bun run test
-bun run test:e2e
 
-# Docs
-cd docs
-bun install
-bun run docs:dev
-bun run docs:build
+# docs site
+cd docs && bun install && bun run dev
 ```
 
-## Project Structure
-
-```text
-src/                         Rust backend
-src/api/                     Routes, DTOs, OpenAPI registration, middleware, response helpers
-src/cache/                   Cache trait plus memory/noop/Redis implementations
-src/config/                  Static config, runtime config definitions, config normalization
-src/db/                      Database connection adapters, transaction boundary, repositories
-src/entities/                SeaORM entities
-src/runtime/                 AppState, startup, shutdown, logging, background task loops
-src/services/                auth, external auth, config, mail, audit, task, health, Yggdrasil, texture
-src/object_storage/          Object storage abstraction used by textures and uploaded avatars
-src/types/                   Shared enums and DB wrapper types
-src/utils/                   crypto, ID, path, number, email, RAII helpers
-migration/                   SeaORM migration crate
-api-docs-macros/             OpenAPI helper macros
-frontend-panel/              React + Vite product frontend and admin UI
-developer-docs/              Developer notes
-docs/                        User/deployment docs site
-tests/                       Integration tests and OpenAPI export tests
-tmp/authlib-injector/wiki/   authlib-injector/Yggdrasil reference entrypoint
-```
+Project layout: the `aster_yggdrasil` crate owns the application (API, services, runtime assembly); `aster_yggdrasil_model` owns SeaORM entities and domain types; `aster_yggdrasil_migration` owns database migrations; `aster-texture-renderer` renders skin previews. Shared runtime mechanics come from [`AsterForge`](https://github.com/AsterCommunity/AsterForge) crates pinned on crates.io.
 
 ## License
 
-Dual-licensed under MIT or Apache-2.0, at your option. See [LICENSE-MIT](LICENSE-MIT)
-and [LICENSE-APACHE](LICENSE-APACHE).
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
