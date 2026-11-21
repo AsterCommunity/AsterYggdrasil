@@ -1,0 +1,51 @@
+name: PR Automation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, closed]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Closed PR number whose historical pending gates should be finalized
+        required: true
+        type: string
+
+concurrency:
+  group: pr-automation-${{ github.event.pull_request.number || inputs.pull_request_number }}
+  cancel-in-progress: true
+
+permissions:
+  checks: write
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  synchronize:
+    name: Synchronize PR metadata
+    runs-on: ubuntu-latest
+    steps:
+      # pull_request_target runs trusted default-branch code. Never change this
+      # checkout to the untrusted pull request head.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Create AsterCommunity Automation token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.ASTER_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.ASTER_AUTOMATION_PRIVATE_KEY }}
+          permission-actions: read
+          permission-checks: write
+          permission-contents: read
+          permission-issues: write
+          permission-pull-requests: write
+
+      - name: Apply labels and linked-issue lifecycle
+        uses: AsterCommunity/aster-automation@f12ece993b91aadc1fe91433581b808fc44a389b # v0.1.0 candidate
+        with:
+          mode: pr-automation
+          token: ${{ steps.app-token.outputs.token }}
+          config-path: .github/aster-automation.json
