@@ -169,8 +169,8 @@ fn resolve_loaded_paths(base_dir: &Path, config_path: &Path, cfg: &mut Config) -
     let config_dir = config_path.parent().unwrap_or(base_dir);
 
     cfg.server.temp_dir = resolve_config_relative_path(base_dir, config_dir, &cfg.server.temp_dir)?;
-    cfg.object_storage.local_root =
-        resolve_config_relative_path(base_dir, config_dir, &cfg.object_storage.local_root)?;
+    cfg.texture_storage.local_root =
+        resolve_config_relative_path(base_dir, config_dir, &cfg.texture_storage.local_root)?;
     if let aster_forge_db::DatabaseUrl::Url(url) = &cfg.database.url {
         cfg.database.url = resolve_config_relative_sqlite_url(base_dir, config_dir, url)?.into();
     }
@@ -211,8 +211,8 @@ mod tests {
 
         assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
-        assert_eq!(cfg.object_storage.backend, "local");
-        assert_eq!(cfg.object_storage.local_root, "data/storage");
+        assert_eq!(cfg.texture_storage.backend, "local");
+        assert_eq!(cfg.texture_storage.local_root, "data/storage");
         assert!(cfg.network_trust.trusted_proxies.is_empty());
         assert!(dir.join(DEFAULT_CONFIG_PATH).exists());
         assert!(generated.contains("# AsterYggdrasil configuration file"));
@@ -282,7 +282,7 @@ local_root = "data/storage"
 
         assert_eq!(cfg.database.url, DEFAULT_SQLITE_DATABASE_URL.into());
         assert_eq!(cfg.server.temp_dir, DEFAULT_TEMP_DIR);
-        assert_eq!(cfg.object_storage.local_root, "data/storage");
+        assert_eq!(cfg.texture_storage.local_root, "data/storage");
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -300,8 +300,8 @@ local_root = "custom-textures"
 
         let cfg = load_from_dir(&dir, None, false).unwrap();
 
-        assert_eq!(cfg.object_storage.backend, "local");
-        assert_eq!(cfg.object_storage.local_root, "data/custom-textures");
+        assert_eq!(cfg.texture_storage.backend, "local");
+        assert_eq!(cfg.texture_storage.local_root, "data/custom-textures");
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -319,8 +319,8 @@ local_root = "legacy-textures"
 
         let cfg = load_from_dir(&dir, None, false).unwrap();
 
-        assert_eq!(cfg.object_storage.backend, "local");
-        assert_eq!(cfg.object_storage.local_root, "data/legacy-textures");
+        assert_eq!(cfg.texture_storage.backend, "local");
+        assert_eq!(cfg.texture_storage.local_root, "data/legacy-textures");
 
         let _ = std::fs::remove_dir_all(dir);
     }

@@ -536,7 +536,7 @@ fn texture_library_delete_error_to_api_error(error: texture_service::TextureErro
             error.protocol_message(),
         ),
         texture_service::TextureErrorKind::Storage => AsterError::internal_error_code(
-            AsterErrorCode::MinecraftObjectStorageFailed,
+            AsterErrorCode::MinecraftTextureStoreFailed,
             error.protocol_message(),
         ),
         _ => AsterError::internal_error(error.protocol_message()),

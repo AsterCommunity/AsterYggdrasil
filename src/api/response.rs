@@ -178,4 +178,49 @@ mod tests {
         assert_eq!(value["code"], AsterErrorCode::Success.as_str());
         assert_eq!(value["data"]["value"], 42);
     }
+
+    /// Byte-exact wire contract. The frontend and API consumers depend on these
+    /// exact shapes; any envelope change (including a future migration onto a
+    /// shared Forge envelope) must keep these strings stable or be a reviewed
+    /// breaking change.
+    #[test]
+    fn wire_bytes_are_stable() {
+        assert_eq!(
+            serde_json::to_string(&ApiResponse::ok(serde_json::json!({ "ready": true }))).unwrap(),
+            r#"{"code":"success","msg":"","data":{"ready":true}}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&ApiResponse::<()>::ok_empty()).unwrap(),
+            r#"{"code":"success","msg":""}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&ApiResponse::<()>::error(
+                AsterErrorCode::BadRequest,
+                "bad input"
+            ))
+            .unwrap(),
+            r#"{"code":"bad_request","msg":"bad input"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&ApiResponse::<()>::error_with_details(
+                AsterErrorCode::DatabaseError,
+                "database unavailable",
+                Some(ApiErrorInfo {
+                    code: AsterErrorCode::DatabaseError,
+                    retryable: Some(true),
+                }),
+            ))
+            .unwrap(),
+            r#"{"code":"database.error","msg":"database unavailable","error":{"code":"database.error","retryable":true}}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&ApiResponse::<()>::error_body(
+                AsterErrorCode::RateLimited,
+                "retry later",
+                None,
+            ))
+            .unwrap(),
+            r#"{"code":"rate_limited","msg":"retry later","error":{"code":"rate_limited"}}"#
+        );
+    }
 }

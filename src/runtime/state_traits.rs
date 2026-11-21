@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::config::{Config, RuntimeConfig};
-use crate::object_storage::ObjectStorage;
+use crate::texture_storage::TextureStore;
 use aster_forge_cache::CacheBackend;
 use aster_forge_config::ConfigSyncRuntime;
 use aster_forge_mail::MailSender;
@@ -33,8 +33,8 @@ pub trait CacheRuntimeState {
     fn cache(&self) -> &Arc<dyn CacheBackend>;
 }
 
-pub trait ObjectStorageRuntimeState {
-    fn object_storage(&self) -> &Arc<dyn ObjectStorage>;
+pub trait TextureStorageRuntimeState {
+    fn texture_storage(&self) -> &Arc<dyn TextureStore>;
 }
 
 pub trait MetricsRuntimeState {
@@ -54,7 +54,7 @@ pub trait SharedRuntimeState:
     + AppConfigRuntimeState
     + RuntimeConfigRuntimeState
     + CacheRuntimeState
-    + ObjectStorageRuntimeState
+    + TextureStorageRuntimeState
     + MetricsRuntimeState
     + AuditRuntimeState
 {
@@ -65,7 +65,7 @@ impl<T> SharedRuntimeState for T where
         + AppConfigRuntimeState
         + RuntimeConfigRuntimeState
         + CacheRuntimeState
-        + ObjectStorageRuntimeState
+        + TextureStorageRuntimeState
         + MetricsRuntimeState
         + AuditRuntimeState
 {
@@ -113,9 +113,9 @@ impl CacheRuntimeState for AppState {
     }
 }
 
-impl ObjectStorageRuntimeState for AppState {
-    fn object_storage(&self) -> &Arc<dyn ObjectStorage> {
-        self.object_storage()
+impl TextureStorageRuntimeState for AppState {
+    fn texture_storage(&self) -> &Arc<dyn TextureStore> {
+        self.texture_storage()
     }
 }
 

@@ -4,6 +4,9 @@ use crate::db::repository::{
 };
 use crate::runtime::AppState;
 use aster_yggdrasil_model::types::user::UserRole;
+use aster_yggdrasil_model::types::yggdrasil::{
+    MinecraftTextureModel, MinecraftTextureType, MinecraftTextureVisibility,
+};
 use sha2::Digest;
 use std::io::Cursor;
 use std::sync::Arc;
@@ -40,7 +43,7 @@ async fn test_state(texture_root: String) -> AppState {
         .expect("texture cleanup runtime config should reload");
     let config = Arc::new(crate::config::Config {
         database: db_cfg,
-        object_storage: crate::config::ObjectStorageConfig {
+        texture_storage: crate::config::TextureStorageConfig {
             backend: "local".to_string(),
             local_root: texture_root,
             ..Default::default()
@@ -51,7 +54,7 @@ async fn test_state(texture_root: String) -> AppState {
         ..Default::default()
     });
     let cache = aster_forge_cache::create_cache(&config.cache).await;
-    let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
+    let texture_storage = crate::texture_storage::create_texture_store(&config.texture_storage)
         .expect("texture cleanup storage should initialize");
     AppState::from_parts(crate::runtime::AppStateParts {
         audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
@@ -59,7 +62,7 @@ async fn test_state(texture_root: String) -> AppState {
         config,
         runtime_config,
         cache,
-        object_storage,
+        texture_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
@@ -186,7 +189,7 @@ async fn cleanup_orphan_texture_blobs_deletes_unreferenced_storage_keys_only() {
 }
 
 #[tokio::test]
-async fn check_object_storage_consistency_reports_missing_and_storage_key_mismatch() {
+async fn check_texture_storage_consistency_reports_missing_and_storage_key_mismatch() {
     let root = std::env::temp_dir().join(format!(
         "asteryggdrasil-texture-consistency-{}",
         uuid::Uuid::new_v4()
@@ -271,17 +274,17 @@ async fn check_object_storage_consistency_reports_missing_and_storage_key_mismat
     )
     .await;
 
-    let report = check_object_storage_consistency(&state).await.unwrap();
+    let report = check_texture_storage_consistency(&state).await.unwrap();
 
     assert_eq!(report.checked, 3);
     assert_eq!(report.missing, 1);
     assert_eq!(report.hash_mismatched, 1);
     assert_eq!(report.issues.len(), 2);
     assert!(report.issues.iter().any(|issue| issue.kind
-        == ObjectStorageConsistencyIssueKind::MissingObject
+        == TextureStoreConsistencyIssueKind::MissingObject
         && issue.storage_key == missing_key));
     assert!(report.issues.iter().any(|issue| issue.kind
-        == ObjectStorageConsistencyIssueKind::HashMismatch
+        == TextureStoreConsistencyIssueKind::HashMismatch
         && issue.storage_key == mismatch_key));
     tokio::fs::remove_dir_all(root).await.unwrap();
 }

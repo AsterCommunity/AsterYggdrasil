@@ -25,8 +25,8 @@ use aster_yggdrasil::entities::{
     yggdrasil_token,
 };
 use aster_yggdrasil::errors::{AsterError, Result};
-use aster_yggdrasil::object_storage::{ObjectBlobMetadata, ObjectStorage};
 use aster_yggdrasil::services::{audit_service, profile_service};
+use aster_yggdrasil::texture_storage::{ObjectBlobMetadata, TextureStore};
 use aster_yggdrasil::types::{
     user::AvatarSource, yggdrasil::MinecraftTextureModel,
     yggdrasil::YggdrasilSessionForwardProviderKind,
@@ -78,7 +78,7 @@ impl MockSessionForwardServer {
 }
 
 #[async_trait::async_trait]
-impl ObjectStorage for FailingObjectStorage {
+impl TextureStore for FailingObjectStorage {
     fn backend_name(&self) -> &'static str {
         "failing"
     }
@@ -7402,7 +7402,7 @@ async fn wardrobe_upload_rejects_streams_over_runtime_size_limit() {
 #[actix_web::test]
 async fn wardrobe_upload_storage_errors_hide_internal_details() {
     let mut state = setup_yggdrasil().await;
-    state.object_storage = Arc::new(FailingObjectStorage);
+    state.texture_storage = Arc::new(FailingObjectStorage);
     let app = create_test_app!(state);
     let access = setup_admin!(app);
 

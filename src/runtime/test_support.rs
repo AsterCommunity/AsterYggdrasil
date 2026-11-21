@@ -45,7 +45,7 @@ pub async fn setup_state_with_config(
         config: config.clone(),
         runtime_config,
         cache,
-        object_storage: crate::object_storage::create_object_storage(&config.object_storage)
+        texture_storage: crate::texture_storage::create_texture_store(&config.texture_storage)
             .expect("test object storage should initialize"),
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),

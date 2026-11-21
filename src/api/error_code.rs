@@ -161,7 +161,7 @@ define_error_codes! {
     MinecraftTextureInvalidModel => "minecraft_texture.invalid_model",
     MinecraftTextureUnsupportedMime => "minecraft_texture.unsupported_mime",
     MinecraftTextureTooLarge => "minecraft_texture.too_large",
-    MinecraftObjectStorageFailed => "minecraft_texture.storage_failed",
+    MinecraftTextureStoreFailed => "minecraft_texture.storage_failed",
     MinecraftTextureBindConflict => "minecraft_texture.bind_conflict",
 
     // Wardrobe-specific texture library errors.

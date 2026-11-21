@@ -267,7 +267,7 @@ mod tests {
         })
         .await;
         let config = Arc::new(crate::config::Config::default());
-        let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
+        let texture_storage = crate::texture_storage::create_texture_store(&config.texture_storage)
             .expect("object storage should initialize");
 
         AppState::from_parts(AppStateParts {
@@ -276,7 +276,7 @@ mod tests {
             config,
             runtime_config,
             cache,
-            object_storage,
+            texture_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test(
                 "aster_yggdrasil",

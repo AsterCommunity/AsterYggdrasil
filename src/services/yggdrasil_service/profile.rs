@@ -3,7 +3,7 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
-    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+    CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState,
 };
 use crate::services::{ban_service, texture_service};
 use aster_yggdrasil_model::entities::minecraft_profile;
@@ -112,7 +112,7 @@ pub async fn delete_profile_for_user<S>(
     uuid: &str,
 ) -> Result<Option<DeleteMinecraftProfileResult>>
 where
-    S: CacheRuntimeState + DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: CacheRuntimeState + DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     tracing::debug!(
         user_id,

@@ -788,7 +788,7 @@ pub async fn setup_with_memory_cache() -> AppState {
         config: base.config.clone(),
         runtime_config: base.runtime_config,
         cache,
-        object_storage: base.object_storage,
+        texture_storage: base.texture_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
@@ -977,9 +977,9 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         .expect("auth runtimes should install");
 
     let cache = aster_forge_cache::create_cache(&config.cache).await;
-    let object_storage =
-        aster_yggdrasil::object_storage::create_object_storage(&config.object_storage)
-            .expect("object storage should initialize");
+    let texture_storage =
+        aster_yggdrasil::texture_storage::create_texture_store(&config.texture_storage)
+            .expect("texture storage should initialize");
     let db_handles = aster_yggdrasil::db::connect_reader_for_writer_with_metrics(
         &db_cfg,
         writer.clone(),
@@ -992,7 +992,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         config,
         runtime_config,
         cache,
-        object_storage,
+        texture_storage,
         mail_sender: aster_forge_mail::memory_sender(),
         config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
         metrics: aster_forge_metrics::NoopMetrics::arc(),
@@ -1130,7 +1130,7 @@ pub async fn flush_mail_outbox_with(
     runtime_config: &std::sync::Arc<aster_yggdrasil::config::RuntimeConfig>,
     mail_sender: &std::sync::Arc<dyn aster_forge_mail::MailSender>,
 ) {
-    aster_yggdrasil::services::mail_outbox_service::drain_with(db, runtime_config, mail_sender)
+    aster_yggdrasil::services::mail::outbox::drain_with(db, runtime_config, mail_sender)
         .await
         .expect("mail outbox drain should succeed");
 }

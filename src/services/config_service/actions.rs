@@ -10,9 +10,10 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::{
     ConfigSyncRuntimeState, MailRuntimeState, MetricsRuntimeState, SharedRuntimeState,
 };
+use crate::services::mail::{audit as mail_audit, sender as mail_sender};
 use crate::services::{
     audit_service::{self, AuditContext},
-    captcha_service, mail_audit_service, mail_service, yggdrasil_signature,
+    captcha_service, yggdrasil_signature,
 };
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -145,15 +146,15 @@ async fn execute_mail_action(
             );
 
             let result =
-                mail_service::send_test_email(state, &normalized_target, Some(&actor.username))
+                mail_sender::send_test_email(state, &normalized_target, Some(&actor.username))
                     .await;
             let ip_address = audit_ctx.ip_address.as_deref();
             let user_agent = audit_ctx.user_agent.as_deref();
             match &result {
                 Ok(()) => {
-                    mail_audit_service::log_send(
+                    mail_audit::log_send(
                         state,
-                        mail_audit_service::MailAuditInput {
+                        mail_audit::MailAuditInput {
                             actor_user_id: input.actor_user_id,
                             ip_address,
                             user_agent,
@@ -170,10 +171,10 @@ async fn execute_mail_action(
                 }
                 Err(error) => {
                     let error_message = error.to_string();
-                    mail_audit_service::log_delivery_failed_with_db(
+                    mail_audit::log_delivery_failed_with_db(
                         state.writer_db(),
                         state.runtime_config(),
-                        mail_audit_service::MailAuditInput {
+                        mail_audit::MailAuditInput {
                             actor_user_id: input.actor_user_id,
                             ip_address,
                             user_agent,

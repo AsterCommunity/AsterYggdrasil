@@ -34,8 +34,8 @@ pub use deployment::{DeploymentConfig, DeploymentProfile};
 pub use runtime_config::{JWT_AUDIENCE, JWT_ISSUER, RuntimeConfig};
 pub use schema::{
     AuthConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,
-    DatabaseConfig, NetworkTrustConfig, ObjectStorageConfig, RateLimitConfig, RateLimitTier,
-    S3ObjectStorageConfig, ServerConfig,
+    DatabaseConfig, NetworkTrustConfig, RateLimitConfig, RateLimitTier, S3TextureStorageConfig,
+    ServerConfig, TextureStorageConfig,
 };
 
 use std::sync::Arc;

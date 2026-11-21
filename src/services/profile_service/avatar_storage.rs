@@ -1,6 +1,6 @@
 //! Avatar object storage key helpers.
 
-use crate::runtime::ObjectStorageRuntimeState;
+use crate::runtime::TextureStorageRuntimeState;
 use aster_yggdrasil_model::entities::user_profile;
 use aster_yggdrasil_model::types::user::AvatarSource;
 
@@ -37,19 +37,19 @@ pub(super) fn resolve_stored_avatar_variant_key(
     resolve_stored_avatar_prefix(profile).map(|prefix| user_avatar_variant_key(prefix, size))
 }
 
-pub(super) async fn delete_avatar_variant_objects<S: ObjectStorageRuntimeState>(
+pub(super) async fn delete_avatar_variant_objects<S: TextureStorageRuntimeState>(
     state: &S,
     prefix: &str,
 ) {
     for size in [AVATAR_SIZE_SM, AVATAR_SIZE_LG] {
         let key = user_avatar_variant_key(prefix, size);
-        if let Err(error) = state.object_storage().delete(&key).await {
+        if let Err(error) = state.texture_storage().delete(&key).await {
             tracing::warn!(key, "failed to delete avatar object: {error}");
         }
     }
 }
 
-pub(super) async fn delete_upload_objects<S: ObjectStorageRuntimeState>(
+pub(super) async fn delete_upload_objects<S: TextureStorageRuntimeState>(
     state: &S,
     profile: &user_profile::Model,
 ) {

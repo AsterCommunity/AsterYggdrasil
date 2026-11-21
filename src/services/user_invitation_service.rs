@@ -13,8 +13,7 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{
     auth_service::shared::{CreateUserWithRoleInput, create_user_with_role},
-    mail_outbox_service,
-    mail_template::MailTemplatePayload,
+    mail::template::MailTemplatePayload,
 };
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_crypto as hash;
@@ -100,7 +99,7 @@ where
         )
         .await?;
 
-        mail_outbox_service::enqueue(
+        crate::services::mail::outbox::enqueue(
             txn,
             &email,
             None,

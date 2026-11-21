@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::config::Config;
 use crate::errors::{AsterError, Result};
-use crate::object_storage;
 use crate::runtime::{AppState, AppStateParts};
+use crate::texture_storage;
 
 pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
     aster_forge_runtime::ensure_runtime_temp_dir(&config.server.temp_dir)
@@ -29,7 +29,7 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
     crate::services::yggdrasil_signature::prepare_runtime_signature_key(db_handles.writer())
         .await?;
     let cache = create_runtime_cache(config.as_ref()).await?;
-    let object_storage = object_storage::create_object_storage(&config.object_storage)?;
+    let texture_storage = texture_storage::create_texture_store(&config.texture_storage)?;
     let config_sync = aster_forge_config::build_config_sync_runtime(
         &config.config_sync,
         crate::services::config_service::runtime::CONFIG_RELOAD_NAMESPACE,
@@ -39,13 +39,13 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
     let audit_writer = std::sync::Arc::new(aster_forge_audit::AuditWriter::new(
         db_handles.writer().clone(),
     ));
-    let mail_sender = crate::services::mail_service::runtime_sender(runtime_config.clone());
+    let mail_sender = crate::services::mail::sender::runtime_sender(runtime_config.clone());
     AppState::from_parts(AppStateParts {
         db_handles,
         config,
         runtime_config,
         cache,
-        object_storage,
+        texture_storage,
         mail_sender,
         config_sync,
         metrics,

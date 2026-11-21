@@ -9,7 +9,7 @@ use crate::db::repository::{
 };
 use crate::errors::Result;
 use crate::runtime::{
-    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+    CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState,
 };
 use crate::services::profile_service::{self, AvatarAudience};
 use aster_yggdrasil_model::entities::{
@@ -71,7 +71,7 @@ where
     super::cache::invalidate_texture_blob_lookup(state, hash).await;
 }
 
-pub async fn download_texture<S: ObjectStorageRuntimeState>(
+pub async fn download_texture<S: TextureStorageRuntimeState>(
     state: &S,
     texture: &minecraft_profile_texture_repo::ProfileTexture,
 ) -> Result<TextureDownload> {
@@ -83,7 +83,7 @@ pub async fn download_texture<S: ObjectStorageRuntimeState>(
     download_object_storage_key(state, &texture.texture.storage_key).await
 }
 
-pub async fn download_texture_blob<S: ObjectStorageRuntimeState>(
+pub async fn download_texture_blob<S: TextureStorageRuntimeState>(
     state: &S,
     texture: &TextureBlob,
 ) -> Result<TextureDownload> {
@@ -91,12 +91,12 @@ pub async fn download_texture_blob<S: ObjectStorageRuntimeState>(
     download_object_storage_key(state, &texture.storage_key).await
 }
 
-async fn download_object_storage_key<S: ObjectStorageRuntimeState>(
+async fn download_object_storage_key<S: TextureStorageRuntimeState>(
     state: &S,
     storage_key: &str,
 ) -> Result<TextureDownload> {
-    let metadata = state.object_storage().metadata(storage_key).await?;
-    let stream = state.object_storage().get_stream(storage_key).await?;
+    let metadata = state.texture_storage().metadata(storage_key).await?;
+    let stream = state.texture_storage().get_stream(storage_key).await?;
     tracing::debug!(
         content_type = %metadata.content_type,
         size = metadata.size,

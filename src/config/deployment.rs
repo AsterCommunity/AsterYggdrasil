@@ -85,7 +85,7 @@ pub fn static_issues(config: &Config) -> Vec<String> {
     }
 
     if !matches!(
-        config.object_storage.normalized_backend().as_str(),
+        config.texture_storage.normalized_backend().as_str(),
         "s3" | "minio"
     ) {
         issues.push(
@@ -184,7 +184,7 @@ mod tests {
         config.cache.endpoint = "redis://cache:6379/0".into();
         config.config_sync.backend = "redis".to_string();
         config.config_sync.endpoint = "redis://cache:6379/0".into();
-        config.object_storage.backend = "s3".to_string();
+        config.texture_storage.backend = "s3".to_string();
 
         validate_static(&config).expect("cluster profile should accept shared dependencies");
     }

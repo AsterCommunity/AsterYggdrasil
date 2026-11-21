@@ -1,6 +1,6 @@
 //! Local filesystem object storage.
 
-use super::{ObjectBlobMetadata, ObjectStorage};
+use super::{ObjectBlobMetadata, TextureStore};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_forge_storage_core::{normalize_object_key, normalize_object_prefix};
 use async_trait::async_trait;
@@ -9,11 +9,11 @@ use tokio::io::AsyncRead;
 
 const DEFAULT_CONTENT_TYPE: &str = "image/png";
 
-pub struct LocalObjectStorage {
+pub struct LocalTextureStore {
     base_path: PathBuf,
 }
 
-impl LocalObjectStorage {
+impl LocalTextureStore {
     pub fn new(local_root: &str) -> Self {
         let base_path = Path::new(local_root).to_path_buf();
         Self { base_path }
@@ -26,7 +26,7 @@ impl LocalObjectStorage {
 }
 
 #[async_trait]
-impl ObjectStorage for LocalObjectStorage {
+impl TextureStore for LocalTextureStore {
     fn backend_name(&self) -> &'static str {
         "local"
     }
@@ -148,8 +148,8 @@ fn map_storage_core_error(error: aster_forge_storage_core::StorageCoreError) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{LocalObjectStorage, normalize_storage_object_key};
-    use crate::object_storage::ObjectStorage;
+    use super::{LocalTextureStore, normalize_storage_object_key};
+    use crate::texture_storage::TextureStore;
 
     #[test]
     fn storage_key_normalizes_like_aster_drive() {
@@ -173,7 +173,7 @@ mod tests {
             "asteryggdrasil-object-storage-{}",
             uuid::Uuid::new_v4()
         ));
-        let storage = LocalObjectStorage::new(root.to_str().unwrap());
+        let storage = LocalTextureStore::new(root.to_str().unwrap());
         let first = root.join("textures/ab/abc.png");
         let second = root.join("textures/cd/cde.png");
         tokio::fs::create_dir_all(first.parent().unwrap())

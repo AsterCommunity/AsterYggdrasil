@@ -210,7 +210,7 @@ pub async fn overview(state: &AppState) -> Result<AdminOverviewResp> {
         AdminOverviewServiceStatus {
             key: "object_storage".to_string(),
             status: AdminOverviewServiceStatusKind::Ok,
-            metric: Some(state.object_storage().backend_name().to_string()),
+            metric: Some(state.texture_storage().backend_name().to_string()),
             detail: Some(format!("{texture_count} texture records")),
         },
         AdminOverviewServiceStatus {
@@ -548,7 +548,7 @@ mod tests {
             .expect("admin overview test runtime config should reload");
         let config = Arc::new(crate::config::Config {
             database: db_cfg,
-            object_storage: crate::config::ObjectStorageConfig {
+            texture_storage: crate::config::TextureStorageConfig {
                 backend: "local".to_string(),
                 local_root: texture_root.to_string_lossy().to_string(),
                 ..Default::default()
@@ -559,7 +559,7 @@ mod tests {
             ..Default::default()
         });
         let cache = aster_forge_cache::create_cache(&config.cache).await;
-        let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
+        let texture_storage = crate::texture_storage::create_texture_store(&config.texture_storage)
             .expect("admin overview test object storage should initialize");
 
         AppState::from_parts(AppStateParts {
@@ -568,7 +568,7 @@ mod tests {
             config,
             runtime_config,
             cache,
-            object_storage,
+            texture_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test(
                 "aster_yggdrasil",

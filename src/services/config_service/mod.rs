@@ -6,7 +6,7 @@ pub mod runtime;
 mod schema;
 mod system;
 
-pub use crate::services::mail_template::list_template_variable_groups;
+pub use crate::services::mail::template::list_template_variable_groups;
 pub(crate) use actions::execute_action_with_audit;
 pub use actions::{
     ConfigActionResult, ConfigActionType, ExecuteConfigActionInput, MAIL_CONFIG_ACTION_KEY,

@@ -72,7 +72,7 @@ where
 async fn drain_mail_outbox_on_shutdown(
     resources: MailOutboxRuntimeResources,
 ) -> Result<(), String> {
-    super::drain_with(
+    super::outbox::drain_with(
         &resources.db,
         &resources.runtime_config,
         &resources.mail_sender,
@@ -144,11 +144,11 @@ mod tests {
             .await
             .expect("mail outbox drain test runtime config should reload");
         let mail_sender = aster_forge_mail::memory_sender();
-        let row = super::super::enqueue(
+        let row = crate::services::mail::outbox::enqueue(
             &db,
             "operator@example.com",
             Some("Operator"),
-            crate::services::mail_template::MailTemplatePayload::login_email_code(
+            crate::services::mail::template::MailTemplatePayload::login_email_code(
                 "operator",
                 "123456",
                 "AsterYggdrasil",

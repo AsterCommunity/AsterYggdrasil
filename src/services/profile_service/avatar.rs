@@ -8,7 +8,7 @@ use tokio::io::AsyncReadExt;
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{user_profile_repo, user_repo};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState};
 use aster_yggdrasil_model::entities::user_profile;
 use aster_yggdrasil_model::types::user::AvatarSource;
 
@@ -25,7 +25,7 @@ use super::shared::{
 pub const AVATAR_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 pub const AVATAR_CONTENT_TYPE: &str = "image/webp";
 
-async fn put_avatar_bytes<S: ObjectStorageRuntimeState>(
+async fn put_avatar_bytes<S: TextureStorageRuntimeState>(
     state: &S,
     storage_key: &str,
     data: &[u8],
@@ -40,7 +40,7 @@ async fn put_avatar_bytes<S: ObjectStorageRuntimeState>(
         .map_aster_err_ctx("write avatar temp file", AsterError::internal_error)?;
 
     let result = state
-        .object_storage()
+        .texture_storage()
         .put_file(storage_key, &temp_path)
         .await;
     aster_forge_utils::fs::cleanup_temp_file(&temp_path).await;
@@ -54,7 +54,7 @@ pub async fn upload_avatar<S>(
     payload: &mut Multipart,
 ) -> Result<UserProfileInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + TextureStorageRuntimeState,
 {
     tracing::debug!(user_id, "uploading user avatar");
     let user = user_repo::find_by_id(state.writer_db(), user_id).await?;
@@ -139,7 +139,7 @@ pub async fn set_avatar_source<S>(
     source: AvatarSource,
 ) -> Result<UserProfileInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + RuntimeConfigRuntimeState + TextureStorageRuntimeState,
 {
     tracing::debug!(user_id, source = ?source, "setting user avatar source");
     if source == AvatarSource::Upload {
@@ -218,7 +218,7 @@ fn validate_avatar_size(size: u32) -> Result<u32> {
 
 pub async fn get_avatar_bytes<S>(state: &S, user_id: i64, size: u32) -> Result<Vec<u8>>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     let size = validate_avatar_size(size)?;
     tracing::debug!(user_id, size, "loading user avatar bytes");
@@ -262,7 +262,7 @@ where
         AsterError::record_not_found_code(AsterErrorCode::AvatarNotFound, "avatar key invalid")
     })?;
     let mut stream = state
-        .object_storage()
+        .texture_storage()
         .get_stream(&key)
         .await
         .map_aster_err_with(|| {
@@ -287,7 +287,7 @@ where
 
 pub async fn delete_uploaded_avatar_for_user<S>(state: &S, user_id: i64) -> Result<()>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     if let Some(profile) = user_profile_repo::find_by_user_id(state.reader_db(), user_id).await? {
         delete_upload_objects(state, &profile).await;

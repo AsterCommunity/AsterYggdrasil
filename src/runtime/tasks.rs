@@ -220,7 +220,7 @@ async fn record_runtime_task_outcome(
 }
 
 async fn run_mail_outbox_dispatch(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::mail_outbox_service::dispatch_due(state.get_ref()).await {
+    match crate::services::mail::outbox::dispatch_due(state.get_ref()).await {
         Ok(stats)
             if stats.claimed > 0 || stats.sent > 0 || stats.retried > 0 || stats.failed > 0 =>
         {
@@ -382,7 +382,7 @@ async fn run_task_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
 async fn run_yggdrasil_storage_consistency_check(
     state: web::Data<AppState>,
 ) -> RuntimeTaskRunOutcome {
-    match crate::services::texture_service::check_object_storage_consistency(state.get_ref()).await
+    match crate::services::texture_service::check_texture_storage_consistency(state.get_ref()).await
     {
         Ok(report) if report.missing > 0 || report.hash_mismatched > 0 => {
             let summary = yggdrasil_storage_consistency_failure_summary(&report);
@@ -408,7 +408,7 @@ async fn run_yggdrasil_storage_consistency_check(
 }
 
 fn yggdrasil_storage_consistency_failure_summary(
-    report: &crate::services::texture_service::ObjectStorageConsistencyReport,
+    report: &crate::services::texture_service::TextureStoreConsistencyReport,
 ) -> String {
     const MAX_ISSUES_IN_SUMMARY: usize = 5;
 
@@ -427,10 +427,10 @@ fn yggdrasil_storage_consistency_failure_summary(
         .take(MAX_ISSUES_IN_SUMMARY)
         .map(|issue| {
             let kind = match issue.kind {
-                crate::services::texture_service::ObjectStorageConsistencyIssueKind::MissingObject => {
+                crate::services::texture_service::TextureStoreConsistencyIssueKind::MissingObject => {
                     "missing object"
                 }
-                crate::services::texture_service::ObjectStorageConsistencyIssueKind::HashMismatch => {
+                crate::services::texture_service::TextureStoreConsistencyIssueKind::HashMismatch => {
                     "hash/key mismatch"
                 }
             };
@@ -653,8 +653,8 @@ fn mail_outbox_dispatch_interval_for_web_state(state: &web::Data<AppState>) -> D
 mod tests {
     use super::*;
     use crate::services::texture_service::{
-        ObjectStorageConsistencyIssue, ObjectStorageConsistencyIssueKind,
-        ObjectStorageConsistencyReport,
+        TextureStoreConsistencyIssue, TextureStoreConsistencyIssueKind,
+        TextureStoreConsistencyReport,
     };
     use aster_forge_runtime::{HealthComponentReport, RuntimeComponentBundle, SystemHealthReport};
 
@@ -786,22 +786,22 @@ mod tests {
 
     #[test]
     fn storage_consistency_failure_summary_includes_issue_details() {
-        let report = ObjectStorageConsistencyReport {
+        let report = TextureStoreConsistencyReport {
             checked: 2,
             missing: 1,
             hash_mismatched: 1,
             issues: vec![
-                ObjectStorageConsistencyIssue {
+                TextureStoreConsistencyIssue {
                     texture_id: 41,
                     storage_key: "aa/missing.png".to_string(),
                     hash: "expected-missing-hash".to_string(),
-                    kind: ObjectStorageConsistencyIssueKind::MissingObject,
+                    kind: TextureStoreConsistencyIssueKind::MissingObject,
                 },
-                ObjectStorageConsistencyIssue {
+                TextureStoreConsistencyIssue {
                     texture_id: 42,
                     storage_key: "bb/mismatch.png".to_string(),
                     hash: "expected-mismatch-hash".to_string(),
-                    kind: ObjectStorageConsistencyIssueKind::HashMismatch,
+                    kind: TextureStoreConsistencyIssueKind::HashMismatch,
                 },
             ],
         };

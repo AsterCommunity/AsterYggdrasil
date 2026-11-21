@@ -64,7 +64,7 @@ where
         "decoded png texture header"
     );
     validate_texture_pixel_limit(width, height, max_pixels)?;
-    super::validate_texture_dimensions(texture_type, width, height)?;
+    super::deletion::validate_texture_dimensions(texture_type, width, height)?;
 
     reader
         .seek(SeekFrom::Start(0))
@@ -80,7 +80,7 @@ where
         "decoded png texture image"
     );
     validate_texture_pixel_limit(decoded_width, decoded_height, max_pixels)?;
-    super::validate_texture_dimensions(texture_type, decoded_width, decoded_height)?;
+    super::deletion::validate_texture_dimensions(texture_type, decoded_width, decoded_height)?;
 
     let rgba = image.to_rgba8();
     let (rgba, output_width, output_height) =
@@ -152,7 +152,7 @@ fn normalize_texture_canvas(
     height: u32,
 ) -> (image::RgbaImage, u32, u32) {
     if texture_type != MinecraftTextureType::Cape
-        || !super::is_multiple_texture_size(width, height, 22, 17)
+        || !super::deletion::is_multiple_texture_size(width, height, 22, 17)
     {
         tracing::debug!(
             texture_type = ?texture_type,

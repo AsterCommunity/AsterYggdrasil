@@ -16,8 +16,8 @@ use crate::api::error_code::AsterErrorCode;
 use crate::config::texture_preview::{RuntimeTexturePreviewPolicy, TexturePreviewSpec};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::{
-    AppConfigRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState,
-    RuntimeConfigRuntimeState,
+    AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
+    TextureStorageRuntimeState,
 };
 use aster_yggdrasil_model::entities::minecraft_texture;
 use aster_yggdrasil_model::types::yggdrasil::{MinecraftTextureModel, MinecraftTextureType};
@@ -54,7 +54,7 @@ pub async fn texture_preview_by_hash<S>(
 where
     S: DatabaseRuntimeState
         + RuntimeConfigRuntimeState
-        + ObjectStorageRuntimeState
+        + TextureStorageRuntimeState
         + AppConfigRuntimeState,
 {
     if !is_valid_texture_hash(hash) {
@@ -75,7 +75,7 @@ where
     }
 
     let storage_key = preview_storage_key(hash, &expected_file_name);
-    if state.object_storage().exists(&storage_key).await? {
+    if state.texture_storage().exists(&storage_key).await? {
         let bytes = read_object_storage_key(state, &storage_key).await?;
         tracing::debug!(
             hash,
@@ -90,7 +90,7 @@ where
     let temp_path = preview_temp_path(state, hash, &expected_file_name);
     write_preview_temp_file(&temp_path, &bytes).await?;
     let put_result = state
-        .object_storage()
+        .texture_storage()
         .put_file(&storage_key, &temp_path)
         .await;
     aster_forge_utils::fs::cleanup_temp_file(&temp_path).await;
@@ -112,7 +112,7 @@ struct PreviewSource {
 
 async fn resolve_preview_source<S>(state: &S, hash: &str) -> Result<PreviewSource>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     if let Some(texture) = super::texture_by_hash(state, hash).await? {
         return preview_source_from_texture(state, texture).await;
@@ -131,7 +131,7 @@ async fn preview_source_from_texture<S>(
     texture: minecraft_texture::Model,
 ) -> Result<PreviewSource>
 where
-    S: ObjectStorageRuntimeState,
+    S: TextureStorageRuntimeState,
 {
     if texture.texture_type != MinecraftTextureType::Skin {
         return Err(texture_preview_not_found("non-skin texture"));
@@ -145,9 +145,9 @@ where
 
 async fn read_object_storage_key<S>(state: &S, storage_key: &str) -> Result<Vec<u8>>
 where
-    S: ObjectStorageRuntimeState,
+    S: TextureStorageRuntimeState,
 {
-    let mut stream = state.object_storage().get_stream(storage_key).await?;
+    let mut stream = state.texture_storage().get_stream(storage_key).await?;
     let mut bytes = Vec::new();
     stream
         .read_to_end(&mut bytes)

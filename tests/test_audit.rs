@@ -11,7 +11,7 @@ use aster_yggdrasil::config::definitions::BRANDING_TITLE_KEY;
 use aster_yggdrasil::db::repository::user_repo;
 use aster_yggdrasil::entities::{audit_log, background_task};
 use aster_yggdrasil::runtime::AppState;
-use aster_yggdrasil::services::{audit_service, mail_outbox_service};
+use aster_yggdrasil::services::{audit_service, mail::outbox as mail_outbox_service};
 use aster_yggdrasil::types::{
     task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
 };
@@ -878,7 +878,7 @@ async fn admin_task_retry_records_audit_log() {
 async fn mail_outbox_dispatch_records_delivery_audit_logs() {
     let state = common::setup().await;
     let payload =
-        aster_yggdrasil::services::mail_template::MailTemplatePayload::register_activation(
+        aster_yggdrasil::services::mail::template::MailTemplatePayload::register_activation(
             "alice",
             "token-123",
             "AsterYggdrasil",
@@ -906,7 +906,7 @@ async fn mail_outbox_dispatch_records_delivery_audit_logs() {
     assert_eq!(sent_details["attempt_count"], 1);
 
     let payload =
-        aster_yggdrasil::services::mail_template::MailTemplatePayload::register_activation(
+        aster_yggdrasil::services::mail::template::MailTemplatePayload::register_activation(
             "alice",
             "token-456",
             "AsterYggdrasil",

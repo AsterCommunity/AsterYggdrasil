@@ -5,7 +5,7 @@ use crate::db::repository::{
 };
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
-    CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
+    CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState,
 };
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth_service, texture_service, yggdrasil_service};
@@ -421,7 +421,7 @@ where
     S: CacheRuntimeState
         + DatabaseRuntimeState
         + RuntimeConfigRuntimeState
-        + ObjectStorageRuntimeState,
+        + TextureStorageRuntimeState,
 {
     if user_id == SUPER_ADMIN_USER_ID {
         return Err(AsterError::auth_forbidden(
@@ -578,7 +578,7 @@ mod tests {
             .expect("admin user test auth runtimes should install");
         let config = Arc::new(crate::config::Config {
             database: db_cfg,
-            object_storage: crate::config::ObjectStorageConfig {
+            texture_storage: crate::config::TextureStorageConfig {
                 backend: "local".to_string(),
                 local_root: texture_root.to_string_lossy().to_string(),
                 ..Default::default()
@@ -589,7 +589,7 @@ mod tests {
             ..Default::default()
         });
         let cache = aster_forge_cache::create_cache(&config.cache).await;
-        let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
+        let texture_storage = crate::texture_storage::create_texture_store(&config.texture_storage)
             .expect("admin user test object storage should initialize");
         let state = AppState::from_parts(AppStateParts {
             audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
@@ -597,7 +597,7 @@ mod tests {
             config,
             runtime_config,
             cache,
-            object_storage,
+            texture_storage,
             mail_sender: aster_forge_mail::memory_sender(),
             config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test(
                 "aster_yggdrasil",
@@ -654,7 +654,7 @@ mod tests {
             .await
             .expect("admin user test source texture should write");
         state
-            .object_storage()
+            .texture_storage()
             .put_file(storage_key, &source)
             .await
             .expect("admin user test texture blob should store");
@@ -752,7 +752,7 @@ mod tests {
             .expect("admin user test avatar source should write");
         for size in [512, 1024] {
             ctx.state
-                .object_storage()
+                .texture_storage()
                 .put_file(&format!("{avatar_prefix}/{size}.webp"), &source)
                 .await
                 .expect("admin user test avatar object should store");
@@ -1255,28 +1255,28 @@ mod tests {
         );
         assert!(
             !ctx.state
-                .object_storage()
+                .texture_storage()
                 .exists(&format!("{avatar_prefix}/512.webp"))
                 .await
                 .unwrap()
         );
         assert!(
             !ctx.state
-                .object_storage()
+                .texture_storage()
                 .exists(&format!("{avatar_prefix}/1024.webp"))
                 .await
                 .unwrap()
         );
         assert!(
             !ctx.state
-                .object_storage()
+                .texture_storage()
                 .exists(&profile_texture.storage_key)
                 .await
                 .unwrap()
         );
         assert!(
             !ctx.state
-                .object_storage()
+                .texture_storage()
                 .exists(&wardrobe_texture.storage_key)
                 .await
                 .unwrap()

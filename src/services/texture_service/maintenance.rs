@@ -1,6 +1,6 @@
 use crate::db::repository::minecraft_texture_repo;
 use crate::errors::Result;
-use crate::runtime::{DatabaseRuntimeState, ObjectStorageRuntimeState};
+use crate::runtime::{DatabaseRuntimeState, TextureStorageRuntimeState};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,32 +11,32 @@ pub struct OrphanTextureCleanupResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectStorageConsistencyIssue {
+pub struct TextureStoreConsistencyIssue {
     pub texture_id: i64,
     pub storage_key: String,
     pub hash: String,
-    pub kind: ObjectStorageConsistencyIssueKind,
+    pub kind: TextureStoreConsistencyIssueKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ObjectStorageConsistencyIssueKind {
+pub enum TextureStoreConsistencyIssueKind {
     MissingObject,
     HashMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectStorageConsistencyReport {
+pub struct TextureStoreConsistencyReport {
     pub checked: u64,
     pub missing: u64,
     pub hash_mismatched: u64,
-    pub issues: Vec<ObjectStorageConsistencyIssue>,
+    pub issues: Vec<TextureStoreConsistencyIssue>,
 }
 
 pub async fn cleanup_orphan_texture_blobs<S>(state: &S) -> Result<OrphanTextureCleanupResult>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
-    let storage_keys = state.object_storage().list_keys("").await?;
+    let storage_keys = state.texture_storage().list_keys("").await?;
     let texture_storage_keys = storage_keys
         .into_iter()
         .filter(|storage_key| is_texture_blob_storage_key(storage_key))
@@ -57,23 +57,23 @@ where
             continue;
         }
 
-        state.object_storage().delete(&storage_key).await?;
+        state.texture_storage().delete(&storage_key).await?;
         result.deleted += 1;
     }
 
     Ok(result)
 }
 
-pub async fn check_object_storage_consistency<S>(
+pub async fn check_texture_storage_consistency<S>(
     state: &S,
-) -> Result<ObjectStorageConsistencyReport>
+) -> Result<TextureStoreConsistencyReport>
 where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     let textures = minecraft_texture_repo::list_all(state.reader_db()).await?;
-    let storage_keys = state.object_storage().list_keys("").await?;
+    let storage_keys = state.texture_storage().list_keys("").await?;
     let storage_key_set = storage_keys.into_iter().collect::<HashSet<_>>();
-    let mut report = ObjectStorageConsistencyReport {
+    let mut report = TextureStoreConsistencyReport {
         checked: aster_forge_utils::numbers::usize_to_u64(
             textures.len(),
             "object storage consistency checked count",
@@ -86,22 +86,22 @@ where
     for texture in textures {
         if !storage_key_set.contains(&texture.storage_key) {
             report.missing += 1;
-            report.issues.push(ObjectStorageConsistencyIssue {
+            report.issues.push(TextureStoreConsistencyIssue {
                 texture_id: texture.id,
                 storage_key: texture.storage_key,
                 hash: texture.hash,
-                kind: ObjectStorageConsistencyIssueKind::MissingObject,
+                kind: TextureStoreConsistencyIssueKind::MissingObject,
             });
             continue;
         }
 
         if !object_storage_key_matches_hash(&texture.storage_key, &texture.hash) {
             report.hash_mismatched += 1;
-            report.issues.push(ObjectStorageConsistencyIssue {
+            report.issues.push(TextureStoreConsistencyIssue {
                 texture_id: texture.id,
                 storage_key: texture.storage_key,
                 hash: texture.hash,
-                kind: ObjectStorageConsistencyIssueKind::HashMismatch,
+                kind: TextureStoreConsistencyIssueKind::HashMismatch,
             });
         }
     }
@@ -137,7 +137,7 @@ pub(super) async fn cleanup_texture_blob_if_unreferenced<S>(
     storage_key: &str,
     reason: &str,
 ) where
-    S: DatabaseRuntimeState + ObjectStorageRuntimeState,
+    S: DatabaseRuntimeState + TextureStorageRuntimeState,
 {
     let ref_count = match count_object_storage_references(state, storage_key).await {
         Ok(ref_count) => ref_count,
@@ -161,9 +161,9 @@ pub(super) async fn cleanup_texture_blob_if_unreferenced<S>(
         return;
     }
 
-    match state.object_storage().delete(storage_key).await {
+    match state.texture_storage().delete(storage_key).await {
         Ok(()) => {}
-        Err(error) => match state.object_storage().exists(storage_key).await {
+        Err(error) => match state.texture_storage().exists(storage_key).await {
             Ok(false) => {
                 tracing::warn!(
                     error = %error,

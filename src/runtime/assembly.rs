@@ -31,10 +31,10 @@ pub async fn run(state: crate::runtime::AppState) -> io::Result<()> {
             state.clone(),
             metrics_data,
         ))?
-        .component(crate::tasks::runtime::background_tasks_component(
+        .component(crate::runtime::tasks::background_tasks_component(
             state.clone(),
         ))
-        .component(crate::services::mail_outbox_service::runtime::mail_runtime_component(app_state))
+        .component(crate::services::mail::outbox_runtime::mail_runtime_component(app_state))
         .component(crate::services::audit_service::runtime::audit_runtime_component(app_state))
         .component(crate::db::runtime::database_component(
             app_state.db_handles.clone(),
@@ -77,9 +77,9 @@ mod tests {
         let state: AppState = crate::runtime::test_support::setup_state().await;
         let db_handles = state.db_handles.clone();
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            crate::tasks::runtime::task_component(aster_forge_tasks::BackgroundTasks::new())
+            crate::runtime::tasks::task_component(aster_forge_tasks::BackgroundTasks::new())
                 .register(registry);
-            crate::services::mail_outbox_service::runtime::mail_runtime_component(&state)
+            crate::services::mail::outbox_runtime::mail_runtime_component(&state)
                 .register(registry);
             crate::services::audit_service::runtime::audit_runtime_component(&state)
                 .register(registry);

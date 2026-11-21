@@ -2911,14 +2911,14 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
     let stored_1024 = "avatar/user/1/v1/1024.webp";
     assert!(
         state_for_assert
-            .object_storage()
+            .texture_storage()
             .exists(stored_512)
             .await
             .unwrap()
     );
     assert!(
         state_for_assert
-            .object_storage()
+            .texture_storage()
             .exists(stored_1024)
             .await
             .unwrap()
@@ -3002,14 +3002,14 @@ async fn auth_avatar_upload_validates_empty_multipart_and_serves_webp_variants()
     assert_eq!(resp.status(), 200);
     assert!(
         !state_for_assert
-            .object_storage()
+            .texture_storage()
             .exists(stored_512)
             .await
             .unwrap()
     );
     assert!(
         !state_for_assert
-            .object_storage()
+            .texture_storage()
             .exists(stored_1024)
             .await
             .unwrap()

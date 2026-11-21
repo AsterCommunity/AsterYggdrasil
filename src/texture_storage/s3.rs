@@ -1,7 +1,7 @@
 //! S3-compatible object storage.
 
-use super::{ObjectBlobMetadata, ObjectStorage};
-use crate::config::S3ObjectStorageConfig;
+use super::{ObjectBlobMetadata, TextureStore};
+use crate::config::S3TextureStorageConfig;
 use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_forge_storage_core::{
     S3ConfigError, join_key_prefix, normalize_object_key, normalize_object_prefix,
@@ -23,7 +23,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(60);
 
-pub struct S3ObjectStorage {
+pub struct S3TextureStore {
     client: aws_sdk_s3::Client,
     bucket: String,
     base_path: String,
@@ -31,8 +31,8 @@ pub struct S3ObjectStorage {
     force_path_style: bool,
 }
 
-impl S3ObjectStorage {
-    pub fn new(config: &S3ObjectStorageConfig) -> Result<Self> {
+impl S3TextureStore {
+    pub fn new(config: &S3TextureStorageConfig) -> Result<Self> {
         validate_config(config)?;
 
         let credentials = Credentials::new(
@@ -98,7 +98,7 @@ impl S3ObjectStorage {
 }
 
 #[async_trait]
-impl ObjectStorage for S3ObjectStorage {
+impl TextureStore for S3TextureStore {
     fn backend_name(&self) -> &'static str {
         "s3"
     }
@@ -264,7 +264,7 @@ impl ObjectStorage for S3ObjectStorage {
     }
 }
 
-impl S3ObjectStorage {
+impl S3TextureStore {
     fn map_not_found_or_sdk_error<E>(
         &self,
         operation: &'static str,
@@ -306,7 +306,7 @@ impl S3ObjectStorage {
     }
 }
 
-fn validate_config(config: &S3ObjectStorageConfig) -> Result<()> {
+fn validate_config(config: &S3TextureStorageConfig) -> Result<()> {
     normalize_storage_s3_config(config)?;
     if config.access_key_id.trim().is_empty() {
         return Err(AsterError::config_error(
@@ -322,7 +322,7 @@ fn validate_config(config: &S3ObjectStorageConfig) -> Result<()> {
 }
 
 fn normalize_storage_s3_config(
-    config: &S3ObjectStorageConfig,
+    config: &S3TextureStorageConfig,
 ) -> Result<aster_forge_storage_core::NormalizedS3Config> {
     normalize_s3_endpoint_and_bucket(&config.endpoint, &config.bucket).map_err(map_s3_config_error)
 }
@@ -403,11 +403,11 @@ fn format_error_source_chain(error: &dyn StdError) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        S3ObjectStorage, format_sdk_error, normalize_storage_object_key, normalize_storage_prefix,
+        S3TextureStore, format_sdk_error, normalize_storage_object_key, normalize_storage_prefix,
         normalize_storage_s3_config,
     };
-    use crate::config::{ObjectStorageConfig, S3ObjectStorageConfig};
-    use crate::object_storage::{ObjectStorage, create_object_storage};
+    use crate::config::{S3TextureStorageConfig, TextureStorageConfig};
+    use crate::texture_storage::{TextureStore, create_texture_store};
     use aws_credential_types::Credentials;
     use aws_sdk_s3::error::ProvideErrorMetadata;
     use aws_sdk_s3::error::SdkError;
@@ -419,8 +419,8 @@ mod tests {
     const RUSTFS_SECRET_KEY: &str = "rustfsadmin123";
     const RUSTFS_PORT: u16 = 9000;
 
-    fn valid_config() -> S3ObjectStorageConfig {
-        S3ObjectStorageConfig {
+    fn valid_config() -> S3TextureStorageConfig {
+        S3TextureStorageConfig {
             endpoint: "http://127.0.0.1:9000".to_string(),
             region: "us-east-1".to_string(),
             bucket: "textures".to_string(),
@@ -433,7 +433,7 @@ mod tests {
 
     #[test]
     fn initializes_without_network_io() {
-        let storage = S3ObjectStorage::new(&valid_config()).unwrap();
+        let storage = S3TextureStore::new(&valid_config()).unwrap();
 
         assert_eq!(storage.bucket, "textures");
         assert_eq!(storage.base_path, "");
@@ -508,7 +508,7 @@ mod tests {
                 )
             },
         ] {
-            let error = match S3ObjectStorage::new(&config) {
+            let error = match S3TextureStore::new(&config) {
                 Ok(_) => panic!("S3 object storage should reject incomplete config"),
                 Err(error) => error,
             };
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn base_path_is_applied_without_leaking_to_storage_keys() {
-        let storage = S3ObjectStorage::new(&S3ObjectStorageConfig {
+        let storage = S3TextureStore::new(&S3TextureStorageConfig {
             base_path: "env/textures/".to_string(),
             ..valid_config()
         })
@@ -598,13 +598,13 @@ mod tests {
     #[test]
     fn s3_and_minio_backends_initialize_without_network_io() {
         for backend in ["s3", "minio"] {
-            let config = ObjectStorageConfig {
+            let config = TextureStorageConfig {
                 backend: backend.to_string(),
                 s3: valid_config(),
-                ..ObjectStorageConfig::default()
+                ..TextureStorageConfig::default()
             };
 
-            let storage = create_object_storage(&config).unwrap();
+            let storage = create_texture_store(&config).unwrap();
 
             assert_eq!(storage.backend_name(), "s3");
         }
@@ -615,7 +615,7 @@ mod tests {
         let (_container, endpoint) = start_rustfs().await;
         let bucket = format!("textures-{}", uuid::Uuid::new_v4());
         create_bucket(&endpoint, &bucket).await;
-        let storage = S3ObjectStorage::new(&S3ObjectStorageConfig {
+        let storage = S3TextureStore::new(&S3TextureStorageConfig {
             endpoint: endpoint.clone(),
             bucket: bucket.clone(),
             base_path: "env/production/textures".to_string(),
@@ -689,7 +689,7 @@ mod tests {
         let (_container, endpoint) = start_rustfs().await;
         let bucket = format!("textures-{}", uuid::Uuid::new_v4());
         create_bucket(&endpoint, &bucket).await;
-        let storage = S3ObjectStorage::new(&S3ObjectStorageConfig {
+        let storage = S3TextureStore::new(&S3TextureStorageConfig {
             endpoint,
             bucket,
             ..valid_config()

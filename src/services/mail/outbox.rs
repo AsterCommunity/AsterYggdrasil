@@ -1,19 +1,15 @@
 //! Mail outbox dispatch service.
 
-pub mod runtime;
-
 use std::sync::Arc;
 
 use chrono::Utc;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 
+use super::template::MailTemplatePayload;
+use super::{audit as mail_audit, sender, template};
 use crate::config::RuntimeConfig;
 use crate::errors::Result;
 use crate::runtime::MailRuntimeState;
-use crate::services::{
-    mail_audit_service, mail_service,
-    mail_template::{self, MailTemplatePayload},
-};
 use aster_forge_mail::{
     DispatchStats, MailOutboxDispatchConfig, MailOutboxRetryPolicy, MailSender,
 };
@@ -86,10 +82,10 @@ pub async fn dispatch_due_with(
             &MAIL_OUTBOX_DISPATCH_CONFIG,
             |row| async move { deliver_one(runtime_config, mail_sender, &row).await },
             |context, attempt_count, subject| async move {
-                mail_audit_service::log_send_with_db(
+                mail_audit::log_send_with_db(
                     db,
                     runtime_config,
-                    mail_audit_service::MailAuditInput {
+                    mail_audit::MailAuditInput {
                         actor_user_id: 0,
                         ip_address: None,
                         user_agent: None,
@@ -105,10 +101,10 @@ pub async fn dispatch_due_with(
                 .await;
             },
             |context, attempt_count, error_message| async move {
-                mail_audit_service::log_delivery_failed_with_db(
+                mail_audit::log_delivery_failed_with_db(
                     db,
                     runtime_config,
-                    mail_audit_service::MailAuditInput {
+                    mail_audit::MailAuditInput {
                         actor_user_id: 0,
                         ip_address: None,
                         user_agent: None,
@@ -152,14 +148,14 @@ async fn deliver_one(
     mail_sender: &Arc<dyn MailSender>,
     row: &aster_forge_db::mail_outbox::Model,
 ) -> Result<String> {
-    let rendered = mail_template::render(runtime_config, row.template_code, &row.payload_json)?;
+    let rendered = template::render(runtime_config, row.template_code, &row.payload_json)?;
     let subject = rendered.subject.clone();
     tracing::debug!(
         mail_outbox_id = row.id,
         template_code = %row.template_code.as_str(),
         "delivering one mail outbox row"
     );
-    mail_service::send_rendered_with(
+    sender::send_rendered_with(
         runtime_config,
         mail_sender,
         aster_forge_mail::MailRecipient {

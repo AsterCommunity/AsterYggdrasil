@@ -3,7 +3,7 @@
 use crate::api::middleware::yggdrasil_rate_limit::YggdrasilRateLimiter;
 use crate::config::{Config, RuntimeConfig};
 use crate::errors::{AsterError, Result};
-use crate::object_storage::ObjectStorage;
+use crate::texture_storage::TextureStore;
 use aster_forge_cache::CacheBackend;
 use aster_forge_config::ConfigSyncRuntime;
 use aster_forge_db::DbHandles;
@@ -26,7 +26,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub runtime_config: Arc<RuntimeConfig>,
     pub cache: Arc<dyn CacheBackend>,
-    pub object_storage: Arc<dyn ObjectStorage>,
+    pub texture_storage: Arc<dyn TextureStore>,
     pub mail_sender: Arc<dyn MailSender>,
     pub config_sync: ConfigSyncRuntime,
     pub metrics: SharedMetricsRecorder,
@@ -42,7 +42,7 @@ pub struct AppStateParts {
     pub config: Arc<Config>,
     pub runtime_config: Arc<RuntimeConfig>,
     pub cache: Arc<dyn CacheBackend>,
-    pub object_storage: Arc<dyn ObjectStorage>,
+    pub texture_storage: Arc<dyn TextureStore>,
     pub mail_sender: Arc<dyn MailSender>,
     pub config_sync: ConfigSyncRuntime,
     pub metrics: SharedMetricsRecorder,
@@ -60,7 +60,7 @@ impl AppState {
             config: parts.config,
             runtime_config: parts.runtime_config,
             cache: parts.cache,
-            object_storage: parts.object_storage,
+            texture_storage: parts.texture_storage,
             mail_sender: parts.mail_sender,
             config_sync: parts.config_sync,
             metrics: parts.metrics,
@@ -116,8 +116,8 @@ impl AppState {
         &self.cache
     }
 
-    pub fn object_storage(&self) -> &Arc<dyn ObjectStorage> {
-        &self.object_storage
+    pub fn texture_storage(&self) -> &Arc<dyn TextureStore> {
+        &self.texture_storage
     }
 
     pub fn mail_sender(&self) -> &Arc<dyn MailSender> {
