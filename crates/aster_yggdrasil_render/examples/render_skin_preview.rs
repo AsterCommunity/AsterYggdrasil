@@ -95,8 +95,13 @@ impl Args {
                     skin_3d_options.back_yaw_degrees = parse_f32(&mut args, "--back-yaw")?;
                 }
                 "--spacing" => {
-                    skin_3d_options.view_spacing = parse_f32(&mut args, "--spacing")?;
-                    skin_2d_options.view_spacing = parse_u32_value(skin_3d_options.view_spacing)?;
+                    let raw = next_value(args, "--spacing")?;
+                    skin_2d_options.view_spacing = raw
+                        .parse()
+                        .map_err(|_| format!("invalid integer for argument --spacing"))?;
+                    skin_3d_options.view_spacing = raw
+                        .parse::<f32>()
+                        .map_err(|_| format!("invalid float for argument --spacing"))?;
                 }
                 "--supersampling" => {
                     skin_3d_options.supersampling = parse_u8(&mut args, "--supersampling")?;
@@ -198,13 +203,6 @@ where
         .map_err(|_| format!("invalid integer for argument {name}"))
 }
 
-fn parse_u32_value(value: f32) -> Result<u32, String> {
-    if value < 0.0 || value > u32::MAX as f32 {
-        return Err("spacing must fit in u32".to_string());
-    }
-    Ok(value.round() as u32)
-}
-
 fn parse_background(value: &str) -> Result<Option<Rgba<u8>>, String> {
     match value {
         "transparent" | "none" => Ok(None),
@@ -242,7 +240,10 @@ fn usage() -> String {
     "usage: render_skin_preview --input <skin.png> --output <preview.png> [--engine skin-3d|skin-2d] [--profile fast|default|quality] [--model default|slim] [--format png|webp] [--pitch deg] [--front-yaw deg] [--back-yaw deg] [--supersampling 1-4] [--padding px] [--background transparent|white|black|#RRGGBB|#RRGGBBAA]".to_string()
 }
 
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "compile-time Send/Sync assertion helper; the value itself is intentionally discarded"
+)]
 fn _assert_error_send_sync(error: RenderError) -> RenderError {
     error
 }
