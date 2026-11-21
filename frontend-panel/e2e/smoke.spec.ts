@@ -24,8 +24,10 @@ async function ensureInitialized(page: Page) {
 	await expect(page).toHaveURL(/\/account$/);
 	await page.getByRole("button", { name: adminUsername }).click();
 	await page.getByRole("menuitem", { name: "Logout" }).click();
+	// Logout navigates to the public home page.
+	await expect(page).toHaveURL(/\/$/);
 	await expect(
-		page.getByRole("heading", { name: "Login required" }),
+		page.getByRole("link", { name: "Get started" }),
 	).toBeVisible();
 }
 
@@ -97,7 +99,7 @@ test("keeps the public entry usable on mobile", async ({ page }) => {
 		page.getByRole("link", { name: "Get started" }).first(),
 	).toBeVisible();
 	await expect(
-		page.getByRole("link", { name: "Learn more" }).first(),
+		page.getByRole("link", { name: "Public texture library" }).first(),
 	).toBeVisible();
 	await expect(page.getByText("Safe and reliable")).toBeVisible();
 	await expect(page.getByText("Skin management")).toBeVisible();

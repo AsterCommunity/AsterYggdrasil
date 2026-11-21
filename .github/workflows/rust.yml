@@ -6,6 +6,9 @@ on:
       - '**/*.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'frontend-panel/package.json'
+      - 'frontend-panel/generated/openapi.json'
+      - 'frontend-panel/src/types/api.generated.ts'
       - 'scripts/coverage-summary.mjs'
       - '.github/workflows/rust.yml'
     branches: [master]
@@ -14,19 +17,93 @@ on:
       - '**/*.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'frontend-panel/package.json'
+      - 'frontend-panel/generated/openapi.json'
+      - 'frontend-panel/src/types/api.generated.ts'
       - 'scripts/coverage-summary.mjs'
       - '.github/workflows/rust.yml'
     branches: [master, develop]
 
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
+  # CI runners perform one clean build per job. Incremental artifacts consume
+  # substantial disk without providing the local edit-compile feedback benefit.
+  CARGO_INCREMENTAL: "0"
+  # The local dev profile favors maximum parallel code generation. CI runners
+  # have fewer cores, so keep test artifacts smaller and cheaper to link.
+  CARGO_PROFILE_TEST_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_TEST_DEBUG: "0"
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  format-and-clippy:
+    name: Format and Clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy-v1
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  openapi-sdk-drift:
+    name: OpenAPI and generated SDK drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: openapi-v1
+
+      - name: Generate OpenAPI specification
+        run: cargo test --features openapi --test generate_openapi
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        working-directory: frontend-panel
+        run: bun install --frozen-lockfile
+
+      - name: Generate TypeScript SDK
+        working-directory: frontend-panel
+        run: bun run generate-api
+
+      - name: Verify generated files are up to date
+        run: |
+          git diff --exit-code -- \
+            frontend-panel/generated/openapi.json \
+            frontend-panel/src/types/api.generated.ts
+
+  coverage:
+    name: Tests and coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
 
@@ -43,20 +120,25 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Build
-        run: cargo build --verbose
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Format check
-        run: cargo fmt -- --check
+      # The backend embeds frontend-panel/dist at compile time (rust-embed) and
+      # several lib tests assert against the embedded assets, so the frontend
+      # must be built before tests run.
+      - name: Install frontend dependencies
+        working-directory: frontend-panel
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend-panel
+        run: bun run build
 
       - name: Prepare coverage output directory
         run: mkdir -p coverage/rust
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Run tests with coverage
-        run: cargo llvm-cov --workspace --no-fail-fast --verbose --lcov --output-path coverage/rust/lcov.info
+        run: cargo llvm-cov --workspace --no-fail-fast --lcov --output-path coverage/rust/lcov.info
 
       - name: Generate HTML coverage report
         if: success()
@@ -85,12 +167,10 @@ jobs:
           if-no-files-found: ignore
           path: coverage/rust
 
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
   integration-backends:
     name: Integration tests (${{ matrix.backend }})
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -115,6 +195,6 @@ jobs:
       - name: Verify Docker availability
         run: docker version
 
-      # 只跑集成测试（tests/ 下的），单元测试已在 build job 中覆盖
+      # 只跑集成测试（tests/ 下的），单元测试已在 coverage job 中覆盖
       - name: Run integration tests against ${{ matrix.backend }}
         run: cargo test --tests --no-fail-fast --verbose
