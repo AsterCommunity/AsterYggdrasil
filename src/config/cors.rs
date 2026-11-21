@@ -6,10 +6,10 @@
 
 use crate::config::RuntimeConfig;
 use crate::errors::{AsterError, Result};
-use aster_forge_middleware::actix::cors::{CorsAllowedOrigins, RuntimeCorsPolicy};
 use aster_forge_config::{
     normalize_non_negative_u64_config_value, normalize_strict_bool_config_value,
 };
+use aster_forge_middleware::actix::cors::{CorsAllowedOrigins, RuntimeCorsPolicy};
 
 pub use crate::config::definitions::{
     CORS_ALLOW_CREDENTIALS_KEY, CORS_ALLOWED_ORIGINS_KEY, CORS_ENABLED_KEY, CORS_MAX_AGE_SECS_KEY,

@@ -10,9 +10,9 @@ use super::{
     truncate_status_text,
 };
 use crate::db::repository::background_task_repo;
-use aster_yggdrasil_model::entities::background_task;
 use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::{BackgroundTaskStatus, StoredTaskPayload};
 
 pub(crate) type SystemRuntimeTaskDefinition =
@@ -425,9 +425,7 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
         crate::runtime::AppState::from_parts(crate::runtime::AppStateParts {
-            audit_writer: std::sync::Arc::new(
-                aster_forge_audit::AuditWriter::new(db.clone()),
-            ),
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,

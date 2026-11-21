@@ -504,15 +504,15 @@ mod tests {
         auth_session_repo, background_task_repo, minecraft_profile_repo, minecraft_texture_repo,
         user_repo, yggdrasil_token_repo,
     };
-    use aster_yggdrasil_model::entities::{
-        auth_session, background_task, minecraft_profile, minecraft_texture, user,
-    };
     use crate::runtime::{AppState, AppStateParts};
     use crate::services::task_service::types::{
         RuntimeSystemHealthComponent, RuntimeSystemHealthResult, RuntimeSystemHealthStatus,
     };
     use crate::services::task_service::{
         RuntimeTaskRunOutcome, SystemRuntimeTaskKind, record_runtime_task_run,
+    };
+    use aster_yggdrasil_model::entities::{
+        auth_session, background_task, minecraft_profile, minecraft_texture, user,
     };
     use aster_yggdrasil_model::types::{
         audit::AuditAction, audit::AuditEntityType, task::BackgroundTaskKind,
@@ -563,9 +563,7 @@ mod tests {
             .expect("admin overview test object storage should initialize");
 
         AppState::from_parts(AppStateParts {
-            audit_writer: std::sync::Arc::new(
-                aster_forge_audit::AuditWriter::new(db.clone()),
-            ),
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,
@@ -580,7 +578,10 @@ mod tests {
         .expect("admin overview test AppState should build")
     }
 
-    async fn insert_user(state: &AppState, username: &str) -> aster_yggdrasil_model::entities::user::Model {
+    async fn insert_user(
+        state: &AppState,
+        username: &str,
+    ) -> aster_yggdrasil_model::entities::user::Model {
         user_repo::create(
             state.writer_db(),
             username,

@@ -1,7 +1,7 @@
 //! Yggdrasil token repository.
 
-use aster_yggdrasil_model::entities::yggdrasil_token::{self, Entity as YggdrasilToken};
 use crate::errors::{AsterError, MapAsterErr, Result};
+use aster_yggdrasil_model::entities::yggdrasil_token::{self, Entity as YggdrasilToken};
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,

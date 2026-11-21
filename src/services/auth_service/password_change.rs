@@ -6,11 +6,10 @@ use sea_orm::ConnectionTrait;
 use super::{is_email_verified, update_password_in_connection};
 use crate::api::error_code::AsterErrorCode;
 use crate::db::{repository::user_repo, transaction};
-use aster_yggdrasil_model::entities::user;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, auth_service};
-use aster_forge_crypto::verify_password;
+use aster_yggdrasil_model::entities::user;
 
 async fn verify_change_password_input<S>(
     state: &S,
@@ -56,14 +55,9 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     let updated = transaction::with_transaction(state.writer_db(), async |txn| {
-        let user = verify_change_password_input(
-            state,
-            txn,
-            user_id,
-            current_password,
-            new_password,
-        )
-        .await?;
+        let user =
+            verify_change_password_input(state, txn, user_id, current_password, new_password)
+                .await?;
         let updated = update_password_in_connection(state, txn, user, new_password).await?;
         user_repo::revoke_sessions_for_user(txn, updated.id).await?;
         Ok(updated)

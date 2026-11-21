@@ -109,8 +109,11 @@ mod tests {
             .descriptor(aster_forge_audit::AUDIT_MANAGER_COMPONENT)
             .expect("audit manager component should be registered");
         assert!(
-            descriptor.shutdown.iter().any(|phase| phase.phase_name
-                == aster_forge_audit::AUDIT_MANAGER_FLUSH_SHUTDOWN_PHASE),
+            descriptor
+                .shutdown
+                .iter()
+                .any(|phase| phase.phase_name
+                    == aster_forge_audit::AUDIT_MANAGER_FLUSH_SHUTDOWN_PHASE),
             "audit writer drain phase should be registered"
         );
     }

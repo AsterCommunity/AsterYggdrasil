@@ -7,7 +7,6 @@ use actix_web::test;
 use aster_forge_mail::MailTemplateCode;
 use aster_yggdrasil::config::{auth_runtime, local_email_policy, site_url};
 use aster_yggdrasil::entities::{audit_log, mail_outbox, user_invitation};
-use aster_yggdrasil::services::audit_service;
 use aster_yggdrasil::types::audit::AuditAction;
 use aster_yggdrasil::types::user::UserInvitationStatus;
 use chrono::{DateTime, Duration, Utc};

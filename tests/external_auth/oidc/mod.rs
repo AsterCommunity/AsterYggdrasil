@@ -217,7 +217,6 @@ pub fn oidc_external_auth_provider_model(
     }
 }
 
-
 pub fn microsoft_external_auth_provider_model(
     key: &str,
     issuer_url: &str,
@@ -280,7 +279,6 @@ where
     mock_provider.last_authorize_request().state
 }
 
-
 pub async fn start_microsoft_login<S, B, E>(
     app: &S,
     mock_provider: &mock::MockOidcProvider,
@@ -336,7 +334,6 @@ where
         .to_request();
     test::call_service(app, req).await
 }
-
 
 pub async fn finish_microsoft_callback<S, B, E>(
     app: &S,

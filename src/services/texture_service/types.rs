@@ -2,8 +2,8 @@ use serde::Serialize;
 use tokio_util::io::ReaderStream;
 
 use crate::db::repository::minecraft_profile_texture_repo;
-use aster_yggdrasil_model::entities::{minecraft_profile, minecraft_texture};
 use crate::services::profile_service::AvatarInfo;
+use aster_yggdrasil_model::entities::{minecraft_profile, minecraft_texture};
 use aster_yggdrasil_model::types::{
     yggdrasil::MinecraftTextureLibraryStatus, yggdrasil::MinecraftTextureModel,
     yggdrasil::MinecraftTextureReportReason, yggdrasil::MinecraftTextureReportStatus,

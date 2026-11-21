@@ -1,10 +1,10 @@
 //! Minecraft profile repository.
 
-use aster_yggdrasil_model::entities::minecraft_profile::{self, Entity as MinecraftProfile};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel;
 use aster_forge_api::CursorSlice;
 use aster_forge_db::search_query;
+use aster_yggdrasil_model::entities::minecraft_profile::{self, Entity as MinecraftProfile};
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, PaginatorTrait,

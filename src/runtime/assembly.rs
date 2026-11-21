@@ -58,7 +58,7 @@ fn to_io_error(error: impl ToString) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::worker_count;
-    use crate::runtime::{AppState, MailRuntimeState};
+    use crate::runtime::AppState;
 
     #[test]
     fn worker_count_uses_cpu_count_when_configured_zero() {

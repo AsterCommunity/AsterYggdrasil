@@ -7,7 +7,9 @@ use crate::config::yggdrasil::{
 use crate::config::{auth_runtime, mail, system_config as runtime_system_config};
 use crate::db::repository::{system_config_repo, user_repo};
 use crate::errors::{AsterError, Result};
-use crate::runtime::{ConfigSyncRuntimeState, MailRuntimeState, MetricsRuntimeState, SharedRuntimeState};
+use crate::runtime::{
+    ConfigSyncRuntimeState, MailRuntimeState, MetricsRuntimeState, SharedRuntimeState,
+};
 use crate::services::{
     audit_service::{self, AuditContext},
     captcha_service, mail_audit_service, mail_service, yggdrasil_signature,

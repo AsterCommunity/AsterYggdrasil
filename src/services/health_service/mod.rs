@@ -1,7 +1,9 @@
 //! Generic health and readiness checks.
 
 use crate::errors::{AsterError, Result};
-use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState};
+use crate::runtime::{
+    AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState,
+};
 use aster_forge_runtime::{
     HealthCheckScope, HealthStatus, RuntimeComponentBundle, RuntimeComponentBundleRegistration,
     RuntimeComponentRegistry, SystemHealthReport,
@@ -110,7 +112,9 @@ fn record_health_metrics(
 mod tests {
     use super::{HealthStatus, core_health_component};
     use crate::config::{Config, DatabaseConfig};
-    use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState};
+    use crate::runtime::{
+        AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, MetricsRuntimeState,
+    };
     use aster_forge_cache::CacheBackend;
     use aster_forge_runtime::RuntimeComponentBundle;
     use sea_orm::DatabaseConnection;

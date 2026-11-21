@@ -52,9 +52,7 @@ fn build_http_service_component(
         // from app data; it is only present when the metrics backend is enabled.
         #[cfg(feature = "metrics")]
         let app = match metrics_data.provider() {
-            Some(provider) => {
-                App::new().app_data(web::Data::new(provider))
-            }
+            Some(provider) => App::new().app_data(web::Data::new(provider)),
             None => App::new(),
         };
         #[cfg(not(feature = "metrics"))]

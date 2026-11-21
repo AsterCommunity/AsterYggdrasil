@@ -1,5 +1,4 @@
 use super::*;
-use aster_yggdrasil_model::entities::background_task;
 use crate::runtime::{AppState, AppStateParts};
 use crate::services::task_service::admin::{build_task_info, validate_admin_task_cleanup_status};
 use crate::services::task_service::create::create_typed_task_record;
@@ -12,10 +11,13 @@ use crate::services::task_service::spec::SystemRuntimeTask;
 use crate::services::task_service::types::{
     RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult,
 };
-use aster_yggdrasil_model::types::{task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload};
 use aster_forge_config::{ConfigSource, ConfigVisibility};
 use aster_forge_tasks::{
     TaskExecutionContext, TaskLease, TaskLeaseGuard, TaskStepInfo, TaskStepStatus,
+};
+use aster_yggdrasil_model::entities::background_task;
+use aster_yggdrasil_model::types::{
+    task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
 };
 use sea_orm::{ActiveModelTrait, Set};
 use std::sync::Arc;
@@ -63,9 +65,7 @@ async fn test_state() -> AppState {
     let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
         .expect("object storage should initialize");
     AppState::from_parts(AppStateParts {
-        audit_writer: std::sync::Arc::new(
-            aster_forge_audit::AuditWriter::new(db.clone()),
-        ),
+        audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
         db_handles: aster_forge_db::DbHandles::single(db),
         config,
         runtime_config,

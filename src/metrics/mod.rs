@@ -20,7 +20,9 @@ pub fn record_health_report(
 /// Adds the metrics HTTP route when the metrics feature is enabled.
 pub fn configure_route(scope: Scope) -> Scope {
     #[cfg(feature = "metrics")]
-    return scope.service(aster_forge_observability::actix::prometheus_resource("/metrics"));
+    return scope.service(aster_forge_observability::actix::prometheus_resource(
+        "/metrics",
+    ));
 
     #[cfg(not(feature = "metrics"))]
     {

@@ -1,8 +1,8 @@
 //! Auth session repository.
 
-use aster_yggdrasil_model::entities::auth_session::{self, Entity as AuthSession};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_forge_api::CursorSlice;
+use aster_yggdrasil_model::entities::auth_session::{self, Entity as AuthSession};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,

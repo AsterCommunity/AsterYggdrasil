@@ -7,17 +7,15 @@ use super::{
     TASK_HEARTBEAT_INTERVAL_SECS, task_expiration_from, task_lease_expires_at, truncate_error,
 };
 use crate::db::repository::background_task_repo;
-use aster_yggdrasil_model::entities::background_task;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppState, TaskRuntimeState};
 use crate::services::task_service::{
     registry,
     steps::{parse_task_steps_json, serialize_task_steps},
 };
+use aster_forge_tasks::{DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed};
+use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
-use aster_forge_tasks::{
-    DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed,
-};
 
 pub(super) async fn run_claimed_tasks(
     state: &AppState,
@@ -232,13 +230,13 @@ mod tests {
     use std::sync::Arc;
 
     use aster_forge_tasks::{ClaimedTaskExecutionStore, TaskLease};
-    use chrono::{Duration, Utc};
     use aster_yggdrasil_migration::Migrator;
+    use chrono::{Duration, Utc};
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     use super::BackgroundTaskExecutionStore;
-    use aster_yggdrasil_model::entities::background_task;
     use crate::runtime::{AppState, AppStateParts};
+    use aster_yggdrasil_model::entities::background_task;
     use aster_yggdrasil_model::types::{
         task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
     };
@@ -273,9 +271,7 @@ mod tests {
             .expect("object storage should initialize");
 
         AppState::from_parts(AppStateParts {
-            audit_writer: std::sync::Arc::new(
-                aster_forge_audit::AuditWriter::new(db.clone()),
-            ),
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,

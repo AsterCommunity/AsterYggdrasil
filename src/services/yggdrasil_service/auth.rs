@@ -6,7 +6,6 @@ use crate::api::dto::yggdrasil::{
 };
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
-use crate::errors::AsterError;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, ban_service};
 use aster_yggdrasil_model::types::user::UserBanScope;
@@ -69,9 +68,13 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
-    if !crate::services::auth_service::verify_user_password(state, &body.password, &login_target.user.password_hash)
-        .await
-        .map_err(YggdrasilError::from)?
+    if !crate::services::auth_service::verify_user_password(
+        state,
+        &body.password,
+        &login_target.user.password_hash,
+    )
+    .await
+    .map_err(YggdrasilError::from)?
     {
         tracing::debug!(
             user_id = login_target.user.id,
@@ -391,9 +394,13 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
-    if !crate::services::auth_service::verify_user_password(state, password, &login_target.user.password_hash)
-        .await
-        .map_err(YggdrasilError::from)?
+    if !crate::services::auth_service::verify_user_password(
+        state,
+        password,
+        &login_target.user.password_hash,
+    )
+    .await
+    .map_err(YggdrasilError::from)?
     {
         tracing::debug!(
             user_id = login_target.user.id,

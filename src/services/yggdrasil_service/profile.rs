@@ -1,12 +1,12 @@
 use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
-use aster_yggdrasil_model::entities::minecraft_profile;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
     CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
 };
 use crate::services::{ban_service, texture_service};
+use aster_yggdrasil_model::entities::minecraft_profile;
 use aster_yggdrasil_model::types::user::UserBanScope;
 use serde::Serialize;
 

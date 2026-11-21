@@ -9,9 +9,9 @@ use utoipa::ToSchema;
 
 use crate::config::avatar;
 use crate::db::repository::user_profile_repo;
-use aster_yggdrasil_model::entities::{user, user_profile};
 use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use aster_yggdrasil_model::entities::{user, user_profile};
 use aster_yggdrasil_model::types::user::AvatarSource;
 
 use super::shared::{AVATAR_SIZE_LG, AVATAR_SIZE_SM, stored_avatar_prefix};

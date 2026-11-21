@@ -37,16 +37,13 @@ impl Model {
     /// # Errors
     /// Returns a descriptive message when the stored action is not part of the
     /// product audit action set.
-    pub fn try_from_forge_row(
-        value: aster_forge_db::audit_log::Model,
-    ) -> Result<Self, String> {
-        let action = AuditAction::from_str_name(&value.action)
-            .ok_or_else(|| {
-                format!(
-                    "unsupported audit action in audit log row {}: {}",
-                    value.id, value.action
-                )
-            })?;
+    pub fn try_from_forge_row(value: aster_forge_db::audit_log::Model) -> Result<Self, String> {
+        let action = AuditAction::from_str_name(&value.action).ok_or_else(|| {
+            format!(
+                "unsupported audit action in audit log row {}: {}",
+                value.id, value.action
+            )
+        })?;
 
         Ok(Self {
             id: value.id,

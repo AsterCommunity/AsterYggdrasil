@@ -21,10 +21,7 @@ pub struct MailAuditInput<'a> {
     pub error: Option<&'a str>,
 }
 
-pub async fn log_send(
-    state: &impl SharedRuntimeState,
-    input: MailAuditInput<'_>,
-) {
+pub async fn log_send(state: &impl SharedRuntimeState, input: MailAuditInput<'_>) {
     let ctx = AuditContext {
         user_id: input.actor_user_id,
         ip_address: input.ip_address.map(str::to_string),

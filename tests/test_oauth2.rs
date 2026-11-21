@@ -5,7 +5,6 @@ mod common;
 
 mod external_auth;
 
-use actix_web::http::StatusCode;
 use actix_web::test;
 use aster_yggdrasil::db::repository::external_auth_provider_repo;
 use aster_yggdrasil::entities::{external_auth_identity, user};
@@ -481,10 +480,12 @@ async fn require_email_verified_rejects_unverified_email_claim() {
             .expect("OAuth2 provider should insert");
     let mut active = provider_model.into_active_model();
     active.require_email_verified = Set(true);
-    let provider_model = active.update(state.writer_db()).await.expect("provider should update");
+    let provider_model = active
+        .update(state.writer_db())
+        .await
+        .expect("provider should update");
 
-    let state_value =
-        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
+    let state_value = start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
     let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_oauth2_error_redirect(&resp);
     let identities = external_auth_identity::Entity::find()
@@ -520,7 +521,10 @@ async fn existing_identity_can_login_without_verified_email() {
             .expect("OAuth2 provider should insert");
     let mut active = provider_model.into_active_model();
     active.require_email_verified = Set(true);
-    let provider_model = active.update(state.writer_db()).await.expect("provider should update");
+    let provider_model = active
+        .update(state.writer_db())
+        .await
+        .expect("provider should update");
     external_auth_identity::ActiveModel {
         user_id: Set(linked_user_id),
         provider_id: Set(provider_model.id),
@@ -537,8 +541,7 @@ async fn existing_identity_can_login_without_verified_email() {
     .await
     .expect("identity should insert");
 
-    let state_value =
-        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
+    let state_value = start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
     let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_eq!(resp.status(), 302);
     assert_eq!(
@@ -567,8 +570,7 @@ async fn rejects_invalid_email_claim_without_creating_identity() {
             .await
             .expect("OAuth2 provider should insert");
 
-    let state_value =
-        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
+    let state_value = start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
     let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_oauth2_error_redirect(&resp);
     let identities = external_auth_identity::Entity::find()
@@ -618,8 +620,7 @@ async fn existing_identity_can_login_without_email() {
     .await
     .expect("identity should insert");
 
-    let state_value =
-        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
+    let state_value = start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
     let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_eq!(resp.status(), 302);
     assert_eq!(

@@ -1,8 +1,10 @@
 use crate::api::dto::yggdrasil::{YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
-use aster_yggdrasil_model::entities::{minecraft_profile, yggdrasil_session_forward_server, yggdrasil_token};
 use crate::runtime::{CacheRuntimeState, RuntimeConfigRuntimeState};
 use aster_forge_cache::CacheExt;
+use aster_yggdrasil_model::entities::{
+    minecraft_profile, yggdrasil_session_forward_server, yggdrasil_token,
+};
 use serde::{Deserialize, Serialize};
 
 const JOIN_SESSION_TTL_SECS: u64 = 30;

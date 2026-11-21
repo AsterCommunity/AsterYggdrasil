@@ -2,23 +2,23 @@ use chrono::Utc;
 use sea_orm::{ActiveValue::Set, IntoActiveModel};
 
 use crate::db::repository::external_auth_provider_repo;
-use aster_yggdrasil_model::entities::external_auth_provider;
 use crate::errors::{AsterError, Result};
 use crate::external_auth::{
     MapExternalAuthResult, external_auth_provider_config_from_model, map_external_auth_error,
     registry,
 };
 use crate::runtime::SharedRuntimeState;
-use aster_yggdrasil_model::types::{
-    external_auth::ExternalAuthProviderKind, external_auth::ExternalAuthProviderOptions,
-    external_auth::MicrosoftExternalAuthProviderOptions,
-    external_auth::serialize_external_auth_provider_options,
-};
 use crate::utils::OUTBOUND_HTTP_USER_AGENT;
 use aster_forge_api::{CursorPage, NullablePatch, StringIdCursor};
 use aster_forge_external_auth::ExternalAuthProviderConfig;
 use aster_forge_external_auth::providers::microsoft::{
     normalize_microsoft_tenant_input, normalize_microsoft_tenant_or_issuer_url,
+};
+use aster_yggdrasil_model::entities::external_auth_provider;
+use aster_yggdrasil_model::types::{
+    external_auth::ExternalAuthProviderKind, external_auth::ExternalAuthProviderOptions,
+    external_auth::MicrosoftExternalAuthProviderOptions,
+    external_auth::serialize_external_auth_provider_options,
 };
 
 use super::REDACTED_SECRET;
@@ -132,7 +132,9 @@ fn admin_provider_options(
     legacy_issuer_url: Option<&str>,
 ) -> Result<ExternalAuthProviderOptions> {
     let mut options =
-        aster_yggdrasil_model::types::external_auth::parse_external_auth_provider_options(raw_options);
+        aster_yggdrasil_model::types::external_auth::parse_external_auth_provider_options(
+            raw_options,
+        );
     if provider_kind == ExternalAuthProviderKind::Microsoft && options.microsoft.is_none() {
         let Some(legacy_issuer_url) = legacy_issuer_url else {
             return normalize_provider_options(provider_kind, options);

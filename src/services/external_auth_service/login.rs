@@ -2,13 +2,13 @@ use chrono::{Duration, Utc};
 use sea_orm::ActiveValue::Set;
 
 use crate::db::repository::{external_auth_login_flow_repo, external_auth_provider_repo};
-use aster_yggdrasil_model::entities::external_auth_login_flow;
 use crate::errors::{AsterError, Result};
 use crate::external_auth::{MapExternalAuthResult, registry};
 use crate::runtime::SharedRuntimeState;
-use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 use aster_forge_external_auth::ExternalAuthCallback;
 use aster_forge_utils::numbers::u64_to_i64;
+use aster_yggdrasil_model::entities::external_auth_login_flow;
+use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 
 use super::normalize::{callback_redirect_uri, normalize_key, normalize_return_path, state_hash};
 use super::providers::external_auth_provider_config;

@@ -11,14 +11,17 @@ use validator::Validate;
 use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
-use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
-use crate::runtime::{AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState, YggdrasilSessionForwardRuntimeState};
+use crate::runtime::{
+    AppConfigRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
+    SharedRuntimeState, YggdrasilSessionForwardRuntimeState,
+};
 use crate::services::{audit_service, ban_service, yggdrasil_signature};
+use aster_forge_crypto::sha256_hex;
+use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
 use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
 };
-use aster_forge_crypto::sha256_hex;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::properties;
@@ -769,12 +772,11 @@ where
         .map_err(|error| {
             crate::errors::AsterError::internal_error(format!("jwt encoding key: {error}"))
         })?;
-    encode(&Header::new(Algorithm::HS256), &ticket, &encoding_key)
-        .map_err(|error| {
-            crate::errors::AsterError::internal_error(format!(
-                "failed to sign forwarded texture ticket: {error}"
-            ))
-        })
+    encode(&Header::new(Algorithm::HS256), &ticket, &encoding_key).map_err(|error| {
+        crate::errors::AsterError::internal_error(format!(
+            "failed to sign forwarded texture ticket: {error}"
+        ))
+    })
 }
 
 fn decode_forwarded_texture_ticket<S>(

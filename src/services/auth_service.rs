@@ -9,25 +9,26 @@ use crate::db::repository::{
     auth_session_repo, contact_verification_token_repo, system_config_repo,
     user_operator_scope_repo, user_repo,
 };
-use aster_yggdrasil_model::entities::{auth_session, contact_verification_token, user};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
+use crate::runtime::{
+    AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState,
+};
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{
     audit_service, mail_outbox_service, mail_service, mail_template::MailTemplatePayload,
 };
+use actix_web::HttpRequest;
+use aster_forge_crypto::sha256_hex;
+use aster_forge_utils::numbers::u64_to_i64;
+use aster_forge_validation::email::normalize_email;
+use aster_yggdrasil_model::entities::{auth_session, contact_verification_token, user};
 use aster_yggdrasil_model::types::{
     auth::TokenType, auth::VerificationChannel, auth::VerificationPurpose, user::AvatarSource,
     user::OperatorScope, user::UserRole, user::UserStatus,
 };
-use actix_web::HttpRequest;
-use aster_forge_crypto::sha256_hex;
-use aster_forge_utils::numbers::{i64_to_u64, u64_to_i64, u64_to_usize};
-use aster_forge_validation::email::normalize_email;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, IntoActiveModel};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -530,7 +531,11 @@ where
     S: SharedRuntimeState,
 {
     tracing::debug!("starting local refresh token rotation");
-    let claims = decode_claims(state, refresh_token, aster_forge_auth::AuthTokenType::Refresh)?;
+    let claims = decode_claims(
+        state,
+        refresh_token,
+        aster_forge_auth::AuthTokenType::Refresh,
+    )?;
     ensure_token_type(&claims, TokenType::Refresh)?;
     let refresh_jti = claims
         .jti
@@ -623,7 +628,11 @@ where
     S: SharedRuntimeState,
 {
     tracing::debug!("starting local logout");
-    let claims = match decode_claims(state, refresh_token, aster_forge_auth::AuthTokenType::Refresh) {
+    let claims = match decode_claims(
+        state,
+        refresh_token,
+        aster_forge_auth::AuthTokenType::Refresh,
+    ) {
         Ok(claims) => claims,
         Err(AsterError::AuthTokenExpired(_) | AsterError::AuthTokenInvalid(_)) => {
             tracing::debug!("local logout ignored because refresh token is invalid or expired");
@@ -676,7 +685,11 @@ fn refresh_jti_from_token<S>(state: &S, refresh_token: &str) -> Result<String>
 where
     S: SharedRuntimeState,
 {
-    let claims = decode_claims(state, refresh_token, aster_forge_auth::AuthTokenType::Refresh)?;
+    let claims = decode_claims(
+        state,
+        refresh_token,
+        aster_forge_auth::AuthTokenType::Refresh,
+    )?;
     ensure_token_type(&claims, TokenType::Refresh)?;
     claims
         .jti
@@ -956,30 +969,44 @@ where
     create_user_with_options(
         state,
         db,
-        username,
-        email,
-        password,
-        role,
-        UserStatus::Active,
-        false,
+        CreateUserInput {
+            username,
+            email,
+            password,
+            role,
+            status: UserStatus::Active,
+            must_change_password: false,
+        },
     )
     .await
+}
+
+struct CreateUserInput<'a> {
+    username: &'a str,
+    email: &'a str,
+    password: &'a str,
+    role: UserRole,
+    status: UserStatus,
+    must_change_password: bool,
 }
 
 async fn create_user_with_options<C, S>(
     state: &S,
     db: &C,
-    username: &str,
-    email: &str,
-    password: &str,
-    role: UserRole,
-    status: UserStatus,
-    must_change_password: bool,
+    input: CreateUserInput<'_>,
 ) -> Result<user::Model>
 where
     C: ConnectionTrait,
     S: RuntimeConfigRuntimeState + ?Sized,
 {
+    let CreateUserInput {
+        username,
+        email,
+        password,
+        role,
+        status,
+        must_change_password,
+    } = input;
     tracing::debug!(username, role = ?role, "creating user record");
     let email = validate_identity_input(username, email, password)?;
     let runtimes = state.runtime_config().auth_runtimes()?;
@@ -1355,7 +1382,8 @@ where
                 "password reset link has already been used",
             ));
         }
-        let updated = update_password_in_connection(state, txn, existing_user, new_password).await?;
+        let updated =
+            update_password_in_connection(state, txn, existing_user, new_password).await?;
         mail_outbox_service::enqueue(
             txn,
             &updated.email,
@@ -1620,7 +1648,7 @@ async fn issue_contact_verification_token<C: ConnectionTrait>(
 }
 
 pub mod shared {
-    use aster_forge_crypto::hash_password;
+
     use aster_forge_validation::email::normalize_email;
     use chrono::Utc;
     use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait};
@@ -1628,9 +1656,9 @@ pub mod shared {
     use super::{validate_email, validate_password, validate_username};
     use crate::api::error_code::AsterErrorCode;
     use crate::db::repository::user_repo;
-    use aster_yggdrasil_model::entities::user;
     use crate::errors::{AsterError, Result};
     use crate::runtime::RuntimeConfigRuntimeState;
+    use aster_yggdrasil_model::entities::user;
     use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
     pub struct CreateUserWithRoleInput<'a> {
         pub username: &'a str,
@@ -1689,17 +1717,15 @@ pub mod shared {
             public_uuid: Set(public_uuid),
             username: Set(input.username.to_string()),
             email: Set(email),
-            password_hash: Set(
-                state
-                    .runtime_config()
-                    .auth_runtimes()?
-                    .password_hash_runtime()
-                    .hash_password(input.password)
-                    .await
-                    .map_err(|error| {
-                        AsterError::internal_error(format!("password hashing failed: {error}"))
-                    })?,
-            ),
+            password_hash: Set(state
+                .runtime_config()
+                .auth_runtimes()?
+                .password_hash_runtime()
+                .hash_password(input.password)
+                .await
+                .map_err(|error| {
+                    AsterError::internal_error(format!("password hashing failed: {error}"))
+                })?),
             role: Set(input.role),
             status: Set(input.status),
             must_change_password: Set(input.must_change_password),
@@ -1879,7 +1905,12 @@ where
     })?);
     let pair = runtimes
         .jwt_signer()
-        .issue(subject, session.clone(), version, forge_restriction(password_change))
+        .issue(
+            subject,
+            session.clone(),
+            version,
+            forge_restriction(password_change),
+        )
         .map_err(|error| {
             AsterError::internal_error(format!("forge jwt issuance failed: {error}"))
         })?;
@@ -1932,7 +1963,10 @@ fn ensure_token_type(claims: &AuthenticatedClaims, expected: TokenType) -> Resul
     Ok(())
 }
 
-fn decode_access_claims<S: SharedRuntimeState>(state: &S, token: &str) -> Result<AuthenticatedClaims> {
+fn decode_access_claims<S: SharedRuntimeState>(
+    state: &S,
+    token: &str,
+) -> Result<AuthenticatedClaims> {
     let claims = decode_claims(state, token, aster_forge_auth::AuthTokenType::Access)?;
     ensure_token_type(&claims, TokenType::Access)?;
     Ok(claims)
@@ -1991,11 +2025,7 @@ pub(crate) fn peer_ip(req: &HttpRequest) -> Option<String> {
 
 /// Verifies a password against a known identifier's stored hash; failure keeps
 /// the invalid-credentials response. Public for the shared password flows.
-pub async fn verify_user_password<S>(
-    state: &S,
-    password: &str,
-    stored_hash: &str,
-) -> Result<bool>
+pub async fn verify_user_password<S>(state: &S, password: &str, stored_hash: &str) -> Result<bool>
 where
     S: RuntimeConfigRuntimeState,
 {
@@ -2012,10 +2042,7 @@ where
 ///
 /// # Errors
 /// Returns an internal error when hashing fails.
-pub async fn hash_password_with_runtime<S>(
-    state: &S,
-    password: &str,
-) -> Result<String>
+pub async fn hash_password_with_runtime<S>(state: &S, password: &str) -> Result<String>
 where
     S: RuntimeConfigRuntimeState,
 {

@@ -1,9 +1,9 @@
 //! Strongly typed background task specifications.
 
 use crate::config::RuntimeConfig;
-use aster_yggdrasil_model::entities::background_task;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
+use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
 use super::dispatch::TaskLane;
@@ -120,12 +120,12 @@ mod tests {
     use chrono::Utc;
 
     use super::{TaskSpecAdapter, serialize_payload, serialize_result};
-    use aster_yggdrasil_model::entities::background_task;
     use crate::services::task_service::runtime::SystemRuntimeTaskKind;
     use crate::services::task_service::spec::SystemRuntimeTask;
     use crate::services::task_service::types::{
         RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult, TaskPayload, TaskResult,
     };
+    use aster_yggdrasil_model::entities::background_task;
     use aster_yggdrasil_model::types::{
         task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
         task::StoredTaskResult,

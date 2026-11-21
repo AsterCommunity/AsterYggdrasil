@@ -1,7 +1,7 @@
 //! Avatar object storage key helpers.
 
-use aster_yggdrasil_model::entities::user_profile;
 use crate::runtime::ObjectStorageRuntimeState;
+use aster_yggdrasil_model::entities::user_profile;
 use aster_yggdrasil_model::types::user::AvatarSource;
 
 use super::shared::{AVATAR_SIZE_LG, AVATAR_SIZE_SM, stored_avatar_prefix};

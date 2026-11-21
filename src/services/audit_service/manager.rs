@@ -58,7 +58,11 @@ async fn record_prechecked<S: AuditRuntimeState>(
     // Admission is best-effort: overflow records fall back to direct writes inside
     // the writer, and the shutdown drain reconciles whatever remains queued.
     if let Err(error) = state.audit_writer().record(request).await {
-        tracing::warn!(?error, action = action.as_str(), "audit record admission failed");
+        tracing::warn!(
+            ?error,
+            action = action.as_str(),
+            "audit record admission failed"
+        );
     }
 }
 
@@ -73,7 +77,11 @@ async fn record_prechecked_with_db(
 ) {
     let request = audit_log_request(ctx, action, entity_type, entity_id, entity_name, details);
     if let Err(error) = aster_forge_db::create_audit_log_row(db, request).await {
-        tracing::warn!(?error, action = action.as_str(), "direct audit write failed");
+        tracing::warn!(
+            ?error,
+            action = action.as_str(),
+            "direct audit write failed"
+        );
     }
 }
 

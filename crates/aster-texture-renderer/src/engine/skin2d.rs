@@ -270,7 +270,10 @@ fn draw_flat_player(
     );
 }
 
-#[expect(clippy::too_many_arguments, reason = "Renderer rasterization needs the full parameter set per sprite part.")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Renderer rasterization needs the full parameter set per sprite part."
+)]
 fn draw_part(
     texture: &RgbaImage,
     output: &mut RgbaImage,

@@ -11,11 +11,11 @@ use crate::services::admin_user_service;
 use crate::services::audit_service;
 use crate::services::auth_service::AuthUserInfo;
 use crate::services::user_invitation_service;
-use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use aster_forge_api::{CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
+use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 
 fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     req.extensions()

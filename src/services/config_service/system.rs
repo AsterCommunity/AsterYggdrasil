@@ -3,7 +3,9 @@ use crate::config::system_config as shared_system_config;
 use crate::config::yggdrasil::YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY;
 use crate::db::repository::system_config_repo;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState, SharedRuntimeState};
+use crate::runtime::{
+    ConfigSyncRuntimeState, DatabaseRuntimeState, MetricsRuntimeState, SharedRuntimeState,
+};
 use crate::services::audit_service::{self, AuditContext};
 use aster_forge_api::{CursorPage, IdCursor};
 use aster_forge_config::{ConfigSource, ConfigValueType, ConfigVisibility};
@@ -15,7 +17,9 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-pub(crate) trait SystemConfigMutationState: SharedRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState {
+pub(crate) trait SystemConfigMutationState:
+    SharedRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
+{
 }
 
 impl<T> SystemConfigMutationState for T where
@@ -462,9 +466,7 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("object storage should initialize");
         AppState::from_parts(crate::runtime::AppStateParts {
-            audit_writer: std::sync::Arc::new(
-                aster_forge_audit::AuditWriter::new(db.clone()),
-            ),
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
             db_handles: DbHandles::single(db),
             config,
             runtime_config,
@@ -640,7 +642,9 @@ mod tests {
         let db = db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .unwrap();
-        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None)
+            .await
+            .unwrap();
 
         bootstrap_insecure_cookies(&db, true).await.unwrap();
 

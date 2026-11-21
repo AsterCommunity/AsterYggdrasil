@@ -3,17 +3,17 @@
 use crate::db::repository::{
     minecraft_profile_repo, user_operator_scope_repo, user_repo, yggdrasil_token_repo,
 };
-use aster_yggdrasil_model::entities::user;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
     CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
 };
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth_service, texture_service, yggdrasil_service};
-use aster_yggdrasil_model::types::user::{OperatorScope, UserRole, UserStatus};
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_utils::numbers::u64_to_usize;
 use aster_forge_validation::email::normalize_email;
+use aster_yggdrasil_model::entities::user;
+use aster_yggdrasil_model::types::user::{OperatorScope, UserRole, UserStatus};
 use rand::RngExt;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -368,9 +368,7 @@ where
     let password_hash = match password {
         Some(password) => {
             auth_service::validate_password(&password)?;
-            Some(
-                crate::services::auth_service::hash_password_with_runtime(state, &password).await?,
-            )
+            Some(crate::services::auth_service::hash_password_with_runtime(state, &password).await?)
         }
         None => None,
     };
@@ -537,8 +535,10 @@ mod tests {
         auth_session_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
         user_profile_repo,
     };
-    use aster_yggdrasil_model::entities::{auth_session, minecraft_profile, minecraft_texture, user_profile};
     use crate::runtime::{AppState, AppStateParts};
+    use aster_yggdrasil_model::entities::{
+        auth_session, minecraft_profile, minecraft_texture, user_profile,
+    };
     use aster_yggdrasil_model::types::{
         user::AvatarSource, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
         yggdrasil::MinecraftTextureVisibility,
@@ -592,9 +592,7 @@ mod tests {
         let object_storage = crate::object_storage::create_object_storage(&config.object_storage)
             .expect("admin user test object storage should initialize");
         let state = AppState::from_parts(AppStateParts {
-            audit_writer: std::sync::Arc::new(
-                aster_forge_audit::AuditWriter::new(db.clone()),
-            ),
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
             db_handles: aster_forge_db::DbHandles::single(db),
             config,
             runtime_config,

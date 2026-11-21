@@ -13,9 +13,9 @@ use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service, yggdrasil_service};
-use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(

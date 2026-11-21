@@ -4,15 +4,15 @@ use chrono::Utc;
 use crate::api::api_error_code::ApiErrorCode;
 use crate::config::auth_runtime::RuntimeAuthPolicy;
 use crate::db::repository::{external_auth_identity_repo, user_repo};
-use aster_yggdrasil_model::entities::{
-    external_auth_email_verification_flow, external_auth_identity, external_auth_provider, user,
-};
 use crate::errors::{AsterError, Result, auth_forbidden_with_code};
 use crate::runtime::SharedRuntimeState;
 use crate::services::auth_service;
-use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 use aster_forge_crypto as hash;
 use aster_forge_external_auth::ExternalAuthProfile;
+use aster_yggdrasil_model::entities::{
+    external_auth_email_verification_flow, external_auth_identity, external_auth_provider, user,
+};
+use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 
 use super::normalize::email_domain_allowed;
 use super::{EXTERNAL_AUTH_USER_PASSWORD_BYTES, USERNAME_MAX_LEN, USERNAME_MIN_LEN};

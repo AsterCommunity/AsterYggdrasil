@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::common::{TerminalTaskCleanupFilters, terminal_cleanup_condition};
-use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use crate::errors::{AsterError, Result};
+use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 
 pub async fn list_expired_terminal<C: ConnectionTrait>(

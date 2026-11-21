@@ -6,11 +6,13 @@ use crate::config::{auth_runtime::RuntimeAuthPolicy, branding};
 use crate::db::repository::{
     external_auth_email_verification_flow_repo, external_auth_provider_repo, user_repo,
 };
-use aster_yggdrasil_model::entities::{external_auth_email_verification_flow, external_auth_provider};
 use crate::errors::{AsterError, Result, auth_forbidden_with_code};
 use crate::runtime::SharedRuntimeState;
 use crate::services::{mail_outbox_service, mail_service, mail_template::MailTemplatePayload};
 use aster_forge_utils::numbers::u64_to_i64;
+use aster_yggdrasil_model::entities::{
+    external_auth_email_verification_flow, external_auth_provider,
+};
 
 use super::normalize::{
     email_domain_allowed, normalize_email_for_external_auth, normalize_flow_token, token_hash,

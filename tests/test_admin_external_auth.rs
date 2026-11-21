@@ -4,7 +4,6 @@
 mod common;
 
 use actix_web::test;
-use aster_yggdrasil::services::audit_service;
 use serde_json::Value;
 
 #[actix_web::test]

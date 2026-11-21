@@ -1,8 +1,8 @@
 pub use crate::config::definitions::{AUDIT_LOG_ENABLED_KEY, AUDIT_LOG_RECORDED_ACTIONS_KEY};
 use crate::errors::{AsterError, Result};
-use aster_yggdrasil_model::types::audit::AuditAction;
 use aster_forge_config::{normalize_string_enum_set_selection, parse_string_enum_set_selection};
 use aster_forge_utils::bool_like::parse_bool_like;
+use aster_yggdrasil_model::types::audit::AuditAction;
 
 pub const DEFAULT_AUDIT_LOG_ENABLED: bool = true;
 // Ceiling division: AuditAction::COUNT is the number of action bits, and

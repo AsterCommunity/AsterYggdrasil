@@ -1,13 +1,13 @@
 //! User repository.
 
+use crate::errors::{AsterError, MapAsterErr, Result};
+use aster_forge_api::CursorSlice;
+use aster_forge_db::search_query;
 use aster_yggdrasil_model::entities::{
     auth_session, minecraft_profile,
     user::{self, Entity as User},
 };
-use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
-use aster_forge_api::CursorSlice;
-use aster_forge_db::search_query;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, ExprTrait,

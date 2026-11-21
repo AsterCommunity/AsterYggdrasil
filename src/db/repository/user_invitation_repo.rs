@@ -1,9 +1,9 @@
 //! User invitation repository.
 
-use aster_yggdrasil_model::entities::user_invitation::{self, Entity as UserInvitation};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use aster_yggdrasil_model::types::user::UserInvitationStatus;
 use aster_forge_api::CursorSlice;
+use aster_yggdrasil_model::entities::user_invitation::{self, Entity as UserInvitation};
+use aster_yggdrasil_model::types::user::UserInvitationStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,

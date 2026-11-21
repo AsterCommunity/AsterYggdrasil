@@ -3,10 +3,10 @@
 use chrono::{DateTime, Utc};
 use sea_orm::ConnectionTrait;
 
-use aster_yggdrasil_model::entities::audit_log;
 use crate::errors::{AsterError, Result};
-use aster_yggdrasil_model::types::audit::AuditAction;
 use aster_forge_api::CursorSlice;
+use aster_yggdrasil_model::entities::audit_log;
+use aster_yggdrasil_model::types::audit::AuditAction;
 
 pub struct AuditLogQuery<'a> {
     pub user_id: Option<i64>,
@@ -44,8 +44,7 @@ pub async fn find_with_filters_cursor<C: ConnectionTrait>(
             .items
             .into_iter()
             .map(|row| {
-                audit_log::Model::try_from_forge_row(row)
-                    .map_err(|message| AsterError::database_operation(message))
+                audit_log::Model::try_from_forge_row(row).map_err(AsterError::database_operation)
             })
             .collect::<Result<Vec<_>>>()?,
         total: page.total,

@@ -5,15 +5,15 @@ use serde::Serialize;
 
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{user_ban_repo, user_repo};
-use aster_yggdrasil_model::entities::{user_ban, user_ban_event};
 use crate::errors::{AsterError, Result};
 use crate::runtime::DatabaseRuntimeState;
+use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
+use aster_forge_utils::text::char_count;
+use aster_yggdrasil_model::entities::{user_ban, user_ban_event};
 use aster_yggdrasil_model::types::{
     user::UserBanEventType, user::UserBanScope, user::UserBanScopes, user::UserBanScopesError,
     user::UserBanStatus,
 };
-use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
-use aster_forge_utils::text::char_count;
 
 const REASON_MAX_CHARS: usize = 128;
 const NOTE_MAX_CHARS: usize = 1000;
@@ -353,8 +353,7 @@ where
                 public_reason,
                 admin_note,
                 starts_at: input.starts_at,
-                expires_at: Some(next_expires_at)
-                    .filter(|_| next_expires_at != previous_expires_at),
+                expires_at: (next_expires_at != previous_expires_at).then_some(next_expires_at),
             },
         )
         .await?;

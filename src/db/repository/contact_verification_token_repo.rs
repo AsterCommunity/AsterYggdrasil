@@ -1,7 +1,9 @@
 //! Contact verification token repository.
 
-use aster_yggdrasil_model::entities::contact_verification_token::{self, Entity as ContactVerificationToken};
 use crate::errors::{AsterError, MapAsterErr, Result};
+use aster_yggdrasil_model::entities::contact_verification_token::{
+    self, Entity as ContactVerificationToken,
+};
 use aster_yggdrasil_model::types::auth::{VerificationChannel, VerificationPurpose};
 use chrono::Utc;
 use sea_orm::{

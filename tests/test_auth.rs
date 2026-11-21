@@ -1426,9 +1426,10 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["data"]["revoked"], true);
 
-    let rotated_refresh_jti = decode_test_claims(&rotated_refresh, aster_forge_auth::AuthTokenType::Refresh)
-        .jti
-        .expect("rotated refresh token should include jti");
+    let rotated_refresh_jti =
+        decode_test_claims(&rotated_refresh, aster_forge_auth::AuthTokenType::Refresh)
+            .jti
+            .expect("rotated refresh token should include jti");
     let revoked_refresh_session =
         auth_session_repo::find_by_refresh_jti(state.reader_db(), &rotated_refresh_jti)
             .await
@@ -1712,9 +1713,10 @@ async fn auth_sessions_mark_current_and_revoke_selected_session() {
         1
     );
 
-    let other_refresh_jti = decode_test_claims(&other_refresh, aster_forge_auth::AuthTokenType::Refresh)
-        .jti
-        .expect("other refresh token should include jti");
+    let other_refresh_jti =
+        decode_test_claims(&other_refresh, aster_forge_auth::AuthTokenType::Refresh)
+            .jti
+            .expect("other refresh token should include jti");
     let other_session =
         auth_session_repo::find_by_refresh_jti(state.reader_db(), &other_refresh_jti)
             .await

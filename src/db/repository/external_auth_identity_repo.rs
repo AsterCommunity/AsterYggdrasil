@@ -7,9 +7,11 @@ use sea_orm::{
     sea_query::Expr,
 };
 
-use aster_yggdrasil_model::entities::external_auth_identity::{self, Entity as ExternalAuthIdentity};
 use crate::errors::{AsterError, Result};
 use aster_forge_api::CursorSlice;
+use aster_yggdrasil_model::entities::external_auth_identity::{
+    self, Entity as ExternalAuthIdentity,
+};
 
 pub struct CreateExternalAuthIdentityInput<'a> {
     pub user_id: i64,

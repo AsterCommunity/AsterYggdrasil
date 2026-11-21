@@ -6,10 +6,12 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
-use aster_yggdrasil_model::entities::external_auth_provider::{self, Entity as ExternalAuthProvider};
 use crate::errors::{AsterError, Result};
-use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 use aster_forge_api::CursorSlice;
+use aster_yggdrasil_model::entities::external_auth_provider::{
+    self, Entity as ExternalAuthProvider,
+};
+use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 
 pub async fn find_all(db: &DatabaseConnection) -> Result<Vec<external_auth_provider::Model>> {
     ExternalAuthProvider::find()

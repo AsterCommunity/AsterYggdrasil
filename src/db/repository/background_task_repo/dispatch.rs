@@ -5,8 +5,8 @@ use sea_orm::{
 };
 
 use super::common::claimable_condition;
-use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use crate::errors::{AsterError, Result};
+use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
 pub async fn list_claimable<C: ConnectionTrait>(
     db: &C,

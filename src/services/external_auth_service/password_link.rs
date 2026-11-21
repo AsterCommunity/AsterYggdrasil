@@ -6,7 +6,6 @@ use crate::db::repository::{
 use crate::errors::{AsterError, Result};
 use crate::runtime::SharedRuntimeState;
 use crate::services::auth_service;
-use aster_forge_crypto as hash;
 
 use super::normalize::{normalize_flow_token, token_hash};
 use super::resolution::{
@@ -56,7 +55,9 @@ pub async fn link_with_password(
         .as_ref()
         .map(|user| user.password_hash.as_str())
         .unwrap_or(DUMMY_PASSWORD_HASH);
-    if !crate::services::auth_service::verify_user_password(state, &input.password, password_hash).await? {
+    if !crate::services::auth_service::verify_user_password(state, &input.password, password_hash)
+        .await?
+    {
         return Err(AsterError::auth_invalid_credentials("invalid credentials"));
     }
     let Some(user) = user else {

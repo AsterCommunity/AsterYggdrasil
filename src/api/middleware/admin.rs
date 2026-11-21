@@ -145,10 +145,10 @@ where
 mod tests {
     use super::*;
     use crate::services::profile_service::{AvatarInfo, UserProfileInfo};
-    use aster_yggdrasil_model::types::user::{AvatarSource, UserStatus};
     use actix_web::HttpResponse;
     use actix_web::dev::fn_service;
     use actix_web::test;
+    use aster_yggdrasil_model::types::user::{AvatarSource, UserStatus};
     fn auth_user(role: UserRole, operator_scopes: Vec<OperatorScope>) -> AuthUserInfo {
         AuthUserInfo {
             id: 42,

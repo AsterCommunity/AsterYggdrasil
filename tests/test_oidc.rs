@@ -14,7 +14,7 @@ use aster_yggdrasil::entities::{
     audit_log, external_auth_email_verification_flow, external_auth_identity,
     external_auth_login_flow, external_auth_provider, user,
 };
-use aster_yggdrasil::services::{audit_service, external_auth_service};
+use aster_yggdrasil::services::external_auth_service;
 use aster_yggdrasil::types::audit::AuditAction;
 use chrono::{Duration, Utc};
 use external_auth::oidc::*;
