@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf};
 
 use aster_yggdrasil_render::{
-    OutputFormat, PreviewEngine, RenderError, Skin2dPreviewOptions, SkinModel, SkinPreviewOptions,
+    OutputFormat, PreviewEngine, Skin2dPreviewOptions, SkinModel, SkinPreviewOptions,
     SkinPreviewProfile, TexturePreviewOptions, render_preview_bytes,
 };
 use image::Rgba;
@@ -95,13 +95,13 @@ impl Args {
                     skin_3d_options.back_yaw_degrees = parse_f32(&mut args, "--back-yaw")?;
                 }
                 "--spacing" => {
-                    let raw = next_value(args, "--spacing")?;
+                    let raw = next_value(&mut args, "--spacing")?;
                     skin_2d_options.view_spacing = raw
                         .parse()
-                        .map_err(|_| format!("invalid integer for argument --spacing"))?;
+                        .map_err(|_| "invalid integer for argument --spacing".to_string())?;
                     skin_3d_options.view_spacing = raw
                         .parse::<f32>()
-                        .map_err(|_| format!("invalid float for argument --spacing"))?;
+                        .map_err(|_| "invalid float for argument --spacing".to_string())?;
                 }
                 "--supersampling" => {
                     skin_3d_options.supersampling = parse_u8(&mut args, "--supersampling")?;
@@ -240,10 +240,3 @@ fn usage() -> String {
     "usage: render_skin_preview --input <skin.png> --output <preview.png> [--engine skin-3d|skin-2d] [--profile fast|default|quality] [--model default|slim] [--format png|webp] [--pitch deg] [--front-yaw deg] [--back-yaw deg] [--supersampling 1-4] [--padding px] [--background transparent|white|black|#RRGGBB|#RRGGBBAA]".to_string()
 }
 
-#[expect(
-    dead_code,
-    reason = "compile-time Send/Sync assertion helper; the value itself is intentionally discarded"
-)]
-fn _assert_error_send_sync(error: RenderError) -> RenderError {
-    error
-}
