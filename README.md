@@ -11,14 +11,14 @@
 </p>
 
 <p align="center">
-  <a href="https://yggdrasil.astercosm.com/"><img alt="Documentation Site" src="https://img.shields.io/badge/docs-VitePress-0F766E?logo=vitepress&logoColor=white"></a>
+  <a href="https://yggdrasil.astercosm.com/"><img alt="Documentation Site" src="https://img.shields.io/badge/docs-VitePress-0F766E?style=for-the-badge&logo=vitepress&logoColor=white"></a>
   <a href="README.zh.md"><img alt="中文 README" src="https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-E11D48?style=for-the-badge"></a>
   <a href="docs/en/guide/getting-started.md"><img alt="Getting Started" src="https://img.shields.io/badge/getting%20started-guide-2563EB?style=for-the-badge"></a>
   <a href="docs/en/guide/launcher-setup.md"><img alt="Launcher Setup" src="https://img.shields.io/badge/authlib--injector-setup-0EA5E9?style=for-the-badge"></a>
   <a href="docs/en/deployment/docker.md"><img alt="Docker" src="https://img.shields.io/badge/docker-deployment-2496ED?style=for-the-badge&logo=docker&logoColor=white"></a>
   <a href="developer-docs/README.md"><img alt="Developer Docs" src="https://img.shields.io/badge/developer-docs-059669?style=for-the-badge"></a>
-  <img alt="Rust 1.95+" src="https://img.shields.io/badge/rust-1.95%2B-B7410E?logo=rust&logoColor=white">
-  <img alt="License MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-0F172A">
+  <img alt="Rust 1.95+" src="https://img.shields.io/badge/rust-1.95%2B-B7410E?style=for-the-badge&logo=rust&logoColor=white">
+  <img alt="License MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-0F172A?style=for-the-badge">
 </p>
 
 ## What is AsterYggdrasil?
