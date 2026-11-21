@@ -1,14 +1,14 @@
 [package]
 name = "aster_yggdrasil_render"
 description = "Minecraft skin and cape rendering helpers."
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_render"
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
 edition = "2024"
 rust-version = "1.95.0"
-publish = false
+publish = true
 
 [lints]
 workspace = true
