@@ -283,7 +283,6 @@ use utoipa::{Modify, OpenApi};
             crate::services::auth_service::AuthSessionInfo,
             crate::services::auth_service::AuthTokenResponse,
             crate::services::auth_service::RegisterResponse,
-            crate::services::auth_service::AccessClaims,
             crate::services::captcha_service::CaptchaChallengeResponse,
             crate::services::user_invitation_service::AdminUserInvitationInfo,
             crate::services::user_invitation_service::PublicUserInvitationInfo,

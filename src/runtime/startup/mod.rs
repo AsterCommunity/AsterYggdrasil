@@ -33,6 +33,10 @@ mod tests {
             .reload(&db)
             .await
             .expect("runtime config should load");
+        runtime_config
+            .install_auth_runtimes(crate::config::TEST_JWT_SECRET)
+            .await
+            .expect("auth runtimes should install");
         let config = Arc::new(crate::config::Config::default());
         let cache = aster_forge_cache::create_cache(&config.cache).await;
 

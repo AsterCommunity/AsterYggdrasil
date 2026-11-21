@@ -12,12 +12,16 @@ use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRunt
 use crate::services::{audit_service, auth_service};
 use aster_forge_crypto::verify_password;
 
-async fn verify_change_password_input<C: ConnectionTrait>(
-    db: &C,
+async fn verify_change_password_input<S>(
+    state: &S,
+    db: &impl ConnectionTrait,
     user_id: i64,
     current_password: &str,
     new_password: &str,
-) -> Result<user::Model> {
+) -> Result<user::Model>
+where
+    S: RuntimeConfigRuntimeState,
+{
     let user = user_repo::find_by_id(db, user_id).await?;
     if !user.status.is_active() {
         return Err(AsterError::auth_forbidden_code(
@@ -31,7 +35,7 @@ async fn verify_change_password_input<C: ConnectionTrait>(
             "account email activation is pending",
         ));
     }
-    if !verify_password(current_password, &user.password_hash)? {
+    if !auth_service::verify_user_password(state, current_password, &user.password_hash).await? {
         return Err(AsterError::auth_invalid_credentials("wrong password"));
     }
     if current_password == new_password {
@@ -52,9 +56,15 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     let updated = transaction::with_transaction(state.writer_db(), async |txn| {
-        let user =
-            verify_change_password_input(txn, user_id, current_password, new_password).await?;
-        let updated = update_password_in_connection(txn, user, new_password).await?;
+        let user = verify_change_password_input(
+            state,
+            txn,
+            user_id,
+            current_password,
+            new_password,
+        )
+        .await?;
+        let updated = update_password_in_connection(state, txn, user, new_password).await?;
         user_repo::revoke_sessions_for_user(txn, updated.id).await?;
         Ok(updated)
     })

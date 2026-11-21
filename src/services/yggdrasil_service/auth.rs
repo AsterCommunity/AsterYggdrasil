@@ -10,7 +10,6 @@ use crate::errors::AsterError;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, ban_service};
 use aster_yggdrasil_model::types::user::UserBanScope;
-use aster_forge_crypto::verify_password;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::login::{resolve_login_target, user_info};
@@ -70,8 +69,8 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
-    if !verify_password(&body.password, &login_target.user.password_hash)
-        .map_err(AsterError::from)
+    if !crate::services::auth_service::verify_user_password(state, &body.password, &login_target.user.password_hash)
+        .await
         .map_err(YggdrasilError::from)?
     {
         tracing::debug!(
@@ -392,8 +391,8 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
-    if !verify_password(password, &login_target.user.password_hash)
-        .map_err(AsterError::from)
+    if !crate::services::auth_service::verify_user_password(state, password, &login_target.user.password_hash)
+        .await
         .map_err(YggdrasilError::from)?
     {
         tracing::debug!(

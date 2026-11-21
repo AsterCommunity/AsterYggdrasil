@@ -56,7 +56,7 @@ pub async fn link_with_password(
         .as_ref()
         .map(|user| user.password_hash.as_str())
         .unwrap_or(DUMMY_PASSWORD_HASH);
-    if !hash::verify_password(&input.password, password_hash)? {
+    if !crate::services::auth_service::verify_user_password(state, &input.password, password_hash).await? {
         return Err(AsterError::auth_invalid_credentials("invalid credentials"));
     }
     let Some(user) = user else {

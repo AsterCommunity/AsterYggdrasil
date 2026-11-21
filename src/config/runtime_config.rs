@@ -1,17 +1,95 @@
 //! Runtime-editable system configuration cache.
 
+use std::sync::Arc;
+
+use aster_forge_auth::{JwtPolicy, JwtSigner, JwtVerifier, PasswordHashRuntime};
 use aster_forge_config::{SyncConfigSnapshot, SyncRuntimeConfig};
 use parking_lot::RwLock;
 use sea_orm::ConnectionTrait;
 
 use crate::config::audit::{self, AuditLogRuntimeSettings};
 use crate::db::repository::system_config_repo;
-use crate::errors::Result;
+use crate::errors::{AsterError, Result};
 use aster_forge_db::system_config;
+
+pub const JWT_ISSUER: &str = "aster_yggdrasil";
+pub const JWT_AUDIENCE: &str = "aster_yggdrasil";
+const PASSWORD_HASH_MAX_CONCURRENCY: usize = 8;
+
+/// Forge auth runtimes built from the static JWT secret and hot-reloadable TTLs.
+///
+/// TTL changes rebuild the signer/verifier policies on config apply; the secret
+/// is boot-time-only, so rotating it still requires a restart.
+pub struct AuthRuntimes {
+    jwt_signer: JwtSigner,
+    jwt_verifier: JwtVerifier,
+    password_hash_runtime: PasswordHashRuntime,
+    dummy_password_hash: Arc<String>,
+}
+
+impl AuthRuntimes {
+    /// Builds the auth runtimes for a JWT secret and TTL snapshot.
+    ///
+    /// # Errors
+    /// Returns an error when the secret or the TTLs are invalid for Forge JWT,
+    /// or when the dummy hash cannot be produced.
+    pub async fn new(
+        jwt_secret: &str,
+        access_ttl_secs: u64,
+        refresh_ttl_secs: u64,
+    ) -> Result<Arc<Self>> {
+        use aster_forge_auth::JwtKey;
+
+        let key = JwtKey::hmac(jwt_secret)
+            .map_err(|error| AsterError::internal_error(format!("jwt key: {error}")))?;
+        let policy = JwtPolicy::new(JWT_ISSUER, JWT_AUDIENCE, access_ttl_secs, refresh_ttl_secs)
+            .map_err(|error| AsterError::internal_error(format!("jwt policy: {error}")))?;
+        let jwt_signer = JwtSigner::with_system_clock(key.clone(), policy.clone());
+        let jwt_verifier = JwtVerifier::with_system_clock(key, policy);
+        let password_hash_runtime = PasswordHashRuntime::new(PASSWORD_HASH_MAX_CONCURRENCY)
+            .map_err(|error| {
+                AsterError::internal_error(format!("password hash runtime: {error}"))
+            })?;
+        // Burned against unknown identifiers so login timing does not reveal
+        // whether an account exists.
+        let dummy_password = format!("dummy:{}", uuid::Uuid::new_v4());
+        let dummy_password_hash = Arc::new(
+            password_hash_runtime
+                .hash_password(&dummy_password)
+                .await
+                .map_err(|error| {
+                    AsterError::internal_error(format!("dummy password hash: {error}"))
+                })?,
+        );
+        Ok(Arc::new(Self {
+            jwt_signer,
+            jwt_verifier,
+            password_hash_runtime,
+            dummy_password_hash,
+        }))
+    }
+
+    pub fn jwt_signer(&self) -> &JwtSigner {
+        &self.jwt_signer
+    }
+
+    pub fn jwt_verifier(&self) -> &JwtVerifier {
+        &self.jwt_verifier
+    }
+
+    pub fn password_hash_runtime(&self) -> &PasswordHashRuntime {
+        &self.password_hash_runtime
+    }
+
+    pub fn dummy_password_hash(&self) -> &str {
+        &self.dummy_password_hash
+    }
+}
 
 pub struct RuntimeConfig {
     snapshot: SyncRuntimeConfig<system_config::Model>,
     audit_log_settings: RwLock<AuditLogRuntimeSettings>,
+    auth_runtimes: RwLock<Option<Arc<AuthRuntimes>>>,
 }
 
 impl RuntimeConfig {
@@ -19,7 +97,48 @@ impl RuntimeConfig {
         Self {
             snapshot: SyncRuntimeConfig::new(),
             audit_log_settings: RwLock::new(AuditLogRuntimeSettings::default()),
+            auth_runtimes: RwLock::new(None),
         }
+    }
+
+    /// Installs the auth runtimes after the runtime snapshot has been loaded,
+    /// reading the TTL values from it.
+    ///
+    /// # Errors
+    /// Returns an error when the JWT secret or TTL snapshot values are invalid.
+    pub async fn install_auth_runtimes(&self, jwt_secret: &str) -> Result<()> {
+        use crate::config::auth_runtime::{
+            AUTH_ACCESS_TOKEN_TTL_SECS_KEY, AUTH_REFRESH_TOKEN_TTL_SECS_KEY,
+            DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS, DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS,
+        };
+        let access_ttl_secs = u64::try_from(self.get_i64_or(
+            AUTH_ACCESS_TOKEN_TTL_SECS_KEY,
+            i64::try_from(DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS).unwrap_or(900),
+        ))
+        .unwrap_or(DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS);
+        let refresh_ttl_secs = u64::try_from(self.get_i64_or(
+            AUTH_REFRESH_TOKEN_TTL_SECS_KEY,
+            i64::try_from(DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS).unwrap_or(604_800),
+        ))
+        .unwrap_or(DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS);
+        *self.auth_runtimes.write() =
+            Some(AuthRuntimes::new(jwt_secret, access_ttl_secs, refresh_ttl_secs).await?);
+        Ok(())
+    }
+
+    /// Returns the installed Forge auth runtimes.
+    ///
+    /// # Errors
+    /// Returns an error when [`RuntimeConfig::install_auth_runtimes`] has not
+    /// run yet (miswired startup or test fixture).
+    pub fn auth_runtimes(&self) -> Result<Arc<AuthRuntimes>> {
+        self.auth_runtimes.read().clone().ok_or_else(|| {
+            AsterError::internal_error("auth runtimes are not installed in runtime config")
+        })
+    }
+
+    pub fn jwt_signer(&self) -> Result<Arc<AuthRuntimes>> {
+        self.auth_runtimes()
     }
 
     pub async fn reload<C: ConnectionTrait>(&self, db: &C) -> Result<()> {

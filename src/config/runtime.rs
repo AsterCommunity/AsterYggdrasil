@@ -25,5 +25,8 @@ where
 
     let runtime_config = Arc::new(RuntimeConfig::new());
     runtime_config.reload(reader).await?;
+    runtime_config
+        .install_auth_runtimes(&auth_config.jwt_secret)
+        .await?;
     Ok(runtime_config)
 }

@@ -25,7 +25,11 @@ const SHARED_TEST_CONTAINER_STATE_DIR: &str = "/tmp/asteryggdrasil-testcontainer
 
 fn init_test_process_state() {
     static INIT: OnceLock<()> = OnceLock::new();
-    INIT.get_or_init(|| {});
+    INIT.get_or_init(|| {
+        // Forge JWT issue/verify refuses to run until the crypto backend is
+        // initialized; binaries do this in bootstrap, test processes do it here.
+        let _ = aster_forge_auth::initialize_jwt_crypto_provider();
+    });
 }
 
 #[expect(dead_code, reason = "Only exercised by the MySQL/Postgres backend test binaries; kept shared for sqlite runs.")]
@@ -968,6 +972,10 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         .reload(&writer)
         .await
         .expect("runtime config should reload");
+    runtime_config
+        .install_auth_runtimes(&config.auth.jwt_secret)
+        .await
+        .expect("auth runtimes should install");
 
     let cache = aster_forge_cache::create_cache(&config.cache).await;
     let object_storage =

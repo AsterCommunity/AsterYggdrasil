@@ -6,6 +6,10 @@
 //! static boot settings such as database, cache, and startup-only auth values
 //! are loaded once into `Config`.
 
+/// Fixed JWT secret for test-built runtime states; production reads the secret
+/// from the static configuration file instead.
+pub const TEST_JWT_SECRET: &str = "aster-yggdrasil-test-jwt-secret-0123456789abcdef";
+
 pub mod audit;
 pub mod auth_runtime;
 pub mod avatar;
@@ -27,7 +31,7 @@ pub mod texture_preview;
 pub mod yggdrasil;
 
 pub use deployment::{DeploymentConfig, DeploymentProfile};
-pub use runtime_config::RuntimeConfig;
+pub use runtime_config::{JWT_AUDIENCE, JWT_ISSUER, RuntimeConfig};
 pub use schema::{
     AuthConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,
     DatabaseConfig, NetworkTrustConfig, ObjectStorageConfig, RateLimitConfig, RateLimitTier,

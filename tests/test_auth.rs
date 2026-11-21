@@ -10,14 +10,12 @@ use aster_yggdrasil::db::repository::{
     auth_session_repo, contact_verification_token_repo, passkey_repo, system_config_repo, user_repo,
 };
 use aster_yggdrasil::entities::{audit_log, auth_session, contact_verification_token, passkey};
-use aster_yggdrasil::services::auth_service::AccessClaims;
 use aster_yggdrasil::types::{
     auth::TokenType, auth::VerificationChannel, auth::VerificationPurpose,
     passkey::StoredPasskeyCredential, user::UserRole, user::UserStatus,
 };
 use base64::Engine as _;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{DecodingKey, Validation};
 use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set};
 use serde_json::Value;
 use std::io::Cursor;
@@ -28,15 +26,16 @@ use webauthn_rs_proto::{AllowCredentials, Mediation, ResidentKeyRequirement};
 
 const TEST_BROWSER_ORIGIN: &str = "http://localhost:8080";
 
-fn decode_test_claims(token: &str) -> AccessClaims {
-    let decoding_key = DecodingKey::from_secret(b"test-secret-key-for-integration-tests").unwrap();
-    jsonwebtoken::decode::<AccessClaims>(
+fn decode_test_claims(
+    token: &str,
+    expected: aster_forge_auth::AuthTokenType,
+) -> aster_yggdrasil::services::auth_service::AuthenticatedClaims {
+    aster_yggdrasil::services::auth_service::verify_typed_token(
         token,
-        &decoding_key,
-        &Validation::new(jsonwebtoken::Algorithm::HS256),
+        "test-secret-key-for-integration-tests",
+        expected,
     )
-    .expect("test token should decode")
-    .claims
+    .expect("test token should verify")
 }
 
 macro_rules! login_session {
@@ -1286,12 +1285,10 @@ async fn auth_login_sets_http_only_session_cookies_without_token_body() {
     assert!(!access.is_empty());
     assert!(!refresh.is_empty());
     assert!(!csrf.is_empty());
-    let access_claims = decode_test_claims(&access);
-    let refresh_claims = decode_test_claims(&refresh);
-    assert_eq!(access_claims.sub, access_claims.user_id.to_string());
+    let access_claims = decode_test_claims(&access, aster_forge_auth::AuthTokenType::Access);
+    let refresh_claims = decode_test_claims(&refresh, aster_forge_auth::AuthTokenType::Refresh);
     assert_eq!(access_claims.token_type, TokenType::Access);
     assert!(access_claims.jti.is_none());
-    assert_eq!(refresh_claims.sub, refresh_claims.user_id.to_string());
     assert_eq!(refresh_claims.token_type, TokenType::Refresh);
     assert!(refresh_claims.jti.is_some());
 
@@ -1384,7 +1381,7 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     assert!(body["data"]["access_token"].is_null());
     assert!(body["data"]["refresh_token"].is_null());
 
-    let old_refresh_jti = decode_test_claims(&refresh)
+    let old_refresh_jti = decode_test_claims(&refresh, aster_forge_auth::AuthTokenType::Refresh)
         .jti
         .expect("refresh token should include jti");
     let old_refresh_session =
@@ -1429,7 +1426,7 @@ async fn auth_cookie_session_can_read_me_refresh_and_logout() {
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["data"]["revoked"], true);
 
-    let rotated_refresh_jti = decode_test_claims(&rotated_refresh)
+    let rotated_refresh_jti = decode_test_claims(&rotated_refresh, aster_forge_auth::AuthTokenType::Refresh)
         .jti
         .expect("rotated refresh token should include jti");
     let revoked_refresh_session =
@@ -1715,7 +1712,7 @@ async fn auth_sessions_mark_current_and_revoke_selected_session() {
         1
     );
 
-    let other_refresh_jti = decode_test_claims(&other_refresh)
+    let other_refresh_jti = decode_test_claims(&other_refresh, aster_forge_auth::AuthTokenType::Refresh)
         .jti
         .expect("other refresh token should include jti");
     let other_session =
@@ -1964,7 +1961,7 @@ async fn auth_sessions_revoke_current_clears_cookies_and_blocks_refresh() {
     let app = create_test_app!(state.clone());
     let _ = setup_admin!(app);
     let (access, refresh, csrf) = login_session!(app, "admin", "password1234");
-    let refresh_jti = decode_test_claims(&refresh)
+    let refresh_jti = decode_test_claims(&refresh, aster_forge_auth::AuthTokenType::Refresh)
         .jti
         .expect("refresh token should include jti");
     let session = auth_session_repo::find_by_refresh_jti(state.reader_db(), &refresh_jti)
@@ -2274,7 +2271,7 @@ async fn forced_password_change_login_restricts_session_until_password_is_change
     let access = access.expect("forced login should issue access cookie");
     let refresh = refresh.expect("forced login should issue refresh cookie");
     let csrf = csrf.expect("forced login should issue csrf cookie");
-    let claims = decode_test_claims(&access);
+    let claims = decode_test_claims(&access, aster_forge_auth::AuthTokenType::Access);
     assert!(claims.password_change);
 
     let req = test::TestRequest::get()

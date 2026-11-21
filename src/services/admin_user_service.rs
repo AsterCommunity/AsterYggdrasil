@@ -12,7 +12,6 @@ use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserPro
 use crate::services::{auth_service, texture_service, yggdrasil_service};
 use aster_yggdrasil_model::types::user::{OperatorScope, UserRole, UserStatus};
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
-use aster_forge_crypto::hash_password;
 use aster_forge_utils::numbers::u64_to_usize;
 use aster_forge_validation::email::normalize_email;
 use rand::RngExt;
@@ -283,7 +282,8 @@ where
         .or(explicit_password)
         .ok_or_else(|| AsterError::internal_error("temporary password generation failed"))?;
     let email = validate_identity_input(&username, &email, password)?;
-    let password_hash = hash_password(password)?;
+    let password_hash =
+        crate::services::auth_service::hash_password_with_runtime(state, password).await?;
     let must_change_password =
         generated_password.is_some() || must_change_password.unwrap_or(false);
     let (role, operator_scopes) = normalize_role_and_scopes(role, operator_scopes);
@@ -365,12 +365,15 @@ where
         })
         .transpose()?;
     let normalized_email = email.map(|value| normalize_email(&value)).transpose()?;
-    let password_hash = password
-        .map(|password| {
+    let password_hash = match password {
+        Some(password) => {
             auth_service::validate_password(&password)?;
-            Ok::<_, AsterError>(hash_password(&password)?)
-        })
-        .transpose()?;
+            Some(
+                crate::services::auth_service::hash_password_with_runtime(state, &password).await?,
+            )
+        }
+        None => None,
+    };
     let bump_session_version = password_hash.is_some()
         || status == Some(UserStatus::Disabled)
         || must_change_password.is_some();
@@ -569,6 +572,10 @@ mod tests {
             .reload(&db)
             .await
             .expect("admin user test runtime config should reload");
+        runtime_config
+            .install_auth_runtimes(crate::config::TEST_JWT_SECRET)
+            .await
+            .expect("admin user test auth runtimes should install");
         let config = Arc::new(crate::config::Config {
             database: db_cfg,
             object_storage: crate::config::ObjectStorageConfig {
