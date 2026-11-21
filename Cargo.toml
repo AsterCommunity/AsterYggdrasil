@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "migration", "crates/aster-texture-renderer"]
+members = [".", "crates/aster_yggdrasil_migration", "crates/aster-texture-renderer", "crates/aster_yggdrasil_model"]
 
 [workspace.package]
 authors = [
@@ -11,7 +11,8 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 aster-texture-renderer = { path = "crates/aster-texture-renderer" }
-migration = { path = "migration" }
+aster_yggdrasil_model = { path = "crates/aster_yggdrasil_model" }
+aster_yggdrasil_migration = { path = "crates/aster_yggdrasil_migration" }
 # Pin all Forge mechanisms together to the exact published crates.io versions;
 # members add only their required features.
 aster_forge_middleware = { version = "=0.1.0-alpha.3" }
@@ -156,6 +157,7 @@ server = []
 cli = ["server", "dep:clap"]
 metrics = [
     "server",
+    "dep:aster_forge_observability",
     "aster_forge_observability/prometheus",
     "aster_forge_metrics/allocator-metrics",
     "aster_forge_metrics/backend-prometheus",
@@ -164,6 +166,7 @@ metrics = [
 openapi = [
     "dep:utoipa",
     "dep:utoipa-swagger-ui",
+    "aster_yggdrasil_model/openapi",
     "aster_forge_api/openapi",
     "aster_forge_api_docs_macros/openapi",
     "aster_forge_config/openapi",
@@ -181,9 +184,10 @@ jemalloc-profiling = ["jemalloc-stats", "tikv-jemallocator/profiling"]
 
 [dependencies]
 aster-texture-renderer = { workspace = true }
-migration = { workspace = true }
+aster_yggdrasil_model = { workspace = true }
+aster_yggdrasil_migration = { workspace = true }
 aster_forge_middleware = { workspace = true, features = ["metrics"] }
-aster_forge_observability = { workspace = true }
+aster_forge_observability = { workspace = true, optional = true }
 aster_forge_alloc = { workspace = true }
 aster_forge_api = { workspace = true }
 aster_forge_api_docs_macros = { workspace = true }

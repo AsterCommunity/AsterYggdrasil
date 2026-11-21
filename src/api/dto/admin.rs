@@ -16,7 +16,7 @@ use crate::services::external_auth_service::{
 use crate::services::yggdrasil_session_forward_service::{
     CreateYggdrasilSessionForwardServerInput, UpdateYggdrasilSessionForwardServerInput,
 };
-use crate::types::{
+use aster_yggdrasil_model::types::{
     external_auth::ExternalAuthProviderKind, external_auth::ExternalAuthProviderOptions,
     task::BackgroundTaskKind, task::BackgroundTaskStatus, user::OperatorScope, user::UserBanScope,
     user::UserBanStatus, user::UserRole, user::UserStatus,

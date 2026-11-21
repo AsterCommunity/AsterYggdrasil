@@ -898,12 +898,14 @@ dependencies = [
  "openidconnect",
  "rand 0.10.4",
  "reqwest",
+ "sea-orm",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "tracing",
  "url",
+ "utoipa",
 ]
 
 [[package]]
@@ -1126,6 +1128,8 @@ dependencies = [
  "aster_forge_tasks",
  "aster_forge_utils",
  "aster_forge_validation",
+ "aster_yggdrasil_migration",
+ "aster_yggdrasil_model",
  "async-trait",
  "aws-credential-types",
  "aws-sdk-s3",
@@ -1142,7 +1146,6 @@ dependencies = [
  "hex",
  "image",
  "jsonwebtoken",
- "migration",
  "num_cpus",
  "parking_lot 0.13.0",
  "rand 0.10.4",
@@ -1172,6 +1175,34 @@ dependencies = [
  "webauthn-authenticator-rs",
  "webauthn-rs",
  "webauthn-rs-proto",
+]
+
+[[package]]
+name = "aster_yggdrasil_migration"
+version = "0.1.0"
+dependencies = [
+ "aster_forge_db",
+ "aster_forge_db_migration",
+ "async-trait",
+ "sea-orm-migration",
+ "tokio",
+]
+
+[[package]]
+name = "aster_yggdrasil_model"
+version = "0.1.0"
+dependencies = [
+ "aster_forge_api",
+ "aster_forge_db",
+ "aster_forge_external_auth",
+ "aster_forge_mail",
+ "aster_forge_tasks",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]
@@ -4588,17 +4619,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "migration"
-version = "0.1.0"
-dependencies = [
- "aster_forge_db",
- "aster_forge_db_migration",
- "async-trait",
- "sea-orm-migration",
- "tokio",
 ]
 
 [[package]]

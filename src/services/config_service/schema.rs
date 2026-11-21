@@ -4,7 +4,7 @@ use crate::config::definitions::{
     TEXTURE_PREVIEW_ENGINE_KEY, TEXTURE_PREVIEW_PROFILE_KEY,
 };
 use crate::config::texture_preview::{TexturePreviewEngine, TexturePreviewQualityProfile};
-use crate::types::audit::AuditAction;
+use aster_yggdrasil_model::types::audit::AuditAction;
 use aster_forge_config::ConfigValueType;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]

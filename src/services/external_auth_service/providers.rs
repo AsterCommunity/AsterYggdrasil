@@ -2,14 +2,14 @@ use chrono::Utc;
 use sea_orm::{ActiveValue::Set, IntoActiveModel};
 
 use crate::db::repository::external_auth_provider_repo;
-use crate::entities::external_auth_provider;
+use aster_yggdrasil_model::entities::external_auth_provider;
 use crate::errors::{AsterError, Result};
 use crate::external_auth::{
     MapExternalAuthResult, external_auth_provider_config_from_model, map_external_auth_error,
     registry,
 };
 use crate::runtime::SharedRuntimeState;
-use crate::types::{
+use aster_yggdrasil_model::types::{
     external_auth::ExternalAuthProviderKind, external_auth::ExternalAuthProviderOptions,
     external_auth::MicrosoftExternalAuthProviderOptions,
     external_auth::serialize_external_auth_provider_options,
@@ -132,7 +132,7 @@ fn admin_provider_options(
     legacy_issuer_url: Option<&str>,
 ) -> Result<ExternalAuthProviderOptions> {
     let mut options =
-        crate::types::external_auth::parse_external_auth_provider_options(raw_options);
+        aster_yggdrasil_model::types::external_auth::parse_external_auth_provider_options(raw_options);
     if provider_kind == ExternalAuthProviderKind::Microsoft && options.microsoft.is_none() {
         let Some(legacy_issuer_url) = legacy_issuer_url else {
             return normalize_provider_options(provider_kind, options);
@@ -364,7 +364,7 @@ fn microsoft_tenant_from_legacy_issuer_url(value: &str) -> Option<String> {
 
 fn serialize_options(
     options: &ExternalAuthProviderOptions,
-) -> Result<crate::types::external_auth::StoredExternalAuthProviderOptions> {
+) -> Result<aster_yggdrasil_model::types::external_auth::StoredExternalAuthProviderOptions> {
     serialize_external_auth_provider_options(options).map_err(|error| {
         AsterError::internal_error(format!("serialize external auth provider options: {error}"))
     })

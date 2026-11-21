@@ -4,7 +4,7 @@ use chrono::Utc;
 use sea_orm::Set;
 
 use crate::db::repository::{user_profile_repo, user_repo};
-use crate::entities::{user, user_profile};
+use aster_yggdrasil_model::entities::{user, user_profile};
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 

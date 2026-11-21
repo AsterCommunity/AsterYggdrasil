@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use crate::api::error_code::AsterErrorCode;
 use crate::config::{auth_runtime, branding, local_email_policy::LocalEmailPolicy, site_url};
 use crate::db::repository::{user_invitation_repo, user_repo};
-use crate::entities::{user, user_invitation};
+use aster_yggdrasil_model::entities::{user, user_invitation};
 use crate::errors::{AsterError, Result};
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{
@@ -17,7 +17,7 @@ use crate::services::{
     mail_outbox_service,
     mail_template::MailTemplatePayload,
 };
-use crate::types::user::{UserInvitationStatus, UserRole, UserStatus};
+use aster_yggdrasil_model::types::user::{UserInvitationStatus, UserRole, UserStatus};
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_crypto as hash;
 use aster_forge_utils::numbers::u64_to_i64;

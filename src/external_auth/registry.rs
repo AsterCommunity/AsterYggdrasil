@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 use aster_forge_external_auth::ExternalAuthProviderDriver;
 
 use crate::errors::Result;
-use crate::types::external_auth::ExternalAuthProviderKind;
+use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 
 use super::{
     ExternalAuthProviderDescriptor, map_external_auth_error, map_external_auth_provider_descriptor,

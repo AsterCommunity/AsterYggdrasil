@@ -11,7 +11,7 @@ use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service};
-use crate::types::yggdrasil::{MinecraftTextureType, TextureTagSearchMethod};
+use aster_yggdrasil_model::types::yggdrasil::{MinecraftTextureType, TextureTagSearchMethod};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]

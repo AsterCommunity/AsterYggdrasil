@@ -1,7 +1,7 @@
 //! Background task step helpers.
 
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::types::task::StoredTaskSteps;
+use aster_yggdrasil_model::types::task::StoredTaskSteps;
 
 pub(super) fn parse_task_steps_json(
     steps_json: Option<&str>,

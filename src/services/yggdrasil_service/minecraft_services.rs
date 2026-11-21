@@ -12,7 +12,7 @@ use crate::api::dto::yggdrasil::{
 use crate::errors::AsterError;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::ban_service;
-use crate::types::user::UserBanScope;
+use aster_yggdrasil_model::types::user::UserBanScope;
 
 use super::{YggdrasilError, YggdrasilErrorKind, active_token_for_protocol};
 
@@ -116,7 +116,7 @@ where
 async fn validate_minecraft_services_token<S>(
     state: &S,
     access_token: &str,
-) -> std::result::Result<crate::entities::yggdrasil_token::Model, YggdrasilError>
+) -> std::result::Result<aster_yggdrasil_model::entities::yggdrasil_token::Model, YggdrasilError>
 where
     S: CacheRuntimeState + DatabaseRuntimeState,
 {

@@ -1,6 +1,6 @@
 //! Auth session repository.
 
-use crate::entities::auth_session::{self, Entity as AuthSession};
+use aster_yggdrasil_model::entities::auth_session::{self, Entity as AuthSession};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_forge_api::CursorSlice;
 use chrono::Utc;
@@ -230,8 +230,8 @@ mod tests {
     };
     use crate::config::DatabaseConfig;
     use crate::db::repository::user_repo;
-    use crate::entities::auth_session;
-    use crate::types::user::UserRole;
+    use aster_yggdrasil_model::entities::auth_session;
+    use aster_yggdrasil_model::types::user::UserRole;
     use chrono::{Duration, Utc};
     use sea_orm::{ActiveValue::Set, EntityTrait};
 
@@ -246,7 +246,7 @@ mod tests {
         )
         .await
         .expect("auth session repo test DB should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("auth session repo test migrations should succeed");
         db

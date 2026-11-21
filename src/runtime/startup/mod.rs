@@ -9,7 +9,7 @@ pub use state::prepare_runtime_state;
 mod tests {
     use std::sync::Arc;
 
-    use migration::Migrator;
+    use aster_yggdrasil_migration::Migrator;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     use crate::runtime::{AppState, AppStateParts};
@@ -72,10 +72,10 @@ mod tests {
             .await
             .expect("audit writer flush should succeed");
 
-        let count = crate::entities::audit_log::Entity::find()
+        let count = aster_yggdrasil_model::entities::audit_log::Entity::find()
             .filter(
-                crate::entities::audit_log::Column::Action
-                    .eq(crate::types::audit::AuditAction::ServerStart),
+                aster_yggdrasil_model::entities::audit_log::Column::Action
+                    .eq(aster_yggdrasil_model::types::audit::AuditAction::ServerStart),
             )
             .count(&db)
             .await

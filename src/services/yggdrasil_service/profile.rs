@@ -1,13 +1,13 @@
 use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
-use crate::entities::minecraft_profile;
+use aster_yggdrasil_model::entities::minecraft_profile;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
     CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
 };
 use crate::services::{ban_service, texture_service};
-use crate::types::user::UserBanScope;
+use aster_yggdrasil_model::types::user::UserBanScope;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -32,7 +32,7 @@ pub struct MinecraftProfileInfo {
     pub uuid: String,
     pub name: String,
     pub uploadable_textures: String,
-    pub texture_model: crate::types::yggdrasil::MinecraftTextureModel,
+    pub texture_model: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
@@ -92,7 +92,7 @@ where
         user_id,
         &aster_forge_utils::id::new_short_token(),
         name,
-        crate::types::yggdrasil::MinecraftTextureModel::Default,
+        aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::Default,
         &policy.uploadable_textures_value(),
     )
     .await?;

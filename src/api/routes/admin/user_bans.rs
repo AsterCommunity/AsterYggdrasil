@@ -266,7 +266,7 @@ async fn log_user_ban_audit(
     .await;
 }
 
-fn ban_scope_entity_name(scopes: &[crate::types::user::UserBanScope]) -> String {
+fn ban_scope_entity_name(scopes: &[aster_yggdrasil_model::types::user::UserBanScope]) -> String {
     scopes
         .iter()
         .map(|scope| scope.as_str())

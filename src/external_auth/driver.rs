@@ -4,8 +4,8 @@
 //! Yggdrasil-owned persistence boundary: SeaORM models and active enums are converted into Forge
 //! runtime DTOs immediately before a provider driver is invoked.
 
-use crate::entities::external_auth_provider;
-use crate::types::external_auth::parse_external_auth_provider_options;
+use aster_yggdrasil_model::entities::external_auth_provider;
+use aster_yggdrasil_model::types::external_auth::parse_external_auth_provider_options;
 use crate::utils::OUTBOUND_HTTP_USER_AGENT;
 
 /// Builds the Forge runtime provider config from a stored Yggdrasil provider row.

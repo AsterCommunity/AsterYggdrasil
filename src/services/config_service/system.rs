@@ -451,7 +451,7 @@ mod tests {
         let db = db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("config service test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("config service test migrations should succeed");
         ensure_defaults(&db)
@@ -653,7 +653,7 @@ mod tests {
         let db = db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .unwrap();
-        migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
 
         bootstrap_insecure_cookies(&db, true).await.unwrap();
 

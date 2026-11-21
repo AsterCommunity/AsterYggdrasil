@@ -9,7 +9,7 @@ use crate::db::repository::{
     auth_session_repo, contact_verification_token_repo, system_config_repo,
     user_operator_scope_repo, user_repo,
 };
-use crate::entities::{auth_session, contact_verification_token, user};
+use aster_yggdrasil_model::entities::{auth_session, contact_verification_token, user};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use crate::runtime::{
     AppConfigRuntimeState, AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState,
@@ -18,7 +18,7 @@ use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserPro
 use crate::services::{
     audit_service, mail_outbox_service, mail_service, mail_template::MailTemplatePayload,
 };
-use crate::types::{
+use aster_yggdrasil_model::types::{
     auth::TokenType, auth::VerificationChannel, auth::VerificationPurpose, user::AvatarSource,
     user::OperatorScope, user::UserRole, user::UserStatus,
 };
@@ -1568,10 +1568,10 @@ pub mod shared {
     use super::{validate_email, validate_password, validate_username};
     use crate::api::error_code::AsterErrorCode;
     use crate::db::repository::user_repo;
-    use crate::entities::user;
+    use aster_yggdrasil_model::entities::user;
     use crate::errors::{AsterError, Result};
     use crate::runtime::RuntimeConfigRuntimeState;
-    use crate::types::user::{UserRole, UserStatus};
+    use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
     pub struct CreateUserWithRoleInput<'a> {
         pub username: &'a str,
         pub email: &'a str,

@@ -181,10 +181,10 @@ mod tests {
         let reader = sea_orm::Database::connect("sqlite::memory:")
             .await
             .expect("reader database should connect");
-        migration::Migrator::up(&writer, None)
+        aster_yggdrasil_migration::Migrator::up(&writer, None)
             .await
             .expect("writer migrations should succeed");
-        migration::Migrator::up(&reader, None)
+        aster_yggdrasil_migration::Migrator::up(&reader, None)
             .await
             .expect("reader migrations should succeed");
         crate::db::repository::system_config_repo::upsert_with_options(

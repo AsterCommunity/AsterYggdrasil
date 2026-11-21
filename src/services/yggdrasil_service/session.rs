@@ -11,14 +11,14 @@ use validator::Validate;
 use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
-use crate::entities::yggdrasil_session_forward_server;
+use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
 use crate::runtime::{
     AppConfigRuntimeState, AuditRuntimeState, CacheRuntimeState, DatabaseRuntimeState,
     RuntimeConfigRuntimeState, YggdrasilSessionForwardRuntimeState,
 };
 use crate::services::{audit_service, ban_service, yggdrasil_signature};
-use crate::types::user::UserBanScope;
-use crate::types::{
+use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
 };
 use aster_forge_crypto::sha256_hex;

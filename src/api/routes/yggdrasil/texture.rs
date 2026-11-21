@@ -6,7 +6,7 @@ use crate::api::cache::{not_modified_response, request_etag_matches, weak_etag_f
 use crate::runtime::AppState;
 use crate::services::yggdrasil_service::{YggdrasilError, YggdrasilErrorKind};
 use crate::services::{audit_service, texture_service, yggdrasil_service};
-use crate::types::yggdrasil::MinecraftTextureType;
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 
 use super::yggdrasil_error_response;
 
@@ -455,7 +455,7 @@ async fn proxy_forwarded_texture_url(
 }
 
 struct ReceivedTextureUpload {
-    texture_model: crate::types::yggdrasil::MinecraftTextureModel,
+    texture_model: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel,
     file_path: std::path::PathBuf,
 }
 
@@ -467,7 +467,7 @@ async fn receive_texture_upload(
     let policy = crate::config::yggdrasil::RuntimeYggdrasilPolicy::from_runtime_config(
         state.runtime_config(),
     );
-    let mut texture_model = crate::types::yggdrasil::MinecraftTextureModel::Default;
+    let mut texture_model = aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::Default;
     let mut file_path = None;
     let mut field_count = 0_u64;
     tracing::debug!(
@@ -532,7 +532,7 @@ async fn receive_texture_upload(
     }
 
     if texture_type == MinecraftTextureType::Cape {
-        texture_model = crate::types::yggdrasil::MinecraftTextureModel::Default;
+        texture_model = aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::Default;
     }
 
     let Some(file_path) = file_path else {

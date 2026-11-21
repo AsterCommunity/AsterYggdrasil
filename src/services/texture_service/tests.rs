@@ -3,7 +3,7 @@ use crate::db::repository::{
     minecraft_profile_repo, minecraft_profile_texture_repo, minecraft_texture_repo, user_repo,
 };
 use crate::runtime::AppState;
-use crate::types::user::UserRole;
+use aster_yggdrasil_model::types::user::UserRole;
 use sha2::Digest;
 use std::io::Cursor;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ async fn test_state(texture_root: String) -> AppState {
     let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
         .await
         .expect("texture cleanup test database should connect");
-    migration::Migrator::up(&db, None)
+    aster_yggdrasil_migration::Migrator::up(&db, None)
         .await
         .expect("texture cleanup test migrations should run");
     crate::services::config_service::ensure_defaults(&db)

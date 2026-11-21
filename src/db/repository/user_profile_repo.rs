@@ -1,6 +1,6 @@
 //! User profile repository.
 
-use crate::entities::user_profile::{self, Entity as UserProfile};
+use aster_yggdrasil_model::entities::user_profile::{self, Entity as UserProfile};
 use crate::errors::{AsterError, MapAsterErr, Result};
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;

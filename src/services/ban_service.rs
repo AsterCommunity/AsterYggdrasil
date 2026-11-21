@@ -5,10 +5,10 @@ use serde::Serialize;
 
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{user_ban_repo, user_repo};
-use crate::entities::{user_ban, user_ban_event};
+use aster_yggdrasil_model::entities::{user_ban, user_ban_event};
 use crate::errors::{AsterError, Result};
 use crate::runtime::DatabaseRuntimeState;
-use crate::types::{
+use aster_yggdrasil_model::types::{
     user::UserBanEventType, user::UserBanScope, user::UserBanScopes, user::UserBanScopesError,
     user::UserBanStatus,
 };

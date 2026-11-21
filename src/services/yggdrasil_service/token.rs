@@ -3,11 +3,11 @@ use chrono::{Duration, Utc};
 
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
-use crate::entities::{minecraft_profile, yggdrasil_token};
+use aster_yggdrasil_model::entities::{minecraft_profile, yggdrasil_token};
 use crate::errors::Result;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::ban_service;
-use crate::types::user::UserBanScope;
+use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_forge_crypto::sha256_hex;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};

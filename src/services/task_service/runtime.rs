@@ -12,10 +12,10 @@ use super::{
     truncate_status_text,
 };
 use crate::db::repository::background_task_repo;
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
-use crate::types::task::{BackgroundTaskStatus, StoredTaskPayload};
+use aster_yggdrasil_model::types::task::{BackgroundTaskStatus, StoredTaskPayload};
 
 pub(crate) type SystemRuntimeTaskDefinition =
     aster_forge_tasks::RuntimeTaskDefinition<SystemRuntimeTaskKind, TaskPresentationCode>;
@@ -392,7 +392,7 @@ mod tests {
     use crate::services::task_service::types::{
         RuntimeSystemHealthComponent, RuntimeSystemHealthResult, RuntimeSystemHealthStatus,
     };
-    use crate::types::task::BackgroundTaskStatus;
+    use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
     use chrono::{Duration, Utc};
 
     async fn test_state() -> crate::runtime::AppState {
@@ -404,7 +404,7 @@ mod tests {
         let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("runtime task test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("runtime task test migrations should run");
         crate::services::config_service::ensure_defaults(&db)

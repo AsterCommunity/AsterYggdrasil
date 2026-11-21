@@ -6,7 +6,7 @@
 pub mod driver;
 pub mod registry;
 
-pub use crate::types::{
+pub use aster_yggdrasil_model::types::{
     external_auth::ExternalAuthProtocol, external_auth::ExternalAuthProviderKind,
 };
 pub use driver::external_auth_provider_config_from_model;

@@ -48,7 +48,7 @@ use crate::db::repository::{
     minecraft_profile_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
     minecraft_texture_report_repo, minecraft_texture_tag_repo, user_repo,
 };
-use crate::entities::{
+use aster_yggdrasil_model::entities::{
     minecraft_profile, minecraft_texture, minecraft_texture_report, user, yggdrasil_token,
 };
 use crate::errors::{AsterError, Result};
@@ -56,7 +56,7 @@ use crate::runtime::{
     CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
 };
 use crate::services::ban_service;
-use crate::types::{
+use aster_yggdrasil_model::types::{
     user::UserBanScope, yggdrasil::MinecraftTextureLibraryStatus, yggdrasil::MinecraftTextureModel,
     yggdrasil::MinecraftTextureReportReason, yggdrasil::MinecraftTextureReportStatus,
     yggdrasil::MinecraftTextureType, yggdrasil::MinecraftTextureVisibility,

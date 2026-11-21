@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-use crate::entities::user;
-use crate::types::audit::{AuditAction, AuditEntityType};
-use crate::types::user::{UserRole, UserStatus};
+use aster_yggdrasil_model::entities::user;
+use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
+use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct AuditUserSummary {

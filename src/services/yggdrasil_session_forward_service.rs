@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::db::repository::yggdrasil_session_forward_server_repo;
-use crate::entities::yggdrasil_session_forward_server;
+use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::audit_service;
-use crate::types::{
+use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
     yggdrasil::YggdrasilSessionForwardServerSortBy,
 };
@@ -493,7 +493,7 @@ mod tests {
         let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("test database migrations should run");
 

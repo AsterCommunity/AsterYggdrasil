@@ -22,7 +22,7 @@ use crate::services::{
     audit_service, auth_service, captcha_service, passkey_service, profile_service,
     user_invitation_service,
 };
-use crate::types::auth::VerificationPurpose;
+use aster_yggdrasil_model::types::auth::VerificationPurpose;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};

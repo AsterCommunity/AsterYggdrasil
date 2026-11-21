@@ -1,6 +1,6 @@
 use crate::api::dto::yggdrasil::{YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
-use crate::entities::{minecraft_profile, yggdrasil_session_forward_server, yggdrasil_token};
+use aster_yggdrasil_model::entities::{minecraft_profile, yggdrasil_session_forward_server, yggdrasil_token};
 use crate::runtime::{CacheRuntimeState, RuntimeConfigRuntimeState};
 use aster_forge_cache::CacheExt;
 use serde::{Deserialize, Serialize};

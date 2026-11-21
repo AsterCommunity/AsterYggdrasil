@@ -59,7 +59,7 @@ impl RuntimeConfig {
         self.snapshot.get_bool_or(key, default)
     }
 
-    pub fn should_record_audit_action(&self, action: crate::types::audit::AuditAction) -> bool {
+    pub fn should_record_audit_action(&self, action: aster_yggdrasil_model::types::audit::AuditAction) -> bool {
         self.audit_log_settings.read().should_record(action)
     }
 
@@ -114,7 +114,7 @@ mod tests {
     };
     use crate::db;
     use crate::db::repository::system_config_repo;
-    use crate::types::audit::AuditAction;
+    use aster_yggdrasil_model::types::audit::AuditAction;
     use aster_forge_config::{ConfigSource, ConfigValueType};
     use aster_forge_db::system_config;
     async fn setup_db() -> sea_orm::DatabaseConnection {
@@ -128,7 +128,7 @@ mod tests {
         )
         .await
         .unwrap();
-        migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
         system_config_repo::ensure_defaults(&db).await.unwrap();
         db
     }

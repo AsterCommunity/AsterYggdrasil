@@ -1,11 +1,11 @@
 use crate::api::api_error_code::ApiErrorCode;
 use crate::config::site_url;
-use crate::entities::external_auth_provider;
+use aster_yggdrasil_model::entities::external_auth_provider;
 use crate::errors::{Result, validation_error_with_code};
 use crate::external_auth::MapExternalAuthResult;
 use crate::runtime::SharedRuntimeState;
 use crate::services::auth_service;
-use crate::types::external_auth::{ExternalAuthProtocol, ExternalAuthProviderKind};
+use aster_yggdrasil_model::types::external_auth::{ExternalAuthProtocol, ExternalAuthProviderKind};
 use aster_forge_api::NullablePatch;
 use aster_forge_external_auth::normalize as forge_normalize;
 

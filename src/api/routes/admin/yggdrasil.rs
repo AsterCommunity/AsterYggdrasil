@@ -12,7 +12,7 @@ use crate::runtime::AppState;
 use crate::services::{
     audit_service, auth_service::AuthUserInfo, yggdrasil_session_forward_service,
 };
-use crate::types::yggdrasil::YggdrasilSessionForwardServerSortBy;
+use aster_yggdrasil_model::types::yggdrasil::YggdrasilSessionForwardServerSortBy;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::CursorPage;
 use aster_forge_api::{parse_enabled_priority_id_cursor, parse_id_cursor};
@@ -34,7 +34,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         ("after_id" = Option<i64>, Query, description = "Cursor server ID"),
         ("after_enabled" = Option<bool>, Query, description = "Call-order cursor enabled value"),
         ("after_priority" = Option<i32>, Query, description = "Call-order cursor priority value"),
-        ("sort_by" = Option<crate::types::yggdrasil::YggdrasilSessionForwardServerSortBy>, Query, description = "Forwarding server list sort mode"),
+        ("sort_by" = Option<aster_yggdrasil_model::types::yggdrasil::YggdrasilSessionForwardServerSortBy>, Query, description = "Forwarding server list sort mode"),
     ),
     responses(
         (status = 200, description = "Yggdrasil session forwarding servers", body = inline(ApiResponse<CursorPage<yggdrasil_session_forward_service::AdminYggdrasilSessionForwardServerInfo, yggdrasil_session_forward_service::SessionForwardServerCursor>>)),

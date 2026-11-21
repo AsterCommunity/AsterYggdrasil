@@ -15,8 +15,8 @@ use crate::runtime::AppState;
 use crate::services::audit_service::{self, AuditLogEntry};
 use crate::services::task_service;
 use crate::services::task_service::types::{RuntimeSystemHealthStatus, RuntimeTaskResult};
-use crate::types::audit::AuditAction;
-use crate::types::task::BackgroundTaskStatus;
+use aster_yggdrasil_model::types::audit::AuditAction;
+use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 const RECENT_ACTIVITY_LIMIT: u64 = 6;
 const ACTIVITY_TREND_DAYS: i64 = 7;
 const USER_ACTIVITY_ACTIONS: &[AuditAction] = &[
@@ -504,7 +504,7 @@ mod tests {
         auth_session_repo, background_task_repo, minecraft_profile_repo, minecraft_texture_repo,
         user_repo, yggdrasil_token_repo,
     };
-    use crate::entities::{
+    use aster_yggdrasil_model::entities::{
         auth_session, background_task, minecraft_profile, minecraft_texture, user,
     };
     use crate::runtime::{AppState, AppStateParts};
@@ -514,7 +514,7 @@ mod tests {
     use crate::services::task_service::{
         RuntimeTaskRunOutcome, SystemRuntimeTaskKind, record_runtime_task_run,
     };
-    use crate::types::{
+    use aster_yggdrasil_model::types::{
         audit::AuditAction, audit::AuditEntityType, task::BackgroundTaskKind,
         task::BackgroundTaskStatus, task::StoredTaskPayload, task::StoredTaskResult,
         user::UserRole, user::UserStatus, yggdrasil::MinecraftTextureLibraryStatus,
@@ -534,7 +534,7 @@ mod tests {
         let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("admin overview test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("admin overview test migrations should run");
         crate::services::config_service::ensure_defaults(&db)
@@ -580,7 +580,7 @@ mod tests {
         .expect("admin overview test AppState should build")
     }
 
-    async fn insert_user(state: &AppState, username: &str) -> crate::entities::user::Model {
+    async fn insert_user(state: &AppState, username: &str) -> aster_yggdrasil_model::entities::user::Model {
         user_repo::create(
             state.writer_db(),
             username,
@@ -596,7 +596,7 @@ mod tests {
         state: &AppState,
         username: &str,
         created_at: chrono::DateTime<Utc>,
-    ) -> crate::entities::user::Model {
+    ) -> aster_yggdrasil_model::entities::user::Model {
         user::ActiveModel {
             public_uuid: Set(uuid::Uuid::new_v4().to_string()),
             username: Set(username.to_string()),
@@ -621,7 +621,7 @@ mod tests {
         state: &AppState,
         user_id: i64,
         name: &str,
-    ) -> crate::entities::minecraft_profile::Model {
+    ) -> aster_yggdrasil_model::entities::minecraft_profile::Model {
         minecraft_profile_repo::create(
             state.writer_db(),
             user_id,
@@ -639,7 +639,7 @@ mod tests {
         user_id: i64,
         name: &str,
         created_at: chrono::DateTime<Utc>,
-    ) -> crate::entities::minecraft_profile::Model {
+    ) -> aster_yggdrasil_model::entities::minecraft_profile::Model {
         minecraft_profile::ActiveModel {
             user_id: Set(user_id),
             uuid: Set(aster_forge_utils::id::new_short_token()),
@@ -807,7 +807,7 @@ mod tests {
         state: &AppState,
         status: RuntimeSystemHealthStatus,
         components: Vec<RuntimeSystemHealthComponent>,
-    ) -> crate::entities::background_task::Model {
+    ) -> aster_yggdrasil_model::entities::background_task::Model {
         let finished_at = Utc::now();
         let started_at = finished_at - Duration::milliseconds(250);
         record_runtime_task_run(
@@ -828,7 +828,7 @@ mod tests {
     async fn insert_yggdrasil_storage_consistency_task(
         state: &AppState,
         outcome: RuntimeTaskRunOutcome,
-    ) -> crate::entities::background_task::Model {
+    ) -> aster_yggdrasil_model::entities::background_task::Model {
         let finished_at = Utc::now();
         let started_at = finished_at - Duration::milliseconds(150);
         record_runtime_task_run(
@@ -920,7 +920,7 @@ mod tests {
         id: i64,
         action: AuditAction,
         user_id: i64,
-        profile: Option<&crate::entities::minecraft_profile::Model>,
+        profile: Option<&aster_yggdrasil_model::entities::minecraft_profile::Model>,
         created_at: chrono::DateTime<Utc>,
     ) {
         let entity_id = if action == AuditAction::YggdrasilJoinServer {

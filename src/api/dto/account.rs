@@ -7,8 +7,8 @@ use serde::Serialize;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::services::{audit_service::AuditLogEntry, ban_service::UserBanInfo};
-use crate::types::audit::AuditEntityType;
-use crate::types::user::{UserBanScope, UserBanStatus};
+use aster_yggdrasil_model::types::audit::AuditEntityType;
+use aster_yggdrasil_model::types::user::{UserBanScope, UserBanStatus};
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct AccountOverviewResp {

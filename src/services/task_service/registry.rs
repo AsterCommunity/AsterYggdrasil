@@ -1,10 +1,10 @@
 //! Background task spec registry.
 
 use crate::config::RuntimeConfig;
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::types::task::BackgroundTaskKind;
+use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 use aster_forge_tasks::initial_task_steps_from_specs;
 
 use super::dispatch::TaskLane;
@@ -14,20 +14,20 @@ use super::types::{TaskPayload, TaskResult};
 aster_forge_tasks::task_registry! {
     pub(super) mod registered {
         state: crate::runtime::AppState;
-        task: crate::entities::background_task::Model;
+        task: aster_yggdrasil_model::entities::background_task::Model;
         config: crate::config::RuntimeConfig;
         context: aster_forge_tasks::TaskExecutionContext;
         error: crate::errors::AsterError;
-        kind: crate::types::task::BackgroundTaskKind;
+        kind: aster_yggdrasil_model::types::task::BackgroundTaskKind;
         lane: crate::services::task_service::dispatch::TaskLane;
         payload: crate::services::task_service::types::TaskPayload;
         result: crate::services::task_service::types::TaskResult;
         specs {
-            SYSTEM_RUNTIME: super::SystemRuntimeTask => crate::types::task::BackgroundTaskKind::SystemRuntime,
+            SYSTEM_RUNTIME: super::SystemRuntimeTask => aster_yggdrasil_model::types::task::BackgroundTaskKind::SystemRuntime,
         }
         lanes {
             crate::services::task_service::dispatch::TaskLane::Fallback => [
-                crate::types::task::BackgroundTaskKind::SystemRuntime,
+                aster_yggdrasil_model::types::task::BackgroundTaskKind::SystemRuntime,
             ],
         }
     }

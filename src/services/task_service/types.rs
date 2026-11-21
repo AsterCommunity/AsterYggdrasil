@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 use super::runtime::SystemRuntimeTaskKind;
-use crate::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
+use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]

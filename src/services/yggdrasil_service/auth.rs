@@ -9,7 +9,7 @@ use crate::db::repository::{minecraft_profile_repo, user_repo};
 use crate::errors::AsterError;
 use crate::runtime::{AuditRuntimeState, CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{audit_service, ban_service};
-use crate::types::user::UserBanScope;
+use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_forge_crypto::verify_password;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};

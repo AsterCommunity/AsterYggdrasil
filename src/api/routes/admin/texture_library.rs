@@ -19,7 +19,7 @@ use crate::db::repository::{
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, texture_service};
-use crate::types::{
+use aster_yggdrasil_model::types::{
     yggdrasil::MinecraftTextureLibraryStatus, yggdrasil::MinecraftTextureReportReason,
     yggdrasil::MinecraftTextureReportStatus, yggdrasil::MinecraftTextureType,
     yggdrasil::MinecraftTextureVisibility, yggdrasil::TextureTagSearchMethod,

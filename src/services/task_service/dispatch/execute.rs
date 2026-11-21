@@ -7,14 +7,14 @@ use super::{
     TASK_HEARTBEAT_INTERVAL_SECS, task_expiration_from, task_lease_expires_at, truncate_error,
 };
 use crate::db::repository::background_task_repo;
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppState, TaskRuntimeState};
 use crate::services::task_service::{
     registry,
     steps::{parse_task_steps_json, serialize_task_steps},
 };
-use crate::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
+use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
 use aster_forge_tasks::{
     DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed,
 };
@@ -42,22 +42,6 @@ pub(super) async fn run_claimed_tasks(
         },
     )
     .await
-}
-
-impl aster_forge_tasks::ExecutableTaskRecord<BackgroundTaskKind> for background_task::Model {
-    fn cancellation_requested(&self) -> bool {
-        // The product has no user-facing task cancellation yet; reclaimed
-        // snapshots are never awaiting a cancellation acknowledgement.
-        false
-    }
-
-    fn attempt_count(&self) -> i32 {
-        self.attempt_count
-    }
-
-    fn max_attempts(&self) -> i32 {
-        self.max_attempts
-    }
 }
 
 #[derive(Clone)]
@@ -249,13 +233,13 @@ mod tests {
 
     use aster_forge_tasks::{ClaimedTaskExecutionStore, TaskLease};
     use chrono::{Duration, Utc};
-    use migration::Migrator;
+    use aster_yggdrasil_migration::Migrator;
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     use super::BackgroundTaskExecutionStore;
-    use crate::entities::background_task;
+    use aster_yggdrasil_model::entities::background_task;
     use crate::runtime::{AppState, AppStateParts};
-    use crate::types::{
+    use aster_yggdrasil_model::types::{
         task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
     };
     async fn test_state() -> AppState {

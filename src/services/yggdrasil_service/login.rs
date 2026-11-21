@@ -1,7 +1,7 @@
 use crate::api::dto::yggdrasil::YggdrasilUser;
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
-use crate::entities::{minecraft_profile, user};
+use aster_yggdrasil_model::entities::{minecraft_profile, user};
 use crate::runtime::DatabaseRuntimeState;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};

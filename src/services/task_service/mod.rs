@@ -22,7 +22,7 @@ use crate::config::operations;
 use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
-use crate::types::task::StoredTaskResult;
+use aster_yggdrasil_model::types::task::StoredTaskResult;
 use aster_forge_tasks::{TaskLease, TaskLeaseGuard};
 
 pub(crate) use admin::{

@@ -6,9 +6,9 @@ use super::filters::AuditLogFilters;
 use super::models::{AuditLogEntry, AuditUserSummary};
 use super::presentation::build_audit_presentation;
 use crate::db::repository::{audit_log_repo, user_repo};
-use crate::entities::audit_log;
+use aster_yggdrasil_model::entities::audit_log;
 use crate::runtime::{AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
-use crate::types::audit::AuditEntityType;
+use aster_yggdrasil_model::types::audit::AuditEntityType;
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 
 /// Best-effort drain so queries observe just-admitted records.

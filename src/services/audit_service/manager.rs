@@ -4,7 +4,7 @@ use sea_orm::DatabaseConnection;
 use super::context::AuditContext;
 use crate::config::RuntimeConfig;
 use crate::runtime::{AuditRuntimeState, RuntimeConfigRuntimeState};
-use crate::types::audit::{AuditAction, AuditEntityType};
+use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
 
 pub fn should_record<S: RuntimeConfigRuntimeState>(state: &S, action: AuditAction) -> bool {
     state.runtime_config().should_record_audit_action(action)

@@ -3,8 +3,8 @@
 use chrono::{DateTime, Utc};
 use sea_orm::Set;
 
-use crate::entities::user_profile;
-use crate::types::user::AvatarSource;
+use aster_yggdrasil_model::entities::user_profile;
+use aster_yggdrasil_model::types::user::AvatarSource;
 
 pub(crate) const MAX_AVATAR_DECODE_ALLOC: u64 = 128 * 1024 * 1024;
 pub(crate) const AVATAR_SIZE_SM: u32 = 512;

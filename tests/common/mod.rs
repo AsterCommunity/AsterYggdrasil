@@ -713,7 +713,7 @@ async fn build_postgres_database_template() -> PostgresDatabaseTemplate {
             .await
             .expect("postgres template database connection should succeed");
 
-    migration::Migrator::up(&db, None)
+    aster_yggdrasil_migration::Migrator::up(&db, None)
         .await
         .expect("postgres template database migrations should succeed");
     db.close()
@@ -862,7 +862,7 @@ async fn build_mysql_schema_template() -> MySqlSchemaTemplate {
             .await
             .expect("mysql schema template connection should succeed");
 
-    migration::Migrator::up(&db, None)
+    aster_yggdrasil_migration::Migrator::up(&db, None)
         .await
         .expect("mysql schema template migrations should succeed");
 
@@ -920,7 +920,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     if should_use_mysql_schema_template(database_url) {
         clone_mysql_schema_from_template(&writer).await;
     } else {
-        migration::Migrator::up(&writer, None)
+        aster_yggdrasil_migration::Migrator::up(&writer, None)
             .await
             .expect("test database migrations should run");
     }

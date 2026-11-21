@@ -10,7 +10,7 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::auth_service::AuthUserInfo;
 use crate::services::{auth_service, external_auth_service};
-use crate::types::external_auth::ExternalAuthProviderKind;
+use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_forge_middleware::actix::csrf::RequestSourceMode;

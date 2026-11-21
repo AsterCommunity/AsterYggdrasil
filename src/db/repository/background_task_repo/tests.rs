@@ -9,8 +9,8 @@ use super::{
     set_runtime_json, touch_heartbeat, try_claim,
 };
 use crate::config::DatabaseConfig;
-use crate::entities::background_task;
-use crate::types::{
+use aster_yggdrasil_model::entities::background_task;
+use aster_yggdrasil_model::types::{
     task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
     task::StoredTaskResult, task::StoredTaskRuntime, task::StoredTaskSteps,
 };
@@ -28,7 +28,7 @@ async fn build_test_db() -> sea_orm::DatabaseConnection {
     )
     .await
     .expect("background task repo test DB should connect");
-    migration::Migrator::up(&db, None)
+    aster_yggdrasil_migration::Migrator::up(&db, None)
         .await
         .expect("background task repo test migrations should succeed");
     db

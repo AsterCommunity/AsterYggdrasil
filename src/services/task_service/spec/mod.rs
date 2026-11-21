@@ -1,10 +1,10 @@
 //! Strongly typed background task specifications.
 
 use crate::config::RuntimeConfig;
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
-use crate::types::task::BackgroundTaskKind;
+use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
 use super::dispatch::TaskLane;
 use super::types::{TaskPayload, TaskResult};
@@ -56,7 +56,7 @@ impl<T> BackgroundTaskSpec for T where
 
 pub(super) fn serialize_payload<S>(
     payload: &S::Payload,
-) -> crate::errors::Result<crate::types::task::StoredTaskPayload>
+) -> crate::errors::Result<aster_yggdrasil_model::types::task::StoredTaskPayload>
 where
     S: aster_forge_tasks::BackgroundTaskSpec<
             AppState,
@@ -78,13 +78,13 @@ where
         TaskExecutionContext,
         AsterError,
     >(payload)
-    .map(crate::types::task::StoredTaskPayload)
+    .map(aster_yggdrasil_model::types::task::StoredTaskPayload)
     .map_err(AsterError::from)
 }
 
 pub(super) fn serialize_result<S>(
     result: &S::Result,
-) -> crate::errors::Result<crate::types::task::StoredTaskResult>
+) -> crate::errors::Result<aster_yggdrasil_model::types::task::StoredTaskResult>
 where
     S: aster_forge_tasks::BackgroundTaskSpec<
             AppState,
@@ -106,26 +106,8 @@ where
         TaskExecutionContext,
         AsterError,
     >(result)
-    .map(crate::types::task::StoredTaskResult)
+    .map(aster_yggdrasil_model::types::task::StoredTaskResult)
     .map_err(AsterError::from)
-}
-
-impl aster_forge_tasks::TaskRecord<BackgroundTaskKind> for background_task::Model {
-    fn id(&self) -> i64 {
-        self.id
-    }
-
-    fn kind(&self) -> BackgroundTaskKind {
-        self.kind
-    }
-
-    fn payload_json(&self) -> &str {
-        self.payload_json.as_ref()
-    }
-
-    fn result_json(&self) -> Option<&str> {
-        self.result_json.as_ref().map(AsRef::as_ref)
-    }
 }
 
 pub(crate) mod runtime;
@@ -138,13 +120,13 @@ mod tests {
     use chrono::Utc;
 
     use super::{TaskSpecAdapter, serialize_payload, serialize_result};
-    use crate::entities::background_task;
+    use aster_yggdrasil_model::entities::background_task;
     use crate::services::task_service::runtime::SystemRuntimeTaskKind;
     use crate::services::task_service::spec::SystemRuntimeTask;
     use crate::services::task_service::types::{
         RuntimeTaskName, RuntimeTaskPayload, RuntimeTaskResult, TaskPayload, TaskResult,
     };
-    use crate::types::{
+    use aster_yggdrasil_model::types::{
         task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
         task::StoredTaskResult,
     };

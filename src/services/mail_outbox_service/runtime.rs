@@ -131,7 +131,7 @@ mod tests {
         let db = sea_orm::Database::connect("sqlite::memory:")
             .await
             .expect("mail outbox drain test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("mail outbox drain test migrations should run");
         crate::services::config_service::ensure_defaults(&db)
@@ -173,7 +173,7 @@ mod tests {
             aster_forge_mail::MAIL_OUTBOX_DRAIN_SHUTDOWN_PHASE
         );
 
-        let stored = crate::entities::mail_outbox::Entity::find_by_id(row.id)
+        let stored = aster_yggdrasil_model::entities::mail_outbox::Entity::find_by_id(row.id)
             .one(&db)
             .await
             .expect("mail outbox drain test row lookup should succeed")

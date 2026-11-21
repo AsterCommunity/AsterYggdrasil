@@ -6,7 +6,7 @@ use sea_orm::{
     sea_query::Expr,
 };
 
-use crate::entities::external_auth_email_verification_flow::{
+use aster_yggdrasil_model::entities::external_auth_email_verification_flow::{
     self, Entity as ExternalAuthEmailVerificationFlow,
 };
 use crate::errors::{AsterError, Result};

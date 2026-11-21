@@ -9,7 +9,7 @@ mod presentation;
 mod query;
 pub mod runtime;
 
-pub use crate::types::audit::{AuditAction, AuditEntityType};
+pub use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
 pub use context::{AuditContext, AuditRequestInfo};
 pub use details::{
     AdminTaskCleanupAuditDetails, AuthSessionAuditDetails, ConfigActionDetails,

@@ -3,14 +3,14 @@
 use crate::db::repository::{
     minecraft_profile_repo, user_operator_scope_repo, user_repo, yggdrasil_token_repo,
 };
-use crate::entities::user;
+use aster_yggdrasil_model::entities::user;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
     CacheRuntimeState, DatabaseRuntimeState, ObjectStorageRuntimeState, RuntimeConfigRuntimeState,
 };
 use crate::services::profile_service::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth_service, texture_service, yggdrasil_service};
-use crate::types::user::{OperatorScope, UserRole, UserStatus};
+use aster_yggdrasil_model::types::user::{OperatorScope, UserRole, UserStatus};
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_crypto::hash_password;
 use aster_forge_utils::numbers::u64_to_usize;
@@ -104,7 +104,7 @@ fn default_user_profile_info() -> UserProfileInfo {
     UserProfileInfo {
         display_name: None,
         avatar: AvatarInfo {
-            source: crate::types::user::AvatarSource::None,
+            source: aster_yggdrasil_model::types::user::AvatarSource::None,
             url_512: None,
             url_1024: None,
             version: 0,
@@ -534,9 +534,9 @@ mod tests {
         auth_session_repo, minecraft_profile_texture_repo, minecraft_texture_repo,
         user_profile_repo,
     };
-    use crate::entities::{auth_session, minecraft_profile, minecraft_texture, user_profile};
+    use aster_yggdrasil_model::entities::{auth_session, minecraft_profile, minecraft_texture, user_profile};
     use crate::runtime::{AppState, AppStateParts};
-    use crate::types::{
+    use aster_yggdrasil_model::types::{
         user::AvatarSource, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
         yggdrasil::MinecraftTextureVisibility,
     };
@@ -557,7 +557,7 @@ mod tests {
         let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("admin user test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("admin user test migrations should run");
         crate::services::config_service::ensure_defaults(&db)

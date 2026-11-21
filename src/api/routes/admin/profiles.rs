@@ -34,7 +34,7 @@ fn validate_profile_uuid(uuid: &str) -> Result<()> {
 async fn find_profile_by_uuid(
     state: &AppState,
     uuid: &str,
-) -> Result<crate::entities::minecraft_profile::Model> {
+) -> Result<aster_yggdrasil_model::entities::minecraft_profile::Model> {
     minecraft_profile_repo::find_by_uuid(state.reader_db(), uuid)
         .await?
         .ok_or_else(|| {

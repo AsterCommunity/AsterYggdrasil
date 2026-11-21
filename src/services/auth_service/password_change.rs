@@ -6,7 +6,7 @@ use sea_orm::ConnectionTrait;
 use super::{is_email_verified, update_password_in_connection};
 use crate::api::error_code::AsterErrorCode;
 use crate::db::{repository::user_repo, transaction};
-use crate::entities::user;
+use aster_yggdrasil_model::entities::user;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AuditRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{audit_service, auth_service};

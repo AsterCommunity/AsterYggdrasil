@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use super::models::{AuditPresentation, AuditPresentationMessage};
-use crate::types::audit::{AuditAction, AuditEntityType};
+use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
 pub fn build_audit_presentation(
     action: AuditAction,
     entity_type: AuditEntityType,

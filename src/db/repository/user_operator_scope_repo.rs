@@ -1,8 +1,8 @@
 //! Operator scope repository.
 
-use crate::entities::user_operator_scope::{self, Entity as UserOperatorScope};
+use aster_yggdrasil_model::entities::user_operator_scope::{self, Entity as UserOperatorScope};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::types::user::OperatorScope;
+use aster_yggdrasil_model::types::user::OperatorScope;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };

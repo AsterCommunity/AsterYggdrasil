@@ -161,7 +161,7 @@ mod tests {
         )
         .await
         .expect("system config repo test DB should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("system config repo test migrations should succeed");
         db

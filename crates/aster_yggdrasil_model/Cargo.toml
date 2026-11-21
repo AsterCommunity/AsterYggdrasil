@@ -1,0 +1,41 @@
+[package]
+name = "aster_yggdrasil_model"
+description = "AsterYggdrasil shared SeaORM entities and domain types."
+version = "0.1.0"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_model"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+edition = "2024"
+rust-version = "1.95.0"
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+openapi = [
+    "dep:utoipa",
+    "aster_forge_api/openapi",
+    "aster_forge_external_auth/openapi",
+]
+
+[dependencies]
+aster_forge_api = { workspace = true }
+aster_forge_db = { workspace = true, features = ["audit-log"] }
+aster_forge_external_auth = { workspace = true, features = ["sea-orm"] }
+aster_forge_mail = { workspace = true }
+aster_forge_tasks = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+utoipa = { workspace = true, optional = true }
+
+[dev-dependencies]
+chrono = { workspace = true, default-features = false, features = ["clock"] }
+
+[lib]
+name = "aster_yggdrasil_model"
+doctest = false

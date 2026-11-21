@@ -1,4 +1,4 @@
-use migration::Migrator;
+use aster_yggdrasil_migration::Migrator;
 use sea_orm_migration::cli;
 
 #[tokio::main]

@@ -123,8 +123,8 @@ where
     super::log(
         state,
         &super::AuditContext::system(),
-        crate::types::audit::AuditAction::ServerStart,
-        crate::types::audit::AuditEntityType::System,
+        aster_yggdrasil_model::types::audit::AuditAction::ServerStart,
+        aster_yggdrasil_model::types::audit::AuditEntityType::System,
         None,
         Some("server"),
         None,
@@ -141,8 +141,8 @@ where
     super::log(
         state,
         &super::AuditContext::system(),
-        crate::types::audit::AuditAction::ServerShutdown,
-        crate::types::audit::AuditEntityType::System,
+        aster_yggdrasil_model::types::audit::AuditAction::ServerShutdown,
+        aster_yggdrasil_model::types::audit::AuditEntityType::System,
         None,
         Some("server"),
         None,

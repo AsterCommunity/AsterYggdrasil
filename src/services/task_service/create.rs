@@ -6,10 +6,10 @@ use super::{
     truncate_display_name, truncate_error, truncate_status_text,
 };
 use crate::db::repository::background_task_repo;
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::Result;
 use crate::runtime::{RuntimeConfigRuntimeState, TaskRuntimeState};
-use crate::types::task::{BackgroundTaskStatus, StoredTaskResult, StoredTaskSteps};
+use aster_yggdrasil_model::types::task::{BackgroundTaskStatus, StoredTaskResult, StoredTaskSteps};
 
 pub(in crate::services::task_service) struct TypedTaskCreate<S: BackgroundTaskSpec> {
     display_name: String,

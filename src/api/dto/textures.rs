@@ -7,7 +7,7 @@ use validator::Validate;
 
 use aster_forge_api::NullablePatch;
 
-use crate::types::{
+use aster_yggdrasil_model::types::{
     yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureReportReason,
     yggdrasil::MinecraftTextureVisibility,
 };

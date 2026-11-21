@@ -3,10 +3,10 @@ use crate::db::{
     repository::{background_task_repo, system_config_repo},
     transaction,
 };
-use crate::entities::background_task;
+use aster_yggdrasil_model::entities::background_task;
 use crate::errors::Result;
 use crate::runtime::DatabaseRuntimeState;
-use crate::types::task::BackgroundTaskKind;
+use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 use aster_forge_tasks::TaskLease;
 
 use super::TASK_PROCESSING_STALE_SECS;
@@ -14,12 +14,6 @@ use super::lane::{TaskLane, TaskLaneConfig, task_lane};
 
 struct BackgroundTaskClaimStore<'a, State> {
     state: &'a State,
-}
-
-impl aster_forge_tasks::ClaimableTaskRecord<BackgroundTaskKind> for background_task::Model {
-    fn processing_token(&self) -> i64 {
-        self.processing_token
-    }
 }
 
 #[async_trait::async_trait]

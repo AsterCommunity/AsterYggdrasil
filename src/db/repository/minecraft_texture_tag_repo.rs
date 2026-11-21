@@ -1,6 +1,6 @@
 //! Minecraft texture library tag repository.
 
-use crate::entities::{
+use aster_yggdrasil_model::entities::{
     minecraft_texture_tag::{self, Entity as MinecraftTextureTag},
     minecraft_texture_tag_binding::{self, Entity as MinecraftTextureTagBinding},
 };

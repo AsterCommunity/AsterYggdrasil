@@ -1,8 +1,8 @@
 //! Minecraft profile repository.
 
-use crate::entities::minecraft_profile::{self, Entity as MinecraftProfile};
+use aster_yggdrasil_model::entities::minecraft_profile::{self, Entity as MinecraftProfile};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::types::yggdrasil::MinecraftTextureModel;
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel;
 use aster_forge_api::CursorSlice;
 use aster_forge_db::search_query;
 use chrono::{DateTime, Utc};

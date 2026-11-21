@@ -6,11 +6,11 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
-use crate::entities::yggdrasil_session_forward_server::{
+use aster_yggdrasil_model::entities::yggdrasil_session_forward_server::{
     self, Entity as YggdrasilSessionForwardServer,
 };
 use crate::errors::{AsterError, Result};
-use crate::types::{
+use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardProviderKind, yggdrasil::YggdrasilSessionForwardServerSortBy,
 };
 use aster_forge_api::CursorSlice;

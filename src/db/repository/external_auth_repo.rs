@@ -1,6 +1,6 @@
 //! External authentication repositories.
 
-use crate::entities::{
+use aster_yggdrasil_model::entities::{
     external_auth_identity, external_auth_login_flow,
     external_auth_provider::{self, Entity as ExternalAuthProvider},
 };
@@ -20,7 +20,7 @@ pub async fn list_enabled_providers<C: ConnectionTrait>(
 
 pub async fn list_enabled_providers_by_kind<C: ConnectionTrait>(
     db: &C,
-    kind: crate::types::external_auth::ExternalAuthProviderKind,
+    kind: aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind,
 ) -> Result<Vec<external_auth_provider::Model>> {
     ExternalAuthProvider::find()
         .filter(external_auth_provider::Column::Enabled.eq(true))
@@ -178,9 +178,9 @@ mod tests {
     };
     use crate::config::DatabaseConfig;
     use crate::db::repository::user_repo;
-    use crate::entities::external_auth_provider;
-    use crate::types::external_auth::ExternalAuthProviderKind;
-    use crate::types::user::UserRole;
+    use aster_yggdrasil_model::entities::external_auth_provider;
+    use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
+    use aster_yggdrasil_model::types::user::UserRole;
     async fn build_test_db() -> sea_orm::DatabaseConnection {
         let db = crate::db::connect_with_metrics(
             &DatabaseConfig {
@@ -192,7 +192,7 @@ mod tests {
         )
         .await
         .expect("external auth repo test DB should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("external auth repo test migrations should succeed");
         db

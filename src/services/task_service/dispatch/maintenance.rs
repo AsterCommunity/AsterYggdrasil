@@ -3,7 +3,7 @@ use chrono::Utc;
 use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppConfigRuntimeState, AppState, DatabaseRuntimeState};
-use crate::types::task::BackgroundTaskStatus;
+use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 use aster_forge_tasks::DispatchStats;
 
 use super::{TASK_DRAIN_MAX_ROUNDS, dispatch_due};
@@ -131,8 +131,8 @@ mod tests {
     use sea_orm::{ActiveModelTrait, Set};
 
     use super::cleanup_expired_in_root;
-    use crate::entities::background_task;
-    use crate::types::{
+    use aster_yggdrasil_model::entities::background_task;
+    use aster_yggdrasil_model::types::{
         task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
     };
     async fn test_state(temp_dir: String) -> crate::runtime::AppState {
@@ -144,7 +144,7 @@ mod tests {
         let db = crate::db::connect_with_metrics(&db_cfg, aster_forge_metrics::NoopMetrics::arc())
             .await
             .expect("maintenance test database should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("maintenance test migrations should run");
         crate::services::config_service::ensure_defaults(&db)

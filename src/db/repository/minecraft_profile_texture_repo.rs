@@ -1,11 +1,11 @@
 //! Minecraft profile current texture binding repository.
 
-use crate::entities::{
+use aster_yggdrasil_model::entities::{
     minecraft_profile_texture::{self, Entity as MinecraftProfileTexture},
     minecraft_texture::{self, Entity as MinecraftTexture},
 };
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::types::yggdrasil::MinecraftTextureType;
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,

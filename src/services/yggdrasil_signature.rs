@@ -389,7 +389,7 @@ mod tests {
         )
         .await
         .unwrap();
-        migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
         crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();
@@ -434,7 +434,7 @@ mod tests {
         )
         .await
         .unwrap();
-        migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
         crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();
@@ -477,7 +477,7 @@ mod tests {
         )
         .await
         .unwrap();
-        migration::Migrator::up(&db, None).await.unwrap();
+        aster_yggdrasil_migration::Migrator::up(&db, None).await.unwrap();
         crate::services::config_service::ensure_defaults(&db)
             .await
             .unwrap();

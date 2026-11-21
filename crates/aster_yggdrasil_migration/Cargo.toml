@@ -1,5 +1,5 @@
 [package]
-name = "migration"
+name = "aster_yggdrasil_migration"
 description = "AsterYggdrasil database migrations."
 version = "0.1.0"
 homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/migration"
@@ -33,9 +33,10 @@ sea-orm-migration = { workspace = true, features = [
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lib]
+name = "aster_yggdrasil_migration"
 doctest = false
 
 [[bin]]
-name = "migration"
+name = "aster_yggdrasil_migration"
 path = "src/main.rs"
 required-features = ["cli"]

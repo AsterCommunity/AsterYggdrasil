@@ -5,9 +5,9 @@ use sea_orm::{
 };
 
 use super::common::{AdminTaskFilters, active_processing_by_kinds_condition, apply_admin_filters};
-use crate::entities::background_task::{self, Entity as BackgroundTask};
+use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use crate::errors::{AsterError, Result};
-use crate::types::task::{BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload};
+use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload};
 use aster_forge_api::CursorSlice;
 
 pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<background_task::Model> {

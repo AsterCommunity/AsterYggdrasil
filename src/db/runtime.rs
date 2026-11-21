@@ -27,7 +27,7 @@ pub async fn prepare_database_handles(
     let writer = crate::db::connect_with_metrics(config, metrics.clone()).await?;
     let migration_lock =
         aster_forge_db_migration::MigrationLockOptions::new(DATABASE_MIGRATION_LOCK_NAMESPACE);
-    aster_forge_db_migration::run_migrator_with_lock::<migration::Migrator>(
+    aster_forge_db_migration::run_migrator_with_lock::<aster_yggdrasil_migration::Migrator>(
         &writer,
         &migration_lock,
         None,

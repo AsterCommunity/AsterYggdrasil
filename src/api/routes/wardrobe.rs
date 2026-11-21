@@ -15,7 +15,7 @@ use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::{audit_service, auth_service, ban_service, texture_service};
-use crate::types::{
+use aster_yggdrasil_model::types::{
     user::UserBanScope, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
     yggdrasil::MinecraftTextureVisibility, yggdrasil::TextureTagSearchMethod,
 };

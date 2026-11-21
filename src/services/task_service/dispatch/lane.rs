@@ -1,6 +1,6 @@
 use crate::config::operations;
 use crate::runtime::RuntimeConfigRuntimeState;
-use crate::types::task::BackgroundTaskKind;
+use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
 use super::super::registry;
 
@@ -34,7 +34,7 @@ pub(super) fn task_lane(kind: BackgroundTaskKind) -> TaskLane {
 mod tests {
     use super::{TASK_LANES, TaskLane, TaskLaneConfig, task_lane};
     use crate::services::task_service::registry;
-    use crate::types::task::BackgroundTaskKind;
+    use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
     #[test]
     fn fallback_lane_contains_system_runtime_tasks() {

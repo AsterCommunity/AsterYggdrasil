@@ -3,9 +3,9 @@
 use chrono::{DateTime, Utc};
 use sea_orm::ConnectionTrait;
 
-use crate::entities::audit_log;
+use aster_yggdrasil_model::entities::audit_log;
 use crate::errors::{AsterError, Result};
-use crate::types::audit::AuditAction;
+use aster_yggdrasil_model::types::audit::AuditAction;
 use aster_forge_api::CursorSlice;
 
 pub struct AuditLogQuery<'a> {
@@ -43,7 +43,10 @@ pub async fn find_with_filters_cursor<C: ConnectionTrait>(
         items: page
             .items
             .into_iter()
-            .map(audit_log::Model::try_from)
+            .map(|row| {
+                audit_log::Model::try_from_forge_row(row)
+                    .map_err(|message| AsterError::database_operation(message))
+            })
             .collect::<Result<Vec<_>>>()?,
         total: page.total,
         has_more: page.has_more,
@@ -104,32 +107,6 @@ fn action_wire_values(actions: &[AuditAction]) -> Vec<&str> {
     actions.iter().map(|action| action.as_str()).collect()
 }
 
-impl TryFrom<aster_forge_db::audit_log::Model> for audit_log::Model {
-    type Error = AsterError;
-
-    fn try_from(value: aster_forge_db::audit_log::Model) -> Result<Self> {
-        let action = AuditAction::from_str_name(&value.action).ok_or_else(|| {
-            AsterError::database_operation(format!(
-                "unsupported audit action in audit log row {}: {}",
-                value.id, value.action
-            ))
-        })?;
-
-        Ok(Self {
-            id: value.id,
-            user_id: value.user_id,
-            action,
-            entity_type: value.entity_type,
-            entity_id: value.entity_id,
-            entity_name: value.entity_name,
-            details: value.details,
-            ip_address: value.ip_address,
-            user_agent: value.user_agent,
-            created_at: value.created_at,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
@@ -140,8 +117,8 @@ mod tests {
         find_with_filters_cursor,
     };
     use crate::config::DatabaseConfig;
-    use crate::entities::audit_log;
-    use crate::types::audit::{AuditAction, AuditEntityType};
+    use aster_yggdrasil_model::entities::audit_log;
+    use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
     async fn build_test_db() -> sea_orm::DatabaseConnection {
         let db = crate::db::connect_with_metrics(
             &DatabaseConfig {
@@ -153,7 +130,7 @@ mod tests {
         )
         .await
         .expect("audit log repo test DB should connect");
-        migration::Migrator::up(&db, None)
+        aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("audit log repo test migrations should succeed");
         db

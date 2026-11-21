@@ -1,4 +1,4 @@
-use crate::types::yggdrasil::MinecraftTextureModel;
+use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel;
 
 pub const STEVE_HASH: &str = "082fdbe1403d09fcf030464bf754439ee79e9287bb15efbe2f54d02f60108133";
 pub const ALEX_HASH: &str = "394b483392052fb28d6271c736ba0df0394223c93b6348f1f1d135fdb7412daa";

@@ -8,7 +8,7 @@ use super::types::{
     RuntimeSystemHealthResult, RuntimeSystemHealthStatus, TaskPayload, TaskPresentation,
     TaskPresentationCode, TaskPresentationMessage, TaskResult,
 };
-use crate::types::task::BackgroundTaskStatus;
+use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 
 pub(super) fn build_task_presentation(
     payload: &TaskPayload,
