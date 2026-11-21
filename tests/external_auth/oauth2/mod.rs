@@ -354,6 +354,48 @@ pub fn external_auth_provider_model(
     }
 }
 
+pub fn generic_oauth2_provider_model(
+    key: &str,
+    base_url: &str,
+    enabled: bool,
+) -> external_auth_provider::ActiveModel {
+    let now = Utc::now();
+    external_auth_provider::ActiveModel {
+        key: Set(key.to_string()),
+        display_name: Set(format!("{key} provider")),
+        icon_url: Set(None),
+        provider_kind: Set(
+            aster_yggdrasil::types::external_auth::ExternalAuthProviderKind::GenericOAuth2,
+        ),
+        protocol: Set(aster_yggdrasil::types::external_auth::ExternalAuthProtocol::OAuth2),
+        options: Set(
+            aster_yggdrasil::types::external_auth::StoredExternalAuthProviderOptions::empty(),
+        ),
+        issuer_url: Set(None),
+        authorization_url: Set(Some(format!("{base_url}/authorize"))),
+        token_url: Set(Some(format!("{base_url}/token"))),
+        userinfo_url: Set(Some(format!("{base_url}/userinfo"))),
+        client_id: Set(TEST_CLIENT_ID.to_string()),
+        client_secret: Set(Some(TEST_CLIENT_SECRET.to_string())),
+        scopes: Set("read:user user:email".to_string()),
+        enabled: Set(enabled),
+        auto_provision_enabled: Set(false),
+        auto_link_verified_email_enabled: Set(false),
+        require_email_verified: Set(false),
+        subject_claim: Set(Some("id".to_string())),
+        username_claim: Set(Some("login".to_string())),
+        display_name_claim: Set(Some("name".to_string())),
+        email_claim: Set(Some("email".to_string())),
+        email_verified_claim: Set(Some("email_verified".to_string())),
+        groups_claim: Set(None),
+        avatar_url_claim: Set(None),
+        allowed_domains: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+}
+
 pub fn github_external_auth_provider_model(
     key: &str,
     base_url: &str,

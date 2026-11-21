@@ -312,6 +312,7 @@ pub async fn start_mock_external_auth_provider() -> (MockOidcProvider, actix_web
             )
             .route("/authorize", web::get().to(mock_authorize))
             .route("/token", web::post().to(mock_token))
+            .route("/userinfo", web::get().to(mock_userinfo))
             .route("/jwks", web::get().to(mock_jwks))
     })
     .workers(1)
@@ -334,6 +335,7 @@ async fn mock_discovery(provider: web::Data<MockOidcProvider>) -> impl Responder
         "issuer": issuer,
         "authorization_endpoint": format!("{}/authorize", provider.issuer),
         "token_endpoint": format!("{}/token", provider.issuer),
+        "userinfo_endpoint": format!("{}/userinfo", provider.issuer),
         "jwks_uri": format!("{}/jwks", provider.issuer),
         "response_types_supported": ["code"],
         "subject_types_supported": ["public"],
@@ -385,6 +387,32 @@ async fn mock_token(
         "expires_in": 300,
         "id_token": provider.sign_id_token(&nonce)
     }))
+}
+
+async fn mock_userinfo(provider: web::Data<MockOidcProvider>) -> impl Responder {
+    let subject = provider
+        .token_subject
+        .lock()
+        .expect("subject lock should not be poisoned")
+        .clone();
+    let email = provider
+        .token_email
+        .lock()
+        .expect("email lock should not be poisoned")
+        .clone();
+    let mut payload = serde_json::json!({ "sub": subject, "name": "OIDC Test User" });
+    if let Some(email) = email {
+        payload["email"] = serde_json::json!(email);
+        if let Some(verified) = provider
+            .token_email_verified
+            .lock()
+            .expect("email verified lock should not be poisoned")
+            .clone()
+        {
+            payload["email_verified"] = verified;
+        }
+    }
+    HttpResponse::Ok().json(payload)
 }
 
 async fn mock_jwks(provider: web::Data<MockOidcProvider>) -> impl Responder {

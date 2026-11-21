@@ -466,105 +466,26 @@ async fn local_email_policy_does_not_apply_to_oauth2_auto_provision() {
 }
 
 #[actix_web::test]
-async fn github_callback_uses_verified_primary_email_from_email_list() {
+async fn require_email_verified_rejects_unverified_email_claim() {
     let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_email(None);
-    mock_provider.set_email_verified(None);
-    mock_provider.set_github_emails(vec![
-        GitHubEmailEntry {
-            email: "secondary@example.com".to_string(),
-            primary: false,
-            verified: true,
-        },
-        GitHubEmailEntry {
-            email: "primary-unverified@example.com".to_string(),
-            primary: true,
-            verified: false,
-        },
-        GitHubEmailEntry {
-            email: "github-primary@example.com".to_string(),
-            primary: true,
-            verified: true,
-        },
-    ]);
+    mock_provider.set_email(Some("unverified@example.com"));
+    mock_provider.set_email_verified(Some(false));
 
     let state = common::setup().await;
     configure_oauth2_public_site_url(&state);
     let app = create_test_app!(state.clone());
     let provider_model =
-        github_external_auth_provider_model("github-mock", &mock_provider.base_url, true)
+        generic_oauth2_provider_model("oauth2-unverified-email", &mock_provider.base_url, true)
             .insert(state.writer_db())
             .await
-            .expect("GitHub provider should insert");
+            .expect("OAuth2 provider should insert");
+    let mut active = provider_model.into_active_model();
+    active.require_email_verified = Set(true);
+    let provider_model = active.update(state.writer_db()).await.expect("provider should update");
 
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/files").await;
-    let authorize_request = mock_provider.last_authorize_request();
-    assert_eq!(
-        authorize_request.redirect_uri,
-        format!(
-            "http://localhost:8080/api/v1/auth/external-auth/github/{}/callback",
-            provider_model.key
-        )
-    );
-    assert_eq!(
-        authorize_request.scope.as_deref(),
-        Some("read:user user:email")
-    );
-
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
-    assert_eq!(resp.status(), 302);
-    assert_eq!(
-        resp.headers()
-            .get("Location")
-            .and_then(|value| value.to_str().ok()),
-        Some("http://localhost:8080/files?auth_redirect=login_success")
-    );
-    assert!(common::extract_cookie(&resp, "aster_access").is_some());
-
-    let identities = external_auth_identity::Entity::find()
-        .all(state.writer_db())
-        .await
-        .expect("identities should query");
-    assert_eq!(identities.len(), 1);
-    assert_eq!(identities[0].identity_namespace, mock_provider.base_url);
-    assert_eq!(identities[0].subject, "oauth2-subject-1");
-    assert_eq!(
-        identities[0].email_snapshot.as_deref(),
-        Some("github-primary@example.com")
-    );
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn github_require_email_verified_rejects_without_verified_primary_email() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_email(Some("public@example.com"));
-    mock_provider.set_email_verified(Some(true));
-    mock_provider.set_github_emails(vec![
-        GitHubEmailEntry {
-            email: "secondary@example.com".to_string(),
-            primary: false,
-            verified: true,
-        },
-        GitHubEmailEntry {
-            email: "primary-unverified@example.com".to_string(),
-            primary: true,
-            verified: false,
-        },
-    ]);
-
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        github_external_auth_provider_model("github-no-email", &mock_provider.base_url, true)
-            .insert(state.writer_db())
-            .await
-            .expect("GitHub provider should insert");
-
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
+    let state_value =
+        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
+    let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_oauth2_error_redirect(&resp);
     let identities = external_auth_identity::Entity::find()
         .all(state.writer_db())
@@ -576,11 +497,10 @@ async fn github_require_email_verified_rejects_without_verified_primary_email() 
 }
 
 #[actix_web::test]
-async fn github_existing_identity_can_login_without_verified_primary_email() {
+async fn existing_identity_can_login_without_verified_email() {
     let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_email(Some("public@example.com"));
-    mock_provider.set_email_verified(Some(true));
-    mock_provider.set_github_emails(Vec::new());
+    mock_provider.set_email(Some("unverified@example.com"));
+    mock_provider.set_email_verified(Some(false));
 
     let state = common::setup().await;
     configure_oauth2_public_site_url(&state);
@@ -589,22 +509,25 @@ async fn github_existing_identity_can_login_without_verified_primary_email() {
     let linked_user_id = admin_create_user!(
         app,
         admin_token,
-        "gh-linked",
-        "github-linked@example.com",
+        "oauth2-linked",
+        "oauth2-linked@example.com",
         "password123"
     );
     let provider_model =
-        github_external_auth_provider_model("github-bound-no-email", &mock_provider.base_url, true)
+        generic_oauth2_provider_model("oauth2-bound-no-email", &mock_provider.base_url, true)
             .insert(state.writer_db())
             .await
-            .expect("GitHub provider should insert");
+            .expect("OAuth2 provider should insert");
+    let mut active = provider_model.into_active_model();
+    active.require_email_verified = Set(true);
+    let provider_model = active.update(state.writer_db()).await.expect("provider should update");
     external_auth_identity::ActiveModel {
         user_id: Set(linked_user_id),
         provider_id: Set(provider_model.id),
         identity_namespace: Set(mock_provider.base_url.clone()),
         subject: Set("oauth2-subject-1".to_string()),
-        email_snapshot: Set(Some("github-linked@example.com".to_string())),
-        display_name_snapshot: Set(Some("Linked GitHub User".to_string())),
+        email_snapshot: Set(Some("oauth2-linked@example.com".to_string())),
+        display_name_snapshot: Set(Some("Linked OAuth2 User".to_string())),
         created_at: Set(chrono::Utc::now()),
         updated_at: Set(chrono::Utc::now()),
         last_login_at: Set(None),
@@ -614,8 +537,9 @@ async fn github_existing_identity_can_login_without_verified_primary_email() {
     .await
     .expect("identity should insert");
 
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/files").await;
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
+    let state_value =
+        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
+    let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_eq!(resp.status(), 302);
     assert_eq!(
         resp.headers()
@@ -629,23 +553,23 @@ async fn github_existing_identity_can_login_without_verified_primary_email() {
 }
 
 #[actix_web::test]
-async fn github_ignores_public_user_email_when_verified_primary_email_is_missing() {
+async fn rejects_invalid_email_claim_without_creating_identity() {
     let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_email(Some("public@example.com"));
+    mock_provider.set_email(Some("not-an-email"));
     mock_provider.set_email_verified(Some(true));
-    mock_provider.set_github_emails(Vec::new());
 
     let state = common::setup().await;
     configure_oauth2_public_site_url(&state);
     let app = create_test_app!(state.clone());
     let provider_model =
-        github_external_auth_provider_model("github-public-email", &mock_provider.base_url, true)
+        generic_oauth2_provider_model("oauth2-invalid-email", &mock_provider.base_url, true)
             .insert(state.writer_db())
             .await
-            .expect("GitHub provider should insert");
+            .expect("OAuth2 provider should insert");
 
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
+    let state_value =
+        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/").await;
+    let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_oauth2_error_redirect(&resp);
     let identities = external_auth_identity::Entity::find()
         .all(state.writer_db())
@@ -657,112 +581,11 @@ async fn github_ignores_public_user_email_when_verified_primary_email_is_missing
 }
 
 #[actix_web::test]
-async fn github_rejects_invalid_verified_primary_email() {
+async fn existing_identity_can_login_without_email() {
     let (mock_provider, server) = start_mock_oauth2_provider().await;
     mock_provider.set_email(None);
     mock_provider.set_email_verified(None);
-    mock_provider.set_github_emails(vec![GitHubEmailEntry {
-        email: "not-an-email".to_string(),
-        primary: true,
-        verified: true,
-    }]);
 
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        github_external_auth_provider_model("github-invalid-email", &mock_provider.base_url, true)
-            .insert(state.writer_db())
-            .await
-            .expect("GitHub provider should insert");
-
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
-    assert_oauth2_error_redirect(&resp);
-    let identities = external_auth_identity::Entity::find()
-        .all(state.writer_db())
-        .await
-        .expect("identities should query");
-    assert!(identities.is_empty());
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn github_rejects_user_emails_api_failure() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_github_emails_status(StatusCode::FORBIDDEN);
-
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        github_external_auth_provider_model("github-email-api-fail", &mock_provider.base_url, true)
-            .insert(state.writer_db())
-            .await
-            .expect("GitHub provider should insert");
-
-    let state_value = start_github_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_github_callback(&app, &provider_model.key, &state_value).await;
-    assert_oauth2_error_redirect(&resp);
-    let identities = external_auth_identity::Entity::find()
-        .all(state.writer_db())
-        .await
-        .expect("identities should query");
-    assert!(identities.is_empty());
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn qq_callback_fetches_openid_and_userinfo_then_requires_email_verification() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        qq_external_auth_provider_model("qq-mock", &mock_provider.base_url, true, false)
-            .insert(state.writer_db())
-            .await
-            .expect("QQ provider should insert");
-
-    let state_value = start_qq_login(&app, &mock_provider, &provider_model.key, "/files").await;
-    let authorize_request = mock_provider.last_authorize_request();
-    assert_eq!(authorize_request.response_type, "code");
-    assert_eq!(authorize_request.client_id, TEST_CLIENT_ID);
-    assert_eq!(
-        authorize_request.redirect_uri,
-        format!(
-            "http://localhost:8080/api/v1/auth/external-auth/qq/{}/callback",
-            provider_model.key
-        )
-    );
-    assert_eq!(authorize_request.scope.as_deref(), Some("get_user_info"));
-    assert_eq!(authorize_request.state, state_value);
-    assert_eq!(
-        authorize_request.code_challenge_method.as_deref(),
-        Some("S256")
-    );
-
-    let resp = finish_qq_callback(&app, &provider_model.key, &state_value).await;
-    let flow_token = oauth2_email_required_flow(&resp);
-    assert!(!flow_token.is_empty());
-    let identities = external_auth_identity::Entity::find()
-        .all(state.writer_db())
-        .await
-        .expect("identities should query");
-    assert!(identities.is_empty());
-    assert_eq!(
-        mock_provider.token_auth_observations(),
-        vec![TokenAuthObservation::Post]
-    );
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn qq_existing_identity_can_login_without_email() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
     let state = common::setup().await;
     configure_oauth2_public_site_url(&state);
     let app = create_test_app!(state.clone());
@@ -770,22 +593,22 @@ async fn qq_existing_identity_can_login_without_email() {
     let linked_user_id = admin_create_user!(
         app,
         admin_token,
-        "qq-linked",
-        "qq-linked@example.com",
+        "oauth2-noemail",
+        "oauth2-noemail@example.com",
         "password123"
     );
     let provider_model =
-        qq_external_auth_provider_model("qq-bound-no-email", &mock_provider.base_url, true, true)
+        generic_oauth2_provider_model("oauth2-bound-noemail", &mock_provider.base_url, true)
             .insert(state.writer_db())
             .await
-            .expect("QQ provider should insert");
+            .expect("OAuth2 provider should insert");
     external_auth_identity::ActiveModel {
         user_id: Set(linked_user_id),
         provider_id: Set(provider_model.id),
-        identity_namespace: Set(format!("qq:{TEST_CLIENT_ID}")),
-        subject: Set("qq-openid-1".to_string()),
+        identity_namespace: Set(mock_provider.base_url.clone()),
+        subject: Set("oauth2-subject-1".to_string()),
         email_snapshot: Set(None),
-        display_name_snapshot: Set(Some("Linked QQ User".to_string())),
+        display_name_snapshot: Set(Some("Linked OAuth2 User".to_string())),
         created_at: Set(chrono::Utc::now()),
         updated_at: Set(chrono::Utc::now()),
         last_login_at: Set(None),
@@ -795,8 +618,9 @@ async fn qq_existing_identity_can_login_without_email() {
     .await
     .expect("identity should insert");
 
-    let state_value = start_qq_login(&app, &mock_provider, &provider_model.key, "/files").await;
-    let resp = finish_qq_callback(&app, &provider_model.key, &state_value).await;
+    let state_value =
+        start_oauth2_login(&app, &mock_provider, &provider_model.key, "/files").await;
+    let resp = finish_oauth2_callback(&app, &provider_model.key, &state_value).await;
     assert_eq!(resp.status(), 302);
     assert_eq!(
         resp.headers()
@@ -805,63 +629,6 @@ async fn qq_existing_identity_can_login_without_email() {
         Some("http://localhost:8080/files?auth_redirect=login_success")
     );
     assert!(common::extract_cookie(&resp, "aster_access").is_some());
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn qq_rejects_openid_client_id_mismatch() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_qq_openid_client_id("different-client");
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        qq_external_auth_provider_model("qq-client-mismatch", &mock_provider.base_url, true, false)
-            .insert(state.writer_db())
-            .await
-            .expect("QQ provider should insert");
-
-    let state_value = start_qq_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_qq_callback(&app, &provider_model.key, &state_value).await;
-    assert_oauth2_error_redirect(&resp);
-
-    server.stop(true).await;
-}
-
-#[actix_web::test]
-async fn qq_rejects_missing_openid_and_userinfo_errors() {
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_qq_openid("");
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        qq_external_auth_provider_model("qq-missing-openid", &mock_provider.base_url, true, false)
-            .insert(state.writer_db())
-            .await
-            .expect("QQ provider should insert");
-
-    let state_value = start_qq_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_qq_callback(&app, &provider_model.key, &state_value).await;
-    assert_oauth2_error_redirect(&resp);
-
-    server.stop(true).await;
-
-    let (mock_provider, server) = start_mock_oauth2_provider().await;
-    mock_provider.set_qq_userinfo_error(100030, "mock userinfo error");
-    let state = common::setup().await;
-    configure_oauth2_public_site_url(&state);
-    let app = create_test_app!(state.clone());
-    let provider_model =
-        qq_external_auth_provider_model("qq-userinfo-error", &mock_provider.base_url, true, false)
-            .insert(state.writer_db())
-            .await
-            .expect("QQ provider should insert");
-
-    let state_value = start_qq_login(&app, &mock_provider, &provider_model.key, "/").await;
-    let resp = finish_qq_callback(&app, &provider_model.key, &state_value).await;
-    assert_oauth2_error_redirect(&resp);
 
     server.stop(true).await;
 }

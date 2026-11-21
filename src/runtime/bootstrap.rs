@@ -17,6 +17,12 @@ pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
     install_panic_hook();
     dotenvy::dotenv().ok();
 
+    // Forge JWT signing requires the crypto backend to be initialized before the
+    // first token is issued or verified. A second initialization is a no-op.
+    if let Err(error) = aster_forge_auth::initialize_jwt_crypto_provider() {
+        tracing::warn!(%error, "JWT crypto provider was already initialized");
+    }
+
     let config = crate::config::init_config()?;
     crate::config::deployment::validate_static(config.as_ref())?;
     crate::api::middleware::csrf::init_token_names_from_auth_config(&config.auth)?;

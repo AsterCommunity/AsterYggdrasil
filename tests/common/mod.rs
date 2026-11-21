@@ -28,7 +28,7 @@ fn init_test_process_state() {
     INIT.get_or_init(|| {});
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Only exercised by the MySQL/Postgres backend test binaries; kept shared for sqlite runs.")]
 pub async fn set_foreign_key_checks(
     db: &sea_orm::DatabaseConnection,
     enabled: bool,
@@ -752,24 +752,24 @@ async fn resolve_test_database_url() -> String {
     resolve_test_database_url_for(configured_test_database_backend()).await
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Only exercised when ASTER_TEST_DATABASE_BACKEND selects postgres.")]
 pub async fn postgres_test_database_url() -> String {
     resolve_test_database_url_for(TestDatabaseBackend::Postgres).await
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn mysql_test_database_url() -> String {
     resolve_test_database_url_for(TestDatabaseBackend::MySql).await
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn setup() -> AppState {
     init_test_process_state();
     let database_url = resolve_test_database_url().await;
     setup_with_database_url(&database_url).await
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn setup_with_memory_cache() -> AppState {
     let base = setup().await;
     let cache_config = aster_forge_cache::CacheConfig {
@@ -904,7 +904,7 @@ async fn clone_mysql_schema_from_template(db: &sea_orm::DatabaseConnection) {
         .expect("mysql schema clone should restore foreign key checks");
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn setup_with_database_url(database_url: &str) -> AppState {
     init_test_process_state();
 
@@ -1005,12 +1005,12 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
     state
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn bearer_header(access_token: impl AsRef<str>) -> (&'static str, String) {
     ("Authorization", format!("Bearer {}", access_token.as_ref()))
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn access_cookie_header(access_token: impl AsRef<str>) -> String {
     let access_token = access_token.as_ref();
     let csrf_token = csrf_token_for(access_token);
@@ -1018,7 +1018,7 @@ pub fn access_cookie_header(access_token: impl AsRef<str>) -> String {
     format!("aster_access={access_token}; aster_yggdrasil_csrf={csrf_token}")
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn refresh_cookie_header(
     refresh_token: impl AsRef<str>,
     csrf_token: impl AsRef<str>,
@@ -1029,7 +1029,7 @@ pub fn refresh_cookie_header(
     format!("aster_refresh={refresh_token}; aster_yggdrasil_csrf={csrf_token}")
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn access_and_refresh_cookie_header(
     access_token: impl AsRef<str>,
     refresh_token: impl AsRef<str>,
@@ -1045,7 +1045,7 @@ pub fn access_and_refresh_cookie_header(
     )
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn csrf_header(csrf_token: impl AsRef<str>) -> (&'static str, String) {
     ("X-Aster-Yggdrasil-CSRF", csrf_token.as_ref().to_string())
 }
@@ -1070,7 +1070,7 @@ fn pin_csrf_token_for_current_thread(session_token: &str, csrf_token: &str) {
     });
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn csrf_token_for(session_token: impl AsRef<str>) -> String {
     let token = session_token.as_ref();
     if let Some(csrf_token) =
@@ -1087,12 +1087,12 @@ pub fn csrf_token_for(session_token: impl AsRef<str>) -> String {
         .unwrap_or_else(|| panic!("missing csrf token for session token: {token}"))
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn csrf_header_for(session_token: impl AsRef<str>) -> (&'static str, String) {
     csrf_header(csrf_token_for(session_token))
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn extract_cookie<B>(resp: &actix_web::dev::ServiceResponse<B>, name: &str) -> Option<String> {
     let value = resp
         .headers()
@@ -1123,12 +1123,12 @@ pub fn extract_cookie<B>(resp: &actix_web::dev::ServiceResponse<B>, name: &str) 
     Some(value)
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn flush_mail_outbox(state: &AppState) {
     flush_mail_outbox_with(state.writer_db(), &state.runtime_config, &state.mail_sender).await;
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub async fn flush_mail_outbox_with(
     db: &sea_orm::DatabaseConnection,
     runtime_config: &std::sync::Arc<aster_yggdrasil::config::RuntimeConfig>,
@@ -1139,7 +1139,7 @@ pub async fn flush_mail_outbox_with(
         .expect("mail outbox drain should succeed");
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 fn extract_token_from_content(content: &str, marker: &str) -> Option<String> {
     let (_, suffix) = content.split_once(marker)?;
     let encoded: String = suffix
@@ -1155,7 +1155,7 @@ fn extract_token_from_content(content: &str, marker: &str) -> Option<String> {
         .map(|value| value.into_owned())
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn extract_token_from_mail_message(
     message: &aster_forge_mail::MailMessage,
     marker: &str,
@@ -1164,7 +1164,7 @@ pub fn extract_token_from_mail_message(
         .or_else(|| extract_token_from_content(&message.html_body, marker))
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Shared test-suite helper: unused by some test binaries but kept in one common module.")]
 pub fn system_config_model(key: &str, value: &str) -> aster_forge_db::system_config::Model {
     aster_forge_db::system_config::Model {
         id: 0,
@@ -1364,7 +1364,11 @@ macro_rules! admin_create_user {
             }))
             .to_request();
         let resp = test::call_service(&$app, req).await;
-        assert_eq!(resp.status(), 201, "admin create user should return 201");
+        if resp.status() != 201 {
+            let status = resp.status();
+            let body: Value = test::read_body_json(resp).await;
+            panic!("admin create user should return 201, got {status}: {body}");
+        }
         let body: Value = test::read_body_json(resp).await;
         body["data"]["user"]["id"].as_i64().unwrap()
     }};

@@ -2371,11 +2371,20 @@ async fn yggdrasil_join_records_forwarded_ip_from_trusted_proxy() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 204);
 
+    // Forge walks X-Forwarded-For right to left and skips trusted hops, so the
+    // join session records the last untrusted hop (198.51.100.2), not the
+    // spoofable leftmost entry.
+    let req = test::TestRequest::get()
+        .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ProxyJoin&serverId=trusted-proxy-server-hash&ip=198.51.100.2")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
     let req = test::TestRequest::get()
         .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ProxyJoin&serverId=trusted-proxy-server-hash&ip=203.0.113.10")
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 204);
 
     let req = test::TestRequest::get()
         .uri("/api/yggdrasil/sessionserver/session/minecraft/hasJoined?username=ProxyJoin&serverId=trusted-proxy-server-hash&ip=10.0.0.5")

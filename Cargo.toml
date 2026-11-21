@@ -21,6 +21,7 @@ aster_forge_alloc = { version = "=0.1.0-alpha.1" }
 aster_forge_api = { version = "=0.1.0-alpha.1" }
 aster_forge_api_docs_macros = { version = "=0.1.0-alpha.1" }
 aster_forge_audit = { version = "=0.1.0-alpha.3" }
+aster_forge_auth = { version = "=0.1.0-alpha.3" }
 aster_forge_cache = { version = "=0.1.0-alpha.2", default-features = false }
 aster_forge_config = { version = "=0.1.0-alpha.2" }
 aster_forge_crypto = { version = "=0.1.0-alpha.2" }
@@ -192,6 +193,7 @@ aster_forge_alloc = { workspace = true }
 aster_forge_api = { workspace = true }
 aster_forge_api_docs_macros = { workspace = true }
 aster_forge_audit = { workspace = true, features = ["db-writer", "mail-outbox-dependency"] }
+aster_forge_auth = { workspace = true, features = ["password"] }
 aster_forge_cache = { workspace = true, features = ["memory", "redis", "runtime-component"] }
 aster_forge_config = { workspace = true, features = ["redis-pubsub", "sea-orm"] }
 aster_forge_crypto = { workspace = true, features = ["password", "sha256"] }
