@@ -4,6 +4,7 @@ pub mod assembly;
 pub mod bootstrap;
 pub mod entrypoint;
 pub mod metrics;
+pub mod shutdown;
 pub mod startup;
 pub mod state;
 pub mod state_traits;

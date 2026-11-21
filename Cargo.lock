@@ -1153,7 +1153,6 @@ dependencies = [
  "base64 0.23.1",
  "captcha-rs",
  "chrono",
- "clap",
  "config",
  "dotenvy",
  "fs2",

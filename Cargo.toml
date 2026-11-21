@@ -47,7 +47,6 @@ aws-sdk-s3 = { version = "1.161.0", default-features = false, features = ["sigv4
 base64 = "0.23"
 captcha-rs = "0.5"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
-clap = { version = "4", features = ["derive", "env"] }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 dotenvy = "0.15"
 fs2 = "0.4"
@@ -155,7 +154,6 @@ workspace = true
 [features]
 default = ["server"]
 server = []
-cli = ["server", "dep:clap"]
 metrics = [
     "server",
     "dep:aster_forge_observability",
@@ -175,7 +173,7 @@ openapi = [
     "aster_forge_runtime/openapi",
     "aster_forge_tasks/openapi",
 ]
-full = ["server", "cli", "metrics", "openapi"]
+full = ["server", "metrics", "openapi"]
 jemalloc = ["dep:tikv-jemallocator", "aster_forge_alloc/jemalloc"]
 jemalloc-stats = [
     "jemalloc",
@@ -218,7 +216,6 @@ aws-sdk-s3 = { workspace = true }
 base64 = { workspace = true }
 captcha-rs = { workspace = true }
 chrono = { workspace = true }
-clap = { workspace = true, optional = true }
 config = { workspace = true }
 dotenvy = { workspace = true }
 futures = { workspace = true }

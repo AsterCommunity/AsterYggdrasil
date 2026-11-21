@@ -5,7 +5,7 @@ use crate::errors::{AsterError, Result};
 use crate::object_storage;
 use crate::runtime::{AppState, AppStateParts};
 
-pub(super) async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
+pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
     aster_forge_runtime::ensure_runtime_temp_dir(&config.server.temp_dir)
         .await
         .map_err(|error| {

@@ -32,7 +32,7 @@ pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
         tracing::warn!("{warning}");
     }
 
-    let state = crate::runtime::startup::prepare_runtime_state(config).await?;
+    let state = crate::runtime::startup::common::prepare_common_state(config).await?;
 
     Ok(BootstrappedRuntime {
         state,
