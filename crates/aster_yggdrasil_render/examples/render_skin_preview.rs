@@ -239,4 +239,3 @@ fn parse_hex_byte(hex: &str, start: usize) -> Result<u8, String> {
 fn usage() -> String {
     "usage: render_skin_preview --input <skin.png> --output <preview.png> [--engine skin-3d|skin-2d] [--profile fast|default|quality] [--model default|slim] [--format png|webp] [--pitch deg] [--front-yaw deg] [--back-yaw deg] [--supersampling 1-4] [--padding px] [--background transparent|white|black|#RRGGBB|#RRGGBBAA]".to_string()
 }
-
