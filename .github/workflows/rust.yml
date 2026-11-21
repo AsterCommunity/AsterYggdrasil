@@ -191,6 +191,19 @@ jobs:
           key: integration-${{ matrix.backend }}
           shared-key: integration
 
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      # cargo test --tests 会连 lib 单元测试一起执行，而 lib 内嵌的
+      # frontend-panel/dist 需要构建产物（frontend asset 相关断言）
+      - name: Install frontend dependencies
+        working-directory: frontend-panel
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend-panel
+        run: bun run build
+
       # testcontainers 使用的 Docker 在 ubuntu-latest 上预装
       - name: Verify Docker availability
         run: docker version
