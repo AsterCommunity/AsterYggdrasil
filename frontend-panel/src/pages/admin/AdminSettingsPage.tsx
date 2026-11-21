@@ -43,10 +43,10 @@ import { adminSettingsCategoryPath } from "@/routes/routePaths";
 import { adminConfigService } from "@/services/adminService";
 import type {
 	ConfigSchemaItem,
+	ConfigValue,
 	SetConfigRequest,
 	SystemConfig,
 	SystemConfigPage,
-	SystemConfigValue,
 	TemplateVariableGroup,
 	TemplateVariableItem,
 } from "@/types/api";
@@ -2232,7 +2232,7 @@ function isKnownCategory(category: string) {
 
 function buildSetConfigRequest(
 	config: SystemConfig,
-	value: SystemConfigValue,
+	value: ConfigValue,
 ): SetConfigRequest {
 	if (config.source === "custom") {
 		return { value, visibility: config.visibility };
@@ -2244,7 +2244,7 @@ function buildSetConfigRequest(
 function buildCaptchaPreviewValues(
 	configs: SystemConfig[],
 	drafts: Record<string, DraftValue>,
-): Record<string, SystemConfigValue> {
+): Record<string, ConfigValue> {
 	return Object.fromEntries(
 		configs.map((config) => [
 			config.key,
@@ -2337,7 +2337,7 @@ function draftEqualsConfig(config: SystemConfig, draft: DraftValue) {
 function draftToValue(
 	valueType: SystemConfig["value_type"],
 	draft: DraftValue | undefined,
-): SystemConfigValue {
+): ConfigValue {
 	if (valueType === "string_array" || valueType === "string_enum_set") {
 		return compactTrimmedStrings(draft?.array ?? []);
 	}
@@ -2349,7 +2349,7 @@ function draftToValue(
 
 function normalizeConfigValue(
 	valueType: SystemConfig["value_type"],
-	value: SystemConfigValue,
+	value: ConfigValue,
 ) {
 	if (valueType === "string_array" || valueType === "string_enum_set") {
 		return Array.isArray(value)

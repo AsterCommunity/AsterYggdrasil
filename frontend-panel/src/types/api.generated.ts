@@ -2062,17 +2062,6 @@ export interface components {
             password: string;
             username: string;
         };
-        AccessClaims: {
-            exp: number;
-            jti?: string | null;
-            password_change?: boolean;
-            /** Format: int64 */
-            session_version: number;
-            sub: string;
-            token_type: components["schemas"]["TokenType"];
-            /** Format: int64 */
-            user_id: number;
-        };
         AccountAuditLogFilterQuery: {
             action?: string | null;
             after?: string | null;
@@ -2083,7 +2072,7 @@ export interface components {
             before?: string | null;
             /** Format: int64 */
             entity_id?: number | null;
-            entity_type?: null | components["schemas"]["AuditEntityType"];
+            entity_type?: components["schemas"]["AuditEntityType"] | null;
         };
         AccountOverviewResp: {
             /** Format: int64 */
@@ -2111,8 +2100,8 @@ export interface components {
             /** Format: int64 */
             after_id?: number | null;
             effective_only?: boolean | null;
-            scope?: null | components["schemas"]["UserBanScope"];
-            status?: null | components["schemas"]["UserBanStatus"];
+            scope?: components["schemas"]["UserBanScope"] | null;
+            status?: components["schemas"]["UserBanStatus"] | null;
         };
         ActionMessageResp: {
             message: string;
@@ -2191,6 +2180,7 @@ export interface components {
             total_users: number;
         };
         AdminOverviewSystemHealthComponent: {
+            details?: components["schemas"]["HealthComponentDetail"][];
             message: string;
             name: string;
             status: components["schemas"]["AdminOverviewSystemHealthStatus"];
@@ -2219,16 +2209,16 @@ export interface components {
         AdminTaskCleanupReq: {
             /** Format: date-time */
             finished_before: string;
-            kind?: null | components["schemas"]["BackgroundTaskKind"];
-            status?: null | components["schemas"]["BackgroundTaskStatus"];
+            kind?: components["schemas"]["BackgroundTaskKind"] | null;
+            status?: components["schemas"]["BackgroundTaskStatus"] | null;
         };
         AdminTaskListQuery: {
             /** Format: int64 */
             after_id?: number | null;
             /** Format: date-time */
             after_updated_at?: string | null;
-            kind?: null | components["schemas"]["BackgroundTaskKind"];
-            status?: null | components["schemas"]["BackgroundTaskStatus"];
+            kind?: components["schemas"]["BackgroundTaskKind"] | null;
+            status?: components["schemas"]["BackgroundTaskStatus"] | null;
         };
         AdminTextureLibraryTextureQuery: {
             /** Format: int64 */
@@ -2236,20 +2226,20 @@ export interface components {
             /** Format: date-time */
             after_updated_at?: string | null;
             keyword?: string | null;
-            library_status?: null | components["schemas"]["MinecraftTextureLibraryStatus"];
+            library_status?: components["schemas"]["MinecraftTextureLibraryStatus"] | null;
             published?: boolean | null;
             tag_ids?: number[];
             tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
-            texture_type?: null | components["schemas"]["MinecraftTextureType"];
-            visibility?: null | components["schemas"]["MinecraftTextureVisibility"];
+            texture_type?: components["schemas"]["MinecraftTextureType"] | null;
+            visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
         };
         AdminTextureReportQuery: {
             /** Format: date-time */
             after_created_at?: string | null;
             /** Format: int64 */
             after_id?: number | null;
-            reason?: null | components["schemas"]["MinecraftTextureReportReason"];
-            status?: null | components["schemas"]["MinecraftTextureReportStatus"];
+            reason?: components["schemas"]["MinecraftTextureReportReason"] | null;
+            status?: components["schemas"]["MinecraftTextureReportStatus"] | null;
             /** Format: int64 */
             texture_id?: number | null;
         };
@@ -2259,8 +2249,8 @@ export interface components {
             /** Format: int64 */
             after_id?: number | null;
             effective_only?: boolean;
-            scope?: null | components["schemas"]["UserBanScope"];
-            status?: null | components["schemas"]["UserBanStatus"];
+            scope?: components["schemas"]["UserBanScope"] | null;
+            status?: components["schemas"]["UserBanStatus"] | null;
             /** Format: int64 */
             user_id?: number | null;
         };
@@ -2308,8 +2298,8 @@ export interface components {
             /** Format: int64 */
             after_id?: number | null;
             keyword?: string | null;
-            role?: null | components["schemas"]["UserRole"];
-            status?: null | components["schemas"]["UserStatus"];
+            role?: components["schemas"]["UserRole"] | null;
+            status?: components["schemas"]["UserStatus"] | null;
         };
         AdminYggdrasilSessionForwardServerInfo: {
             base_url?: string | null;
@@ -2362,8 +2352,8 @@ export interface components {
             /** Format: int64 */
             id: number;
             ip_address?: string | null;
-            presentation?: null | components["schemas"]["AuditPresentation"];
-            user?: null | components["schemas"]["AuditUserSummary"];
+            presentation?: components["schemas"]["AuditPresentation"] | null;
+            user?: components["schemas"]["AuditUserSummary"] | null;
             user_agent?: string | null;
             /** Format: int64 */
             user_id: number;
@@ -2378,7 +2368,7 @@ export interface components {
             before?: string | null;
             /** Format: int64 */
             entity_id?: number | null;
-            entity_type?: null | components["schemas"]["AuditEntityType"];
+            entity_type?: components["schemas"]["AuditEntityType"] | null;
             /** Format: int64 */
             user_id?: number | null;
         };
@@ -2398,9 +2388,9 @@ export interface components {
             user_id: number;
         };
         AuditPresentation: {
-            detail?: null | components["schemas"]["AuditPresentationMessage"];
-            summary?: null | components["schemas"]["AuditPresentationMessage"];
-            target?: null | components["schemas"]["AuditPresentationMessage"];
+            detail?: components["schemas"]["AuditPresentationMessage"] | null;
+            summary?: components["schemas"]["AuditPresentationMessage"] | null;
+            target?: components["schemas"]["AuditPresentationMessage"] | null;
         };
         AuditPresentationMessage: {
             code: string;
@@ -2487,6 +2477,7 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             creator_user_id?: number | null;
+            dedupe_key?: string | null;
             display_name: string;
             expires_at: string;
             failure_can_retry?: boolean | null;
@@ -2547,13 +2538,30 @@ export interface components {
             label_i18n_key: string;
             options?: components["schemas"]["ConfigSchemaOption"][];
             requires_restart: boolean;
-            value_type: components["schemas"]["SystemConfigValueType"];
+            value_type: components["schemas"]["ConfigValueType"];
         };
         ConfigSchemaOption: {
             group: string;
             label_i18n_key: string;
             value: string;
         };
+        /**
+         * @description Origin of a stored configuration value.
+         * @enum {string}
+         */
+        ConfigSource: "system" | "custom";
+        /** @description API-facing configuration value. */
+        ConfigValue: string | string[];
+        /**
+         * @description Supported system configuration value types.
+         * @enum {string}
+         */
+        ConfigValueType: "string" | "multiline" | "string_array" | "string_enum" | "string_enum_set" | "number" | "boolean";
+        /**
+         * @description Consumer visibility for a stored configuration value.
+         * @enum {string}
+         */
+        ConfigVisibility: "private" | "public" | "authenticated";
         CopyPublicTextureReq: {
             display_name?: string | null;
         };
@@ -2566,8 +2574,8 @@ export interface components {
             must_change_password?: boolean | null;
             operator_scopes?: components["schemas"]["OperatorScope"][] | null;
             password?: string | null;
-            role?: null | components["schemas"]["UserRole"];
-            status?: null | components["schemas"]["UserStatus"];
+            role?: components["schemas"]["UserRole"] | null;
+            status?: components["schemas"]["UserStatus"] | null;
             username: string;
         };
         CreateExternalAuthProviderReq: {
@@ -2587,7 +2595,7 @@ export interface components {
             groups_claim?: string | null;
             icon_url?: string | null;
             issuer_url?: string | null;
-            options?: null | components["schemas"]["ExternalAuthProviderOptions"];
+            options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
             require_email_verified?: boolean | null;
             scopes?: string | null;
@@ -2626,7 +2634,7 @@ export interface components {
             base_url: string;
             display_name: string;
             enabled?: boolean | null;
-            endpoint_kind?: null | components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+            endpoint_kind?: components["schemas"]["YggdrasilSessionForwardEndpointKind"] | null;
             /** Format: int32 */
             priority?: number | null;
             texture_forward_enabled?: boolean | null;
@@ -2635,10 +2643,17 @@ export interface components {
             /** Format: int32 */
             weight?: number | null;
         };
+        /** @description Cursor query for resources ordered by creation time and numeric id. */
         CreatedAtCursorQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor creation timestamp.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             after_id?: number | null;
         };
         CurrentMinecraftProfileListQuery: {
@@ -2646,7 +2661,9 @@ export interface components {
             after_id?: number | null;
             query?: string | null;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AccountUserBanInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 effective: boolean;
@@ -2662,17 +2679,30 @@ export interface components {
                 status: components["schemas"]["UserBanStatus"];
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AdminExternalAuthProviderInfo_StringIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 allowed_domains: string[];
                 authorization_url?: string | null;
@@ -2705,17 +2735,30 @@ export interface components {
                 userinfo_url?: string | null;
                 username_claim?: string | null;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor string value. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AdminUserInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 /** Format: int64 */
                 active_session_count: number;
@@ -2737,17 +2780,30 @@ export interface components {
                 updated_at: string;
                 username: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AdminUserInvitationInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 accepted_at?: string | null;
                 /** Format: int64 */
@@ -2765,17 +2821,30 @@ export interface components {
                 status: components["schemas"]["UserInvitationStatus"];
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AdminYggdrasilSessionForwardServerInfo_SessionForwardServerCursor: {
+            /** @description Items in the current page. */
             items: {
                 base_url?: string | null;
                 builtin: boolean;
@@ -2806,17 +2875,25 @@ export interface components {
                 /** Format: int32 */
                 weight: number;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
             next_cursor?: {
                 call_order: components["schemas"]["EnabledPriorityIdCursor"];
             } | {
                 id: components["schemas"]["IdCursor"];
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_AuthSessionInfo_DateTimeStringCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 id: string;
@@ -2827,16 +2904,27 @@ export interface components {
                 revoked: boolean;
                 user_agent?: string | null;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus string id cursor for resources sorted by time and then string id. */
             next_cursor?: {
+                /** @description Cursor string id used as a stable tie breaker. */
                 id: string;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_ExternalAuthLinkInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 display_name_snapshot?: string | null;
@@ -2854,34 +2942,60 @@ export interface components {
                 subject: string;
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_ExternalAuthPublicProvider_StringIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 display_name: string;
                 icon_url?: string | null;
                 key: string;
                 kind: components["schemas"]["ExternalAuthProviderKind"];
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor string value. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_MinecraftProfileInfo_IdCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 /** Format: int64 */
@@ -2894,16 +3008,28 @@ export interface components {
                 user_id: number;
                 uuid: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Numeric id cursor for resources sorted by id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor id.
+                 */
                 id: number;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_MinecraftTextureTagInfo_SortOrderNameIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 color: string;
                 created_at: string;
@@ -2914,19 +3040,35 @@ export interface components {
                 sort_order: number;
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor display or storage name. */
                 name: string;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Cursor sort order value.
+                 */
                 sort_order: number;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_MinecraftWardrobeTextureMetadata_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 display_name?: string | null;
@@ -2953,17 +3095,30 @@ export interface components {
                 /** Format: int32 */
                 width: number;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_PasskeyInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 backed_up: boolean;
                 backup_eligible: boolean;
@@ -2977,17 +3132,30 @@ export interface components {
                 transports?: string[] | null;
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_PublicTextureLibraryTextureMetadata_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 created_at: string;
                 display_name?: string | null;
@@ -3009,23 +3177,36 @@ export interface components {
                 texture_model: components["schemas"]["MinecraftTextureModel"];
                 texture_type: components["schemas"]["MinecraftTextureType"];
                 updated_at: string;
-                uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                 url: string;
                 visibility: components["schemas"]["MinecraftTextureVisibility"];
                 /** Format: int32 */
                 width: number;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_SystemConfig_IdCursor: {
+            /** @description Items in the current page. */
             items: {
                 category: string;
                 description: string;
@@ -3035,30 +3216,42 @@ export interface components {
                 key: string;
                 namespace: string;
                 requires_restart: boolean;
-                source: components["schemas"]["SystemConfigSource"];
+                source: components["schemas"]["ConfigSource"];
                 updated_at: string;
                 /** Format: int64 */
                 updated_by?: number | null;
-                value: components["schemas"]["SystemConfigValue"];
-                value_type: components["schemas"]["SystemConfigValueType"];
-                visibility: components["schemas"]["SystemConfigVisibility"];
+                value: components["schemas"]["ConfigValue"];
+                value_type: components["schemas"]["ConfigValueType"];
+                visibility: components["schemas"]["ConfigVisibility"];
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Numeric id cursor for resources sorted by id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor id.
+                 */
                 id: number;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_TaskInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 /** Format: int32 */
                 attempt_count: number;
                 can_retry: boolean;
                 created_at: string;
-                creator?: null | components["schemas"]["TaskCreatorSummary"];
+                creator?: components["schemas"]["TaskCreatorSummary"] | null;
                 /** Format: int64 */
                 creator_user_id?: number | null;
                 display_name: string;
@@ -3072,58 +3265,84 @@ export interface components {
                 /** Format: int32 */
                 max_attempts: number;
                 payload: components["schemas"]["TaskPayload"];
-                presentation?: null | components["schemas"]["TaskPresentation"];
+                presentation?: components["schemas"]["TaskPresentation"] | null;
                 /** Format: int64 */
                 progress_current: number;
                 /** Format: int32 */
                 progress_percent: number;
                 /** Format: int64 */
                 progress_total: number;
-                result?: null | components["schemas"]["TaskResult"];
+                result?: components["schemas"]["TaskResult"] | null;
                 started_at?: string | null;
                 status: components["schemas"]["BackgroundTaskStatus"];
                 status_text?: string | null;
                 steps: components["schemas"]["TaskStepInfo"][];
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_TextureReportInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 admin_note?: string | null;
                 created_at: string;
                 handled_at: string;
-                handler?: null | components["schemas"]["TextureReportUserInfo"];
+                handler?: components["schemas"]["TextureReportUserInfo"] | null;
                 /** Format: int64 */
                 id: number;
                 message?: string | null;
                 reason: components["schemas"]["MinecraftTextureReportReason"];
-                reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                 status: components["schemas"]["MinecraftTextureReportStatus"];
-                texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                 /** Format: int64 */
                 texture_id: number;
                 updated_at: string;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_UserBanInfo_DateTimeIdCursor: {
+            /** @description Items in the current page. */
             items: {
                 admin_note?: string | null;
                 created_at: string;
@@ -3147,38 +3366,69 @@ export interface components {
                 /** Format: int64 */
                 user_id: number;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor numeric id used as a stable tie breaker.
+                 */
                 id: number;
+                /** @description Cursor timestamp. */
                 value: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Serialized cursor page response. */
         CursorPage_YggdrasilProfile_IdCursor: {
+            /** @description Items in the current page. */
             items: {
                 id: string;
                 name: string;
                 properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
             }[];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Effective page size.
+             */
             limit: number;
+            /** @description Numeric id cursor for resources sorted by id. */
             next_cursor?: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Cursor id.
+                 */
                 id: number;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total number of items matching the query.
+             */
             total: number;
         };
+        /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
         DateTimeIdCursor: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             id: number;
+            /** @description Cursor timestamp. */
             value: string;
         };
+        /** @description Timestamp plus string id cursor for resources sorted by time and then string id. */
         DateTimeStringCursor: {
+            /** @description Cursor string id used as a stable tie breaker. */
             id: string;
+            /** @description Cursor timestamp. */
             value: string;
         };
         DeleteAdminUserOutput: {
@@ -3191,17 +3441,25 @@ export interface components {
             revoked_yggdrasil_token_count: number;
             user: components["schemas"]["AdminUserInfo"];
         };
+        /** @description Enabled flag, priority, and numeric id cursor for prioritized toggle-like resources. */
         EnabledPriorityIdCursor: {
+            /** @description Cursor enabled flag. */
             enabled: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             id: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Cursor priority value.
+             */
             priority: number;
         };
         ExecuteConfigActionReq: {
             action: components["schemas"]["ConfigActionType"];
             values?: {
-                [key: string]: components["schemas"]["SystemConfigValue"];
+                [key: string]: components["schemas"]["ConfigValue"];
             } | null;
         };
         ExecuteConfigActionResp: {
@@ -3250,7 +3508,7 @@ export interface components {
             userinfo_url_required: boolean;
         };
         ExternalAuthProviderOptions: {
-            microsoft?: null | components["schemas"]["MicrosoftExternalAuthProviderOptions"];
+            microsoft?: components["schemas"]["MicrosoftExternalAuthProviderOptions"] | null;
         };
         ExternalAuthProviderTestCheck: {
             message: string;
@@ -3263,9 +3521,9 @@ export interface components {
             client_id: string;
             client_secret?: string | null;
             issuer_url?: string | null;
-            kind?: null | components["schemas"]["ExternalAuthProviderKind"];
-            options?: null | components["schemas"]["ExternalAuthProviderOptions"];
-            provider_kind?: null | components["schemas"]["ExternalAuthProviderKind"];
+            kind?: components["schemas"]["ExternalAuthProviderKind"] | null;
+            options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
+            provider_kind?: components["schemas"]["ExternalAuthProviderKind"] | null;
             scopes?: string | null;
             token_url?: string | null;
             userinfo_url?: string | null;
@@ -3291,15 +3549,66 @@ export interface components {
         HandleTextureReportReq: {
             admin_note?: string | null;
         };
+        /** @description Structured diagnostic detail attached to a component report. */
+        HealthComponentDetail: {
+            /** @description Stable detail key. */
+            key: string;
+            /** @description Typed detail value. */
+            value: components["schemas"]["HealthComponentDetailValue"];
+        };
+        /** @description Typed diagnostic value attached to a component detail. */
+        HealthComponentDetailValue: {
+            /** @enum {string} */
+            type: "text";
+            /** @description Human-facing text such as a backend, driver, region, or mode. */
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "integer";
+            /**
+             * Format: int64
+             * @description Signed integer value.
+             */
+            value: number;
+        } | {
+            /** @enum {string} */
+            type: "unsigned";
+            /**
+             * Format: int64
+             * @description Unsigned counter or depth value.
+             */
+            value: number;
+        } | {
+            /** @enum {string} */
+            type: "boolean";
+            /** @description Boolean flag. */
+            value: boolean;
+        } | {
+            /** @enum {string} */
+            type: "duration_millis";
+            /**
+             * Format: int64
+             * @description Duration value in milliseconds for latency, age, lag, or timeout diagnostics.
+             */
+            value: number;
+        };
         HealthResponse: {
             status: string;
         };
+        /** @description Numeric id cursor for resources sorted by id. */
         IdCursor: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor id.
+             */
             id: number;
         };
+        /** @description Query parameters for limit-only cursor pagination. */
         LimitQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Requested page size.
+             */
             limit?: number | null;
         };
         LoginReq: {
@@ -3314,9 +3623,20 @@ export interface components {
         LogoutResp: {
             revoked: boolean;
         };
-        /** @enum {string} */
+        /**
+         * @description Persistent mail outbox row status.
+         * @enum {string}
+         */
         MailOutboxStatus: "pending" | "processing" | "retry" | "sent" | "failed";
-        /** @enum {string} */
+        /**
+         * @description Built-in Aster mail template code.
+         *
+         *     These are the shared account/auth mail templates used by current Aster
+         *     services. Products may still maintain their own template payload enum and
+         *     renderer; this type only standardizes the persisted template code for the
+         *     common catalog.
+         * @enum {string}
+         */
         MailTemplateCode: "register_activation" | "contact_change_confirmation" | "password_reset" | "password_reset_notice" | "contact_change_notice" | "external_auth_email_verification" | "login_email_code" | "user_invitation";
         MicrosoftExternalAuthProviderOptions: {
             tenant: string;
@@ -3682,7 +4002,7 @@ export interface components {
             keyword?: string | null;
             tag_ids?: number[];
             tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
-            texture_type?: null | components["schemas"]["MinecraftTextureType"];
+            texture_type?: components["schemas"]["MinecraftTextureType"] | null;
         };
         PublicTextureLibraryTextureMetadata: {
             created_at: string;
@@ -3705,7 +4025,7 @@ export interface components {
             texture_model: components["schemas"]["MinecraftTextureModel"];
             texture_type: components["schemas"]["MinecraftTextureType"];
             updated_at: string;
-            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
             url: string;
             visibility: components["schemas"]["MinecraftTextureVisibility"];
             /** Format: int32 */
@@ -3768,6 +4088,7 @@ export interface components {
             revoke_note?: string | null;
         };
         RuntimeSystemHealthComponent: {
+            details?: components["schemas"]["HealthComponentDetail"][];
             message: string;
             name: string;
             status: components["schemas"]["RuntimeSystemHealthStatus"];
@@ -3785,11 +4106,11 @@ export interface components {
             /** Format: int64 */
             duration_ms: number;
             summary?: string | null;
-            system_health?: null | components["schemas"]["RuntimeSystemHealthResult"];
+            system_health?: components["schemas"]["RuntimeSystemHealthResult"] | null;
         };
         SetConfigReq: {
-            value: components["schemas"]["SystemConfigValue"];
-            visibility?: null | components["schemas"]["SystemConfigVisibility"];
+            value: components["schemas"]["ConfigValue"];
+            visibility?: components["schemas"]["ConfigVisibility"] | null;
         };
         SetupReq: {
             email: string;
@@ -3797,22 +4118,38 @@ export interface components {
             public_site_url?: string | null;
             username: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Sort direction used by API query parameters.
+         * @enum {string}
+         */
         SortOrder: "asc" | "desc";
+        /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
         SortOrderNameIdCursor: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             id: number;
+            /** @description Cursor display or storage name. */
             name: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Cursor sort order value.
+             */
             sort_order: number;
         };
         StartExternalAuthReq: {
             redirect_uri?: string | null;
             return_path?: string | null;
         };
+        /** @description String value plus numeric id cursor for resources sorted by text and then id. */
         StringIdCursor: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             id: number;
+            /** @description Cursor string value. */
             value: string;
         };
         SystemConfig: {
@@ -3824,42 +4161,18 @@ export interface components {
             key: string;
             namespace: string;
             requires_restart: boolean;
-            source: components["schemas"]["SystemConfigSource"];
+            source: components["schemas"]["ConfigSource"];
             updated_at: string;
             /** Format: int64 */
             updated_by?: number | null;
-            value: components["schemas"]["SystemConfigValue"];
-            value_type: components["schemas"]["SystemConfigValueType"];
-            visibility: components["schemas"]["SystemConfigVisibility"];
+            value: components["schemas"]["ConfigValue"];
+            value_type: components["schemas"]["ConfigValueType"];
+            visibility: components["schemas"]["ConfigVisibility"];
         };
-        SystemConfigModel: {
-            category: string;
-            description: string;
-            /** Format: int64 */
-            id: number;
-            is_sensitive: boolean;
-            key: string;
-            namespace: string;
-            requires_restart: boolean;
-            source: components["schemas"]["SystemConfigSource"];
-            updated_at: string;
-            /** Format: int64 */
-            updated_by?: number | null;
-            value: string;
-            value_type: components["schemas"]["SystemConfigValueType"];
-            visibility: components["schemas"]["SystemConfigVisibility"];
-        };
-        /** @enum {string} */
-        SystemConfigSource: "system" | "custom";
         SystemConfigUpdateResult: {
             config: components["schemas"]["SystemConfig"];
             warnings: components["schemas"]["SystemConfigWarning"][];
         };
-        SystemConfigValue: string | string[];
-        /** @enum {string} */
-        SystemConfigValueType: "string" | "multiline" | "string_array" | "string_enum" | "string_enum_set" | "number" | "boolean";
-        /** @enum {string} */
-        SystemConfigVisibility: "private" | "public" | "authenticated";
         SystemConfigWarning: {
             code: string;
             message: string;
@@ -3881,7 +4194,7 @@ export interface components {
             attempt_count: number;
             can_retry: boolean;
             created_at: string;
-            creator?: null | components["schemas"]["TaskCreatorSummary"];
+            creator?: components["schemas"]["TaskCreatorSummary"] | null;
             /** Format: int64 */
             creator_user_id?: number | null;
             display_name: string;
@@ -3895,14 +4208,14 @@ export interface components {
             /** Format: int32 */
             max_attempts: number;
             payload: components["schemas"]["TaskPayload"];
-            presentation?: null | components["schemas"]["TaskPresentation"];
+            presentation?: components["schemas"]["TaskPresentation"] | null;
             /** Format: int64 */
             progress_current: number;
             /** Format: int32 */
             progress_percent: number;
             /** Format: int64 */
             progress_total: number;
-            result?: null | components["schemas"]["TaskResult"];
+            result?: components["schemas"]["TaskResult"] | null;
             started_at?: string | null;
             status: components["schemas"]["BackgroundTaskStatus"];
             status_text?: string | null;
@@ -3914,8 +4227,8 @@ export interface components {
             kind: "system_runtime";
         };
         TaskPresentation: {
-            status?: null | components["schemas"]["TaskPresentationMessage"];
-            title?: null | components["schemas"]["TaskPresentationMessage"];
+            status?: components["schemas"]["TaskPresentationMessage"] | null;
+            title?: components["schemas"]["TaskPresentationMessage"] | null;
         };
         /** @enum {string} */
         TaskPresentationCode: "runtime_system_health_issue_detail" | "runtime_task_audit_cleanup" | "runtime_task_auth_session_cleanup" | "runtime_task_background_task_dispatch" | "runtime_task_external_auth_flow_cleanup" | "runtime_task_mail_outbox_dispatch" | "runtime_task_system_health_check" | "runtime_task_task_cleanup" | "runtime_task_yggdrasil_storage_consistency_check" | "runtime_task_yggdrasil_token_cleanup" | "runtime_task_yggdrasil_texture_cleanup" | "status_text_failed" | "status_text_quiet" | "status_text_succeeded" | "status_text_system_healthy";
@@ -3929,43 +4242,68 @@ export interface components {
             /** @enum {string} */
             kind: "system_runtime";
         };
+        /** @description Serialized task step shown in task APIs. */
         TaskStepInfo: {
+            /** @description Optional detail text. */
             detail?: string | null;
+            /** @description Step finish time. */
             finished_at?: string | null;
+            /** @description Stable step key. */
             key: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Current progress amount.
+             */
             progress_current: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total progress amount.
+             */
             progress_total: number;
+            /** @description Step start time. */
             started_at?: string | null;
+            /** @description Current step status. */
             status: components["schemas"]["TaskStepStatus"];
+            /** @description Human-readable step title. */
             title: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Runtime status for a task step.
+         * @enum {string}
+         */
         TaskStepStatus: "pending" | "active" | "succeeded" | "failed" | "skipped" | "canceled";
+        /** @description Variable metadata for one registered template. */
         TemplateVariableGroup: {
+            /** @description Product-owned configuration category. */
             category: string;
+            /** @description Product-owned i18n group label key. */
             label_i18n_key: string;
+            /** @description Stable product template code. */
             template_code: string;
+            /** @description Variables accepted by the template. */
             variables: components["schemas"]["TemplateVariableItem"][];
         };
+        /** @description Variable metadata exposed to product admin UIs. */
         TemplateVariableItem: {
+            /** @description Product-owned i18n description key. */
             description_i18n_key: string;
+            /** @description Product-owned i18n label key. */
             label_i18n_key: string;
+            /** @description Placeholder token displayed in UI, such as `{{username}}`. */
             token: string;
         };
         TextureReportInfo: {
             admin_note?: string | null;
             created_at: string;
             handled_at: string;
-            handler?: null | components["schemas"]["TextureReportUserInfo"];
+            handler?: components["schemas"]["TextureReportUserInfo"] | null;
             /** Format: int64 */
             id: number;
             message?: string | null;
             reason: components["schemas"]["MinecraftTextureReportReason"];
-            reporter?: null | components["schemas"]["TextureReportUserInfo"];
+            reporter?: components["schemas"]["TextureReportUserInfo"] | null;
             status: components["schemas"]["MinecraftTextureReportStatus"];
-            texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+            texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
             /** Format: int64 */
             texture_id: number;
             updated_at: string;
@@ -3976,15 +4314,13 @@ export interface components {
         };
         /** @enum {string} */
         TextureTagSearchMethod: "all" | "any";
-        /** @enum {string} */
-        TokenType: "access" | "refresh";
         UpdateAdminUserReq: {
             email?: string | null;
             must_change_password?: boolean | null;
             operator_scopes?: components["schemas"]["OperatorScope"][] | null;
             password?: string | null;
-            role?: null | components["schemas"]["UserRole"];
-            status?: null | components["schemas"]["UserStatus"];
+            role?: components["schemas"]["UserRole"] | null;
+            status?: components["schemas"]["UserStatus"] | null;
             username?: string | null;
         };
         UpdateAvatarSourceReq: {
@@ -4007,7 +4343,7 @@ export interface components {
             groups_claim?: string | null;
             icon_url?: string | null;
             issuer_url?: string | null;
-            options?: null | components["schemas"]["ExternalAuthProviderOptions"];
+            options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
             require_email_verified?: boolean | null;
             scopes?: string | null;
             subject_claim?: string | null;
@@ -4035,14 +4371,14 @@ export interface components {
         };
         UpdateWardrobeTextureReq: {
             display_name?: string | null;
-            texture_model?: null | components["schemas"]["MinecraftTextureModel"];
-            visibility?: null | components["schemas"]["MinecraftTextureVisibility"];
+            texture_model?: components["schemas"]["MinecraftTextureModel"] | null;
+            visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
         };
         UpdateYggdrasilSessionForwardServerReq: {
             base_url?: string | null;
             display_name?: string | null;
             enabled?: boolean | null;
-            endpoint_kind?: null | components["schemas"]["YggdrasilSessionForwardEndpointKind"];
+            endpoint_kind?: components["schemas"]["YggdrasilSessionForwardEndpointKind"] | null;
             /** Format: int32 */
             priority?: number | null;
             texture_forward_enabled?: boolean | null;
@@ -4051,10 +4387,17 @@ export interface components {
             /** Format: int32 */
             weight?: number | null;
         };
+        /** @description Cursor query for resources ordered by update time and numeric id. */
         UpdatedAtCursorQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor numeric id used as a stable tie breaker.
+             */
             after_id?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor update timestamp.
+             */
             after_updated_at?: string | null;
         };
         UserBanEventInfo: {
@@ -4068,11 +4411,11 @@ export interface components {
             id: number;
             next_expires_at?: string | null;
             next_scopes?: components["schemas"]["UserBanScope"][] | null;
-            next_status?: null | components["schemas"]["UserBanStatus"];
+            next_status?: components["schemas"]["UserBanStatus"] | null;
             note?: string | null;
             previous_expires_at?: string | null;
             previous_scopes?: components["schemas"]["UserBanScope"][] | null;
-            previous_status?: null | components["schemas"]["UserBanStatus"];
+            previous_status?: components["schemas"]["UserBanStatus"] | null;
         };
         /** @enum {string} */
         UserBanEventType: "created" | "updated" | "revoked";
@@ -4135,7 +4478,7 @@ export interface components {
             version: number;
         };
         YggdrasilAuthenticateReq: {
-            agent?: null | components["schemas"]["YggdrasilAgentReq"];
+            agent?: components["schemas"]["YggdrasilAgentReq"] | null;
             clientToken?: string | null;
             password: string;
             requestUser?: boolean;
@@ -4145,8 +4488,8 @@ export interface components {
             accessToken: string;
             availableProfiles: components["schemas"]["YggdrasilProfile"][];
             clientToken: string;
-            selectedProfile?: null | components["schemas"]["YggdrasilProfile"];
-            user?: null | components["schemas"]["YggdrasilUser"];
+            selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
+            user?: components["schemas"]["YggdrasilUser"] | null;
         };
         YggdrasilErrorBody: {
             cause?: string | null;
@@ -4170,7 +4513,7 @@ export interface components {
             "feature.username_check": boolean;
             implementationName: string;
             implementationVersion: string;
-            links?: null | components["schemas"]["YggdrasilMetaLinks"];
+            links?: components["schemas"]["YggdrasilMetaLinks"] | null;
             serverName: string;
         };
         YggdrasilMetaLinks: {
@@ -4199,13 +4542,13 @@ export interface components {
             accessToken: string;
             clientToken?: string | null;
             requestUser?: boolean;
-            selectedProfile?: null | components["schemas"]["YggdrasilProfile"];
+            selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
         };
         YggdrasilRefreshResp: {
             accessToken: string;
             clientToken: string;
-            selectedProfile?: null | components["schemas"]["YggdrasilProfile"];
-            user?: null | components["schemas"]["YggdrasilUser"];
+            selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
+            user?: components["schemas"]["YggdrasilUser"] | null;
         };
         /** @enum {string} */
         YggdrasilSessionForwardEndpointKind: "authlib_injector" | "mojang_session";
@@ -4237,9 +4580,10 @@ export interface operations {
     list_account_audit_logs: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 action?: string | null;
-                entity_type?: null | components["schemas"]["AuditEntityType"];
+                entity_type?: components["schemas"]["AuditEntityType"] | null;
                 entity_id?: number | null;
                 after?: string | null;
                 before?: string | null;
@@ -4260,7 +4604,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 action: components["schemas"]["AuditAction"];
                                 created_at: string;
@@ -4272,23 +4618,34 @@ export interface operations {
                                 /** Format: int64 */
                                 id: number;
                                 ip_address?: string | null;
-                                presentation?: null | components["schemas"]["AuditPresentation"];
-                                user?: null | components["schemas"]["AuditUserSummary"];
+                                presentation?: components["schemas"]["AuditPresentation"] | null;
+                                user?: components["schemas"]["AuditUserSummary"] | null;
                                 user_agent?: string | null;
                                 /** Format: int64 */
                                 user_id: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4305,9 +4662,10 @@ export interface operations {
     list_account_user_bans: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
-                scope?: null | components["schemas"]["UserBanScope"];
-                status?: null | components["schemas"]["UserBanStatus"];
+                scope?: components["schemas"]["UserBanScope"] | null;
+                status?: components["schemas"]["UserBanStatus"] | null;
                 effective_only?: boolean | null;
                 after_created_at?: string | null;
                 after_id?: number | null;
@@ -4326,7 +4684,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 effective: boolean;
@@ -4342,17 +4702,28 @@ export interface operations {
                                 status: components["schemas"]["UserBanStatus"];
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4388,7 +4759,7 @@ export interface operations {
                             profile_count: number;
                             recent_activity: components["schemas"]["AuditLogEntry"][];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4405,10 +4776,11 @@ export interface operations {
     list_audit_logs: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 user_id?: number | null;
                 action?: string | null;
-                entity_type?: null | components["schemas"]["AuditEntityType"];
+                entity_type?: components["schemas"]["AuditEntityType"] | null;
                 entity_id?: number | null;
                 after?: string | null;
                 before?: string | null;
@@ -4429,7 +4801,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 action: components["schemas"]["AuditAction"];
                                 created_at: string;
@@ -4441,23 +4815,34 @@ export interface operations {
                                 /** Format: int64 */
                                 id: number;
                                 ip_address?: string | null;
-                                presentation?: null | components["schemas"]["AuditPresentation"];
-                                user?: null | components["schemas"]["AuditUserSummary"];
+                                presentation?: components["schemas"]["AuditPresentation"] | null;
+                                user?: components["schemas"]["AuditUserSummary"] | null;
                                 user_agent?: string | null;
                                 /** Format: int64 */
                                 user_id: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4525,6 +4910,7 @@ export interface operations {
     list_config: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_id?: number | null;
             };
@@ -4542,7 +4928,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 category: string;
                                 description: string;
@@ -4552,24 +4940,34 @@ export interface operations {
                                 key: string;
                                 namespace: string;
                                 requires_restart: boolean;
-                                source: components["schemas"]["SystemConfigSource"];
+                                source: components["schemas"]["ConfigSource"];
                                 updated_at: string;
                                 /** Format: int64 */
                                 updated_by?: number | null;
-                                value: components["schemas"]["SystemConfigValue"];
-                                value_type: components["schemas"]["SystemConfigValueType"];
-                                visibility: components["schemas"]["SystemConfigVisibility"];
+                                value: components["schemas"]["ConfigValue"];
+                                value_type: components["schemas"]["ConfigValueType"];
+                                visibility: components["schemas"]["ConfigVisibility"];
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Numeric id cursor for resources sorted by id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor id.
+                                 */
                                 id: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4616,9 +5014,9 @@ export interface operations {
                             label_i18n_key: string;
                             options?: components["schemas"]["ConfigSchemaOption"][];
                             requires_restart: boolean;
-                            value_type: components["schemas"]["SystemConfigValueType"];
+                            value_type: components["schemas"]["ConfigValueType"];
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4657,12 +5055,16 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
+                            /** @description Product-owned configuration category. */
                             category: string;
+                            /** @description Product-owned i18n group label key. */
                             label_i18n_key: string;
+                            /** @description Stable product template code. */
                             template_code: string;
+                            /** @description Variables accepted by the template. */
                             variables: components["schemas"]["TemplateVariableItem"][];
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4712,15 +5114,15 @@ export interface operations {
                             key: string;
                             namespace: string;
                             requires_restart: boolean;
-                            source: components["schemas"]["SystemConfigSource"];
+                            source: components["schemas"]["ConfigSource"];
                             updated_at: string;
                             /** Format: int64 */
                             updated_by?: number | null;
-                            value: components["schemas"]["SystemConfigValue"];
-                            value_type: components["schemas"]["SystemConfigValueType"];
-                            visibility: components["schemas"]["SystemConfigVisibility"];
+                            value: components["schemas"]["ConfigValue"];
+                            value_type: components["schemas"]["ConfigValueType"];
+                            visibility: components["schemas"]["ConfigVisibility"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4776,7 +5178,7 @@ export interface operations {
                             config: components["schemas"]["SystemConfig"];
                             warnings: components["schemas"]["SystemConfigWarning"][];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4874,7 +5276,7 @@ export interface operations {
                             message: string;
                             value?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4948,7 +5350,7 @@ export interface operations {
                             token_url_required: boolean;
                             userinfo_url_required: boolean;
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -4972,6 +5374,7 @@ export interface operations {
     admin_list_external_auth_providers: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_display_name?: string | null;
                 after_id?: number | null;
@@ -4990,7 +5393,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 allowed_domains: string[];
                                 authorization_url?: string | null;
@@ -5023,17 +5428,28 @@ export interface operations {
                                 userinfo_url?: string | null;
                                 username_claim?: string | null;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor string value. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5107,7 +5523,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5165,7 +5581,7 @@ export interface operations {
                             token_endpoint?: string | null;
                             userinfo_endpoint?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5245,7 +5661,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5371,7 +5787,7 @@ export interface operations {
                             userinfo_url?: string | null;
                             username_claim?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5435,7 +5851,7 @@ export interface operations {
                             token_endpoint?: string | null;
                             userinfo_endpoint?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5473,6 +5889,7 @@ export interface operations {
     admin_list_minecraft_profiles: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 user_id?: number | null;
                 name?: string | null;
@@ -5494,7 +5911,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 /** Format: int64 */
@@ -5507,16 +5926,26 @@ export interface operations {
                                 user_id: number;
                                 uuid: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Numeric id cursor for resources sorted by id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor id.
+                                 */
                                 id: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5569,7 +5998,7 @@ export interface operations {
                             user_id: number;
                             uuid: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5689,7 +6118,7 @@ export interface operations {
                             user_id: number;
                             uuid: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5772,7 +6201,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5918,7 +6347,7 @@ export interface operations {
                             system_health: components["schemas"]["AdminOverviewSystemHealthSummary"];
                             system_info: components["schemas"]["SystemInfoResponse"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5962,7 +6391,7 @@ export interface operations {
                             uptime_seconds: number;
                             version: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -5986,9 +6415,10 @@ export interface operations {
     admin_list_tasks: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
-                kind?: null | components["schemas"]["BackgroundTaskKind"];
-                status?: null | components["schemas"]["BackgroundTaskStatus"];
+                kind?: components["schemas"]["BackgroundTaskKind"] | null;
+                status?: components["schemas"]["BackgroundTaskStatus"] | null;
                 after_updated_at?: string | null;
                 after_id?: number | null;
             };
@@ -6006,13 +6436,15 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 /** Format: int32 */
                                 attempt_count: number;
                                 can_retry: boolean;
                                 created_at: string;
-                                creator?: null | components["schemas"]["TaskCreatorSummary"];
+                                creator?: components["schemas"]["TaskCreatorSummary"] | null;
                                 /** Format: int64 */
                                 creator_user_id?: number | null;
                                 display_name: string;
@@ -6026,31 +6458,42 @@ export interface operations {
                                 /** Format: int32 */
                                 max_attempts: number;
                                 payload: components["schemas"]["TaskPayload"];
-                                presentation?: null | components["schemas"]["TaskPresentation"];
+                                presentation?: components["schemas"]["TaskPresentation"] | null;
                                 /** Format: int64 */
                                 progress_current: number;
                                 /** Format: int32 */
                                 progress_percent: number;
                                 /** Format: int64 */
                                 progress_total: number;
-                                result?: null | components["schemas"]["TaskResult"];
+                                result?: components["schemas"]["TaskResult"] | null;
                                 started_at?: string | null;
                                 status: components["schemas"]["BackgroundTaskStatus"];
                                 status_text?: string | null;
                                 steps: components["schemas"]["TaskStepInfo"][];
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6096,7 +6539,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6149,7 +6592,7 @@ export interface operations {
                             attempt_count: number;
                             can_retry: boolean;
                             created_at: string;
-                            creator?: null | components["schemas"]["TaskCreatorSummary"];
+                            creator?: components["schemas"]["TaskCreatorSummary"] | null;
                             /** Format: int64 */
                             creator_user_id?: number | null;
                             display_name: string;
@@ -6163,21 +6606,21 @@ export interface operations {
                             /** Format: int32 */
                             max_attempts: number;
                             payload: components["schemas"]["TaskPayload"];
-                            presentation?: null | components["schemas"]["TaskPresentation"];
+                            presentation?: components["schemas"]["TaskPresentation"] | null;
                             /** Format: int64 */
                             progress_current: number;
                             /** Format: int32 */
                             progress_percent: number;
                             /** Format: int64 */
                             progress_total: number;
-                            result?: null | components["schemas"]["TaskResult"];
+                            result?: components["schemas"]["TaskResult"] | null;
                             started_at?: string | null;
                             status: components["schemas"]["BackgroundTaskStatus"];
                             status_text?: string | null;
                             steps: components["schemas"]["TaskStepInfo"][];
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6215,9 +6658,10 @@ export interface operations {
     admin_list_texture_library_reports: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
-                status?: null | components["schemas"]["MinecraftTextureReportStatus"];
-                reason?: null | components["schemas"]["MinecraftTextureReportReason"];
+                status?: components["schemas"]["MinecraftTextureReportStatus"] | null;
+                reason?: components["schemas"]["MinecraftTextureReportReason"] | null;
                 texture_id?: number | null;
                 after_created_at?: string | null;
                 after_id?: number | null;
@@ -6236,34 +6680,47 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 admin_note?: string | null;
                                 created_at: string;
                                 handled_at: string;
-                                handler?: null | components["schemas"]["TextureReportUserInfo"];
+                                handler?: components["schemas"]["TextureReportUserInfo"] | null;
                                 /** Format: int64 */
                                 id: number;
                                 message?: string | null;
                                 reason: components["schemas"]["MinecraftTextureReportReason"];
-                                reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                                reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                                 status: components["schemas"]["MinecraftTextureReportStatus"];
-                                texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                                texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                                 /** Format: int64 */
                                 texture_id: number;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6308,19 +6765,19 @@ export interface operations {
                             admin_note?: string | null;
                             created_at: string;
                             handled_at: string;
-                            handler?: null | components["schemas"]["TextureReportUserInfo"];
+                            handler?: components["schemas"]["TextureReportUserInfo"] | null;
                             /** Format: int64 */
                             id: number;
                             message?: string | null;
                             reason: components["schemas"]["MinecraftTextureReportReason"];
-                            reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                            reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                             status: components["schemas"]["MinecraftTextureReportStatus"];
-                            texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                            texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                             /** Format: int64 */
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6376,19 +6833,19 @@ export interface operations {
                             admin_note?: string | null;
                             created_at: string;
                             handled_at: string;
-                            handler?: null | components["schemas"]["TextureReportUserInfo"];
+                            handler?: components["schemas"]["TextureReportUserInfo"] | null;
                             /** Format: int64 */
                             id: number;
                             message?: string | null;
                             reason: components["schemas"]["MinecraftTextureReportReason"];
-                            reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                            reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                             status: components["schemas"]["MinecraftTextureReportStatus"];
-                            texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                            texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                             /** Format: int64 */
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6451,19 +6908,19 @@ export interface operations {
                             admin_note?: string | null;
                             created_at: string;
                             handled_at: string;
-                            handler?: null | components["schemas"]["TextureReportUserInfo"];
+                            handler?: components["schemas"]["TextureReportUserInfo"] | null;
                             /** Format: int64 */
                             id: number;
                             message?: string | null;
                             reason: components["schemas"]["MinecraftTextureReportReason"];
-                            reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                            reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                             status: components["schemas"]["MinecraftTextureReportStatus"];
-                            texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                            texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                             /** Format: int64 */
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6501,6 +6958,7 @@ export interface operations {
     admin_list_texture_library_tags: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_sort_order?: number | null;
                 after_name?: string | null;
@@ -6520,7 +6978,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 color: string;
                                 created_at: string;
@@ -6531,19 +6991,33 @@ export interface operations {
                                 sort_order: number;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor display or storage name. */
                                 name: string;
-                                /** Format: int32 */
+                                /**
+                                 * Format: int32
+                                 * @description Cursor sort order value.
+                                 */
                                 sort_order: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6595,7 +7069,7 @@ export interface operations {
                             sort_order: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6699,7 +7173,7 @@ export interface operations {
                             sort_order: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6737,11 +7211,12 @@ export interface operations {
     admin_list_texture_library_textures: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
-                texture_type?: null | components["schemas"]["MinecraftTextureType"];
-                visibility?: null | components["schemas"]["MinecraftTextureVisibility"];
-                library_status?: null | components["schemas"]["MinecraftTextureLibraryStatus"];
+                texture_type?: components["schemas"]["MinecraftTextureType"] | null;
+                visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
+                library_status?: components["schemas"]["MinecraftTextureLibraryStatus"] | null;
                 published?: boolean | null;
                 tag_ids?: number[];
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
@@ -6762,7 +7237,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 display_name?: string | null;
@@ -6784,23 +7261,34 @@ export interface operations {
                                 texture_model: components["schemas"]["MinecraftTextureModel"];
                                 texture_type: components["schemas"]["MinecraftTextureType"];
                                 updated_at: string;
-                                uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                                uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                                 url: string;
                                 visibility: components["schemas"]["MinecraftTextureVisibility"];
                                 /** Format: int32 */
                                 width: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6862,13 +7350,13 @@ export interface operations {
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
-                            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                             url: string;
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -6983,13 +7471,13 @@ export interface operations {
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
-                            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                             url: string;
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7069,13 +7557,13 @@ export interface operations {
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
-                            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                             url: string;
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7155,13 +7643,13 @@ export interface operations {
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
-                            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                             url: string;
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7199,10 +7687,11 @@ export interface operations {
     admin_list_user_bans: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 user_id?: number | null;
-                scope?: null | components["schemas"]["UserBanScope"];
-                status?: null | components["schemas"]["UserBanStatus"];
+                scope?: components["schemas"]["UserBanScope"] | null;
+                status?: components["schemas"]["UserBanStatus"] | null;
                 effective_only?: boolean;
                 after_created_at?: string | null;
                 after_id?: number | null;
@@ -7221,7 +7710,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 admin_note?: string | null;
                                 created_at: string;
@@ -7245,17 +7736,28 @@ export interface operations {
                                 /** Format: int64 */
                                 user_id: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7319,7 +7821,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7394,7 +7896,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7460,13 +7962,13 @@ export interface operations {
                             id: number;
                             next_expires_at?: string | null;
                             next_scopes?: components["schemas"]["UserBanScope"][] | null;
-                            next_status?: null | components["schemas"]["UserBanStatus"];
+                            next_status?: components["schemas"]["UserBanStatus"] | null;
                             note?: string | null;
                             previous_expires_at?: string | null;
                             previous_scopes?: components["schemas"]["UserBanScope"][] | null;
-                            previous_status?: null | components["schemas"]["UserBanStatus"];
+                            previous_status?: components["schemas"]["UserBanStatus"] | null;
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7541,7 +8043,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7579,10 +8081,11 @@ export interface operations {
     admin_list_users: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
-                role?: null | components["schemas"]["UserRole"];
-                status?: null | components["schemas"]["UserStatus"];
+                role?: components["schemas"]["UserRole"] | null;
+                status?: components["schemas"]["UserStatus"] | null;
                 after_created_at?: string | null;
                 after_id?: number | null;
             };
@@ -7600,7 +8103,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 /** Format: int64 */
                                 active_session_count: number;
@@ -7622,17 +8127,28 @@ export interface operations {
                                 updated_at: string;
                                 username: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7678,7 +8194,7 @@ export interface operations {
                             generated_password?: string | null;
                             user: components["schemas"]["AdminUserInfo"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7709,8 +8225,11 @@ export interface operations {
     admin_list_user_invitations: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Cursor creation timestamp. */
                 after_created_at?: string | null;
+                /** @description Cursor numeric id used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -7727,7 +8246,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 accepted_at?: string | null;
                                 /** Format: int64 */
@@ -7745,17 +8266,28 @@ export interface operations {
                                 status: components["schemas"]["UserInvitationStatus"];
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7814,7 +8346,7 @@ export interface operations {
                             status: components["schemas"]["UserInvitationStatus"];
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7879,7 +8411,7 @@ export interface operations {
                             status: components["schemas"]["UserInvitationStatus"];
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -7955,7 +8487,7 @@ export interface operations {
                             updated_at: string;
                             username: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8013,7 +8545,7 @@ export interface operations {
                             revoked_yggdrasil_token_count: number;
                             user: components["schemas"]["AdminUserInfo"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8086,7 +8618,7 @@ export interface operations {
                             updated_at: string;
                             username: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8145,7 +8677,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8220,7 +8752,7 @@ export interface operations {
                             /** Format: int64 */
                             user_id: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8258,6 +8790,7 @@ export interface operations {
     admin_list_user_minecraft_profiles: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 user_id?: number | null;
                 name?: string | null;
@@ -8282,22 +8815,34 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 id: string;
                                 name: string;
                                 properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Numeric id cursor for resources sorted by id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor id.
+                                 */
                                 id: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8353,7 +8898,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 base_url?: string | null;
                                 builtin: boolean;
@@ -8384,17 +8931,23 @@ export interface operations {
                                 /** Format: int32 */
                                 weight: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
                             next_cursor?: {
                                 call_order: components["schemas"]["EnabledPriorityIdCursor"];
                             } | {
                                 id: components["schemas"]["IdCursor"];
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8466,7 +9019,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8544,7 +9097,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8675,7 +9228,7 @@ export interface operations {
                             /** Format: int32 */
                             weight: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8734,7 +9287,7 @@ export interface operations {
                             image_base64: string;
                             mime: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8765,7 +9318,7 @@ export interface operations {
                             register_activation_resend_required: boolean;
                             register_required: boolean;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8792,7 +9345,7 @@ export interface operations {
                         data?: {
                             initialized: boolean;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8853,7 +9406,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8901,7 +9454,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8966,7 +9519,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -8990,8 +9543,11 @@ export interface operations {
     auth_external_auth_list_links: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Cursor creation timestamp. */
                 after_created_at?: string | null;
+                /** @description Cursor numeric id used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -9008,7 +9564,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 display_name_snapshot?: string | null;
@@ -9026,17 +9584,28 @@ export interface operations {
                                 subject: string;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9113,7 +9682,7 @@ export interface operations {
                             return_path?: string | null;
                             status: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9137,6 +9706,7 @@ export interface operations {
     auth_external_auth_list_providers: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_display_name?: string | null;
                 after_id?: number | null;
@@ -9155,24 +9725,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 display_name: string;
                                 icon_url?: string | null;
                                 key: string;
                                 kind: components["schemas"]["ExternalAuthProviderKind"];
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor string value. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9182,6 +9765,7 @@ export interface operations {
     auth_external_auth_list_providers_by_kind: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_display_name?: string | null;
                 after_id?: number | null;
@@ -9203,24 +9787,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 display_name: string;
                                 icon_url?: string | null;
                                 key: string;
                                 kind: components["schemas"]["ExternalAuthProviderKind"];
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description String value plus numeric id cursor for resources sorted by text and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor string value. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9291,7 +9888,7 @@ export interface operations {
                         data?: {
                             authorization_url: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9336,7 +9933,7 @@ export interface operations {
                             email: string;
                             expires_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9387,7 +9984,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9427,7 +10024,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9472,7 +10069,7 @@ export interface operations {
                         data?: {
                             revoked: boolean;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9509,7 +10106,7 @@ export interface operations {
                             status: components["schemas"]["UserStatus"];
                             username: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9533,6 +10130,7 @@ export interface operations {
     list_passkeys: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_created_at?: string | null;
                 after_id?: number | null;
@@ -9551,7 +10149,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 backed_up: boolean;
                                 backup_eligible: boolean;
@@ -9565,17 +10165,28 @@ export interface operations {
                                 transports?: string[] | null;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9615,7 +10226,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9654,7 +10265,7 @@ export interface operations {
                             flow_id: string;
                             public_key: unknown;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9702,7 +10313,7 @@ export interface operations {
                             transports?: string[] | null;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9748,7 +10359,7 @@ export interface operations {
                             flow_id: string;
                             public_key: unknown;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9834,7 +10445,7 @@ export interface operations {
                             transports?: string[] | null;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9888,7 +10499,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9933,7 +10544,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -9978,7 +10589,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10017,7 +10628,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10063,7 +10674,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10110,7 +10721,7 @@ export interface operations {
                             avatar: components["schemas"]["AvatarInfo"];
                             display_name?: string | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10192,7 +10803,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10232,7 +10843,7 @@ export interface operations {
                             expires_in: number;
                             requires_activation: boolean;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10277,7 +10888,7 @@ export interface operations {
                         data?: {
                             message: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10287,6 +10898,7 @@ export interface operations {
     list_auth_sessions: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 after_last_seen_at?: string | null;
                 after_id?: string | null;
@@ -10305,7 +10917,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 id: string;
@@ -10316,16 +10930,25 @@ export interface operations {
                                 revoked: boolean;
                                 user_agent?: string | null;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus string id cursor for resources sorted by time and then string id. */
                             next_cursor?: {
+                                /** @description Cursor string id used as a stable tie breaker. */
                                 id: string;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10367,7 +10990,7 @@ export interface operations {
                             /** Format: int64 */
                             removed: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10456,7 +11079,7 @@ export interface operations {
                             expires_in: number;
                             status: components["schemas"]["AuthTokenStatus"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10473,6 +11096,7 @@ export interface operations {
     list_current_user_minecraft_profiles: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 query?: string | null;
                 after_id?: number | null;
@@ -10491,22 +11115,34 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 id: string;
                                 name: string;
                                 properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Numeric id cursor for resources sorted by id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor id.
+                                 */
                                 id: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10546,7 +11182,7 @@ export interface operations {
                             name: string;
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10638,7 +11274,7 @@ export interface operations {
                             name: string;
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10714,7 +11350,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         }[];
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10796,7 +11432,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10907,7 +11543,7 @@ export interface operations {
                             version: number;
                             yggdrasil: components["schemas"]["PublicYggdrasilConfig"];
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10917,6 +11553,7 @@ export interface operations {
     list_public_texture_library_tags: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
                 after_sort_order?: number | null;
@@ -10937,7 +11574,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 color: string;
                                 created_at: string;
@@ -10948,19 +11587,33 @@ export interface operations {
                                 sort_order: number;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor display or storage name. */
                                 name: string;
-                                /** Format: int32 */
+                                /**
+                                 * Format: int32
+                                 * @description Cursor sort order value.
+                                 */
                                 sort_order: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -10970,9 +11623,10 @@ export interface operations {
     list_public_texture_library_textures: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
-                texture_type?: null | components["schemas"]["MinecraftTextureType"];
+                texture_type?: components["schemas"]["MinecraftTextureType"] | null;
                 tag_ids?: number[];
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
                 after_updated_at?: string | null;
@@ -10992,7 +11646,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 display_name?: string | null;
@@ -11014,23 +11670,34 @@ export interface operations {
                                 texture_model: components["schemas"]["MinecraftTextureModel"];
                                 texture_type: components["schemas"]["MinecraftTextureType"];
                                 updated_at: string;
-                                uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                                uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                                 url: string;
                                 visibility: components["schemas"]["MinecraftTextureVisibility"];
                                 /** Format: int32 */
                                 width: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11085,13 +11752,13 @@ export interface operations {
                             texture_model: components["schemas"]["MinecraftTextureModel"];
                             texture_type: components["schemas"]["MinecraftTextureType"];
                             updated_at: string;
-                            uploader?: null | components["schemas"]["MinecraftTextureUploaderInfo"];
+                            uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
                             url: string;
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11155,7 +11822,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11211,19 +11878,19 @@ export interface operations {
                             admin_note?: string | null;
                             created_at: string;
                             handled_at: string;
-                            handler?: null | components["schemas"]["TextureReportUserInfo"];
+                            handler?: components["schemas"]["TextureReportUserInfo"] | null;
                             /** Format: int64 */
                             id: number;
                             message?: string | null;
                             reason: components["schemas"]["MinecraftTextureReportReason"];
-                            reporter?: null | components["schemas"]["TextureReportUserInfo"];
+                            reporter?: components["schemas"]["TextureReportUserInfo"] | null;
                             status: components["schemas"]["MinecraftTextureReportStatus"];
-                            texture?: null | components["schemas"]["PublicTextureLibraryTextureMetadata"];
+                            texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
                             /** Format: int64 */
                             texture_id: number;
                             updated_at: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11286,6 +11953,7 @@ export interface operations {
     list_current_user_texture_library_tags: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
                 after_sort_order?: number | null;
@@ -11306,7 +11974,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 color: string;
                                 created_at: string;
@@ -11317,19 +11987,33 @@ export interface operations {
                                 sort_order: number;
                                 updated_at: string;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Sort-order, name, and numeric id cursor for manually ordered named resources. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor display or storage name. */
                                 name: string;
-                                /** Format: int32 */
+                                /**
+                                 * Format: int32
+                                 * @description Cursor sort order value.
+                                 */
                                 sort_order: number;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11346,9 +12030,10 @@ export interface operations {
     list_current_user_wardrobe_textures: {
         parameters: {
             query?: {
+                /** @description Requested page size. */
                 limit?: number | null;
                 keyword?: string | null;
-                texture_type?: null | components["schemas"]["MinecraftTextureType"];
+                texture_type?: components["schemas"]["MinecraftTextureType"] | null;
                 tag_ids?: number[];
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
                 after_updated_at?: string | null;
@@ -11368,7 +12053,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized cursor page response. */
                         data?: {
+                            /** @description Items in the current page. */
                             items: {
                                 created_at: string;
                                 display_name?: string | null;
@@ -11395,17 +12082,28 @@ export interface operations {
                                 /** Format: int32 */
                                 width: number;
                             }[];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Effective page size.
+                             */
                             limit: number;
+                            /** @description Timestamp plus numeric id cursor for resources sorted by time and then id. */
                             next_cursor?: {
-                                /** Format: int64 */
+                                /**
+                                 * Format: int64
+                                 * @description Cursor numeric id used as a stable tie breaker.
+                                 */
                                 id: number;
+                                /** @description Cursor timestamp. */
                                 value: string;
                             };
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total number of items matching the query.
+                             */
                             total: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11511,7 +12209,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11585,7 +12283,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11659,7 +12357,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11730,7 +12428,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -11809,7 +12507,7 @@ export interface operations {
                             /** Format: int32 */
                             width: number;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };
@@ -12602,7 +13300,7 @@ export interface operations {
                         data?: {
                             status: string;
                         };
-                        error?: null | components["schemas"]["ApiErrorInfo"];
+                        error?: components["schemas"]["ApiErrorInfo"] | null;
                         msg: string;
                     };
                 };

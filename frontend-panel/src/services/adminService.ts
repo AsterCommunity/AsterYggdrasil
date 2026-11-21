@@ -29,6 +29,7 @@ import type {
 	AuditLogPage,
 	ConfigListQuery,
 	ConfigSchemaItem,
+	ConfigValue,
 	CreateAdminUserRequest,
 	CreateExternalAuthProviderRequest,
 	CreateMinecraftTextureTagRequest,
@@ -52,7 +53,6 @@ import type {
 	SetConfigResponse,
 	SystemConfig,
 	SystemConfigPage,
-	SystemConfigValue,
 	SystemInfoResponse,
 	TemplateVariableGroup,
 	UpdateAdminUserRequest,
@@ -136,7 +136,7 @@ export const adminConfigService = {
 				target_email: targetEmail?.trim() || "",
 			},
 		}),
-	previewCaptcha: (values: Record<string, SystemConfigValue>) =>
+	previewCaptcha: (values: Record<string, ConfigValue>) =>
 		api.post<
 			ExecuteConfigActionResponse,
 			OperationRequestBody<"execute_config_action">
