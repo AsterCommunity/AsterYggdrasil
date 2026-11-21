@@ -26,9 +26,7 @@ async function ensureInitialized(page: Page) {
 	await page.getByRole("menuitem", { name: "Logout" }).click();
 	// Logout navigates to the public home page.
 	await expect(page).toHaveURL(/\/$/);
-	await expect(
-		page.getByRole("link", { name: "Get started" }),
-	).toBeVisible();
+	await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
 }
 
 async function loginAsAdmin(page: Page) {
