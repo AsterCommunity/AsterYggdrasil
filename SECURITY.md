@@ -8,7 +8,7 @@ AsterYggdrasil is still evolving quickly. Security fixes are handled for the act
 
 | Version or branch | Security support |
 | --- | --- |
-| `main` | Supported for current development |
+| `master` | Supported for current development |
 | Latest tagged release | Supported |
 | Older releases | Best effort only; upgrade is recommended |
 
@@ -26,7 +26,7 @@ Use one of these private channels instead:
 Include as much of the following as you reasonably can:
 
 - affected AsterYggdrasil version, git commit, or container image tag
-- deployment type, such as source build, Docker, reverse proxy, SQLite, PostgreSQL, MySQL, local storage, S3 storage, or remote follower storage
+- deployment type, such as source build, Docker, reverse proxy, SQLite, PostgreSQL, MySQL, local texture storage, or S3/MinIO storage
 - vulnerable component or endpoint, if known
 - clear reproduction steps or a minimal proof of concept
 - expected impact, such as authentication bypass, privilege escalation, data exposure, arbitrary file access, stored XSS, SSRF, request forgery, unsafe preview behavior, or denial of service
@@ -62,13 +62,15 @@ Please do not publish exploit details, working proof-of-concept code, or broad s
 
 Security reports are in scope when they affect AsterYggdrasil itself, including:
 
-- authentication, sessions, JWT handling, cookies, password reset, email-change confirmation, and optional Passkey / WebAuthn flows
-- authorization boundaries for users, teams, workspaces, shares, direct links, admin APIs, WebDAV accounts, WOPI integration, and background tasks
-- unintended file access, path traversal, object storage access, storage policy routing, blob reference handling, trash, version history, archive extraction, or thumbnail generation
-- upload and download flows, including chunked uploads, presigned uploads, multipart uploads, remote follower storage, and resume behavior
-- browser security issues in the web UI, public share pages, previews, sandboxed file responses, and admin console
+- authentication, sessions, JWT handling, cookies, password reset, email-change confirmation, invitations, and optional Passkey / WebAuthn flows
+- authorization boundaries for users, operators, scoped admin APIs, Minecraft profiles, bans, background tasks, and external-auth identity linking (GitHub/Google/QQ/OIDC)
+- the Yggdrasil/authlib-injector protocol surface: authenticate, refresh, validate, invalidate, signout, join, hasJoined, profile lookup, session-forward servers, and signed texture properties
+- unintended texture file access, path traversal, texture storage access (local, S3, MinIO), hash-addressed public reads, blob reference handling, or forwarded-texture URL rewriting
+- upload flows, including multipart texture uploads, PNG re-encoding, dimension validation, and legacy cape compatibility
+- the public texture library: submission, moderation, publishing, tag mutations, copying, and reports
+- browser security issues in the web UI, public pages, texture previews, embedded frontend assets, and admin console
 - server-side request forgery, request smuggling, unsafe redirects, deserialization, command execution, SQL injection, migration issues, or unsafe dependency usage that is exploitable in AsterYggdrasil
-- sensitive information disclosure through logs, error responses, generated files, embedded frontend assets, backups, metrics, health endpoints, or API responses
+- sensitive information disclosure through logs, error responses, generated files, signing keys, embedded frontend assets, backups, metrics, health endpoints, or API responses
 
 The following are usually out of scope unless they demonstrate a concrete exploit against AsterYggdrasil:
 
@@ -78,7 +80,9 @@ The following are usually out of scope unless they demonstrate a concrete exploi
 - generic dependency CVEs with no reachable or practical impact in AsterYggdrasil
 - denial-of-service reports based only on unrealistic traffic volume or resource exhaustion without a specific application flaw
 - social engineering, phishing, spam, physical attacks, or attacks against third-party services not controlled by the project
-- issues in a user's own deployment, custom reverse proxy, S3 provider, database server, mail server, or operating system configuration
+- issues in a user's own deployment, custom reverse proxy, S3/MinIO provider, database server, mail server, or operating system configuration
+- reports about Minecraft server internals (world hosting, plugins, console) that AsterYggdrasil does not own
+- claims that AsterYggdrasil should replace Mojang official online-mode auth for arbitrary clients
 
 ## Research Rules
 
@@ -102,6 +106,6 @@ Users running public or shared deployments should:
 - keep AsterYggdrasil updated
 - run it behind a reverse proxy with HTTPS
 - avoid exposing the backend directly to the public Internet without a proxy
-- review storage policy credentials, mail credentials, database credentials, JWT secrets, and WebDAV accounts regularly
+- review mail credentials, database credentials, JWT secrets, Yggdrasil signing keys, and external-auth provider credentials regularly
 - restrict administrator accounts and rotate credentials after suspected compromise
 
