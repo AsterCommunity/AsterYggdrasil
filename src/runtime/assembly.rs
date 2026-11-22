@@ -13,8 +13,17 @@ pub async fn run(state: crate::runtime::AppState) -> io::Result<()> {
     let host = state.config.server.host.clone();
     let port = state.config.server.port;
     let workers = worker_count(state.config.server.workers);
+    let drain_timeout_secs = state.config.worker.drain_timeout_secs;
+    let cancellation_timeout_secs = state.config.worker.cancellation_timeout_secs;
 
-    tracing::info!(host = %host, port, workers, "starting AsterYggdrasil HTTP service");
+    tracing::info!(
+        host = %host,
+        port,
+        workers,
+        drain_timeout_secs,
+        cancellation_timeout_secs,
+        "starting AsterYggdrasil HTTP service"
+    );
 
     let state = web::Data::new(state);
     let metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder> =
@@ -27,6 +36,7 @@ pub async fn run(state: crate::runtime::AppState) -> io::Result<()> {
                 host: host.as_str(),
                 port,
                 workers,
+                shutdown_timeout_secs: app_state.config.worker.drain_timeout_secs,
             },
             state.clone(),
             metrics_data,

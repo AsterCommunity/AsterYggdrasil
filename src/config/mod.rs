@@ -28,6 +28,7 @@ pub mod site_url;
 pub mod system_config;
 pub mod texture_library;
 pub mod texture_preview;
+pub mod worker;
 pub mod yggdrasil;
 
 pub use deployment::{DeploymentConfig, DeploymentProfile};
@@ -37,6 +38,7 @@ pub use schema::{
     DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY, DatabaseConfig, NetworkTrustConfig, RateLimitConfig,
     RateLimitTier, S3TextureStorageConfig, ServerConfig, TextureStorageConfig,
 };
+pub use worker::WorkerConfig;
 
 use std::sync::Arc;
 use std::sync::OnceLock;

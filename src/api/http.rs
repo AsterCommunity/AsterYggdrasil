@@ -13,8 +13,6 @@ use aster_forge_runtime::{
 };
 use tokio_util::sync::CancellationToken;
 
-const HTTP_SHUTDOWN_TIMEOUT_SECS: u64 = 8;
-
 /// Configuration needed to build the HTTP service component.
 pub struct HttpRuntimeConfig<'a> {
     /// Bind host.
@@ -23,6 +21,8 @@ pub struct HttpRuntimeConfig<'a> {
     pub port: u16,
     /// Actix worker count.
     pub workers: usize,
+    /// Drain budget for in-flight requests, in seconds.
+    pub shutdown_timeout_secs: u64,
 }
 
 /// Builds the HTTP runtime component used by the product entrypoint.
@@ -70,16 +70,21 @@ fn build_http_service_component(
     })
     .workers(config.workers)
     .bind((config.host, config.port))?
-    .shutdown_timeout(HTTP_SHUTDOWN_TIMEOUT_SECS)
+    .shutdown_timeout(config.shutdown_timeout_secs)
     .disable_signals()
     .run();
     let handle = server.handle();
+    let shutdown_timeout_secs = config.shutdown_timeout_secs;
     Ok(RuntimeServiceComponent::new(
         "http",
         RuntimeComponentKind::Core,
         server,
         shutdown_token,
         move || async move {
+            tracing::info!(
+                shutdown_timeout_secs,
+                "stopping http server and draining in-flight requests"
+            );
             handle.stop(true).await;
         },
     ))
