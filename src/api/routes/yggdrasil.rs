@@ -4,16 +4,16 @@ pub(crate) mod minecraft_services;
 pub(crate) mod texture;
 
 use crate::api::dto::validate_request;
-use crate::api::dto::yggdrasil::{
-    YggdrasilAuthenticateReq, YggdrasilErrorBody, YggdrasilHasJoinedQuery, YggdrasilJoinReq,
-    YggdrasilProfileQuery, YggdrasilRefreshReq, YggdrasilSignoutReq, YggdrasilTokenReq,
-};
 use crate::runtime::AppState;
 use crate::services::{
     audit_service::AuditRequestInfo,
     yggdrasil_service::{self, YggdrasilError, YggdrasilErrorKind},
 };
 use actix_web::{HttpRequest, HttpResponse, web};
+use aster_yggdrasil_protocol::{
+    YggdrasilAuthenticateReq, YggdrasilErrorBody, YggdrasilHasJoinedQuery, YggdrasilJoinReq,
+    YggdrasilProfileQuery, YggdrasilRefreshReq, YggdrasilSignoutReq, YggdrasilTokenReq,
+};
 
 pub use texture::{delete_texture, forwarded_texture_by_hash, texture_by_hash, upload_texture};
 
@@ -86,7 +86,7 @@ async fn yggdrasil_not_found(req: HttpRequest) -> HttpResponse {
     tag = "yggdrasil",
     operation_id = "yggdrasil_metadata",
     responses(
-        (status = 200, description = "authlib-injector Yggdrasil service metadata", body = crate::api::dto::yggdrasil::YggdrasilMetaResp),
+        (status = 200, description = "authlib-injector Yggdrasil service metadata", body = aster_yggdrasil_protocol::YggdrasilMetaResp),
     ),
 )]
 pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
@@ -103,7 +103,7 @@ pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
     operation_id = "yggdrasil_authenticate",
     request_body = YggdrasilAuthenticateReq,
     responses(
-        (status = 200, description = "Yggdrasil access token and available profiles", body = crate::api::dto::yggdrasil::YggdrasilAuthenticateResp),
+        (status = 200, description = "Yggdrasil access token and available profiles", body = aster_yggdrasil_protocol::YggdrasilAuthenticateResp),
         (status = 400, description = "Invalid request", body = YggdrasilErrorBody),
         (status = 403, description = "Invalid credentials or forbidden profile", body = YggdrasilErrorBody),
     ),
@@ -165,7 +165,7 @@ pub async fn authenticate(
     operation_id = "yggdrasil_refresh",
     request_body = YggdrasilRefreshReq,
     responses(
-        (status = 200, description = "Refreshed Yggdrasil access token", body = crate::api::dto::yggdrasil::YggdrasilRefreshResp),
+        (status = 200, description = "Refreshed Yggdrasil access token", body = aster_yggdrasil_protocol::YggdrasilRefreshResp),
         (status = 400, description = "Invalid request", body = YggdrasilErrorBody),
         (status = 403, description = "Invalid or forbidden token", body = YggdrasilErrorBody),
     ),
@@ -349,7 +349,7 @@ pub async fn signout(
     operation_id = "yggdrasil_profiles_by_names",
     request_body = Vec<String>,
     responses(
-        (status = 200, description = "Profiles matching the requested Minecraft names", body = Vec<crate::api::dto::yggdrasil::YggdrasilProfile>),
+        (status = 200, description = "Profiles matching the requested Minecraft names", body = Vec<aster_yggdrasil_protocol::YggdrasilProfile>),
         (status = 400, description = "Invalid profile name or too many names", body = YggdrasilErrorBody),
     ),
 )]
@@ -434,7 +434,7 @@ pub async fn join(
         ("ip" = Option<String>, Query, description = "Optional client IP address"),
     ),
     responses(
-        (status = 200, description = "Joined profile", body = crate::api::dto::yggdrasil::YggdrasilProfile),
+        (status = 200, description = "Joined profile", body = aster_yggdrasil_protocol::YggdrasilProfile),
         (status = 204, description = "No matching join record"),
         (status = 400, description = "Invalid request", body = YggdrasilErrorBody),
     ),
@@ -495,7 +495,7 @@ pub async fn has_joined(
         ("unsigned" = Option<bool>, Query, description = "Whether to omit texture signatures"),
     ),
     responses(
-        (status = 200, description = "Minecraft profile", body = crate::api::dto::yggdrasil::YggdrasilProfile),
+        (status = 200, description = "Minecraft profile", body = aster_yggdrasil_protocol::YggdrasilProfile),
         (status = 204, description = "Profile not found"),
         (status = 400, description = "Invalid UUID or query parameter", body = YggdrasilErrorBody),
     ),

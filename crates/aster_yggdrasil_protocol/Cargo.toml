@@ -1,0 +1,30 @@
+[package]
+name = "aster_yggdrasil_protocol"
+description = "Project-agnostic Yggdrasil/authlib-injector protocol wire model and error state machine."
+version = "0.1.0"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_protocol"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+edition = "2024"
+rust-version = "1.95.0"
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+openapi = ["dep:utoipa"]
+
+[dependencies]
+base64 = { workspace = true }
+http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+validator = { workspace = true }
+utoipa = { workspace = true, optional = true }
+
+[lib]
+name = "aster_yggdrasil_protocol"
+doctest = false

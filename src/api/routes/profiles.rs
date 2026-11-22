@@ -1,8 +1,6 @@
 //! Current-user Minecraft profile routes.
 
 use crate::api::dto::validation::validate_unsigned_uuid;
-#[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::api::dto::{
     BindMinecraftTextureReq, CreateMinecraftProfileReq, CurrentMinecraftProfileListQuery,
     RenameMinecraftProfileReq, validate_request,
@@ -16,6 +14,8 @@ use crate::services::{audit_service, auth_service, texture_service, yggdrasil_se
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
+#[cfg(all(debug_assertions, feature = "openapi"))]
+use aster_yggdrasil_protocol::YggdrasilProfile;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(

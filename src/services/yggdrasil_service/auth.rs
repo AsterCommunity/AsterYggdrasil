@@ -1,14 +1,14 @@
 use actix_web::HttpRequest;
 
-use crate::api::dto::yggdrasil::{
-    YggdrasilAuthenticateReq, YggdrasilAuthenticateResp, YggdrasilRefreshReq, YggdrasilRefreshResp,
-    YggdrasilTokenReq,
-};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, SharedRuntimeState};
 use crate::services::{audit_service, ban_service};
 use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_protocol::{
+    YggdrasilAuthenticateReq, YggdrasilAuthenticateResp, YggdrasilRefreshReq, YggdrasilRefreshResp,
+    YggdrasilTokenReq,
+};
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::login::{resolve_login_target, user_info};

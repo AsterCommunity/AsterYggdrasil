@@ -12,9 +12,9 @@ use super::yggdrasil_error_response;
     tag = "yggdrasil",
     operation_id = "minecraft_services_player_certificates",
     responses(
-        (status = 200, description = "Minecraft services profile key certificate", body = crate::api::dto::yggdrasil::MinecraftServicesCertificateResp),
-        (status = 401, description = "Missing or invalid bearer token", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
-        (status = 404, description = "Profile key support is disabled", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
+        (status = 200, description = "Minecraft services profile key certificate", body = aster_yggdrasil_protocol::MinecraftServicesCertificateResp),
+        (status = 401, description = "Missing or invalid bearer token", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
+        (status = 404, description = "Profile key support is disabled", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
     ),
     security(("bearer" = [])),
 )]
@@ -49,9 +49,9 @@ pub async fn player_certificates(state: web::Data<AppState>, req: HttpRequest) -
     tag = "yggdrasil",
     operation_id = "minecraft_services_privileges",
     responses(
-        (status = 200, description = "Minecraft services privileges policy", body = crate::api::dto::yggdrasil::MinecraftServicesPrivilegesResp),
-        (status = 401, description = "Missing or invalid bearer token", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
-        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
+        (status = 200, description = "Minecraft services privileges policy", body = aster_yggdrasil_protocol::MinecraftServicesPrivilegesResp),
+        (status = 401, description = "Missing or invalid bearer token", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
+        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
     ),
     security(("bearer" = [])),
 )]
@@ -77,9 +77,9 @@ pub async fn privileges(state: web::Data<AppState>, req: HttpRequest) -> HttpRes
     tag = "yggdrasil",
     operation_id = "minecraft_services_player_attributes",
     responses(
-        (status = 200, description = "Minecraft services player attributes policy", body = crate::api::dto::yggdrasil::MinecraftServicesPlayerAttributesResp),
-        (status = 401, description = "Missing or invalid bearer token", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
-        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
+        (status = 200, description = "Minecraft services player attributes policy", body = aster_yggdrasil_protocol::MinecraftServicesPlayerAttributesResp),
+        (status = 401, description = "Missing or invalid bearer token", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
+        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
     ),
     security(("bearer" = [])),
 )]
@@ -108,9 +108,9 @@ pub async fn player_attributes(state: web::Data<AppState>, req: HttpRequest) -> 
     tag = "yggdrasil",
     operation_id = "minecraft_services_privacy_blocklist",
     responses(
-        (status = 200, description = "Minecraft services privacy blocklist", body = crate::api::dto::yggdrasil::MinecraftServicesPrivacyBlocklistResp),
-        (status = 401, description = "Missing or invalid bearer token", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
-        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
+        (status = 200, description = "Minecraft services privacy blocklist", body = aster_yggdrasil_protocol::MinecraftServicesPrivacyBlocklistResp),
+        (status = 401, description = "Missing or invalid bearer token", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
+        (status = 404, description = "Minecraft services anti-feature policy support is disabled", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
     ),
     security(("bearer" = [])),
 )]
@@ -139,7 +139,7 @@ pub async fn privacy_blocklist(state: web::Data<AppState>, req: HttpRequest) -> 
     tag = "yggdrasil",
     operation_id = "minecraft_services_blocked_servers",
     responses(
-        (status = 404, description = "Empty blocked server list or disabled anti-feature policy support", body = crate::api::dto::yggdrasil::MinecraftServicesPathError),
+        (status = 404, description = "Empty blocked server list or disabled anti-feature policy support", body = aster_yggdrasil_protocol::MinecraftServicesPathError),
     ),
 )]
 pub async fn blocked_servers() -> HttpResponse {
@@ -171,7 +171,7 @@ fn minecraft_services_error_response(error: YggdrasilError, path: &'static str) 
 }
 
 fn minecraft_services_unauthorized(path: &'static str) -> HttpResponse {
-    HttpResponse::Unauthorized().json(crate::api::dto::yggdrasil::MinecraftServicesPathError {
+    HttpResponse::Unauthorized().json(aster_yggdrasil_protocol::MinecraftServicesPathError {
         path: path.to_string(),
     })
 }
@@ -179,7 +179,7 @@ fn minecraft_services_unauthorized(path: &'static str) -> HttpResponse {
 pub fn minecraft_services_not_found(path: &str) -> HttpResponse {
     HttpResponse::NotFound()
         .insert_header(("Cache-Control", "no-store"))
-        .json(crate::api::dto::yggdrasil::MinecraftServicesPathError {
+        .json(aster_yggdrasil_protocol::MinecraftServicesPathError {
             path: path.to_string(),
         })
 }

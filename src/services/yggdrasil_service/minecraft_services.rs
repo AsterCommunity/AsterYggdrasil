@@ -2,17 +2,17 @@ use chrono::{SecondsFormat, Utc};
 use rsa::RsaPrivateKey;
 use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey, LineEnding};
 
-use crate::api::dto::yggdrasil::{
+use crate::errors::AsterError;
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
+use crate::services::ban_service;
+use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_protocol::{
     MinecraftServicesBanStatus, MinecraftServicesCertificateResp, MinecraftServicesChatPreferences,
     MinecraftServicesFriendsPreferences, MinecraftServicesKeyPair,
     MinecraftServicesPlayerAttributesResp, MinecraftServicesPreferenceState,
     MinecraftServicesPrivacyBlocklistResp, MinecraftServicesPrivilege, MinecraftServicesPrivileges,
     MinecraftServicesPrivilegesResp, MinecraftServicesProfanityFilterPreferences,
 };
-use crate::errors::AsterError;
-use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
-use crate::services::ban_service;
-use aster_yggdrasil_model::types::user::UserBanScope;
 
 use super::{YggdrasilError, YggdrasilErrorKind, active_token_for_protocol};
 
@@ -93,7 +93,7 @@ where
             text_communication: MinecraftServicesPreferenceState::Enabled,
         },
         ban_status: MinecraftServicesBanStatus {
-            banned_scopes: crate::api::dto::yggdrasil::MinecraftServicesBannedScopes {
+            banned_scopes: aster_yggdrasil_protocol::MinecraftServicesBannedScopes {
                 multiplayer: join_banned,
             },
         },

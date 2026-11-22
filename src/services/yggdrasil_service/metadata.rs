@@ -1,7 +1,7 @@
-use crate::api::dto::yggdrasil::{YggdrasilMeta, YggdrasilMetaLinks, YggdrasilMetaResp};
 use crate::config::{RuntimeConfig, auth_runtime, site_url, yggdrasil::RuntimeYggdrasilPolicy};
 use crate::runtime::RuntimeConfigRuntimeState;
 use crate::services::yggdrasil_signature;
+use aster_yggdrasil_protocol::{YggdrasilMeta, YggdrasilMetaLinks, YggdrasilMetaResp};
 
 pub fn metadata<S: RuntimeConfigRuntimeState>(state: &S) -> YggdrasilMetaResp {
     let runtime_config = state.runtime_config();

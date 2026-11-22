@@ -13,7 +13,7 @@ use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
-use crate::api::dto::yggdrasil::YggdrasilProfile;
+use aster_yggdrasil_protocol::YggdrasilProfile;
 
 fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     req.extensions()

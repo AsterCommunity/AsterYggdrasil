@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model"]
+members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol"]
 
 [workspace.package]
 authors = [
@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 aster_yggdrasil_render = { path = "crates/aster_yggdrasil_render" }
 aster_yggdrasil_model = { path = "crates/aster_yggdrasil_model" }
 aster_yggdrasil_migration = { path = "crates/aster_yggdrasil_migration" }
+aster_yggdrasil_protocol = { path = "crates/aster_yggdrasil_protocol" }
 # Pin all Forge mechanisms together to the exact published crates.io versions;
 # members add only their required features.
 aster_forge_middleware = { version = "=0.1.0-alpha.4" }
@@ -54,6 +55,7 @@ futures = "0.3"
 getrandom = "0.4"
 governor = "0.10"
 hex = "0.4"
+http = "0.2.12"
 image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 jsonwebtoken = { version = "12", features = ["aws_lc_rs"] }
 num_cpus = "1.17.0"
@@ -166,6 +168,7 @@ openapi = [
     "dep:utoipa",
     "dep:utoipa-swagger-ui",
     "aster_yggdrasil_model/openapi",
+    "aster_yggdrasil_protocol/openapi",
     "aster_forge_api/openapi",
     "aster_forge_api_docs_macros/openapi",
     "aster_forge_config/openapi",
@@ -185,6 +188,7 @@ jemalloc-profiling = ["jemalloc-stats", "tikv-jemallocator/profiling"]
 aster_yggdrasil_render = { workspace = true }
 aster_yggdrasil_model = { workspace = true }
 aster_yggdrasil_migration = { workspace = true }
+aster_yggdrasil_protocol = { workspace = true }
 aster_forge_middleware = { workspace = true, features = ["metrics"] }
 aster_forge_observability = { workspace = true, optional = true }
 aster_forge_alloc = { workspace = true }

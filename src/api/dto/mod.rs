@@ -10,7 +10,6 @@ pub mod external_auth;
 pub mod profiles;
 pub mod textures;
 pub(crate) mod validation;
-pub mod yggdrasil;
 
 pub use account::{
     AccountAuditLogFilterQuery, AccountOverviewResp, AccountUserBanInfo, AccountUserBanListQuery,

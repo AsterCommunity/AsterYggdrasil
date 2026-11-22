@@ -7,6 +7,7 @@ AsterYggdrasil 构建在 [AsterForge](https://github.com/AsterCommunity/AsterFor
 | Crate | 职责 | 依赖 |
 | --- | --- | --- |
 | `aster_yggdrasil` | 应用壳：API 路由、服务、运行时装配、静态配置加载、管理中间件 | 全部产品 crate 和全部 Forge crate |
+| `aster_yggdrasil_protocol` | 与项目无关的 Yggdrasil/authlib-injector 协议 wire 模型和错误状态机（档案、属性、请求/响应体、metadata、Minecraft services 兼容载荷、base64 `textures` 值编码） | `serde`、`serde_json`、`base64`、`http`、`validator`；可选 `utoipa` |
 | `aster_yggdrasil_model` | SeaORM 实体与领域类型（`UserRole`、`OperatorScope`、`UserBanScope`、任务 payload）。实体所属的 Forge trait 实现（`TaskRecord`、`ClaimableTaskRecord`）也在这里 | Forge crate、SeaORM。绝不依赖应用 crate |
 | `aster_yggdrasil_migration` | 只追加的数据库迁移和独立迁移二进制 | Forge DB migration helper |
 | `aster_yggdrasil_render` | Minecraft 皮肤/披风预览渲染（2D 和 3D 引擎） | 仅 `image` |

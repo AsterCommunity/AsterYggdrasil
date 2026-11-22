@@ -11,8 +11,8 @@ mod properties;
 mod session;
 mod token;
 
+pub use aster_yggdrasil_protocol::{YggdrasilError, YggdrasilErrorKind};
 pub use auth::{authenticate, invalidate, refresh, signout, validate};
-pub use error::{YggdrasilError, YggdrasilErrorKind};
 pub use metadata::metadata;
 pub use minecraft_services::{
     minecraft_services_player_attributes, minecraft_services_privacy_blocklist,
@@ -29,9 +29,9 @@ pub use session::{forwarded_texture_url, has_joined, join};
 pub use token::{active_token_for_protocol, cleanup_expired_or_revoked_tokens};
 pub(crate) use token::{invalidate_token_cache_for_user, invalidate_token_cache_hashes};
 
-use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::db::repository::minecraft_profile_repo;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use aster_yggdrasil_protocol::YggdrasilProfile;
 
 pub async fn profiles_by_names<S>(
     state: &S,

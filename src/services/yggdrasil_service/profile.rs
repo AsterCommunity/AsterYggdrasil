@@ -1,4 +1,3 @@
-use crate::api::dto::yggdrasil::YggdrasilProfile;
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_token_repo};
 use crate::errors::{AsterError, Result};
@@ -8,6 +7,7 @@ use crate::runtime::{
 use crate::services::{ban_service, texture_service};
 use aster_yggdrasil_model::entities::minecraft_profile;
 use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_protocol::YggdrasilProfile;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -261,14 +261,11 @@ where
 }
 
 pub fn validate_profile_name(name: &str) -> Result<()> {
-    let valid_len = (3..=16).contains(&name.len());
-    let valid_chars = name
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
-    if !valid_len || !valid_chars {
-        return Err(AsterError::validation_error(
+    if aster_yggdrasil_protocol::minecraft_profile_name_is_valid(name) {
+        Ok(())
+    } else {
+        Err(AsterError::validation_error(
             "profile name must be 3-16 ASCII letters, numbers, or underscores",
-        ));
+        ))
     }
-    Ok(())
 }

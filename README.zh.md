@@ -101,7 +101,7 @@ bun run test
 cd docs && bun install && bun run dev
 ```
 
-项目布局：`aster_yggdrasil` 主 crate 承载应用（API、服务、运行时装配）；`aster_yggdrasil_model` 承载 SeaORM 实体与领域类型；`aster_yggdrasil_migration` 承载数据库迁移；`aster_yggdrasil_render` 负责皮肤预览渲染。共享运行时机制来自 crates.io 上精确锁定的 [`AsterForge`](https://github.com/AsterCommunity/AsterForge) crate。
+项目布局：`aster_yggdrasil` 主 crate 承载应用（API、服务、运行时装配）；`aster_yggdrasil_model` 承载 SeaORM 实体与领域类型；`aster_yggdrasil_migration` 承载数据库迁移；`aster_yggdrasil_render` 负责皮肤预览渲染，`aster_yggdrasil_protocol` 承载与项目无关的 Yggdrasil 协议 wire 模型和错误状态机。共享运行时机制来自 crates.io 上精确锁定的 [`AsterForge`](https://github.com/AsterCommunity/AsterForge) crate。
 
 ## 许可证
 

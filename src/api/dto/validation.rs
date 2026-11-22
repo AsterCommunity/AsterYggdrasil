@@ -14,10 +14,6 @@ pub(crate) fn validate_non_blank(value: &str) -> std::result::Result<(), Validat
     Ok(())
 }
 
-pub(crate) fn validate_optional_non_blank(value: &str) -> std::result::Result<(), ValidationError> {
-    validate_non_blank(value)
-}
-
 pub(crate) fn validate_unsigned_uuid(value: &str) -> std::result::Result<(), ValidationError> {
     if value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Ok(());
@@ -25,15 +21,6 @@ pub(crate) fn validate_unsigned_uuid(value: &str) -> std::result::Result<(), Val
     Err(message_validation_error(
         "uuid must be a 32-character unsigned hexadecimal UUID",
     ))
-}
-
-pub(crate) fn validate_yggdrasil_agent_name(
-    value: &str,
-) -> std::result::Result<(), ValidationError> {
-    if value == "Minecraft" {
-        return Ok(());
-    }
-    Err(message_validation_error("agent name must be Minecraft"))
 }
 
 pub(crate) fn validate_auth_username(value: &str) -> std::result::Result<(), ValidationError> {

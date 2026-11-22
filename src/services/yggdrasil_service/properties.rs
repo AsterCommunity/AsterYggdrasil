@@ -1,13 +1,14 @@
 use super::YggdrasilError;
-use crate::api::dto::yggdrasil::{YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::minecraft_profile_texture_repo;
-use crate::errors::{AsterError, Result};
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use crate::services::{texture_service, yggdrasil_signature};
 use aster_yggdrasil_model::entities::minecraft_profile;
+use aster_yggdrasil_protocol::{
+    TexturesPropertyValue, TexturesPropertyValueItem, TexturesPropertyValueMetadata,
+    YggdrasilProfile, YggdrasilProfileProperty, encode_textures_property_value,
+};
 use chrono::Utc;
-use serde::Serialize;
 use std::collections::BTreeMap;
 
 pub(super) async fn profile_with_properties<S>(
@@ -45,8 +46,7 @@ where
         "building yggdrasil profile properties"
     );
     let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
-    let value =
-        texture_property_value(&policy, profile, &textures).map_err(YggdrasilError::from)?;
+    let value = texture_property_value(&policy, profile, &textures)?;
     let signature = if signed {
         yggdrasil_signature::sign_texture_property(&policy, &value).map_err(YggdrasilError::from)?
     } else {
@@ -104,33 +104,11 @@ where
     super::cache::invalidate_profile_properties(state, profile_id).await;
 }
 
-#[derive(Debug, Serialize)]
-struct TexturesProperty<'a> {
-    timestamp: i64,
-    #[serde(rename = "profileId")]
-    profile_id: &'a str,
-    #[serde(rename = "profileName")]
-    profile_name: &'a str,
-    textures: BTreeMap<&'static str, TexturePropertyItem<'a>>,
-}
-
-#[derive(Debug, Serialize)]
-struct TexturePropertyItem<'a> {
-    url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<TexturePropertyMetadata<'a>>,
-}
-
-#[derive(Debug, Serialize)]
-struct TexturePropertyMetadata<'a> {
-    model: &'a str,
-}
-
 fn texture_property_value(
     policy: &RuntimeYggdrasilPolicy,
     profile: &minecraft_profile::Model,
     textures: &[minecraft_profile_texture_repo::ProfileTexture],
-) -> Result<String> {
+) -> std::result::Result<String, YggdrasilError> {
     let mut entries = BTreeMap::new();
     for texture in textures {
         let metadata = (texture.binding.texture_type
@@ -139,15 +117,16 @@ fn texture_property_value(
             .and_then(
                 aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::as_metadata_value,
             )
-            .map(|model| TexturePropertyMetadata { model });
+            .map(|model| TexturesPropertyValueMetadata { model });
         entries.insert(
             texture.binding.texture_type.textures_property_key(),
-            TexturePropertyItem {
+            TexturesPropertyValueItem {
                 url: yggdrasil_signature::required_texture_object_public_url(
                     policy,
                     &texture.texture.hash,
                     &texture.texture.storage_key,
-                )?,
+                )
+                .map_err(YggdrasilError::from)?,
                 metadata,
             },
         );
@@ -159,12 +138,13 @@ fn texture_property_value(
         let metadata = skin
             .model
             .as_metadata_value()
-            .map(|model| TexturePropertyMetadata { model });
+            .map(|model| TexturesPropertyValueMetadata { model });
         entries.insert(
             aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType::Skin
                 .textures_property_key(),
-            TexturePropertyItem {
-                url: yggdrasil_signature::required_texture_public_url(policy, skin.hash)?,
+            TexturesPropertyValueItem {
+                url: yggdrasil_signature::required_texture_public_url(policy, skin.hash)
+                    .map_err(YggdrasilError::from)?,
                 metadata,
             },
         );
@@ -183,17 +163,10 @@ fn texture_property_value(
         "serializing yggdrasil textures property"
     );
 
-    let payload = TexturesProperty {
+    encode_textures_property_value(&TexturesPropertyValue {
         timestamp: Utc::now().timestamp_millis(),
         profile_id: &profile.uuid,
         profile_name: &profile.name,
         textures: entries,
-    };
-    use base64::Engine;
-    let encoded = serde_json::to_vec(&payload)
-        .map(|payload| base64::engine::general_purpose::STANDARD.encode(payload))
-        .map_err(|error| {
-            AsterError::internal_error(format!("failed to serialize textures property: {error}"))
-        })?;
-    Ok(encoded)
+    })
 }

@@ -8,7 +8,6 @@ use serde_json::Value;
 use std::time::Duration;
 use validator::Validate;
 
-use crate::api::dto::yggdrasil::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, yggdrasil_session_forward_server_repo};
 use crate::runtime::{
@@ -22,6 +21,7 @@ use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
 };
+use aster_yggdrasil_protocol::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::properties;

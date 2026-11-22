@@ -26,9 +26,9 @@ use super::yggdrasil_error_response;
     ),
     responses(
         (status = 204, description = "Texture uploaded"),
-        (status = 400, description = "Invalid upload or texture", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
-        (status = 401, description = "Invalid token", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
-        (status = 403, description = "Forbidden profile", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
+        (status = 400, description = "Invalid upload or texture", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
+        (status = 401, description = "Invalid token", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
+        (status = 403, description = "Forbidden profile", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
     ),
     security(("bearer" = [])),
 )]
@@ -155,9 +155,9 @@ pub async fn upload_texture(
     ),
     responses(
         (status = 204, description = "Texture deleted or already absent"),
-        (status = 400, description = "Invalid request", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
-        (status = 401, description = "Invalid token", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
-        (status = 403, description = "Forbidden profile", body = crate::api::dto::yggdrasil::YggdrasilErrorBody),
+        (status = 400, description = "Invalid request", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
+        (status = 401, description = "Invalid token", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
+        (status = 403, description = "Forbidden profile", body = aster_yggdrasil_protocol::YggdrasilErrorBody),
     ),
     security(("bearer" = [])),
 )]
@@ -634,7 +634,7 @@ fn texture_error_response(error: texture_service::TextureError) -> HttpResponse 
             "texture request failed"
         );
     }
-    HttpResponse::build(status).json(crate::api::dto::yggdrasil::YggdrasilErrorBody {
+    HttpResponse::build(status).json(aster_yggdrasil_protocol::YggdrasilErrorBody {
         error: error.protocol_error_name(),
         error_message: error.protocol_message(),
         cause: None,

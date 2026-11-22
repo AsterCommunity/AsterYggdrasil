@@ -1133,6 +1133,7 @@ dependencies = [
  "aster_forge_validation",
  "aster_yggdrasil_migration",
  "aster_yggdrasil_model",
+ "aster_yggdrasil_protocol",
  "aster_yggdrasil_render",
  "async-trait",
  "aws-credential-types",
@@ -1206,6 +1207,18 @@ dependencies = [
  "serde_json",
  "tracing",
  "utoipa",
+]
+
+[[package]]
+name = "aster_yggdrasil_protocol"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "http 0.2.12",
+ "serde",
+ "serde_json",
+ "utoipa",
+ "validator",
 ]
 
 [[package]]

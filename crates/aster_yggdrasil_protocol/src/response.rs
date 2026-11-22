@@ -1,10 +1,16 @@
-//! Yggdrasil protocol DTOs.
+//! Protocol response bodies.
+//!
+//! Field names and omission rules here are wire contract, not style: launchers
+//! and authlib-injector depend on the exact camelCase keys, and metadata
+//! feature flags use dotted keys inside `meta`.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
-use validator::Validate;
 
+use crate::profile::{YggdrasilProfile, YggdrasilUser};
+
+/// Protocol error body used by authserver and sessionserver error responses.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilErrorBody {
@@ -15,62 +21,7 @@ pub struct YggdrasilErrorBody {
     pub cause: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilProfileProperty {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub name: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub value: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_optional_non_blank"))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signature: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilProfile {
-    #[validate(custom(function = "crate::api::dto::validation::validate_unsigned_uuid"))]
-    pub id: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_minecraft_profile_name"))]
-    pub name: String,
-    #[validate(nested)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub properties: Option<Vec<YggdrasilProfileProperty>>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilUser {
-    pub id: String,
-    pub properties: Vec<YggdrasilProfileProperty>,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilAgentReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_yggdrasil_agent_name"))]
-    pub name: String,
-    #[validate(range(min = 1, max = 1, message = "agent version must be 1"))]
-    pub version: i32,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilAuthenticateReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub username: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub password: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_optional_non_blank"))]
-    #[serde(rename = "clientToken")]
-    pub client_token: Option<String>,
-    #[serde(rename = "requestUser", default)]
-    pub request_user: bool,
-    #[validate(nested)]
-    pub agent: Option<YggdrasilAgentReq>,
-}
-
+/// `POST /authserver/authenticate` response body.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilAuthenticateResp {
@@ -86,22 +37,7 @@ pub struct YggdrasilAuthenticateResp {
     pub user: Option<YggdrasilUser>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilRefreshReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[serde(rename = "accessToken")]
-    pub access_token: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_optional_non_blank"))]
-    #[serde(rename = "clientToken")]
-    pub client_token: Option<String>,
-    #[serde(rename = "requestUser", default)]
-    pub request_user: bool,
-    #[validate(nested)]
-    #[serde(rename = "selectedProfile")]
-    pub selected_profile: Option<YggdrasilProfile>,
-}
-
+/// `POST /authserver/refresh` response body.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilRefreshResp {
@@ -115,58 +51,7 @@ pub struct YggdrasilRefreshResp {
     pub user: Option<YggdrasilUser>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilTokenReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[serde(rename = "accessToken")]
-    pub access_token: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_optional_non_blank"))]
-    #[serde(rename = "clientToken")]
-    pub client_token: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilSignoutReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub username: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilJoinReq {
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[serde(rename = "accessToken")]
-    pub access_token: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_unsigned_uuid"))]
-    #[serde(rename = "selectedProfile")]
-    pub selected_profile: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[serde(rename = "serverId")]
-    pub server_id: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilHasJoinedQuery {
-    #[validate(custom(function = "crate::api::dto::validation::validate_minecraft_profile_name"))]
-    pub username: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_non_blank"))]
-    #[serde(rename = "serverId")]
-    pub server_id: String,
-    #[validate(custom(function = "crate::api::dto::validation::validate_optional_non_blank"))]
-    pub ip: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Validate)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct YggdrasilProfileQuery {
-    pub unsigned: Option<bool>,
-}
-
+/// `GET /api/profiles/metadata` (authlib-injector) response body.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilMetaResp {
@@ -208,6 +93,7 @@ pub struct YggdrasilMetaLinks {
     pub register: Option<String>,
 }
 
+/// `GET /minecraftservices/certificate` compatibility response body.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesCertificateResp {
@@ -239,6 +125,7 @@ pub struct MinecraftServicesKeyPair {
     pub public_key: String,
 }
 
+/// Minecraft services error body naming the rejecting path (Mojang 401 shape).
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPathError {
@@ -351,14 +238,73 @@ pub struct MinecraftServicesBannedScopes {
     pub multiplayer: bool,
 }
 
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPrivacyBlocklistResp {
     /// UUID list of profiles blocked by the authenticated user.
     #[serde(rename = "blockedProfiles")]
     pub blocked_profiles: Vec<String>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MinecraftServicesBanStatus, MinecraftServicesBannedScopes, YggdrasilErrorBody,
+        YggdrasilMeta, YggdrasilMetaLinks, YggdrasilMetaResp,
+    };
+
+    #[test]
+    fn error_body_serializes_camel_case_with_optional_cause() {
+        let body = YggdrasilErrorBody {
+            error: "ForbiddenOperationException",
+            error_message: "Invalid token.".to_string(),
+            cause: None,
+        };
+        let json = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["error"], "ForbiddenOperationException");
+        assert_eq!(json["errorMessage"], "Invalid token.");
+        assert!(json.get("cause").is_none());
+    }
+
+    #[test]
+    fn meta_feature_flags_are_dotted_keys() {
+        let resp = YggdrasilMetaResp {
+            meta: YggdrasilMeta {
+                server_name: "Aster".to_string(),
+                implementation_name: "AsterYggdrasil".to_string(),
+                implementation_version: "0.1.0".to_string(),
+                links: Some(YggdrasilMetaLinks {
+                    homepage: "https://example.test/".to_string(),
+                    register: None,
+                }),
+                feature_non_email_login: true,
+                feature_enable_profile_key: false,
+                feature_enable_mojang_anti_features: false,
+                feature_username_check: true,
+            },
+            skin_domains: vec!["textures.example.test".to_string()],
+            signature_publickey: "-----BEGIN PUBLIC KEY-----".to_string(),
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["meta"]["feature.non_email_login"], true);
+        assert_eq!(json["meta"]["feature.enable_profile_key"], false);
+        assert_eq!(json["meta"]["feature.username_check"], true);
+        assert_eq!(json["skinDomains"][0], "textures.example.test");
+        assert_eq!(json["signaturePublickey"], "-----BEGIN PUBLIC KEY-----");
+        assert_eq!(json["meta"]["links"]["homepage"], "https://example.test/");
+        assert!(json["meta"]["links"].get("register").is_none());
+    }
+
+    #[test]
+    fn banned_scopes_omit_multiplayer_key_when_not_banned() {
+        let status = MinecraftServicesBanStatus {
+            banned_scopes: MinecraftServicesBannedScopes::default(),
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        assert!(json["bannedScopes"].get("MULTIPLAYER").is_none());
+    }
 }

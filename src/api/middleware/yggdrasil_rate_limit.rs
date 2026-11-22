@@ -1,8 +1,8 @@
 //! Yggdrasil protocol rate limiting helpers.
 
-use crate::api::dto::yggdrasil::YggdrasilErrorBody;
 use crate::config::{RateLimitConfig, RateLimitTier};
 use aster_forge_middleware::actix::rate_limit::{NormalizedStringRateLimiter, RateLimitRejection};
+use aster_yggdrasil_protocol::YggdrasilErrorBody;
 use std::sync::Arc;
 
 #[derive(Clone)]
