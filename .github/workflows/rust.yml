@@ -137,8 +137,12 @@ jobs:
       - name: Prepare coverage output directory
         run: mkdir -p coverage/rust
 
+      # Exercise exporter-disabled builds as well as the opt-in Prometheus and OTLP paths.
+      - name: Run tests without exporters with coverage
+        run: cargo llvm-cov --workspace --no-report
+
       - name: Run tests with coverage
-        run: cargo llvm-cov --workspace --no-fail-fast --lcov --output-path coverage/rust/lcov.info
+        run: cargo llvm-cov --workspace --features metrics,otlp-metrics,openapi --no-clean --no-fail-fast --lcov --output-path coverage/rust/lcov.info
 
       - name: Generate HTML coverage report
         if: success()

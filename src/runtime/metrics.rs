@@ -74,6 +74,7 @@ mod tests {
 
     #[actix_web::test]
     async fn disabled_metrics_leave_health_up_and_scrape_unavailable() {
+        crate::runtime::test_support::ensure_static_config();
         let config = ObservabilityConfig::default();
         assert!(!build_provider(&config).unwrap().enabled());
         assert!(
@@ -83,9 +84,9 @@ mod tests {
                 .is_none()
         );
 
-        let app = actix_test::init_service(App::new().service(crate::api::routes::health::routes(
-            config.prometheus_enabled(),
-        )))
+        let app = actix_test::init_service(App::new().configure(|cfg| {
+            crate::api::configure(cfg, config.prometheus_enabled());
+        }))
         .await;
         for (uri, expected) in [
             ("/health", StatusCode::OK),
@@ -111,6 +112,7 @@ mod tests {
     #[cfg(feature = "metrics")]
     #[actix_web::test]
     async fn configured_prometheus_route_exports_metrics_and_environment() {
+        crate::runtime::test_support::ensure_static_config();
         let mut config = ObservabilityConfig {
             environment: "staging".into(),
             ..ObservabilityConfig::default()
@@ -121,9 +123,7 @@ mod tests {
         let app = actix_test::init_service(
             App::new()
                 .app_data(web::Data::new(recorder.provider().unwrap()))
-                .service(crate::api::routes::health::routes(
-                    config.prometheus_enabled(),
-                )),
+                .configure(|cfg| crate::api::configure(cfg, config.prometheus_enabled())),
         )
         .await;
         let req = actix_test::TestRequest::get()
@@ -160,6 +160,8 @@ mod tests {
     async fn otlp_push_works_independently_of_the_prometheus_route() {
         use actix_web::{HttpResponse, HttpServer};
         use std::{net::TcpListener, time::Duration};
+
+        crate::runtime::test_support::ensure_static_config();
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}/v1/metrics", listener.local_addr().unwrap());
@@ -214,9 +216,7 @@ mod tests {
             let app = actix_test::init_service(
                 App::new()
                     .app_data(web::Data::new(provider.clone()))
-                    .service(crate::api::routes::health::routes(
-                        config.prometheus_enabled(),
-                    )),
+                    .configure(|cfg| crate::api::configure(cfg, config.prometheus_enabled())),
             )
             .await;
             let request = actix_test::TestRequest::get()

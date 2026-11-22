@@ -11,6 +11,11 @@ use aster_forge_audit::AuditWriter;
 use super::state::{AppState, AppStateParts};
 use crate::config::{Config, DatabaseConfig, RuntimeConfig};
 
+/// Makes static route registration safe in unit tests that do not run bootstrap.
+pub fn ensure_static_config() {
+    let _ = crate::config::set_config_for_test(Arc::new(Config::default()));
+}
+
 /// Builds a fully migrated `AppState` on an in-memory SQLite database.
 pub async fn setup_state() -> AppState {
     let db = connect_in_memory().await;
