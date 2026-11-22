@@ -29,6 +29,8 @@ pub struct Config {
     #[serde(default)]
     pub server: ServerConfig,
     #[serde(default)]
+    pub worker: crate::config::worker::WorkerConfig,
+    #[serde(default)]
     pub database: DatabaseConfig,
     #[serde(default)]
     pub auth: AuthConfig,

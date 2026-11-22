@@ -55,8 +55,14 @@ pub fn spawn_runtime_background_tasks(
     state: web::Data<AppState>,
     shutdown_token: CancellationToken,
 ) -> BackgroundTasks {
-    tracing::info!("starting runtime background tasks");
-    let mut tasks = build_background_tasks_base(state.metrics(), shutdown_token);
+    let budget = state.get_ref().config.worker.consumer_config();
+    let shutdown_grace =
+        budget.drain_timeout + budget.cancellation_timeout + Duration::from_secs(5);
+    tracing::info!(
+        shutdown_grace_secs = shutdown_grace.as_secs(),
+        "starting runtime background tasks"
+    );
+    let mut tasks = build_background_tasks_base(state.metrics(), shutdown_token, shutdown_grace);
     let shutdown_token = tasks.shutdown_token();
 
     if state.get_ref().config_sync().enabled() {
@@ -607,8 +613,13 @@ fn background_task_dispatch_outcome(
 fn build_background_tasks_base(
     metrics: &SharedMetricsRecorder,
     shutdown_token: CancellationToken,
+    shutdown_grace: Duration,
 ) -> BackgroundTasks {
-    let mut tasks = BackgroundTasks::with_shutdown_token(shutdown_token);
+    // Forge registers this component's shutdown phase without a timeout, so the
+    // product-configurable budget is the join grace: drain plus cancellation,
+    // plus a small margin for the abort path, before remaining workers stop.
+    let mut tasks =
+        BackgroundTasks::with_shutdown_token(shutdown_token).with_shutdown_grace(shutdown_grace);
     if let Some(task) = metrics.system_metrics_updater_task(tasks.shutdown_token()) {
         tasks.push(task);
     }

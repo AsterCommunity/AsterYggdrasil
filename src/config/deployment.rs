@@ -97,6 +97,8 @@ pub fn static_issues(config: &Config) -> Vec<String> {
 }
 
 pub fn validate_static(config: &Config) -> Result<()> {
+    config.worker.validate()?;
+
     let issues = static_issues(config);
     if issues.is_empty() {
         return Ok(());
@@ -187,6 +189,16 @@ mod tests {
         config.texture_storage.backend = "s3".to_string();
 
         validate_static(&config).expect("cluster profile should accept shared dependencies");
+    }
+
+    #[test]
+    fn static_validation_rejects_invalid_worker_budget() {
+        let mut config = Config::default();
+        config.worker.drain_timeout_secs = 86_400;
+        config.worker.cancellation_timeout_secs = 1;
+
+        let error = validate_static(&config).expect_err("invalid worker budget should be rejected");
+        assert!(error.to_string().contains("24 hours"), "{error}");
     }
 
     #[test]

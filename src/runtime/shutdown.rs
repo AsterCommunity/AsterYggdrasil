@@ -16,6 +16,11 @@ pub async fn finish_runtime(
     metrics: &aster_forge_metrics::SharedMetricsRecorder,
 ) -> io::Result<()> {
     if let Some(provider) = metrics.provider() {
+        // Fixed 10-second budget, deliberately independent of `[worker]`
+        // drain_timeout_secs (matching AsterDrive): the worker budgets bound
+        // in-flight *product work* (HTTP requests, background tasks), while
+        // this tail only flushes the metrics exporter. Tuning worker budgets
+        // for batch deployments must not silently move metrics-export limits.
         let shutdown = provider.shutdown(Duration::from_secs(10)).await;
         if let Err(error) = &shutdown {
             tracing::warn!(%error, "metrics shutdown failed");
