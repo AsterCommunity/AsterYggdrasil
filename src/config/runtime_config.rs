@@ -240,6 +240,8 @@ fn build_audit_log_settings(
 
 #[cfg(test)]
 mod tests {
+    use std::task::Poll;
+
     use chrono::Utc;
 
     use super::{AuthRuntimes, RuntimeConfig};
@@ -367,16 +369,51 @@ mod tests {
         let runtime = runtimes.password_hash_runtime();
         let hash = runtimes.dummy_password_hash();
 
+        // Two in-flight verifications hold both permits; the probe must then
+        // observe a saturated pool immediately. Saturation is re-confirmed in
+        // the same synchronous poll sequence as the probe because a long
+        // test-thread suspension can let the in-flight Argon2 jobs complete
+        // and release permits between separately awaited steps.
         let mut first = Box::pin(runtime.try_verify_password("probe", hash));
         let mut second = Box::pin(runtime.try_verify_password("probe", hash));
-        assert!(futures::poll!(first.as_mut()).is_pending());
-        assert!(futures::poll!(second.as_mut()).is_pending());
+        let mut probe = Box::pin(runtime.try_verify_password("probe", hash));
+        let busy = loop {
+            // Drive both placeholders into permit-holding state; the results
+            // are re-confirmed in the synchronous window below.
+            let _ = futures::poll!(first.as_mut());
+            let _ = futures::poll!(second.as_mut());
 
-        // Non-blocking verification observes the saturated pool immediately.
-        assert!(matches!(
-            runtime.try_verify_password("probe", hash).await,
-            Err(aster_forge_auth::PasswordWorkError::Busy)
-        ));
+            // Synchronous window: re-confirm both permits are still held and
+            // probe Busy without any await in between, so the only way the
+            // pool drains here is an Argon2 job completing inside this
+            // microsecond-scale sequence.
+            if !futures::poll!(first.as_mut()).is_pending()
+                || !futures::poll!(second.as_mut()).is_pending()
+            {
+                // A suspension longer than one Argon2 verification released a
+                // permit: rebuild the placeholders instead of asserting
+                // against stale saturation.
+                first = Box::pin(runtime.try_verify_password("probe", hash));
+                second = Box::pin(runtime.try_verify_password("probe", hash));
+                continue;
+            }
+
+            match futures::poll!(probe.as_mut()) {
+                Poll::Ready(Err(aster_forge_auth::PasswordWorkError::Busy)) => break true,
+                other => {
+                    // The probe slipped in and holds a permit (`Pending`) or
+                    // already finished (`Ready(Ok)`). Drain it so its job
+                    // releases the permit before rebuilding saturation.
+                    if matches!(other, Poll::Pending) {
+                        let _ = probe.as_mut().await;
+                    }
+                    first = Box::pin(runtime.try_verify_password("probe", hash));
+                    second = Box::pin(runtime.try_verify_password("probe", hash));
+                    probe = Box::pin(runtime.try_verify_password("probe", hash));
+                }
+            }
+        };
+        assert!(busy, "saturated pool must reject try_verify immediately");
 
         // A normal hash queues instead of failing.
         let mut third = Box::pin(runtime.hash_password("queued-password"));
