@@ -121,7 +121,10 @@ pub(crate) fn peer_ip(req: &HttpRequest) -> Option<String> {
 }
 
 /// Burns one argon2 verification for unknown identifiers so login timing does
-/// not reveal account existence.
+/// not reveal account existence. This must queue like the known-account
+/// `verify_password` path: the non-blocking `try_verify_password` variant
+/// returns `Busy` immediately whenever the Argon2 permit pool is saturated,
+/// and that response-time gap would expose whether an account exists.
 pub(super) async fn burn_dummy_password<S>(state: &S)
 where
     S: RuntimeConfigRuntimeState,
@@ -131,6 +134,6 @@ where
     };
     let _ = runtimes
         .password_hash_runtime()
-        .try_verify_password("not-the-password", runtimes.dummy_password_hash())
+        .verify_password("not-the-password", runtimes.dummy_password_hash())
         .await;
 }

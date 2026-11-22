@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Argon2 并发数可配置**：静态配置新增 `[auth] password_hash_max_concurrency`，默认 `2`（取自 `aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`）。每个 Argon2 任务约占用 64 MiB 工作内存，默认最坏并发工作内存约 128 MiB。修改后需要重启。
+
+### Changed
+
+- **Argon2 默认并发从 8 降到 2**：现有配置未显式设置 `password_hash_max_concurrency` 时，升级后每个进程的最坏并发 Argon2 工作内存从约 512 MiB 降到约 128 MiB。需要更高并发的部署请显式配置。
+
+### Security
+
+- **修复未知账号登录的时序枚举**：未知标识符的虚拟 Argon2 验证改用与已存在账号相同的等待语义（`verify_password`）。此前使用非阻塞的 `try_verify_password`，许可池饱和时立即返回，攻击者可用并发请求制造饱和并凭响应时间区分账号是否存在。默认并发降为 2 后触发门槛更低。
+
 ## [v0.1.0-beta.1] - 2026-06-20
 
 ### Release Highlights

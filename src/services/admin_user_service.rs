@@ -573,7 +573,10 @@ mod tests {
             .await
             .expect("admin user test runtime config should reload");
         runtime_config
-            .install_auth_runtimes(crate::config::TEST_JWT_SECRET)
+            .install_auth_runtimes(
+                crate::config::TEST_JWT_SECRET,
+                crate::config::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY,
+            )
             .await
             .expect("admin user test auth runtimes should install");
         let config = Arc::new(crate::config::Config {

@@ -972,7 +972,10 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         .await
         .expect("runtime config should reload");
     runtime_config
-        .install_auth_runtimes(&config.auth.jwt_secret)
+        .install_auth_runtimes(
+            &config.auth.jwt_secret,
+            config.auth.password_hash_max_concurrency,
+        )
         .await
         .expect("auth runtimes should install");
 

@@ -26,7 +26,10 @@ where
     let runtime_config = Arc::new(RuntimeConfig::new());
     runtime_config.reload(reader).await?;
     runtime_config
-        .install_auth_runtimes(&auth_config.jwt_secret)
+        .install_auth_runtimes(
+            &auth_config.jwt_secret,
+            auth_config.password_hash_max_concurrency,
+        )
         .await?;
     Ok(runtime_config)
 }
