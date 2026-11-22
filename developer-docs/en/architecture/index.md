@@ -8,6 +8,7 @@ AsterYggdrasil is built on the [AsterForge](https://github.com/AsterCommunity/As
 | --- | --- | --- |
 | `aster_yggdrasil` | Application shell: API routes, services, runtime assembly, static config loader, admin middleware | All product crates and all Forge crates |
 | `aster_yggdrasil_protocol` | Project-agnostic Yggdrasil/authlib-injector wire model and error state machine (profiles, properties, request/response bodies, metadata, Minecraft services payloads, base64 `textures` value encoding) | `serde`, `serde_json`, `base64`, `http`, `validator`; optional `utoipa` |
+| `aster_yggdrasil_outbound` | Outbound HTTP policy: purpose profiles, timeouts, telemetry observer — the only place outbound clients are built | `aster_forge_http`, `reqwest`, `tracing` |
 | `aster_yggdrasil_model` | SeaORM entities and domain types (`UserRole`, `OperatorScope`, `UserBanScope`, task payloads). Forge trait impls that belong to entities (`TaskRecord`, `ClaimableTaskRecord`) live here | Forge crates, SeaORM. Never depends on the application crate |
 | `aster_yggdrasil_migration` | Append-only database migrations and the standalone migration binary | Forge DB migration helpers |
 | `aster_yggdrasil_render` | Minecraft skin/cape preview rendering (2D and 3D engines) | `image` only |

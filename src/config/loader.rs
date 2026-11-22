@@ -6,6 +6,7 @@ use crate::utils::paths::{
     DEFAULT_CONFIG_PATH, resolve_config_relative_path, resolve_config_relative_sqlite_url,
 };
 use config::{Config as RawConfig, Environment, File, FileFormat};
+use secrecy::ExposeSecret;
 use std::path::{Path, PathBuf};
 use toml_edit::{DocumentMut, Item, Table, value};
 
@@ -137,7 +138,12 @@ fn ensure_stable_default_config_keys(
     if !auth_table.contains_key("mfa_secret_key") {
         auth_table.insert(
             "mfa_secret_key",
-            value(crate::config::AuthConfig::default().mfa_secret_key),
+            value(
+                crate::config::AuthConfig::default()
+                    .mfa_secret_key
+                    .expose_secret()
+                    .to_string(),
+            ),
         );
         changed = true;
     }

@@ -1,7 +1,7 @@
 [package]
 name = "aster_yggdrasil_model"
 description = "AsterYggdrasil shared SeaORM entities and domain types."
-version = "0.1.0"
+version.workspace = true
 homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_model"
 authors.workspace = true
 repository.workspace = true

@@ -169,11 +169,8 @@ mod tests {
 
     #[tokio::test]
     async fn list_keys_returns_relative_sorted_keys_under_prefix() {
-        let root = std::env::temp_dir().join(format!(
-            "asteryggdrasil-object-storage-{}",
-            uuid::Uuid::new_v4()
-        ));
-        let storage = LocalTextureStore::new(root.to_str().unwrap());
+        let root = aster_forge_test::temp::TestTempDir::new("object-storage");
+        let storage = LocalTextureStore::new(root.path().to_str().unwrap());
         let first = root.join("textures/ab/abc.png");
         let second = root.join("textures/cd/cde.png");
         tokio::fs::create_dir_all(first.parent().unwrap())
@@ -194,6 +191,5 @@ mod tests {
                 "textures/cd/cde.png".to_string()
             ]
         );
-        tokio::fs::remove_dir_all(root).await.unwrap();
     }
 }

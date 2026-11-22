@@ -6,16 +6,10 @@
 )]
 
 use aster_yggdrasil::runtime::{AppState, AppStateParts};
-use fs2::FileExt;
-use serde::{Deserialize, Serialize};
+use secrecy::ExposeSecret;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fs::{File, OpenOptions},
-    hash::{Hash, Hasher},
-    io::{Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
-    process::Command,
     sync::{Mutex, OnceLock},
 };
 
@@ -63,13 +57,6 @@ enum TestDatabaseBackend {
     MySql,
 }
 
-struct SharedTestDatabaseContainer {
-    _container: testcontainers::ContainerAsync<testcontainers::GenericImage>,
-    _lease: SharedTestContainerLease,
-    admin_database_url: String,
-    database_url: String,
-}
-
 struct MySqlSchemaTemplate {
     database_name: String,
     create_table_sql: Vec<String>,
@@ -79,68 +66,22 @@ struct PostgresDatabaseTemplate {
     database_name: String,
 }
 
-static POSTGRES_TEST_CONTAINER: tokio::sync::OnceCell<SharedTestDatabaseContainer> =
+static POSTGRES_TEST_CONTAINER: tokio::sync::OnceCell<
+    aster_forge_test::postgres::PostgresTestContainer,
+> = tokio::sync::OnceCell::const_new();
+static MYSQL_TEST_CONTAINER: tokio::sync::OnceCell<aster_forge_test::mysql::MysqlTestContainer> =
     tokio::sync::OnceCell::const_new();
-static MYSQL_TEST_CONTAINER: tokio::sync::OnceCell<SharedTestDatabaseContainer> =
-    tokio::sync::OnceCell::const_new();
+const POSTGRES_TEST_SESSION_OPTIONS: &str =
+    "-c max_parallel_workers_per_gather=0 -c max_parallel_maintenance_workers=0";
+
+fn test_container_suite() -> &'static aster_forge_test::suite::TestContainerSuite {
+    static SUITE: OnceLock<aster_forge_test::suite::TestContainerSuite> = OnceLock::new();
+    SUITE.get_or_init(|| aster_forge_test::suite::TestContainerSuite::new("asteryggdrasil"))
+}
 static POSTGRES_DATABASE_TEMPLATE: tokio::sync::OnceCell<PostgresDatabaseTemplate> =
     tokio::sync::OnceCell::const_new();
 static MYSQL_SCHEMA_TEMPLATE: tokio::sync::OnceCell<MySqlSchemaTemplate> =
     tokio::sync::OnceCell::const_new();
-
-#[derive(Default, Deserialize, Serialize)]
-struct SharedTestContainerState {
-    #[serde(default)]
-    databases_by_pid: HashMap<u32, Vec<String>>,
-    pids: Vec<u32>,
-}
-
-struct SharedTestContainerLease {
-    backend: TestDatabaseBackend,
-}
-
-impl Drop for SharedTestContainerLease {
-    fn drop(&mut self) {
-        release_shared_test_container(self.backend);
-    }
-}
-
-impl SharedTestContainerLease {
-    const fn new(backend: TestDatabaseBackend) -> Self {
-        Self { backend }
-    }
-}
-
-impl SharedTestContainerState {
-    fn normalize(&mut self) {
-        self.pids.sort_unstable();
-        self.pids.dedup();
-
-        self.databases_by_pid
-            .retain(|pid, _| self.pids.binary_search(pid).is_ok());
-        for pid in &self.pids {
-            let databases = self.databases_by_pid.entry(*pid).or_default();
-            databases.sort_unstable();
-            databases.dedup();
-        }
-    }
-
-    fn register_pid(&mut self, pid: u32) {
-        if !self.pids.contains(&pid) {
-            self.pids.push(pid);
-        }
-        self.normalize();
-    }
-
-    fn remember_database(&mut self, pid: u32, database_name: &str) {
-        self.register_pid(pid);
-        let databases = self.databases_by_pid.entry(pid).or_default();
-        if !databases.iter().any(|name| name == database_name) {
-            databases.push(database_name.to_string());
-        }
-        databases.sort_unstable();
-    }
-}
 
 impl TestDatabaseBackend {
     const fn as_str(self) -> &'static str {
@@ -150,186 +91,6 @@ impl TestDatabaseBackend {
             Self::MySql => "mysql",
         }
     }
-
-    const fn container_port(self) -> u16 {
-        match self {
-            Self::Sqlite => 0,
-            Self::Postgres => 5432,
-            Self::MySql => 3306,
-        }
-    }
-
-    fn shared_container_name(self) -> String {
-        format!(
-            "asteryggdrasil-test-{}-{}",
-            test_workspace_id(),
-            self.as_str()
-        )
-    }
-
-    fn shared_state_path(self) -> PathBuf {
-        shared_test_container_state_dir().join(format!(
-            "{}-{}.json",
-            test_workspace_id(),
-            self.as_str()
-        ))
-    }
-
-    fn shared_lock_path(self) -> PathBuf {
-        shared_test_container_state_dir().join(format!(
-            "{}-{}.lock",
-            test_workspace_id(),
-            self.as_str()
-        ))
-    }
-
-    fn database_url(self, port: u16) -> String {
-        match self {
-            Self::Sqlite => "sqlite::memory:".to_string(),
-            Self::Postgres => {
-                format!("postgres://postgres:postgres@127.0.0.1:{port}/asteryggdrasil")
-            }
-            Self::MySql => format!("mysql://aster:asterpass@127.0.0.1:{port}/asteryggdrasil"),
-        }
-    }
-
-    fn admin_database_url(self, port: u16) -> String {
-        match self {
-            Self::Sqlite => "sqlite::memory:".to_string(),
-            Self::Postgres => self.database_url(port),
-            Self::MySql => format!("mysql://root:rootpass@127.0.0.1:{port}/asteryggdrasil"),
-        }
-    }
-}
-
-fn test_workspace_id() -> &'static str {
-    static WORKSPACE_ID: OnceLock<String> = OnceLock::new();
-    WORKSPACE_ID.get_or_init(|| {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        env!("CARGO_MANIFEST_DIR").hash(&mut hasher);
-        format!("{:016x}", hasher.finish())
-    })
-}
-
-fn shared_test_container_state_dir() -> &'static Path {
-    static STATE_DIR: OnceLock<PathBuf> = OnceLock::new();
-    STATE_DIR
-        .get_or_init(|| {
-            let path = PathBuf::from(SHARED_TEST_CONTAINER_STATE_DIR);
-            std::fs::create_dir_all(&path).expect("shared test container state dir should exist");
-            path
-        })
-        .as_path()
-}
-
-fn lock_shared_test_container_state(backend: TestDatabaseBackend) -> File {
-    let lock_path = backend.shared_lock_path();
-    let file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .read(true)
-        .write(true)
-        .open(lock_path)
-        .expect("shared test container lock file should open");
-    file.lock_exclusive()
-        .expect("shared test container lock should be acquired");
-    file
-}
-
-fn load_shared_test_container_state(
-    file: &mut File,
-    backend: TestDatabaseBackend,
-) -> SharedTestContainerState {
-    let state_path = backend.shared_state_path();
-    if !state_path.exists() {
-        return SharedTestContainerState::default();
-    }
-
-    file.seek(SeekFrom::Start(0))
-        .expect("state lock file should seek");
-    let mut raw = String::new();
-    File::open(state_path)
-        .and_then(|mut state_file| state_file.read_to_string(&mut raw))
-        .expect("shared test container state should be readable");
-
-    let mut state = if raw.trim().is_empty() {
-        SharedTestContainerState::default()
-    } else {
-        serde_json::from_str(&raw).expect("shared test container state should be valid json")
-    };
-    state.normalize();
-    state
-}
-
-fn save_shared_test_container_state(
-    file: &mut File,
-    backend: TestDatabaseBackend,
-    state: &SharedTestContainerState,
-) {
-    let state_path = backend.shared_state_path();
-    file.seek(SeekFrom::Start(0))
-        .expect("state lock file should seek");
-
-    let json = serde_json::to_vec(state).expect("shared test container state should serialize");
-    let mut state_file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(state_path)
-        .expect("shared test container state file should open");
-    state_file
-        .write_all(&json)
-        .expect("shared test container state should write");
-    state_file
-        .write_all(b"\n")
-        .expect("shared test container state should end with newline");
-    state_file
-        .flush()
-        .expect("shared test container state should flush");
-    let _ = file.flush();
-}
-
-fn process_is_running(pid: u32) -> bool {
-    if pid == std::process::id() {
-        return true;
-    }
-
-    Command::new("/bin/kill")
-        .arg("-0")
-        .arg(pid.to_string())
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
-fn prune_shared_test_container_state(state: &mut SharedTestContainerState) -> Vec<String> {
-    let stale_pids = state
-        .pids
-        .iter()
-        .copied()
-        .filter(|pid| !process_is_running(*pid))
-        .collect::<Vec<_>>();
-    let stale_databases = stale_pids
-        .iter()
-        .flat_map(|pid| {
-            state
-                .databases_by_pid
-                .remove(pid)
-                .unwrap_or_default()
-                .into_iter()
-        })
-        .collect::<Vec<_>>();
-
-    state.pids.retain(|pid| !stale_pids.contains(pid));
-    state.normalize();
-    stale_databases
-}
-
-fn remember_shared_test_database(backend: TestDatabaseBackend, database_name: &str) {
-    let mut lock_file = lock_shared_test_container_state(backend);
-    let mut state = load_shared_test_container_state(&mut lock_file, backend);
-    state.remember_database(std::process::id(), database_name);
-    save_shared_test_container_state(&mut lock_file, backend, &state);
 }
 
 fn test_backend_from_database_backend(backend: sea_orm::DbBackend) -> Option<TestDatabaseBackend> {
@@ -338,13 +99,6 @@ fn test_backend_from_database_backend(backend: sea_orm::DbBackend) -> Option<Tes
         sea_orm::DbBackend::MySql => Some(TestDatabaseBackend::MySql),
         _ => None,
     }
-}
-
-fn release_shared_test_container(backend: TestDatabaseBackend) {
-    let mut lock_file = lock_shared_test_container_state(backend);
-    let mut state = load_shared_test_container_state(&mut lock_file, backend);
-    let _ = prune_shared_test_container_state(&mut state);
-    save_shared_test_container_state(&mut lock_file, backend, &state);
 }
 
 async fn drop_stale_test_databases(
@@ -396,14 +150,31 @@ async fn ensure_mysql_test_user_access(admin_database_url: &str, username: &str)
     )
     .await
     .expect("mysql test admin connection should succeed");
-    let grant_sql = format!(
-        "GRANT ALL PRIVILEGES ON *.* TO {}@'%'",
-        quote_mysql_string(username)
-    );
+
+    let username = quote_mysql_string(username);
+    let password = quote_mysql_string("asterpass");
+    admin_db
+        .execute_unprepared(&format!(
+            "CREATE USER IF NOT EXISTS {username}@'%' IDENTIFIED BY {password}"
+        ))
+        .await
+        .expect("mysql test user should exist");
+    admin_db
+        .execute_unprepared(&format!(
+            "ALTER USER {username}@'%' IDENTIFIED BY {password}"
+        ))
+        .await
+        .expect("mysql test user password should be current");
+
+    let grant_sql = format!("GRANT ALL PRIVILEGES ON *.* TO {username}@'%'");
     admin_db
         .execute_unprepared(&grant_sql)
         .await
         .expect("mysql test user grant should succeed");
+    admin_db
+        .close()
+        .await
+        .expect("mysql test user setup connection should close");
 }
 
 fn configured_database_backend_env_value() -> Option<String> {
@@ -426,134 +197,42 @@ fn configured_test_database_backend() -> TestDatabaseBackend {
     }
 }
 
-async fn wait_for_database(database_url: &str) {
-    let mut last_err: Option<String> = None;
-    let ready = tokio::time::timeout(std::time::Duration::from_secs(60), async {
-        loop {
-            let cfg = aster_yggdrasil::config::DatabaseConfig {
-                url: database_url.into(),
-                pool_size: 1,
-                retry_count: 0,
-            };
-            match aster_yggdrasil::db::connect_with_metrics(
-                &cfg,
-                aster_forge_metrics::NoopMetrics::arc(),
-            )
-            .await
-            {
-                Ok(_) => break,
-                Err(err) => {
-                    last_err = Some(err.to_string());
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                }
-            }
-        }
-    })
-    .await;
-
-    if ready.is_err() {
-        panic!(
-            "timed out waiting for database {database_url}: {}",
-            last_err.unwrap_or_else(|| "unknown error".to_string())
-        );
-    }
-}
-
-async fn start_postgres_test_container() -> SharedTestDatabaseContainer {
-    use testcontainers::{GenericImage, ImageExt, ReuseDirective, runners::AsyncRunner};
-
-    let backend = TestDatabaseBackend::Postgres;
-    let mut lock_file = lock_shared_test_container_state(backend);
-    let mut state = load_shared_test_container_state(&mut lock_file, backend);
-    let stale_databases = prune_shared_test_container_state(&mut state);
-    let current_pid = std::process::id();
-    state.register_pid(current_pid);
-
-    let container = GenericImage::new("postgres", "16")
-        .with_exposed_port(testcontainers::core::IntoContainerPort::tcp(
-            backend.container_port(),
-        ))
-        .with_container_name(backend.shared_container_name())
-        .with_reuse(ReuseDirective::Always)
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_env_var("POSTGRES_DB", "asteryggdrasil")
-        .start()
-        .await
-        .expect("failed to start postgres test container");
-    let port = container
-        .get_host_port_ipv4(testcontainers::core::IntoContainerPort::tcp(
-            backend.container_port(),
-        ))
-        .await
-        .expect("postgres test port should be exposed");
-    let database_url = backend.database_url(port);
-    let admin_database_url = backend.admin_database_url(port);
-
-    wait_for_database(&database_url).await;
-    drop_stale_test_databases(
-        sea_orm::DbBackend::Postgres,
-        &admin_database_url,
-        &stale_databases,
-    )
-    .await;
-    save_shared_test_container_state(&mut lock_file, backend, &state);
-
-    SharedTestDatabaseContainer {
-        _container: container,
-        _lease: SharedTestContainerLease::new(backend),
-        admin_database_url,
-        database_url,
-    }
-}
-
-async fn start_mysql_test_container() -> SharedTestDatabaseContainer {
-    use testcontainers::{GenericImage, ImageExt, ReuseDirective, runners::AsyncRunner};
-
-    let backend = TestDatabaseBackend::MySql;
-    let mut lock_file = lock_shared_test_container_state(backend);
-    let mut state = load_shared_test_container_state(&mut lock_file, backend);
-    let stale_databases = prune_shared_test_container_state(&mut state);
-    let current_pid = std::process::id();
-    state.register_pid(current_pid);
-
-    let container = GenericImage::new("mysql", "8.4")
-        .with_exposed_port(testcontainers::core::IntoContainerPort::tcp(
-            backend.container_port(),
-        ))
-        .with_container_name(backend.shared_container_name())
-        .with_reuse(ReuseDirective::Always)
-        .with_env_var("MYSQL_DATABASE", "asteryggdrasil")
-        .with_env_var("MYSQL_USER", "aster")
-        .with_env_var("MYSQL_PASSWORD", "asterpass")
-        .with_env_var("MYSQL_ROOT_PASSWORD", "rootpass")
-        .start()
-        .await
-        .expect("failed to start mysql test container");
-    let port = container
-        .get_host_port_ipv4(testcontainers::core::IntoContainerPort::tcp(
-            backend.container_port(),
-        ))
-        .await
-        .expect("mysql test port should be exposed");
-    let database_url = backend.database_url(port);
-    let admin_database_url = backend.admin_database_url(port);
-
-    wait_for_database(&database_url).await;
-    ensure_mysql_test_user_access(&admin_database_url, "aster").await;
+async fn start_mysql_test_container() -> aster_forge_test::mysql::MysqlTestContainer {
+    let container =
+        aster_forge_test::mysql::MysqlTestContainer::start(test_container_suite()).await;
+    ensure_mysql_test_user_access(container.root_url(), "aster").await;
     drop_stale_test_databases(
         sea_orm::DbBackend::MySql,
-        &admin_database_url,
-        &stale_databases,
+        container.root_url(),
+        container.stale_resources(),
     )
     .await;
-    save_shared_test_container_state(&mut lock_file, backend, &state);
+    container.forget_resources(container.stale_resources());
+    container
+}
 
-    SharedTestDatabaseContainer {
-        _container: container,
-        _lease: SharedTestContainerLease::new(backend),
-        admin_database_url,
-        database_url,
+fn postgres_test_session_url(database_url: &str) -> String {
+    let mut url = url::Url::parse(database_url).expect("postgres test URL should parse");
+    url.query_pairs_mut()
+        .append_pair("options", POSTGRES_TEST_SESSION_OPTIONS);
+    url.to_string()
+}
+
+/// Builds the product database URL with backend-specific test credentials and limits.
+fn product_database_url(database_url: &str, backend: TestDatabaseBackend) -> String {
+    let mut url = url::Url::parse(database_url).expect("test database URL should parse");
+    url.set_path("/asteryggdrasil");
+    if backend == TestDatabaseBackend::MySql {
+        url.set_username("aster")
+            .expect("MySQL test URL should accept a username");
+        url.set_password(Some("asterpass"))
+            .expect("MySQL test URL should accept a password");
+    }
+    let database_url = url.to_string();
+    if backend == TestDatabaseBackend::Postgres {
+        postgres_test_session_url(&database_url)
+    } else {
+        database_url
     }
 }
 
@@ -564,11 +243,13 @@ async fn shared_test_database_urls(backend: TestDatabaseBackend) -> (String, Str
         }
         TestDatabaseBackend::Postgres => {
             let container = POSTGRES_TEST_CONTAINER
-                .get_or_init(start_postgres_test_container)
+                .get_or_init(|| {
+                    aster_forge_test::postgres::PostgresTestContainer::start(test_container_suite())
+                })
                 .await;
             (
-                container.admin_database_url.clone(),
-                container.database_url.clone(),
+                container.admin_url().to_string(),
+                product_database_url(container.admin_url(), backend),
             )
         }
         TestDatabaseBackend::MySql => {
@@ -576,8 +257,8 @@ async fn shared_test_database_urls(backend: TestDatabaseBackend) -> (String, Str
                 .get_or_init(start_mysql_test_container)
                 .await;
             (
-                container.admin_database_url.clone(),
-                container.database_url.clone(),
+                container.root_url().to_string(),
+                product_database_url(container.root_url(), backend),
             )
         }
     }
@@ -652,50 +333,73 @@ async fn provision_isolated_test_database_url_with_template(
         return database_url.to_string();
     }
 
-    use sea_orm::ConnectionTrait;
-
-    let admin_cfg = aster_yggdrasil::config::DatabaseConfig {
-        url: admin_database_url.into(),
-        pool_size: 1,
-        retry_count: 0,
-    };
-    let admin_db = aster_yggdrasil::db::connect_with_metrics(
-        &admin_cfg,
-        aster_forge_metrics::NoopMetrics::arc(),
-    )
-    .await
-    .expect("isolated test database admin connection should succeed");
-    let backend = admin_db.get_database_backend();
     let parsed_url = url::Url::parse(database_url).expect("test database url should parse");
     let base_name =
         database_name_from_url(&parsed_url).unwrap_or_else(|| "asteryggdrasil".to_string());
+    let backend = match parsed_url.scheme() {
+        "postgres" | "postgresql" => sea_orm::DbBackend::Postgres,
+        "mysql" => sea_orm::DbBackend::MySql,
+        scheme => panic!("unsupported isolated test database URL scheme: {scheme}"),
+    };
 
     let isolated_name = match backend {
         sea_orm::DbBackend::Postgres => isolated_database_name(&base_name, 63),
         sea_orm::DbBackend::MySql => isolated_database_name(&base_name, 64),
-        _ => return database_url.to_string(),
+        _ => unreachable!("isolated database provisioning only supports postgres/mysql"),
     };
-    let test_backend = test_backend_from_database_backend(backend)
-        .expect("isolated database provisioning only supports postgres/mysql");
-    remember_shared_test_database(test_backend, &isolated_name);
 
-    let create_sql = match (backend, template_database_name) {
-        (sea_orm::DbBackend::Postgres, Some(template_database_name)) => format!(
-            "CREATE DATABASE {} TEMPLATE {}",
-            quote_database_identifier(backend, &isolated_name),
-            quote_database_identifier(backend, template_database_name)
-        ),
-        _ => format!(
-            "CREATE DATABASE {}",
-            quote_database_identifier(backend, &isolated_name)
-        ),
-    };
-    admin_db
-        .execute_unprepared(&create_sql)
-        .await
-        .expect("isolated test database should create");
+    match backend {
+        sea_orm::DbBackend::Postgres => {
+            let container = POSTGRES_TEST_CONTAINER
+                .get_or_init(|| {
+                    aster_forge_test::postgres::PostgresTestContainer::start(test_container_suite())
+                })
+                .await;
+            let database = match template_database_name {
+                Some(template) => {
+                    container
+                        .create_database_from_template(&isolated_name, template)
+                        .await
+                }
+                None => container.create_database(&isolated_name).await,
+            };
+            postgres_test_session_url(database.url())
+        }
+        sea_orm::DbBackend::MySql => {
+            use sea_orm::ConnectionTrait;
 
-    replace_database_name(parsed_url, &isolated_name)
+            let container = MYSQL_TEST_CONTAINER
+                .get_or_init(start_mysql_test_container)
+                .await;
+            container.remember_resource(&isolated_name);
+
+            let admin_cfg = aster_yggdrasil::config::DatabaseConfig {
+                url: admin_database_url.into(),
+                pool_size: 1,
+                retry_count: 0,
+            };
+            let admin_db = aster_yggdrasil::db::connect_with_metrics(
+                &admin_cfg,
+                aster_forge_metrics::NoopMetrics::arc(),
+            )
+            .await
+            .expect("MySQL test admin connection should succeed");
+            admin_db
+                .execute_unprepared(&format!(
+                    "CREATE DATABASE {}",
+                    quote_database_identifier(backend, &isolated_name)
+                ))
+                .await
+                .expect("isolated MySQL test database should be created");
+            admin_db
+                .close()
+                .await
+                .expect("MySQL test admin connection should close");
+
+            replace_database_name(parsed_url, &isolated_name)
+        }
+        _ => unreachable!("isolated database provisioning only supports postgres/mysql"),
+    }
 }
 
 async fn provision_isolated_test_database_url(
@@ -950,7 +654,9 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         },
         database: db_cfg.clone(),
         auth: aster_yggdrasil::config::AuthConfig {
-            jwt_secret: "test-secret-key-for-integration-tests".to_string(),
+            jwt_secret: secrecy::SecretString::from(
+                "test-secret-key-for-integration-tests".to_string(),
+            ),
             bootstrap_insecure_cookies: true,
             ..Default::default()
         },
@@ -973,7 +679,7 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
         .expect("runtime config should reload");
     runtime_config
         .install_auth_runtimes(
-            &config.auth.jwt_secret,
+            config.auth.jwt_secret.expose_secret(),
             config.auth.password_hash_max_concurrency,
         )
         .await

@@ -12,6 +12,7 @@ use aws_credential_types::Credentials;
 use aws_sdk_s3::config::{BehaviorVersion, Region, timeout::TimeoutConfig};
 use aws_sdk_s3::error::{ProvideErrorMetadata, SdkError};
 use aws_sdk_s3::primitives::ByteStream;
+use secrecy::ExposeSecret;
 use std::error::Error as StdError;
 use std::path::Path;
 use std::time::Duration;
@@ -37,7 +38,7 @@ impl S3TextureStore {
 
         let credentials = Credentials::new(
             config.access_key_id.trim(),
-            config.secret_access_key.trim(),
+            config.secret_access_key.expose_secret().trim(),
             None,
             None,
             "asteryggdrasil-object-storage",
@@ -313,7 +314,7 @@ fn validate_config(config: &S3TextureStorageConfig) -> Result<()> {
             "object_storage.s3.access_key_id cannot be empty",
         ));
     }
-    if config.secret_access_key.trim().is_empty() {
+    if config.secret_access_key.expose_secret().trim().is_empty() {
         return Err(AsterError::config_error(
             "object_storage.s3.secret_access_key cannot be empty",
         ));
@@ -426,7 +427,7 @@ mod tests {
             bucket: "textures".to_string(),
             base_path: String::new(),
             access_key_id: RUSTFS_ACCESS_KEY.to_string(),
-            secret_access_key: RUSTFS_SECRET_KEY.to_string(),
+            secret_access_key: secrecy::SecretString::from(RUSTFS_SECRET_KEY.to_string()),
             force_path_style: true,
         }
     }
@@ -501,7 +502,7 @@ mod tests {
             },
             {
                 let mut config = valid_config();
-                config.secret_access_key.clear();
+                config.secret_access_key = secrecy::SecretString::from("  ".to_string());
                 (
                     config,
                     "object_storage.s3.secret_access_key cannot be empty",
@@ -623,12 +624,8 @@ mod tests {
         })
         .unwrap();
 
-        let temp_dir = std::env::temp_dir().join(format!(
-            "asteryggdrasil-s3-storage-contract-{}",
-            uuid::Uuid::new_v4()
-        ));
-        tokio::fs::create_dir_all(&temp_dir).await.unwrap();
-        let source = temp_dir.join("source.png");
+        let temp_dir = aster_forge_test::temp::TestTempDir::new("s3-storage-contract");
+        let source = temp_dir.path().join("source.png");
         tokio::fs::write(&source, b"png-bytes").await.unwrap();
 
         let prefix = format!("contract/{}/", uuid::Uuid::new_v4());
@@ -681,7 +678,6 @@ mod tests {
         assert!(!storage.exists(&key).await.unwrap());
         assert!(storage.exists(&sibling_key).await.unwrap());
         storage.delete(&sibling_key).await.unwrap();
-        tokio::fs::remove_dir_all(temp_dir).await.unwrap();
     }
 
     #[tokio::test]

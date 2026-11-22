@@ -6,6 +6,7 @@ use sea_orm::ConnectionTrait;
 
 use crate::config::{AuthConfig, RuntimeConfig};
 use crate::errors::Result;
+use secrecy::ExposeSecret;
 
 /// Ensures system configuration defaults and loads the runtime cache.
 pub async fn prepare_runtime_config<C>(
@@ -27,7 +28,7 @@ where
     runtime_config.reload(reader).await?;
     runtime_config
         .install_auth_runtimes(
-            &auth_config.jwt_secret,
+            auth_config.jwt_secret.expose_secret(),
             auth_config.password_hash_max_concurrency,
         )
         .await?;

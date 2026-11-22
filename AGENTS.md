@@ -26,7 +26,7 @@ src/services/                Auth、external auth、config、mail、audit、task
 src/types/                   共享枚举和 DB wrapper 类型
 src/utils/                   crypto、ID、path、number、email、RAII 等工具
 migration/                   SeaORM migration crate
-crates/                      产品 crate：model / migration / render / protocol（协议 wire 模型和错误状态机，不依赖应用壳）
+crates/                      产品 crate：model / migration / render / protocol（协议 wire 模型）/ outbound（出站 HTTP 策略），不依赖应用壳
 api-docs-macros/             OpenAPI 辅助宏
 frontend-panel/              React + Vite 管理前端，目前只是模板/demo
 developer-docs/              开发说明

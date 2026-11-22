@@ -33,7 +33,7 @@ pub struct AppState {
     pub audit_writer: Arc<aster_forge_audit::AuditWriter>,
     pub started_at: Instant,
     pub yggdrasil_rate_limiter: YggdrasilRateLimiter,
-    pub yggdrasil_session_forward_http_client: reqwest::Client,
+    pub yggdrasil_session_forward_http_client: aster_forge_http::HttpClient,
     pub background_task_dispatch_wakeup: Arc<Notify>,
 }
 
@@ -84,16 +84,17 @@ impl AppState {
         YggdrasilRateLimiter::from_config(&config.rate_limit)
     }
 
-    pub fn new_yggdrasil_session_forward_http_client() -> Result<reqwest::Client> {
-        reqwest::ClientBuilder::new()
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(YGGDRASIL_SESSION_FORWARD_USER_AGENT)
-            .build()
-            .map_err(|error| {
-                AsterError::internal_error(format!(
-                    "build Yggdrasil session forward HTTP client: {error}"
-                ))
-            })
+    pub fn new_yggdrasil_session_forward_http_client() -> Result<aster_forge_http::HttpClient> {
+        aster_yggdrasil_outbound::ClientConfig::new(
+            aster_yggdrasil_outbound::Profile::SessionForward,
+        )
+        .user_agent(YGGDRASIL_SESSION_FORWARD_USER_AGENT)
+        .build()
+        .map_err(|error| {
+            AsterError::internal_error(format!(
+                "build Yggdrasil session forward HTTP client: {error}"
+            ))
+        })
     }
 
     pub fn writer_db(&self) -> &DatabaseConnection {
@@ -144,7 +145,7 @@ impl AppState {
         &self.yggdrasil_rate_limiter
     }
 
-    pub fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client {
+    pub fn yggdrasil_session_forward_http_client(&self) -> &aster_forge_http::HttpClient {
         &self.yggdrasil_session_forward_http_client
     }
 

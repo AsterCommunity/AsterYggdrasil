@@ -1,0 +1,23 @@
+[package]
+name = "aster_yggdrasil_outbound"
+description = "AsterYggdrasil outbound HTTP policy on top of aster_forge_http."
+version.workspace = true
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_outbound"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+edition = "2024"
+rust-version = "1.95.0"
+publish = false
+
+[dependencies]
+aster_forge_http = { workspace = true, features = ["rustls-aws-lc-rs"] }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+name = "aster_yggdrasil_outbound"
+doctest = false

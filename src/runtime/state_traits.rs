@@ -46,7 +46,7 @@ pub trait AuditRuntimeState {
 }
 
 pub trait YggdrasilSessionForwardRuntimeState: SharedRuntimeState {
-    fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client;
+    fn yggdrasil_session_forward_http_client(&self) -> &aster_forge_http::HttpClient;
 }
 
 pub trait SharedRuntimeState:
@@ -132,7 +132,7 @@ impl AuditRuntimeState for AppState {
 }
 
 impl YggdrasilSessionForwardRuntimeState for AppState {
-    fn yggdrasil_session_forward_http_client(&self) -> &reqwest::Client {
+    fn yggdrasil_session_forward_http_client(&self) -> &aster_forge_http::HttpClient {
         self.yggdrasil_session_forward_http_client()
     }
 }

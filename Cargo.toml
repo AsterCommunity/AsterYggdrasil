@@ -1,7 +1,8 @@
 [workspace]
-members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol"]
+members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol", "crates/aster_yggdrasil_outbound"]
 
 [workspace.package]
+version = "0.1.0-beta.1"
 authors = [
     "AptS-1547 <apts-1547@esaps.net>",
     "AptS-1548 <apts-1548@esaps.net>",
@@ -14,6 +15,7 @@ aster_yggdrasil_render = { path = "crates/aster_yggdrasil_render" }
 aster_yggdrasil_model = { path = "crates/aster_yggdrasil_model" }
 aster_yggdrasil_migration = { path = "crates/aster_yggdrasil_migration" }
 aster_yggdrasil_protocol = { path = "crates/aster_yggdrasil_protocol" }
+aster_yggdrasil_outbound = { path = "crates/aster_yggdrasil_outbound" }
 # Pin all Forge mechanisms together to the exact published crates.io versions;
 # members add only their required features.
 aster_forge_middleware = { version = "=0.1.0-alpha.4" }
@@ -29,6 +31,7 @@ aster_forge_crypto = { version = "=0.1.0-alpha.3" }
 aster_forge_db = { version = "=0.1.0-alpha.4", default-features = false }
 aster_forge_db_migration = { version = "=0.1.0-alpha.2" }
 aster_forge_external_auth = { version = "=0.1.0-alpha.4" }
+aster_forge_http = { version = "=0.1.0-alpha.3" }
 aster_forge_logging = { version = "=0.1.0-alpha.2" }
 aster_forge_mail = { version = "=0.1.0-alpha.3" }
 aster_forge_metrics = { version = "=0.1.0-alpha.4" }
@@ -36,6 +39,7 @@ aster_forge_panic = { version = "=0.1.0-alpha.3" }
 aster_forge_runtime = { version = "=0.1.0-alpha.3" }
 aster_forge_storage_core = { version = "=0.1.0-alpha.2" }
 aster_forge_tasks = { version = "=0.1.0-alpha.3", default-features = false }
+aster_forge_test = { version = "=0.1.0-alpha.4" }
 aster_forge_utils = { version = "=0.1.0-alpha.3" }
 aster_forge_validation = { version = "=0.1.0-alpha.1" }
 actix-web = { version = "4.20.0", features = ["compress-brotli", "compress-gzip"] }
@@ -46,6 +50,7 @@ async-trait = "0.1"
 aws-credential-types = { version = "1.3.1", features = ["hardcoded-credentials"] }
 aws-sdk-s3 = { version = "1.161.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
 base64 = "0.23"
+criterion = "0.8"
 captcha-rs = "0.5"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 config = { version = "0.15", default-features = false, features = ["toml"] }
@@ -73,9 +78,11 @@ sea-orm = { version = "2.0.4", features = ["sqlx-mysql", "sqlx-postgres", "sqlx-
 sea-orm-migration = { version = "2.0.4", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+secrecy = "0.10"
 sha1 = "0.11"
 sha2 = "0.11"
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+thiserror = "2"
 testcontainers = { version = "0.28", features = ["reusable-containers"] }
 tikv-jemallocator = { version = "0.7" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "fs", "io-util"] }
@@ -96,7 +103,7 @@ webauthn-authenticator-rs = { version = "0.6.2", features = ["softpasskey"] }
 [package]
 name = "aster_yggdrasil"
 description = "Self-hosted Minecraft skin site and Yggdrasil authentication server."
-version = "0.1.0-beta.1"
+version.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
@@ -104,21 +111,30 @@ edition = "2024"
 rust-version = "1.95.0"
 publish = false
 
-# 优化配置
 [profile.dev]
-opt-level = 1
+opt-level = 0
 lto = false
-codegen-units = 16
+codegen-units = 256
+debug = 1
 panic = "unwind"
 strip = false
 incremental = true
+
+[profile.dev.package."*"]
+opt-level = 1
+debug = false
 
 [profile.release]
 opt-level = 2
 lto = true
 codegen-units = 1
-panic = "abort"
-strip = true
+# Keep function symbols for actionable production panic backtraces while
+# leaving source-level debug information out of the distributed binary.
+debug = 0
+# Keep ordinary request/task panics from taking down every HTTP worker. Stack overflow and OOM
+# remain process-fatal and must be prevented at their input/allocation boundaries.
+panic = "unwind"
+strip = "debuginfo"
 
 # 压测/火焰图采样用：接近 release，但保留符号并关闭 LTO，方便 perf 展开栈。
 # frame pointer 需要通过 RUSTFLAGS 传入：
@@ -130,7 +146,7 @@ codegen-units = 1
 debug = true
 strip = false
 lto = false
-panic = "abort"
+panic = "unwind"
 
 [profile.release-performance]
 inherits = "release"
@@ -177,6 +193,7 @@ openapi = [
     "aster_forge_tasks/openapi",
 ]
 full = ["server", "metrics", "openapi"]
+benchmarks = ["dep:criterion"]
 jemalloc = ["dep:tikv-jemallocator", "aster_forge_alloc/jemalloc"]
 jemalloc-stats = [
     "jemalloc",
@@ -189,6 +206,7 @@ aster_yggdrasil_render = { workspace = true }
 aster_yggdrasil_model = { workspace = true }
 aster_yggdrasil_migration = { workspace = true }
 aster_yggdrasil_protocol = { workspace = true }
+aster_yggdrasil_outbound = { workspace = true }
 aster_forge_middleware = { workspace = true, features = ["metrics"] }
 aster_forge_observability = { workspace = true, optional = true }
 aster_forge_alloc = { workspace = true }
@@ -202,6 +220,7 @@ aster_forge_crypto = { workspace = true, features = ["password", "sha256"] }
 aster_forge_db = { workspace = true, features = ["audit-log", "mail-outbox", "runtime-component", "runtime-lease", "scheduled-task", "system-config"] }
 aster_forge_db_migration = { workspace = true }
 aster_forge_external_auth = { workspace = true, features = ["github", "google", "microsoft", "qq"] }
+aster_forge_http = { workspace = true, features = ["json"] }
 aster_forge_logging = { workspace = true }
 aster_forge_metrics = { workspace = true }
 aster_forge_panic = { workspace = true }
@@ -232,12 +251,14 @@ parking_lot = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
 rsa = { workspace = true }
+secrecy = { workspace = true, features = ["serde"] }
 rust-embed = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha1 = { workspace = true }
 sha2 = { workspace = true }
+criterion = { workspace = true, optional = true }
 tikv-jemallocator = { workspace = true, optional = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -258,6 +279,7 @@ chrono = { workspace = true, default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 actix-http = { workspace = true }
+aster_forge_test = { workspace = true, features = ["mysql", "postgres", "logs"] }
 fs2 = { workspace = true }
 rand_08 = { workspace = true }
 getrandom = { workspace = true }
@@ -267,3 +289,9 @@ webauthn-authenticator-rs = { workspace = true }
 
 [lib]
 doctest = false
+
+[[bench]]
+name = "render_skin_preview"
+path = "tests/benchmarks/render_skin_preview.rs"
+harness = false
+required-features = ["benchmarks"]

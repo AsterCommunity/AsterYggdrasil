@@ -22,6 +22,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
     QueryOrder,
 };
+use secrecy::ExposeSecret;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -2299,7 +2300,7 @@ async fn external_auth_identity_lookup_uses_namespace_subject_not_provider_id() 
     };
     let claims = aster_yggdrasil::services::auth_service::verify_token(
         &admin_token,
-        &state.config.auth.jwt_secret,
+        state.config.auth.jwt_secret.expose_secret(),
     )
     .expect("admin token should verify");
 

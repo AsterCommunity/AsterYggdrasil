@@ -22,6 +22,7 @@ use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
 };
 use aster_yggdrasil_protocol::{YggdrasilJoinReq, YggdrasilProfile, YggdrasilProfileProperty};
+use secrecy::ExposeSecret;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 use super::properties;
@@ -633,7 +634,7 @@ fn skin_domain_matches_host(domain: &str, host: &str) -> bool {
 }
 
 async fn query_forward_server(
-    client: &reqwest::Client,
+    client: &aster_forge_http::HttpClient,
     upstream: &yggdrasil_session_forward_server::Model,
     username: &str,
     server_id: &str,
@@ -768,10 +769,11 @@ fn encode_forwarded_texture_ticket<S>(
 where
     S: AppConfigRuntimeState,
 {
-    let encoding_key = EncodingKey::from_secret(state.config().auth.jwt_secret.as_bytes())
-        .map_err(|error| {
-            crate::errors::AsterError::internal_error(format!("jwt encoding key: {error}"))
-        })?;
+    let encoding_key =
+        EncodingKey::from_secret(state.config().auth.jwt_secret.expose_secret().as_bytes())
+            .map_err(|error| {
+                crate::errors::AsterError::internal_error(format!("jwt encoding key: {error}"))
+            })?;
     encode(&Header::new(Algorithm::HS256), &ticket, &encoding_key).map_err(|error| {
         crate::errors::AsterError::internal_error(format!(
             "failed to sign forwarded texture ticket: {error}"
@@ -789,10 +791,11 @@ where
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = false;
     validation.required_spec_claims.clear();
-    let decoding_key = DecodingKey::from_secret(state.config().auth.jwt_secret.as_bytes())
-        .map_err(|error| {
-            crate::errors::AsterError::internal_error(format!("jwt decoding key: {error}"))
-        })?;
+    let decoding_key =
+        DecodingKey::from_secret(state.config().auth.jwt_secret.expose_secret().as_bytes())
+            .map_err(|error| {
+                crate::errors::AsterError::internal_error(format!("jwt decoding key: {error}"))
+            })?;
     decode::<ForwardedTextureTicket>(ticket, &decoding_key, &validation)
         .map(|data| data.claims)
         .map_err(|error| {

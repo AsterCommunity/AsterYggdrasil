@@ -12,6 +12,7 @@ use aster_forge_cache::CacheConfig;
 use aster_forge_config::ConfigSyncConfig;
 use aster_forge_logging::LoggingConfig;
 use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
+use secrecy::SecretString;
 
 pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_yggdrasil_csrf";
 pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
@@ -121,12 +122,12 @@ impl DatabaseConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct AuthConfig {
     #[serde(default = "AuthConfig::default_jwt_secret")]
-    pub jwt_secret: String,
+    pub jwt_secret: secrecy::SecretString,
     #[serde(default = "AuthConfig::default_mfa_secret_key")]
-    pub mfa_secret_key: String,
+    pub mfa_secret_key: secrecy::SecretString,
     #[serde(default = "AuthConfig::default_csrf_cookie_name")]
     pub csrf_cookie_name: String,
     #[serde(default = "AuthConfig::default_csrf_header_name")]
@@ -155,17 +156,42 @@ impl Default for AuthConfig {
     }
 }
 
+// Manual impl: the default `config.toml` writer needs the real values (a
+// generated secret must land in the file), while `Debug` stays redacted via
+// `SecretString`.
+impl serde::Serialize for AuthConfig {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use secrecy::ExposeSecret as _;
+        use serde::ser::SerializeStruct as _;
+        let mut state = serializer.serialize_struct("AuthConfig", 6)?;
+        state.serialize_field("jwt_secret", self.jwt_secret.expose_secret())?;
+        state.serialize_field("mfa_secret_key", self.mfa_secret_key.expose_secret())?;
+        state.serialize_field("csrf_cookie_name", &self.csrf_cookie_name)?;
+        state.serialize_field("csrf_header_name", &self.csrf_header_name)?;
+        state.serialize_field(
+            "password_hash_max_concurrency",
+            &self.password_hash_max_concurrency,
+        )?;
+        state.serialize_field(
+            "bootstrap_insecure_cookies",
+            &self.bootstrap_insecure_cookies,
+        )?;
+        state.end()
+    }
+}
+
 impl AuthConfig {
-    fn random_hex_secret() -> String {
+    fn random_hex_secret() -> SecretString {
         use rand::RngExt;
         let mut rng = rand::rng();
         let bytes: [u8; 32] = rng.random();
-        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+        let hex: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        SecretString::from(hex)
     }
-    fn default_jwt_secret() -> String {
+    fn default_jwt_secret() -> SecretString {
         Self::random_hex_secret()
     }
-    fn default_mfa_secret_key() -> String {
+    fn default_mfa_secret_key() -> SecretString {
         Self::random_hex_secret()
     }
     fn default_csrf_cookie_name() -> String {
@@ -216,7 +242,7 @@ impl TextureStorageConfig {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct S3TextureStorageConfig {
     #[serde(default)]
     pub endpoint: String,
@@ -231,9 +257,27 @@ pub struct S3TextureStorageConfig {
     #[serde(default)]
     pub access_key_id: String,
     #[serde(default)]
-    pub secret_access_key: String,
+    pub secret_access_key: secrecy::SecretString,
     #[serde(default)]
     pub force_path_style: bool,
+}
+
+// Manual impl: same rationale as `AuthConfig` — the default `config.toml`
+// writer needs the real secret value, while `Debug` stays redacted.
+impl serde::Serialize for S3TextureStorageConfig {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use secrecy::ExposeSecret as _;
+        use serde::ser::SerializeStruct as _;
+        let mut state = serializer.serialize_struct("S3TextureStorageConfig", 7)?;
+        state.serialize_field("endpoint", &self.endpoint)?;
+        state.serialize_field("region", &self.region)?;
+        state.serialize_field("bucket", &self.bucket)?;
+        state.serialize_field("base_path", &self.base_path)?;
+        state.serialize_field("access_key_id", &self.access_key_id)?;
+        state.serialize_field("secret_access_key", self.secret_access_key.expose_secret())?;
+        state.serialize_field("force_path_style", &self.force_path_style)?;
+        state.end()
+    }
 }
 
 /// Network trust configuration from `config.toml`.

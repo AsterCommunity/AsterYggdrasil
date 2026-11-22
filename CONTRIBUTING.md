@@ -81,6 +81,10 @@ ASTER_TEST_DATABASE_BACKEND=postgres cargo test --test test_database_backends
 ASTER_TEST_DATABASE_BACKEND=mysql cargo test --test test_database_backends
 ```
 
+Shared containers are managed by `aster_forge_test` (`TestContainerSuite`), keyed by checkout
+directory so parallel clones reuse their own instance; stale per-test databases are pruned
+automatically on the next run.
+
 If an API surface or OpenAPI schema changes, also run:
 
 ```bash
