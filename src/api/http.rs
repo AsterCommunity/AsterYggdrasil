@@ -22,6 +22,12 @@ pub struct HttpRuntimeConfig<'a> {
     /// Actix worker count.
     pub workers: usize,
     /// Drain budget for in-flight requests, in seconds.
+    ///
+    /// Currently shares `worker.drain_timeout_secs` with the background-task
+    /// drain (issue #11). They bound different lifecycles — in-flight HTTP
+    /// requests vs. background task drain — so if a deployment ever needs to
+    /// tune them independently, split this into its own
+    /// `http_shutdown_timeout_secs` field instead of stretching both.
     pub shutdown_timeout_secs: u64,
 }
 
