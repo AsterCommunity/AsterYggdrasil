@@ -3705,6 +3705,7 @@ export interface components {
             /** @description Multiplayer/server-join access is banned. */
             MULTIPLAYER?: boolean;
         };
+        /** @description `GET /minecraftservices/certificate` compatibility response body. */
         MinecraftServicesCertificateResp: {
             /** @description RFC3339 timestamp after which the certificate should no longer be used. */
             expiresAt: string;
@@ -3733,6 +3734,7 @@ export interface components {
             /** @description PKCS#1 PEM public key paired with `privateKey`. */
             publicKey: string;
         };
+        /** @description Minecraft services error body naming the rejecting path (Mojang 401 shape). */
         MinecraftServicesPathError: {
             /** @description Minecraft services path that rejected the request, matching Mojang's 401 body shape. */
             path: string;
@@ -4498,11 +4500,13 @@ export interface components {
         UserRole: "admin" | "operator" | "user";
         /** @enum {string} */
         UserStatus: "active" | "disabled";
+        /** @description The `agent` object identifying the client product in auth requests. */
         YggdrasilAgentReq: {
             name: string;
             /** Format: int32 */
             version: number;
         };
+        /** @description `POST /authserver/authenticate` request body. */
         YggdrasilAuthenticateReq: {
             agent?: components["schemas"]["YggdrasilAgentReq"] | null;
             clientToken?: string | null;
@@ -4510,6 +4514,7 @@ export interface components {
             requestUser?: boolean;
             username: string;
         };
+        /** @description `POST /authserver/authenticate` response body. */
         YggdrasilAuthenticateResp: {
             accessToken: string;
             availableProfiles: components["schemas"]["YggdrasilProfile"][];
@@ -4517,16 +4522,19 @@ export interface components {
             selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
             user?: components["schemas"]["YggdrasilUser"] | null;
         };
+        /** @description Protocol error body used by authserver and sessionserver error responses. */
         YggdrasilErrorBody: {
             cause?: string | null;
             error: string;
             errorMessage: string;
         };
+        /** @description Query parameters for `GET /sessionserver/session/minecraft/hasJoined`. */
         YggdrasilHasJoinedQuery: {
             ip?: string | null;
             serverId: string;
             username: string;
         };
+        /** @description `POST /sessionserver/session/minecraft/join` request body. */
         YggdrasilJoinReq: {
             accessToken: string;
             selectedProfile: string;
@@ -4546,30 +4554,41 @@ export interface components {
             homepage: string;
             register?: string | null;
         };
+        /** @description `GET /api/profiles/metadata` (authlib-injector) response body. */
         YggdrasilMetaResp: {
             meta: components["schemas"]["YggdrasilMeta"];
             signaturePublickey: string;
             skinDomains: string[];
         };
+        /**
+         * @description A Yggdrasil game profile as it appears in lookups and auth responses.
+         *
+         *     `id` is the unsigned (dash-less) lowercase profile UUID required by the
+         *     protocol.
+         */
         YggdrasilProfile: {
             id: string;
             name: string;
             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
         };
+        /** @description A single profile property, for example the `textures` property. */
         YggdrasilProfileProperty: {
             name: string;
             signature?: string | null;
             value: string;
         };
+        /** @description Query parameters for profile lookup (`unsigned` toggle). */
         YggdrasilProfileQuery: {
             unsigned?: boolean | null;
         };
+        /** @description `POST /authserver/refresh` request body. */
         YggdrasilRefreshReq: {
             accessToken: string;
             clientToken?: string | null;
             requestUser?: boolean;
             selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
         };
+        /** @description `POST /authserver/refresh` response body. */
         YggdrasilRefreshResp: {
             accessToken: string;
             clientToken: string;
@@ -4582,14 +4601,17 @@ export interface components {
         YggdrasilSessionForwardProviderKind: "local" | "remote";
         /** @enum {string} */
         YggdrasilSessionForwardServerSortBy: "call_order" | "id";
+        /** @description `POST /authserver/signout` request body. */
         YggdrasilSignoutReq: {
             password: string;
             username: string;
         };
+        /** @description Shared access-token request body for `/validate` and `/invalidate`. */
         YggdrasilTokenReq: {
             accessToken: string;
             clientToken?: string | null;
         };
+        /** @description The authenticated user entry returned when a request sets `requestUser`. */
         YggdrasilUser: {
             id: string;
             properties: components["schemas"]["YggdrasilProfileProperty"][];
@@ -10697,6 +10719,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description A Yggdrasil game profile as it appears in lookups and auth responses.
+                         *
+                         *     `id` is the unsigned (dash-less) lowercase profile UUID required by the
+                         *     protocol.
+                         */
                         data?: {
                             id: string;
                             name: string;
@@ -10789,6 +10817,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description A Yggdrasil game profile as it appears in lookups and auth responses.
+                         *
+                         *     `id` is the unsigned (dash-less) lowercase profile UUID required by the
+                         *     protocol.
+                         */
                         data?: {
                             id: string;
                             name: string;
