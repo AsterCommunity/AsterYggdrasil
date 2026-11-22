@@ -10,23 +10,24 @@ pub fn record_health_report(
     scope: HealthCheckScope,
     report: &SystemHealthReport,
 ) {
-    #[cfg(feature = "metrics")]
+    #[cfg(any(feature = "metrics", feature = "otlp-metrics"))]
     metrics.record_health(scope.as_str(), report);
 
-    #[cfg(not(feature = "metrics"))]
+    #[cfg(not(any(feature = "metrics", feature = "otlp-metrics")))]
     let _ = (metrics, scope, report);
 }
 
-/// Adds the metrics HTTP route when the metrics feature is enabled.
-pub fn configure_route(scope: Scope) -> Scope {
+/// Adds the scrape route only when Prometheus is compiled and configured.
+pub fn configure_route(scope: Scope, prometheus_enabled: bool) -> Scope {
+    // OTLP pushes metrics to a collector and must not expose a scrape endpoint.
     #[cfg(feature = "metrics")]
-    return scope.service(aster_forge_observability::actix::prometheus_resource(
-        "/metrics",
-    ));
+    if prometheus_enabled {
+        return scope.service(aster_forge_observability::actix::prometheus_resource(
+            "/metrics",
+        ));
+    }
 
     #[cfg(not(feature = "metrics"))]
-    {
-        let _ = scope;
-        scope
-    }
+    let _ = prometheus_enabled;
+    scope
 }

@@ -15,6 +15,14 @@ pub async fn finish_runtime(
     result: io::Result<()>,
     metrics: &aster_forge_metrics::SharedMetricsRecorder,
 ) -> io::Result<()> {
+    // Always drain exporters, but keep the original runtime error if both fail.
+    let shutdown = shutdown_metrics(metrics).await;
+    result.and(shutdown.map_err(io::Error::other))
+}
+
+pub(super) async fn shutdown_metrics(
+    metrics: &aster_forge_metrics::SharedMetricsRecorder,
+) -> aster_forge_metrics::MetricResult<()> {
     if let Some(provider) = metrics.provider() {
         // Fixed 10-second budget, deliberately independent of `[worker]`
         // drain_timeout_secs (matching AsterDrive): the worker budgets bound
@@ -25,9 +33,7 @@ pub async fn finish_runtime(
         if let Err(error) = &shutdown {
             tracing::warn!(%error, "metrics shutdown failed");
         }
-        if result.is_ok() {
-            shutdown.map_err(io::Error::other)?;
-        }
+        return shutdown;
     }
-    result
+    Ok(())
 }

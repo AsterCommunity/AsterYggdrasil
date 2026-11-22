@@ -53,11 +53,15 @@ fn build_http_service_component(
     metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder>,
 ) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
     let shutdown_data = web::Data::new(shutdown_token.clone());
+    let prometheus_enabled = state.config().observability.prometheus_enabled();
     let server = HttpServer::new(move || {
         // The Prometheus export resource reads the instance-owned Forge provider
-        // from app data; it is only present when the metrics backend is enabled.
+        // from app data. Only inject it when the pull exporter is configured.
         #[cfg(feature = "metrics")]
-        let app = match metrics_data.provider() {
+        let app = match prometheus_enabled
+            .then(|| metrics_data.provider())
+            .flatten()
+        {
             Some(provider) => App::new().app_data(web::Data::new(provider)),
             None => App::new(),
         };
@@ -72,7 +76,7 @@ fn build_http_service_component(
             .app_data(state.clone())
             .app_data(shutdown_data.clone())
             .app_data(metrics_data.clone())
-            .configure(crate::api::configure)
+            .configure(|cfg| crate::api::configure(cfg, prometheus_enabled))
     })
     .workers(config.workers)
     .bind((config.host, config.port))?

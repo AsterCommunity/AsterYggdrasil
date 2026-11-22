@@ -12,7 +12,19 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
             AsterError::config_error(format!("failed to create runtime temp dir: {error}"))
         })?;
 
-    let metrics = crate::runtime::metrics::create_metrics_recorder();
+    let metrics = crate::runtime::metrics::create_metrics_recorder(&config.observability)?;
+    let result = prepare_state(config, &metrics).await;
+    if result.is_err() {
+        // Preserve the startup failure if draining the exporter also fails.
+        let _shutdown = crate::runtime::shutdown::shutdown_metrics(&metrics).await;
+    }
+    result
+}
+
+async fn prepare_state(
+    config: Arc<Config>,
+    metrics: &aster_forge_metrics::SharedMetricsRecorder,
+) -> Result<AppState> {
     let db_handles =
         crate::db::runtime::prepare_database_handles(&config.database, metrics.clone()).await?;
 
@@ -48,7 +60,7 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
         texture_storage,
         mail_sender,
         config_sync,
-        metrics,
+        metrics: metrics.clone(),
         audit_writer,
     })
 }

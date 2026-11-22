@@ -9,14 +9,14 @@ use actix_web::{HttpResponse, web};
 const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
 const READY_RUNTIME_UNAVAILABLE_MESSAGE: &str = "Runtime unavailable";
 
-pub fn routes() -> actix_web::Scope {
+pub fn routes(prometheus_enabled: bool) -> actix_web::Scope {
     let scope = web::scope("/health")
         .route("", web::get().to(health))
         .route("", web::head().to(health))
         .route("/ready", web::get().to(ready))
         .route("/ready", web::head().to(ready));
 
-    crate::metrics::configure_route(scope)
+    crate::metrics::configure_route(scope, prometheus_enabled)
 }
 
 #[aster_forge_api_docs_macros::path(

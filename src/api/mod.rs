@@ -19,11 +19,11 @@ pub mod routes;
 use crate::config::yggdrasil::DEFAULT_YGGDRASIL_API_ROOT;
 use actix_web::web;
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
+pub fn configure(cfg: &mut web::ServiceConfig, prometheus_enabled: bool) {
     cfg.service(web::scope(DEFAULT_YGGDRASIL_API_ROOT).configure(routes::yggdrasil::configure));
 
     cfg.service(web::scope("/api/v1").configure(routes::configure_api))
-        .service(routes::health::routes());
+        .service(routes::health::routes(prometheus_enabled));
 
     #[cfg(all(debug_assertions, feature = "openapi"))]
     configure_openapi(cfg);

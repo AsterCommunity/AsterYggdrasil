@@ -44,6 +44,8 @@ pub struct Config {
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
+    pub observability: crate::config::metrics::ObservabilityConfig,
+    #[serde(default)]
     pub network_trust: NetworkTrustConfig,
     #[serde(default)]
     pub rate_limit: RateLimitConfig,
