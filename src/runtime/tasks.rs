@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::operations;
 use crate::runtime::{AppState, SharedRuntimeState};
-use crate::services::task_service::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
+use crate::services::ops::task::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
 use aster_forge_metrics::SharedMetricsRecorder;
 use aster_forge_tasks::BackgroundTasks;
 
@@ -22,7 +22,7 @@ const SCHEDULED_TASK_CLAIM_TTL: Duration = Duration::from_secs(120);
 type BackgroundTasksComponent<F> =
     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponentFromShutdown<
         SystemRuntimeTaskKind,
-        crate::services::task_service::types::TaskPresentationCode,
+        crate::services::ops::task::types::TaskPresentationCode,
         F,
     >;
 
@@ -31,7 +31,7 @@ pub fn background_tasks_component(
     state: web::Data<AppState>,
 ) -> BackgroundTasksComponent<impl FnOnce(CancellationToken) -> BackgroundTasks> {
     aster_forge_tasks::background_task_component_with_definitions_from_shutdown(
-        crate::services::task_service::registered_system_runtime_tasks(),
+        crate::services::ops::task::registered_system_runtime_tasks(),
         move |shutdown_token| spawn_runtime_background_tasks(state, shutdown_token),
     )
 }
@@ -42,12 +42,12 @@ pub fn task_component(
 ) -> aster_forge_runtime::RuntimeComponentBundleRegistration<
     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent<
         SystemRuntimeTaskKind,
-        crate::services::task_service::types::TaskPresentationCode,
+        crate::services::ops::task::types::TaskPresentationCode,
     >,
 > {
     aster_forge_tasks::background_task_component_with_definitions(
         background_tasks,
-        crate::services::task_service::registered_system_runtime_tasks(),
+        crate::services::ops::task::registered_system_runtime_tasks(),
     )
 }
 
@@ -159,13 +159,12 @@ fn spawn_config_reload_subscription(
     let settings = state.config_sync().clone();
     let state = state.into_inner();
     async move {
-        if let Err(error) =
-            crate::services::config_service::runtime::run_config_reload_subscription(
-                state,
-                settings,
-                shutdown_token,
-            )
-            .await
+        if let Err(error) = crate::services::ops::config::runtime::run_config_reload_subscription(
+            state,
+            settings,
+            shutdown_token,
+        )
+        .await
         {
             tracing::warn!(
                 error = %error,
@@ -184,7 +183,7 @@ async fn record_scheduled_task_outcome(
     outcome: RuntimeTaskRunOutcome,
 ) {
     let task_name = name.as_str();
-    if let Err(error) = crate::services::task_service::record_scheduled_runtime_task_run(
+    if let Err(error) = crate::services::ops::task::record_scheduled_runtime_task_run(
         state.get_ref(),
         name,
         claim.scheduled_at,
@@ -206,7 +205,7 @@ async fn record_runtime_task_outcome(
     outcome: RuntimeTaskRunOutcome,
 ) {
     let task_name = name.as_str();
-    if let Err(error) = crate::services::task_service::record_runtime_task_run(
+    if let Err(error) = crate::services::ops::task::record_runtime_task_run(
         state.get_ref(),
         name,
         started_at,
@@ -248,7 +247,7 @@ async fn run_mail_outbox_dispatch(state: web::Data<AppState>) -> RuntimeTaskRunO
 }
 
 async fn run_system_health_check(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    let report = crate::services::health_service::run_system_health_checks(state.get_ref()).await;
+    let report = crate::services::ops::health::run_system_health_checks(state.get_ref()).await;
     system_health_outcome(report)
 }
 
@@ -261,13 +260,13 @@ fn system_health_outcome(report: aster_forge_runtime::SystemHealthReport) -> Run
     };
     let error = has_issues.then(|| report.issue_details());
     let status = runtime_health_status(report.status());
-    let system_health = crate::services::task_service::types::RuntimeSystemHealthResult {
+    let system_health = crate::services::ops::task::types::RuntimeSystemHealthResult {
         status,
         components: report
             .components
             .into_iter()
             .map(
-                |component| crate::services::task_service::types::RuntimeSystemHealthComponent {
+                |component| crate::services::ops::task::types::RuntimeSystemHealthComponent {
                     name: component.name.to_string(),
                     status: runtime_health_status(component.status),
                     message: component.message,
@@ -285,22 +284,22 @@ fn system_health_outcome(report: aster_forge_runtime::SystemHealthReport) -> Run
 
 fn runtime_health_status(
     status: aster_forge_runtime::HealthStatus,
-) -> crate::services::task_service::types::RuntimeSystemHealthStatus {
+) -> crate::services::ops::task::types::RuntimeSystemHealthStatus {
     match status {
         aster_forge_runtime::HealthStatus::Healthy => {
-            crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
+            crate::services::ops::task::types::RuntimeSystemHealthStatus::Healthy
         }
         aster_forge_runtime::HealthStatus::Degraded => {
-            crate::services::task_service::types::RuntimeSystemHealthStatus::Degraded
+            crate::services::ops::task::types::RuntimeSystemHealthStatus::Degraded
         }
         aster_forge_runtime::HealthStatus::Unhealthy => {
-            crate::services::task_service::types::RuntimeSystemHealthStatus::Unhealthy
+            crate::services::ops::task::types::RuntimeSystemHealthStatus::Unhealthy
         }
     }
 }
 
 async fn run_auth_session_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::auth_service::cleanup_expired_auth_sessions(state.get_ref()).await {
+    match crate::services::auth::local::cleanup_expired_auth_sessions(state.get_ref()).await {
         Ok(count) if count > 0 => {
             tracing::info!(count, "cleaned up expired auth sessions");
             RuntimeTaskRunOutcome::succeeded(Some(format!(
@@ -316,7 +315,7 @@ async fn run_auth_session_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunO
 }
 
 async fn run_external_auth_flow_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::external_auth_service::cleanup_expired_flows(state.get_ref()).await {
+    match crate::services::auth::external::cleanup_expired_flows(state.get_ref()).await {
         Ok(count) if count > 0 => {
             tracing::info!(count, "cleaned up expired external auth flows");
             RuntimeTaskRunOutcome::succeeded(Some(format!(
@@ -332,7 +331,7 @@ async fn run_external_auth_flow_cleanup(state: web::Data<AppState>) -> RuntimeTa
 }
 
 async fn run_yggdrasil_token_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::yggdrasil_service::cleanup_expired_or_revoked_tokens(state.get_ref())
+    match crate::services::yggdrasil::protocol::cleanup_expired_or_revoked_tokens(state.get_ref())
         .await
     {
         Ok(count) if count > 0 => {
@@ -350,7 +349,7 @@ async fn run_yggdrasil_token_cleanup(state: web::Data<AppState>) -> RuntimeTaskR
 }
 
 async fn run_audit_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::audit_service::cleanup_expired(state.get_ref()).await {
+    match crate::services::ops::audit::cleanup_expired(state.get_ref()).await {
         Ok(count) if count > 0 => {
             tracing::info!(count, "cleaned up expired audit logs");
             RuntimeTaskRunOutcome::succeeded(Some(format!("cleaned up {count} expired audit logs")))
@@ -364,7 +363,7 @@ async fn run_audit_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome 
 }
 
 async fn run_task_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::task_service::cleanup_expired(state.get_ref()).await {
+    match crate::services::ops::task::cleanup_expired(state.get_ref()).await {
         Ok(count) if count > 0 => {
             tracing::info!(count, "cleaned up expired task temp dirs");
             RuntimeTaskRunOutcome::succeeded(Some(format!(
@@ -382,8 +381,7 @@ async fn run_task_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
 async fn run_yggdrasil_storage_consistency_check(
     state: web::Data<AppState>,
 ) -> RuntimeTaskRunOutcome {
-    match crate::services::texture_service::check_texture_storage_consistency(state.get_ref()).await
-    {
+    match crate::services::texture::check_texture_storage_consistency(state.get_ref()).await {
         Ok(report) if report.missing > 0 || report.hash_mismatched > 0 => {
             let summary = yggdrasil_storage_consistency_failure_summary(&report);
             tracing::warn!(
@@ -408,7 +406,7 @@ async fn run_yggdrasil_storage_consistency_check(
 }
 
 fn yggdrasil_storage_consistency_failure_summary(
-    report: &crate::services::texture_service::TextureStoreConsistencyReport,
+    report: &crate::services::texture::TextureStoreConsistencyReport,
 ) -> String {
     const MAX_ISSUES_IN_SUMMARY: usize = 5;
 
@@ -427,10 +425,10 @@ fn yggdrasil_storage_consistency_failure_summary(
         .take(MAX_ISSUES_IN_SUMMARY)
         .map(|issue| {
             let kind = match issue.kind {
-                crate::services::texture_service::TextureStoreConsistencyIssueKind::MissingObject => {
+                crate::services::texture::TextureStoreConsistencyIssueKind::MissingObject => {
                     "missing object"
                 }
-                crate::services::texture_service::TextureStoreConsistencyIssueKind::HashMismatch => {
+                crate::services::texture::TextureStoreConsistencyIssueKind::HashMismatch => {
                     "hash/key mismatch"
                 }
             };
@@ -454,7 +452,7 @@ fn yggdrasil_storage_consistency_failure_summary(
 }
 
 async fn run_yggdrasil_texture_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    let registration = match crate::services::texture_service::register_bound_textures_in_wardrobe(
+    let registration = match crate::services::texture::register_bound_textures_in_wardrobe(
         state.get_ref(),
     )
     .await
@@ -468,7 +466,7 @@ async fn run_yggdrasil_texture_cleanup(state: web::Data<AppState>) -> RuntimeTas
         }
     };
 
-    match crate::services::texture_service::cleanup_orphan_texture_blobs(state.get_ref()).await {
+    match crate::services::texture::cleanup_orphan_texture_blobs(state.get_ref()).await {
         Ok(result)
             if registration.converted_textures > 0
                 || registration.rebound_bindings > 0
@@ -539,7 +537,7 @@ async fn run_background_task_dispatch_iteration(
             let shutdown_token = shutdown_token.clone();
             let iteration_for_record = iteration_for_record.clone();
             async move {
-                let result = crate::services::task_service::dispatch::dispatch_due_with_shutdown(
+                let result = crate::services::ops::task::dispatch::dispatch_due_with_shutdown(
                     state.get_ref(),
                     shutdown_token,
                 )
@@ -652,7 +650,7 @@ fn mail_outbox_dispatch_interval_for_web_state(state: &web::Data<AppState>) -> D
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::texture_service::{
+    use crate::services::texture::{
         TextureStoreConsistencyIssue, TextureStoreConsistencyIssueKind,
         TextureStoreConsistencyReport,
     };
@@ -682,7 +680,7 @@ mod tests {
                 .iter()
                 .map(|task| task.task_name)
                 .collect::<Vec<_>>(),
-            crate::services::task_service::registered_system_runtime_tasks()
+            crate::services::ops::task::registered_system_runtime_tasks()
                 .iter()
                 .map(|task| task.wire_value)
                 .collect::<Vec<_>>()
@@ -738,7 +736,7 @@ mod tests {
                 assert_eq!(summary.as_deref(), Some("system healthy"));
                 assert_eq!(
                     system_health.status,
-                    crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
+                    crate::services::ops::task::types::RuntimeSystemHealthStatus::Healthy
                 );
                 assert_eq!(system_health.components.len(), 2);
             }
@@ -767,11 +765,11 @@ mod tests {
                 assert_eq!(error, "cache=degraded: memory fallback active");
                 assert_eq!(
                     system_health.status,
-                    crate::services::task_service::types::RuntimeSystemHealthStatus::Degraded
+                    crate::services::ops::task::types::RuntimeSystemHealthStatus::Degraded
                 );
                 assert_eq!(
                     system_health.components[0].status,
-                    crate::services::task_service::types::RuntimeSystemHealthStatus::Healthy
+                    crate::services::ops::task::types::RuntimeSystemHealthStatus::Healthy
                 );
                 assert_eq!(system_health.components[1].details.len(), 1);
                 assert_eq!(system_health.components[1].details[0].key, "active_backend");

@@ -6,7 +6,7 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::{IntoParams, ToSchema};
 
-use crate::services::{audit_service::AuditLogEntry, ban_service::UserBanInfo};
+use crate::services::{ops::audit::AuditLogEntry, user::ban::UserBanInfo};
 use aster_yggdrasil_model::types::audit::AuditEntityType;
 use aster_yggdrasil_model::types::user::{UserBanScope, UserBanStatus};
 #[derive(Debug, Clone, Serialize)]
@@ -35,9 +35,9 @@ impl AccountAuditLogFilterQuery {
     pub fn into_filters_for_user(
         self,
         user_id: i64,
-    ) -> crate::services::audit_service::AuditLogFilters {
-        crate::services::audit_service::AuditLogFilters::from_query(
-            &crate::services::audit_service::AuditLogFilterQuery {
+    ) -> crate::services::ops::audit::AuditLogFilters {
+        crate::services::ops::audit::AuditLogFilters::from_query(
+            &crate::services::ops::audit::AuditLogFilterQuery {
                 user_id: Some(user_id),
                 action: self.action,
                 entity_type: self.entity_type,

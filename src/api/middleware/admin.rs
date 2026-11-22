@@ -8,7 +8,7 @@ use futures::future::{LocalBoxFuture, Ready, ok};
 use std::rc::Rc;
 
 use crate::errors::AsterError;
-use crate::services::auth_service::AuthUserInfo;
+use crate::services::auth::local::AuthUserInfo;
 use aster_yggdrasil_model::types::user::{OperatorScope, UserRole};
 pub struct RequireAdmin;
 
@@ -144,7 +144,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::profile_service::{AvatarInfo, UserProfileInfo};
+    use crate::services::user::profile::{AvatarInfo, UserProfileInfo};
     use actix_web::HttpResponse;
     use actix_web::dev::fn_service;
     use actix_web::test;

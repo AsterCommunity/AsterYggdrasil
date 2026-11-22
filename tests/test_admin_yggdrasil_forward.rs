@@ -5,7 +5,7 @@ mod common;
 
 use actix_web::test;
 use aster_yggdrasil::entities::audit_log;
-use aster_yggdrasil::services::audit_service;
+use aster_yggdrasil::services::ops::audit;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 
@@ -177,7 +177,7 @@ async fn admin_yggdrasil_session_forward_crud_and_local_row_contract() {
     }
     let create_entry = audit_entry_by_name(
         &state,
-        audit_service::AuditAction::AdminCreateYggdrasilSessionForwardServer,
+        audit::AuditAction::AdminCreateYggdrasilSessionForwardServer,
         "Backup Session",
     )
     .await;
@@ -191,7 +191,7 @@ async fn admin_yggdrasil_session_forward_crud_and_local_row_contract() {
 
     let update_entry = audit_entry_by_name(
         &state,
-        audit_service::AuditAction::AdminUpdateYggdrasilSessionForwardServer,
+        audit::AuditAction::AdminUpdateYggdrasilSessionForwardServer,
         "Weighted Remote",
     )
     .await;
@@ -203,7 +203,7 @@ async fn admin_yggdrasil_session_forward_crud_and_local_row_contract() {
 
     let delete_entry = audit_entry_by_name(
         &state,
-        audit_service::AuditAction::AdminDeleteYggdrasilSessionForwardServer,
+        audit::AuditAction::AdminDeleteYggdrasilSessionForwardServer,
         "Weighted Remote",
     )
     .await;
@@ -418,7 +418,7 @@ async fn admin_yggdrasil_session_forward_list_supports_sort_modes() {
 
 async fn audit_entry_by_name(
     state: &aster_yggdrasil::runtime::AppState,
-    action: audit_service::AuditAction,
+    action: audit::AuditAction,
     entity_name: &str,
 ) -> audit_log::Model {
     audit_log::Entity::find()

@@ -8,7 +8,7 @@ use aster_yggdrasil::config::definitions::GRAVATAR_BASE_URL_KEY;
 use aster_yggdrasil::db::repository::{system_config_repo, user_repo};
 use aster_yggdrasil::entities::user;
 use aster_yggdrasil::runtime::AppState;
-use aster_yggdrasil::services::profile_service::{self, AvatarAudience};
+use aster_yggdrasil::services::user::profile::{self, AvatarAudience};
 use aster_yggdrasil::types::user::AvatarSource;
 use serde_json::Value;
 
@@ -20,12 +20,12 @@ async fn load_admin_user(state: &AppState) -> user::Model {
 
 async fn set_gravatar_and_load_url(state: &AppState) -> String {
     let user = load_admin_user(state).await;
-    profile_service::set_avatar_source(state, user.id, AvatarSource::Gravatar)
+    profile::set_avatar_source(state, user.id, AvatarSource::Gravatar)
         .await
         .expect("avatar source should update");
 
     let user = load_admin_user(state).await;
-    let info = profile_service::get_profile_info(state, &user, AvatarAudience::SelfUser)
+    let info = profile::get_profile_info(state, &user, AvatarAudience::SelfUser)
         .await
         .expect("profile info should load");
 

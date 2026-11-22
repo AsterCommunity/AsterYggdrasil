@@ -25,7 +25,7 @@ use aster_yggdrasil::entities::{
     yggdrasil_token,
 };
 use aster_yggdrasil::errors::{AsterError, Result};
-use aster_yggdrasil::services::{audit_service, profile_service};
+use aster_yggdrasil::services::{ops::audit, user};
 use aster_yggdrasil::texture_storage::{ObjectBlobMetadata, TextureStore};
 use aster_yggdrasil::types::{
     user::AvatarSource, yggdrasil::MinecraftTextureModel,
@@ -1730,8 +1730,7 @@ async fn minecraft_profile_rename_updates_name_and_temporarily_invalidates_bound
             .await
             .expect("audit writer flush should succeed");
     }
-    let rename_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
+    let rename_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileRename).await;
     assert_eq!(rename_entry.entity_type, "minecraft_profile");
     assert_eq!(rename_entry.entity_name.as_deref(), Some("RenameNew"));
     let details: Value = serde_json::from_str(rename_entry.details.as_ref().unwrap())
@@ -1912,8 +1911,7 @@ async fn minecraft_profile_rename_same_name_is_noop_for_tokens() {
             .await
             .expect("audit writer flush should succeed");
     }
-    let rename_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
+    let rename_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileRename).await;
     let details: Value = serde_json::from_str(rename_entry.details.as_ref().unwrap())
         .expect("profile rename audit details should be json");
     assert_eq!(details["temporarily_invalidated_token_count"], 0);
@@ -2015,8 +2013,7 @@ async fn minecraft_profile_delete_unbinds_textures_keeps_wardrobe_revokes_tokens
             .await
             .expect("audit writer flush should succeed");
     }
-    let delete_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileDelete).await;
+    let delete_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileDelete).await;
     assert_eq!(delete_entry.entity_type, "minecraft_profile");
     assert_eq!(delete_entry.entity_name.as_deref(), Some("DeleteMe"));
     let details: Value = serde_json::from_str(delete_entry.details.as_ref().unwrap())
@@ -2436,7 +2433,7 @@ async fn yggdrasil_has_joined_signs_texture_properties_for_server_validation() {
     let state = common::setup_with_memory_cache().await;
     configure_yggdrasil_public_site_url(&state).await;
     let private_key =
-        aster_yggdrasil::services::yggdrasil_signature::generate_private_key_pem(2048)
+        aster_yggdrasil::services::yggdrasil::signature::generate_private_key_pem(2048)
             .expect("test signature key should generate");
     let saved = system_config_repo::upsert_with_options(
         state.writer_db(),
@@ -2620,16 +2617,14 @@ async fn yggdrasil_texture_upload_public_read_profile_property_and_delete_flow()
             .await
             .expect("audit writer flush should succeed");
     }
-    let upload_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftTextureUpload).await;
+    let upload_entry = audit_entry(&state, audit::AuditAction::MinecraftTextureUpload).await;
     assert_eq!(upload_entry.entity_type, "minecraft_texture");
     let upload_details: Value = serde_json::from_str(upload_entry.details.as_ref().unwrap())
         .expect("texture upload details should be json");
     assert_eq!(upload_details["texture_type"], "skin");
     assert_eq!(upload_details["texture_model"], "slim");
     assert_eq!(upload_details["texture_hash"], texture_hash);
-    let delete_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftTextureDelete).await;
+    let delete_entry = audit_entry(&state, audit::AuditAction::MinecraftTextureDelete).await;
     assert_eq!(delete_entry.entity_type, "minecraft_texture");
     let req = test::TestRequest::get()
         .uri("/api/v1/admin/audit-logs")
@@ -2772,7 +2767,7 @@ async fn yggdrasil_startup_generates_persistent_signature_key_once() {
 async fn yggdrasil_profile_textures_are_signed_with_persistent_runtime_key() {
     let state = setup_yggdrasil().await;
     let private_key =
-        aster_yggdrasil::services::yggdrasil_signature::generate_private_key_pem(2048)
+        aster_yggdrasil::services::yggdrasil::signature::generate_private_key_pem(2048)
             .expect("test signature key should generate");
     let saved = system_config_repo::upsert_with_options(
         state.writer_db(),
@@ -2852,7 +2847,7 @@ async fn yggdrasil_profile_textures_are_signed_with_persistent_runtime_key() {
 async fn yggdrasil_profile_textures_unsigned_queries_omit_signature() {
     let state = setup_yggdrasil().await;
     let private_key =
-        aster_yggdrasil::services::yggdrasil_signature::generate_private_key_pem(2048)
+        aster_yggdrasil::services::yggdrasil::signature::generate_private_key_pem(2048)
             .expect("test signature key should generate");
     let saved = system_config_repo::upsert_with_options(
         state.writer_db(),
@@ -5432,8 +5427,7 @@ async fn admin_minecraft_profiles_can_be_listed_filtered_and_deleted() {
             .await
             .expect("audit writer flush should succeed");
     }
-    let delete_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileDelete).await;
+    let delete_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileDelete).await;
     assert_eq!(delete_entry.entity_name.as_deref(), Some("AdminBeta"));
     let details: Value = serde_json::from_str(delete_entry.details.as_ref().unwrap())
         .expect("profile delete audit details should be json");
@@ -5523,8 +5517,7 @@ async fn admin_can_rename_any_minecraft_profile_and_duplicate_names_are_rejected
             .await
             .expect("audit writer flush should succeed");
     }
-    let rename_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileRename).await;
+    let rename_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileRename).await;
     assert_eq!(rename_entry.entity_name.as_deref(), Some("AdminRenamed"));
 
     let req = test::TestRequest::post()
@@ -5683,7 +5676,7 @@ async fn admin_texture_deletes_by_profile_type_and_hash_with_audit_and_blob_clea
             .expect("audit writer flush should succeed");
     }
     let delete_count = audit_log::Entity::find()
-        .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::MinecraftTextureDelete))
         .count(state.writer_db())
         .await
         .expect("audit delete count should query");
@@ -5764,35 +5757,32 @@ async fn yggdrasil_actions_write_audit_entries_with_presentation() {
             .expect("audit writer flush should succeed");
     }
 
-    let profile_entry =
-        audit_entry(&state, audit_service::AuditAction::MinecraftProfileCreate).await;
+    let profile_entry = audit_entry(&state, audit::AuditAction::MinecraftProfileCreate).await;
     assert_eq!(profile_entry.entity_type, "minecraft_profile");
     assert_eq!(profile_entry.entity_name.as_deref(), Some("AuditMc"));
     let details: Value = serde_json::from_str(profile_entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["profile_uuid"], profile_id);
     assert_eq!(details["profile_name"], "AuditMc");
 
-    let auth_entry = audit_entry(&state, audit_service::AuditAction::YggdrasilAuthenticate).await;
+    let auth_entry = audit_entry(&state, audit::AuditAction::YggdrasilAuthenticate).await;
     assert_eq!(auth_entry.entity_type, "yggdrasil_token");
     let details: Value = serde_json::from_str(auth_entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["identifier"], "admin@example.com");
     assert_eq!(details["selected_profile_uuid"], profile_id);
 
-    let refresh_entry =
-        audit_entry(&state, audit_service::AuditAction::YggdrasilRefreshToken).await;
+    let refresh_entry = audit_entry(&state, audit::AuditAction::YggdrasilRefreshToken).await;
     assert_eq!(refresh_entry.entity_type, "yggdrasil_token");
     let details: Value = serde_json::from_str(refresh_entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["profile_uuid"], profile_id);
     assert_eq!(details["profile_name"], "AuditMc");
 
-    let join_entry = audit_entry(&state, audit_service::AuditAction::YggdrasilJoinServer).await;
+    let join_entry = audit_entry(&state, audit::AuditAction::YggdrasilJoinServer).await;
     assert_eq!(join_entry.entity_type, "yggdrasil_session");
     let details: Value = serde_json::from_str(join_entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["profile_name"], "AuditMc");
     assert!(details["server_id_hash"].as_str().unwrap().len() >= 32);
 
-    let invalidate_entry =
-        audit_entry(&state, audit_service::AuditAction::YggdrasilInvalidateToken).await;
+    let invalidate_entry = audit_entry(&state, audit::AuditAction::YggdrasilInvalidateToken).await;
     assert_eq!(invalidate_entry.entity_type, "yggdrasil_token");
     let details: Value =
         serde_json::from_str(invalidate_entry.details.as_deref().unwrap()).unwrap();
@@ -6038,7 +6028,7 @@ async fn yggdrasil_signout_revokes_all_tokens_and_records_audit() {
             .await
             .expect("audit writer flush should succeed");
     }
-    let entry = audit_entry(&state, audit_service::AuditAction::YggdrasilSignout).await;
+    let entry = audit_entry(&state, audit::AuditAction::YggdrasilSignout).await;
     assert_eq!(entry.entity_type, "user");
     let details: Value = serde_json::from_str(entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["identifier"], "admin@example.com");
@@ -6087,7 +6077,7 @@ async fn yggdrasil_signout_accepts_profile_name_when_profile_name_login_is_enabl
             .await
             .expect("audit writer flush should succeed");
     }
-    let entry = audit_entry(&state, audit_service::AuditAction::YggdrasilSignout).await;
+    let entry = audit_entry(&state, audit::AuditAction::YggdrasilSignout).await;
     let details: Value = serde_json::from_str(entry.details.as_deref().unwrap()).unwrap();
     assert_eq!(details["identifier"], "SignoutProfile");
 }
@@ -6554,7 +6544,7 @@ async fn yggdrasil_has_joined_forwards_to_ordered_upstreams_after_local_cache_mi
     }
     let miss_audit = audit_entry_by_entity_name(
         &state,
-        audit_service::AuditAction::YggdrasilSessionForwardCheck,
+        audit::AuditAction::YggdrasilSessionForwardCheck,
         "miss upstream",
     )
     .await;
@@ -6570,7 +6560,7 @@ async fn yggdrasil_has_joined_forwards_to_ordered_upstreams_after_local_cache_mi
 
     let hit_audit = audit_entry_by_entity_name(
         &state,
-        audit_service::AuditAction::YggdrasilSessionForwardCheck,
+        audit::AuditAction::YggdrasilSessionForwardCheck,
         "hit upstream",
     )
     .await;
@@ -7007,7 +6997,7 @@ async fn yggdrasil_tokens_are_hashed_and_pruned_by_runtime_limit() {
 
 async fn audit_entry(
     state: &aster_yggdrasil::runtime::AppState,
-    action: audit_service::AuditAction,
+    action: audit::AuditAction,
 ) -> audit_log::Model {
     audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(action))
@@ -7019,7 +7009,7 @@ async fn audit_entry(
 
 async fn audit_entry_by_entity_name(
     state: &aster_yggdrasil::runtime::AppState,
-    action: audit_service::AuditAction,
+    action: audit::AuditAction,
     entity_name: &str,
 ) -> audit_log::Model {
     audit_log::Entity::find()
@@ -7192,7 +7182,7 @@ async fn wardrobe_upload_can_be_bound_and_unbound_from_profile_later() {
             .await
             .expect("audit writer flush should succeed");
     }
-    let bind_entry = audit_entry(&state, audit_service::AuditAction::MinecraftTextureBind).await;
+    let bind_entry = audit_entry(&state, audit::AuditAction::MinecraftTextureBind).await;
     assert_eq!(bind_entry.entity_type, "minecraft_texture");
     assert_eq!(bind_entry.entity_name.as_deref(), Some("WardrobeUser"));
     let bind_details: Value = serde_json::from_str(bind_entry.details.as_ref().unwrap())
@@ -8176,7 +8166,7 @@ async fn texture_library_admin_filters_permissions_and_state_edges() {
         .await
         .unwrap()
         .expect("library owner should exist");
-    profile_service::set_avatar_source(&state, owner.id, AvatarSource::Gravatar)
+    user::profile::set_avatar_source(&state, owner.id, AvatarSource::Gravatar)
         .await
         .expect("owner avatar source should update");
 
@@ -8543,7 +8533,7 @@ async fn admin_texture_library_delete_removes_texture_profile_bindings_and_audit
             .expect("audit writer flush should succeed");
     }
     let audit = audit_log::Entity::find()
-        .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::MinecraftTextureDelete))
         .filter(audit_log::Column::EntityId.eq(texture_id))
         .one(state.writer_db())
         .await
@@ -8616,7 +8606,7 @@ async fn admin_texture_library_delete_published_texture_hides_public_library_ent
             .expect("audit writer flush should succeed");
     }
     let audit = audit_log::Entity::find()
-        .filter(audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureDelete))
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::MinecraftTextureDelete))
         .filter(audit_log::Column::EntityId.eq(texture_id))
         .one(state.writer_db())
         .await
@@ -9043,17 +9033,13 @@ async fn texture_library_reports_require_login_and_follow_moderation_edges() {
             .expect("audit writer flush should succeed");
     }
     let report_create_count = audit_log::Entity::find()
-        .filter(
-            audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureReportCreate),
-        )
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::MinecraftTextureReportCreate))
         .count(state.writer_db())
         .await
         .unwrap();
     assert_eq!(report_create_count, 4);
     let report_accept_count = audit_log::Entity::find()
-        .filter(
-            audit_log::Column::Action.eq(audit_service::AuditAction::MinecraftTextureReportAccept),
-        )
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::MinecraftTextureReportAccept))
         .count(state.writer_db())
         .await
         .unwrap();

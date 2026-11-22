@@ -1,0 +1,172 @@
+use super::YggdrasilError;
+use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
+use crate::db::repository::minecraft_profile_texture_repo;
+use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::services::{texture, yggdrasil::signature};
+use aster_yggdrasil_model::entities::minecraft_profile;
+use aster_yggdrasil_protocol::{
+    TexturesPropertyValue, TexturesPropertyValueItem, TexturesPropertyValueMetadata,
+    YggdrasilProfile, YggdrasilProfileProperty, encode_textures_property_value,
+};
+use chrono::Utc;
+use std::collections::BTreeMap;
+
+pub(super) async fn profile_with_properties<S>(
+    state: &S,
+    profile: &minecraft_profile::Model,
+    signed: bool,
+) -> std::result::Result<YggdrasilProfile, YggdrasilError>
+where
+    S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
+{
+    if let Some(properties) = super::cache::get_profile_properties(state, profile, signed).await {
+        tracing::debug!(
+            profile_id = profile.id,
+            profile_uuid = %profile.uuid,
+            signed,
+            "yggdrasil profile properties cache hit"
+        );
+        return Ok(YggdrasilProfile {
+            id: profile.uuid.clone(),
+            name: profile.name.clone(),
+            properties: Some(properties),
+        });
+    }
+
+    let mut properties = Vec::new();
+    let textures = minecraft_profile_texture_repo::list_by_profile(state.reader_db(), profile.id)
+        .await
+        .map_err(YggdrasilError::from)?;
+    tracing::debug!(
+        profile_id = profile.id,
+        profile_uuid = %profile.uuid,
+        texture_count = textures.len(),
+        signed,
+        uploadable_textures_present = !profile.uploadable_textures.trim().is_empty(),
+        "building yggdrasil profile properties"
+    );
+    let policy = RuntimeYggdrasilPolicy::from_runtime_config(state.runtime_config());
+    let value = texture_property_value(&policy, profile, &textures)?;
+    let signature = if signed {
+        signature::sign_texture_property(&policy, &value).map_err(YggdrasilError::from)?
+    } else {
+        None
+    };
+    properties.push(YggdrasilProfileProperty {
+        name: "textures".to_string(),
+        value,
+        signature,
+    });
+    tracing::debug!(
+        profile_id = profile.id,
+        signed,
+        "added yggdrasil textures property"
+    );
+    if !profile.uploadable_textures.trim().is_empty() {
+        let signature = if signed {
+            signature::sign_texture_property(&policy, &profile.uploadable_textures)
+                .map_err(YggdrasilError::from)?
+        } else {
+            None
+        };
+        properties.push(YggdrasilProfileProperty {
+            name: "uploadableTextures".to_string(),
+            value: profile.uploadable_textures.clone(),
+            signature,
+        });
+        tracing::debug!(
+            profile_id = profile.id,
+            signed,
+            uploadable_textures = %profile.uploadable_textures,
+            "added yggdrasil uploadableTextures property"
+        );
+    }
+
+    super::cache::set_profile_properties(state, profile, signed, &properties).await;
+    tracing::debug!(
+        profile_id = profile.id,
+        profile_uuid = %profile.uuid,
+        signed,
+        "cached yggdrasil profile properties"
+    );
+
+    Ok(YggdrasilProfile {
+        id: profile.uuid.clone(),
+        name: profile.name.clone(),
+        properties: Some(properties),
+    })
+}
+
+pub(crate) async fn invalidate_profile_properties_cache<S>(state: &S, profile_id: i64)
+where
+    S: CacheRuntimeState,
+{
+    super::cache::invalidate_profile_properties(state, profile_id).await;
+}
+
+fn texture_property_value(
+    policy: &RuntimeYggdrasilPolicy,
+    profile: &minecraft_profile::Model,
+    textures: &[minecraft_profile_texture_repo::ProfileTexture],
+) -> std::result::Result<String, YggdrasilError> {
+    let mut entries = BTreeMap::new();
+    for texture in textures {
+        let metadata = (texture.binding.texture_type
+            == aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType::Skin)
+            .then_some(texture.texture.texture_model)
+            .and_then(
+                aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::as_metadata_value,
+            )
+            .map(|model| TexturesPropertyValueMetadata { model });
+        entries.insert(
+            texture.binding.texture_type.textures_property_key(),
+            TexturesPropertyValueItem {
+                url: signature::required_texture_object_public_url(
+                    policy,
+                    &texture.texture.hash,
+                    &texture.texture.storage_key,
+                )
+                .map_err(YggdrasilError::from)?,
+                metadata,
+            },
+        );
+    }
+    if !entries.contains_key(
+        aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType::Skin.textures_property_key(),
+    ) {
+        let skin = texture::default_skin_for_profile_uuid(&profile.uuid);
+        let metadata = skin
+            .model
+            .as_metadata_value()
+            .map(|model| TexturesPropertyValueMetadata { model });
+        entries.insert(
+            aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType::Skin
+                .textures_property_key(),
+            TexturesPropertyValueItem {
+                url: signature::required_texture_public_url(policy, skin.hash)
+                    .map_err(YggdrasilError::from)?,
+                metadata,
+            },
+        );
+        tracing::debug!(
+            profile_id = profile.id,
+            profile_uuid = %profile.uuid,
+            default_skin_hash = skin.hash,
+            default_skin_model = ?skin.model,
+            "added default yggdrasil skin texture property"
+        );
+    }
+    tracing::debug!(
+        profile_id = profile.id,
+        profile_uuid = %profile.uuid,
+        texture_count = entries.len(),
+        "serializing yggdrasil textures property"
+    );
+
+    encode_textures_property_value(&TexturesPropertyValue {
+        timestamp: Utc::now().timestamp_millis(),
+        profile_id: &profile.uuid,
+        profile_name: &profile.name,
+        textures: entries,
+    })
+}

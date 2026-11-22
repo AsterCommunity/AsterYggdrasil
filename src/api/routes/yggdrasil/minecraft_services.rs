@@ -2,7 +2,7 @@ use actix_web::{HttpRequest, HttpResponse, web};
 
 use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::runtime::AppState;
-use crate::services::yggdrasil_service::{self, YggdrasilError, YggdrasilErrorKind};
+use crate::services::yggdrasil::protocol::{self, YggdrasilError, YggdrasilErrorKind};
 
 use super::yggdrasil_error_response;
 
@@ -34,7 +34,7 @@ pub async fn player_certificates(state: web::Data<AppState>, req: HttpRequest) -
         return minecraft_services_unauthorized(PATH);
     };
 
-    match yggdrasil_service::profile_key_certificate(state.get_ref(), &access_token).await {
+    match protocol::profile_key_certificate(state.get_ref(), &access_token).await {
         Ok(response) => {
             tracing::debug!("minecraft services player certificates request completed");
             HttpResponse::Ok().json(response)
@@ -65,7 +65,7 @@ pub async fn privileges(state: web::Data<AppState>, req: HttpRequest) -> HttpRes
         return minecraft_services_unauthorized(PATH);
     };
 
-    match yggdrasil_service::minecraft_services_privileges(state.get_ref(), &access_token).await {
+    match protocol::minecraft_services_privileges(state.get_ref(), &access_token).await {
         Ok(response) => HttpResponse::Ok().json(response),
         Err(error) => minecraft_services_error_response(error, PATH),
     }
@@ -94,9 +94,7 @@ pub async fn player_attributes(state: web::Data<AppState>, req: HttpRequest) -> 
         return minecraft_services_unauthorized(PATH);
     };
 
-    match yggdrasil_service::minecraft_services_player_attributes(state.get_ref(), &access_token)
-        .await
-    {
+    match protocol::minecraft_services_player_attributes(state.get_ref(), &access_token).await {
         Ok(response) => HttpResponse::Ok().json(response),
         Err(error) => minecraft_services_error_response(error, PATH),
     }
@@ -125,9 +123,7 @@ pub async fn privacy_blocklist(state: web::Data<AppState>, req: HttpRequest) -> 
         return minecraft_services_unauthorized(PATH);
     };
 
-    match yggdrasil_service::minecraft_services_privacy_blocklist(state.get_ref(), &access_token)
-        .await
-    {
+    match protocol::minecraft_services_privacy_blocklist(state.get_ref(), &access_token).await {
         Ok(response) => HttpResponse::Ok().json(response),
         Err(error) => minecraft_services_error_response(error, PATH),
     }

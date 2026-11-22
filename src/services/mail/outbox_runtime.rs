@@ -134,7 +134,7 @@ mod tests {
         aster_yggdrasil_migration::Migrator::up(&db, None)
             .await
             .expect("mail outbox drain test migrations should run");
-        crate::services::config_service::ensure_defaults(&db)
+        crate::services::ops::config::ensure_defaults(&db)
             .await
             .expect("mail outbox drain test defaults should seed");
 

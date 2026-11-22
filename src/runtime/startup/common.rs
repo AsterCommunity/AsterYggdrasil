@@ -22,19 +22,19 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
         &config.auth,
     )
     .await?;
-    crate::services::yggdrasil_session_forward_service::prepare_runtime_session_forward_servers(
+    crate::services::yggdrasil::session_forward::prepare_runtime_session_forward_servers(
         db_handles.writer(),
     )
     .await?;
-    crate::services::yggdrasil_signature::prepare_runtime_signature_key(db_handles.writer())
+    crate::services::yggdrasil::signature::prepare_runtime_signature_key(db_handles.writer())
         .await?;
     let cache = create_runtime_cache(config.as_ref()).await?;
     let texture_storage = texture_storage::create_texture_store(&config.texture_storage)?;
     let config_sync = aster_forge_config::build_config_sync_runtime(
         &config.config_sync,
-        crate::services::config_service::runtime::CONFIG_RELOAD_NAMESPACE,
+        crate::services::ops::config::runtime::CONFIG_RELOAD_NAMESPACE,
     )
-    .map_err(crate::services::config_service::runtime::map_config_core_error)?;
+    .map_err(crate::services::ops::config::runtime::map_config_core_error)?;
 
     let audit_writer = std::sync::Arc::new(aster_forge_audit::AuditWriter::new(
         db_handles.writer().clone(),

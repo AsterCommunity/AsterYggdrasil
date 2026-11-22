@@ -633,13 +633,13 @@ pub async fn setup_with_database_url(database_url: &str) -> AppState {
             .expect("test database migrations should run");
     }
 
-    aster_yggdrasil::services::config_service::ensure_defaults(&writer)
+    aster_yggdrasil::services::ops::config::ensure_defaults(&writer)
         .await
         .expect("system config defaults should seed");
-    aster_yggdrasil::services::yggdrasil_session_forward_service::ensure_builtin_servers(&writer)
+    aster_yggdrasil::services::yggdrasil::session_forward::ensure_builtin_servers(&writer)
         .await
         .expect("yggdrasil session forward defaults should seed");
-    aster_yggdrasil::services::yggdrasil_signature::ensure_signature_key(&writer)
+    aster_yggdrasil::services::yggdrasil::signature::ensure_signature_key(&writer)
         .await
         .expect("yggdrasil signature key should initialize");
 

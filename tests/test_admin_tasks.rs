@@ -187,7 +187,7 @@ async fn admin_can_list_retry_and_cleanup_tasks() {
         "task-creator@example.com",
         "password1234"
     );
-    let creator = aster_yggdrasil::services::auth_service::current_user_from_token(
+    let creator = aster_yggdrasil::services::auth::local::current_user_from_token(
         &state_for_insert,
         &creator_token,
     )

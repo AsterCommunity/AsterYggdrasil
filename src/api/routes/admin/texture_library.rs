@@ -18,7 +18,7 @@ use crate::db::repository::{
 };
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, texture_service};
+use crate::services::{auth::local, ops::audit, texture};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 use aster_yggdrasil_model::types::{
     yggdrasil::MinecraftTextureLibraryStatus, yggdrasil::MinecraftTextureReportReason,
@@ -101,7 +101,7 @@ where
     operation_id = "admin_list_texture_library_reports",
     params(LimitQuery, AdminTextureReportQuery),
     responses(
-        (status = 200, description = "Texture library reports", body = inline(ApiResponse<CursorPage<texture_service::TextureReportInfo, DateTimeIdCursor>>)),
+        (status = 200, description = "Texture library reports", body = inline(ApiResponse<CursorPage<texture::TextureReportInfo, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -115,7 +115,7 @@ pub async fn list_texture_library_reports(
     validate_request(&*query)?;
     let cursor =
         parse_datetime_id_cursor(query.after_created_at, query.after_id, "texture report")?;
-    let reports = texture_service::list_admin_texture_library_reports_cursor(
+    let reports = texture::list_admin_texture_library_reports_cursor(
         state.get_ref(),
         page.limit_or(50, 100),
         AdminTextureReportListFilter {
@@ -136,7 +136,7 @@ pub async fn list_texture_library_reports(
     operation_id = "admin_get_texture_library_report",
     params(("report_id" = i64, Path, description = "Texture report ID")),
     responses(
-        (status = 200, description = "Texture library report detail", body = inline(ApiResponse<texture_service::TextureReportInfo>)),
+        (status = 200, description = "Texture library report detail", body = inline(ApiResponse<texture::TextureReportInfo>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Report not found"),
@@ -148,8 +148,7 @@ pub async fn get_texture_library_report(
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
     let report =
-        texture_service::get_admin_texture_library_report(state.get_ref(), path.into_inner())
-            .await?;
+        texture::get_admin_texture_library_report(state.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(report)))
 }
 
@@ -161,7 +160,7 @@ pub async fn get_texture_library_report(
     request_body = HandleTextureReportReq,
     params(("report_id" = i64, Path, description = "Texture report ID")),
     responses(
-        (status = 200, description = "Accepted texture report", body = inline(ApiResponse<texture_service::TextureReportInfo>)),
+        (status = 200, description = "Accepted texture report", body = inline(ApiResponse<texture::TextureReportInfo>)),
         (status = 400, description = "Invalid report state"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -176,8 +175,8 @@ pub async fn accept_texture_library_report(
     body: web::Json<HandleTextureReportReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let handler = auth_service::current_user(state.get_ref(), &req).await?;
-    let report = texture_service::accept_texture_library_report(
+    let handler = local::current_user(state.get_ref(), &req).await?;
+    let report = texture::accept_texture_library_report(
         state.get_ref(),
         handler.id,
         path.into_inner(),
@@ -188,7 +187,7 @@ pub async fn accept_texture_library_report(
         state.get_ref(),
         &req,
         handler.id,
-        audit_service::AuditAction::MinecraftTextureReportAccept,
+        audit::AuditAction::MinecraftTextureReportAccept,
         &report,
     )
     .await;
@@ -203,7 +202,7 @@ pub async fn accept_texture_library_report(
     request_body = HandleTextureReportReq,
     params(("report_id" = i64, Path, description = "Texture report ID")),
     responses(
-        (status = 200, description = "Rejected texture report", body = inline(ApiResponse<texture_service::TextureReportInfo>)),
+        (status = 200, description = "Rejected texture report", body = inline(ApiResponse<texture::TextureReportInfo>)),
         (status = 400, description = "Invalid report state"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -218,8 +217,8 @@ pub async fn reject_texture_library_report(
     body: web::Json<HandleTextureReportReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let handler = auth_service::current_user(state.get_ref(), &req).await?;
-    let report = texture_service::reject_texture_library_report(
+    let handler = local::current_user(state.get_ref(), &req).await?;
+    let report = texture::reject_texture_library_report(
         state.get_ref(),
         handler.id,
         path.into_inner(),
@@ -230,7 +229,7 @@ pub async fn reject_texture_library_report(
         state.get_ref(),
         &req,
         handler.id,
-        audit_service::AuditAction::MinecraftTextureReportReject,
+        audit::AuditAction::MinecraftTextureReportReject,
         &report,
     )
     .await;
@@ -244,7 +243,7 @@ pub async fn reject_texture_library_report(
     operation_id = "admin_list_texture_library_textures",
     params(LimitQuery, AdminTextureLibraryTextureQuery),
     responses(
-        (status = 200, description = "Texture library moderation textures", body = inline(ApiResponse<CursorPage<texture_service::PublicTextureLibraryTextureMetadata, DateTimeIdCursor>>)),
+        (status = 200, description = "Texture library moderation textures", body = inline(ApiResponse<CursorPage<texture::PublicTextureLibraryTextureMetadata, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -274,13 +273,9 @@ pub async fn list_texture_library_textures(
         tag_search_method: query.tag_search_method,
         keyword,
     };
-    let page = texture_service::list_admin_texture_library_textures_cursor(
-        state.get_ref(),
-        limit,
-        cursor,
-        filter,
-    )
-    .await?;
+    let page =
+        texture::list_admin_texture_library_textures_cursor(state.get_ref(), limit, cursor, filter)
+            .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
@@ -291,7 +286,7 @@ pub async fn list_texture_library_textures(
     operation_id = "admin_get_texture_library_texture",
     params(("texture_id" = i64, Path, description = "Texture ID")),
     responses(
-        (status = 200, description = "Texture library moderation texture", body = inline(ApiResponse<texture_service::PublicTextureLibraryTextureMetadata>)),
+        (status = 200, description = "Texture library moderation texture", body = inline(ApiResponse<texture::PublicTextureLibraryTextureMetadata>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Texture not found"),
@@ -303,8 +298,7 @@ pub async fn get_texture_library_texture(
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
     let texture =
-        texture_service::get_admin_texture_library_texture(state.get_ref(), path.into_inner())
-            .await?;
+        texture::get_admin_texture_library_texture(state.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
@@ -316,7 +310,7 @@ pub async fn get_texture_library_texture(
     request_body = ReviewTextureLibraryTextureReq,
     params(("texture_id" = i64, Path, description = "Texture ID")),
     responses(
-        (status = 200, description = "Approved texture", body = inline(ApiResponse<texture_service::PublicTextureLibraryTextureMetadata>)),
+        (status = 200, description = "Approved texture", body = inline(ApiResponse<texture::PublicTextureLibraryTextureMetadata>)),
         (status = 400, description = "Invalid texture state"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -331,8 +325,8 @@ pub async fn approve_texture_library_texture(
     body: web::Json<ReviewTextureLibraryTextureReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let reviewer = auth_service::current_user(state.get_ref(), &req).await?;
-    let texture = texture_service::approve_texture_library_texture(
+    let reviewer = local::current_user(state.get_ref(), &req).await?;
+    let texture = texture::approve_texture_library_texture(
         state.get_ref(),
         reviewer.id,
         path.into_inner(),
@@ -344,7 +338,7 @@ pub async fn approve_texture_library_texture(
         state.get_ref(),
         &req,
         reviewer.id,
-        audit_service::AuditAction::MinecraftTextureLibraryApprove,
+        audit::AuditAction::MinecraftTextureLibraryApprove,
         &texture,
     )
     .await;
@@ -359,7 +353,7 @@ pub async fn approve_texture_library_texture(
     request_body = ReviewTextureLibraryTextureReq,
     params(("texture_id" = i64, Path, description = "Texture ID")),
     responses(
-        (status = 200, description = "Rejected texture", body = inline(ApiResponse<texture_service::PublicTextureLibraryTextureMetadata>)),
+        (status = 200, description = "Rejected texture", body = inline(ApiResponse<texture::PublicTextureLibraryTextureMetadata>)),
         (status = 400, description = "Invalid texture state or review note"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -374,8 +368,8 @@ pub async fn reject_texture_library_texture(
     body: web::Json<ReviewTextureLibraryTextureReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let reviewer = auth_service::current_user(state.get_ref(), &req).await?;
-    let texture = texture_service::reject_texture_library_texture(
+    let reviewer = local::current_user(state.get_ref(), &req).await?;
+    let texture = texture::reject_texture_library_texture(
         state.get_ref(),
         reviewer.id,
         path.into_inner(),
@@ -386,7 +380,7 @@ pub async fn reject_texture_library_texture(
         state.get_ref(),
         &req,
         reviewer.id,
-        audit_service::AuditAction::MinecraftTextureLibraryReject,
+        audit::AuditAction::MinecraftTextureLibraryReject,
         &texture,
     )
     .await;
@@ -401,7 +395,7 @@ pub async fn reject_texture_library_texture(
     request_body = ReviewTextureLibraryTextureReq,
     params(("texture_id" = i64, Path, description = "Texture ID")),
     responses(
-        (status = 200, description = "Unpublished texture", body = inline(ApiResponse<texture_service::PublicTextureLibraryTextureMetadata>)),
+        (status = 200, description = "Unpublished texture", body = inline(ApiResponse<texture::PublicTextureLibraryTextureMetadata>)),
         (status = 400, description = "Invalid texture state"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -416,8 +410,8 @@ pub async fn unpublish_texture_library_texture(
     body: web::Json<ReviewTextureLibraryTextureReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let reviewer = auth_service::current_user(state.get_ref(), &req).await?;
-    let texture = texture_service::unpublish_texture_library_texture(
+    let reviewer = local::current_user(state.get_ref(), &req).await?;
+    let texture = texture::unpublish_texture_library_texture(
         state.get_ref(),
         reviewer.id,
         path.into_inner(),
@@ -428,7 +422,7 @@ pub async fn unpublish_texture_library_texture(
         state.get_ref(),
         &req,
         reviewer.id,
-        audit_service::AuditAction::MinecraftTextureLibraryUnpublish,
+        audit::AuditAction::MinecraftTextureLibraryUnpublish,
         &texture,
     )
     .await;
@@ -454,11 +448,10 @@ pub async fn delete_texture_library_texture(
     req: HttpRequest,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let actor = auth_service::current_user(state.get_ref(), &req).await?;
-    let deleted =
-        texture_service::delete_texture_library_texture(state.get_ref(), path.into_inner())
-            .await
-            .map_err(texture_library_delete_error_to_api_error)?;
+    let actor = local::current_user(state.get_ref(), &req).await?;
+    let deleted = texture::delete_texture_library_texture(state.get_ref(), path.into_inner())
+        .await
+        .map_err(texture_library_delete_error_to_api_error)?;
     log_texture_library_delete_audit(state.get_ref(), &req, actor.id, &deleted).await;
     Ok(HttpResponse::NoContent().finish())
 }
@@ -467,19 +460,19 @@ async fn log_texture_library_review_audit(
     state: &AppState,
     req: &HttpRequest,
     reviewer_user_id: i64,
-    action: audit_service::AuditAction,
-    texture: &texture_service::PublicTextureLibraryTextureMetadata,
+    action: audit::AuditAction,
+    texture: &texture::PublicTextureLibraryTextureMetadata,
 ) {
-    let ctx = audit_service::AuditContext::from_request(req, reviewer_user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(req, reviewer_user_id);
+    audit::log_with_details(
         state,
         &ctx,
         action,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditEntityType::MinecraftTexture,
         Some(texture.id),
         Some(&texture.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: "",
                 profile_name: "",
                 texture_type: texture.texture_type,
@@ -500,19 +493,19 @@ async fn log_texture_library_delete_audit(
     state: &AppState,
     req: &HttpRequest,
     actor_user_id: i64,
-    deleted: &texture_service::DeletedTextureLibraryTexture,
+    deleted: &texture::DeletedTextureLibraryTexture,
 ) {
     let texture = &deleted.texture;
-    let ctx = audit_service::AuditContext::from_request(req, actor_user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(req, actor_user_id);
+    audit::log_with_details(
         state,
         &ctx,
-        audit_service::AuditAction::MinecraftTextureDelete,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureDelete,
+        audit::AuditEntityType::MinecraftTexture,
         Some(texture.id),
         Some(&texture.name),
         || {
-            audit_service::details(serde_json::json!({
+            audit::details(serde_json::json!({
                 "profile_uuid": "",
                 "profile_name": "",
                 "texture_type": texture.texture_type,
@@ -529,13 +522,13 @@ async fn log_texture_library_delete_audit(
     .await;
 }
 
-fn texture_library_delete_error_to_api_error(error: texture_service::TextureError) -> AsterError {
+fn texture_library_delete_error_to_api_error(error: texture::TextureError) -> AsterError {
     match error.kind() {
-        texture_service::TextureErrorKind::NotFound => AsterError::record_not_found_code(
+        texture::TextureErrorKind::NotFound => AsterError::record_not_found_code(
             AsterErrorCode::TextureLibraryTextureNotFound,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::Storage => AsterError::internal_error_code(
+        texture::TextureErrorKind::Storage => AsterError::internal_error_code(
             AsterErrorCode::MinecraftTextureStoreFailed,
             error.protocol_message(),
         ),
@@ -547,19 +540,19 @@ async fn log_texture_report_audit(
     state: &AppState,
     req: &HttpRequest,
     actor_user_id: i64,
-    action: audit_service::AuditAction,
-    report: &texture_service::TextureReportInfo,
+    action: audit::AuditAction,
+    report: &texture::TextureReportInfo,
 ) {
-    let ctx = audit_service::AuditContext::from_request(req, actor_user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(req, actor_user_id);
+    audit::log_with_details(
         state,
         &ctx,
         action,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditEntityType::MinecraftTexture,
         Some(report.texture_id),
         report.texture.as_ref().map(|texture| texture.name.as_str()),
         || {
-            audit_service::details(audit_service::MinecraftTextureReportAuditDetails {
+            audit::details(audit::MinecraftTextureReportAuditDetails {
                 texture_id: report.texture_id,
                 report_id: report.id,
                 reason: report.reason,
@@ -581,7 +574,7 @@ async fn log_texture_report_audit(
     operation_id = "admin_list_texture_library_tags",
     params(LimitQuery, AdminTextureLibraryTagQuery),
     responses(
-        (status = 200, description = "Texture library tags", body = inline(ApiResponse<CursorPage<texture_service::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
+        (status = 200, description = "Texture library tags", body = inline(ApiResponse<CursorPage<texture::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -600,8 +593,7 @@ pub async fn list_texture_library_tags(
         "texture tag",
     )?;
     let tags =
-        texture_service::list_texture_library_tags_paginated(state.get_ref(), limit, after, None)
-            .await?;
+        texture::list_texture_library_tags_paginated(state.get_ref(), limit, after, None).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(tags)))
 }
 
@@ -612,7 +604,7 @@ pub async fn list_texture_library_tags(
     operation_id = "admin_create_texture_library_tag",
     request_body = CreateMinecraftTextureTagReq,
     responses(
-        (status = 200, description = "Created texture library tag", body = inline(ApiResponse<texture_service::MinecraftTextureTagInfo>)),
+        (status = 200, description = "Created texture library tag", body = inline(ApiResponse<texture::MinecraftTextureTagInfo>)),
         (status = 400, description = "Invalid or duplicate tag"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -624,7 +616,7 @@ pub async fn create_texture_library_tag(
     body: web::Json<CreateMinecraftTextureTagReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let tag = texture_service::create_texture_library_tag(
+    let tag = texture::create_texture_library_tag(
         state.get_ref(),
         &body.name,
         &body.color,
@@ -642,7 +634,7 @@ pub async fn create_texture_library_tag(
     request_body = UpdateMinecraftTextureTagReq,
     params(("tag_id" = i64, Path, description = "Texture library tag ID")),
     responses(
-        (status = 200, description = "Updated texture library tag", body = inline(ApiResponse<texture_service::MinecraftTextureTagInfo>)),
+        (status = 200, description = "Updated texture library tag", body = inline(ApiResponse<texture::MinecraftTextureTagInfo>)),
         (status = 400, description = "Invalid or duplicate tag"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -656,7 +648,7 @@ pub async fn update_texture_library_tag(
     body: web::Json<UpdateMinecraftTextureTagReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let tag = texture_service::update_texture_library_tag(
+    let tag = texture::update_texture_library_tag(
         state.get_ref(),
         path.into_inner(),
         body.name.as_deref(),
@@ -685,6 +677,6 @@ pub async fn delete_texture_library_tag(
     state: web::Data<AppState>,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    texture_service::delete_texture_library_tag(state.get_ref(), path.into_inner()).await?;
+    texture::delete_texture_library_tag(state.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }

@@ -10,7 +10,7 @@ use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, texture_service, yggdrasil_service};
+use crate::services::{auth::local, ops::audit, texture, yggdrasil::protocol};
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
@@ -56,7 +56,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         ("texture_type" = String, Path, description = "Texture type: skin or cape"),
     ),
     responses(
-        (status = 200, description = "Minecraft profile texture bound", body = inline(ApiResponse<texture_service::MinecraftTextureMetadata>)),
+        (status = 200, description = "Minecraft profile texture bound", body = inline(ApiResponse<texture::MinecraftTextureMetadata>)),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Texture slot is not uploadable"),
@@ -93,7 +93,7 @@ pub async fn bind_minecraft_profile_texture(
         ));
     }
     let texture_type = parse_profile_texture_type(&texture_type_raw)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let Some(profile) =
         minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
             .await?
@@ -108,7 +108,7 @@ pub async fn bind_minecraft_profile_texture(
             format!("minecraft profile '{uuid}'"),
         ));
     };
-    let stored = texture_service::bind_wardrobe_texture_to_profile(
+    let stored = texture::bind_wardrobe_texture_to_profile(
         state.get_ref(),
         user.id,
         &profile,
@@ -118,11 +118,11 @@ pub async fn bind_minecraft_profile_texture(
     .await
     .map_err(texture_error_to_api_error)?;
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
+    let ctx = audit::AuditContext::from_request(&req, user.id);
     log_profile_texture_audit(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureBind,
+        audit::AuditAction::MinecraftTextureBind,
         &stored,
     )
     .await;
@@ -136,7 +136,7 @@ pub async fn bind_minecraft_profile_texture(
         "current user minecraft profile texture bound"
     );
     Ok(
-        HttpResponse::Ok().json(ApiResponse::ok(texture_service::texture_metadata(
+        HttpResponse::Ok().json(ApiResponse::ok(texture::texture_metadata(
             state.get_ref(),
             &stored.profile,
             &stored.texture,
@@ -184,7 +184,7 @@ pub async fn unbind_minecraft_profile_texture(
         ));
     }
     let texture_type = parse_profile_texture_type(&texture_type_raw)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let Some(profile) =
         minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
             .await?
@@ -199,21 +199,20 @@ pub async fn unbind_minecraft_profile_texture(
             format!("minecraft profile '{uuid}'"),
         ));
     };
-    let deleted =
-        texture_service::delete_texture_for_profile(state.get_ref(), &profile, texture_type)
-            .await
-            .map_err(texture_error_to_api_error)?;
+    let deleted = texture::delete_texture_for_profile(state.get_ref(), &profile, texture_type)
+        .await
+        .map_err(texture_error_to_api_error)?;
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureDelete,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureDelete,
+        audit::AuditEntityType::MinecraftTexture,
         deleted.as_ref().map(|item| item.texture.binding.id),
         Some(&profile.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: &profile.uuid,
                 profile_name: &profile.name,
                 texture_type,
@@ -262,7 +261,7 @@ pub async fn list_minecraft_profiles(
     query: web::Query<CurrentMinecraftProfileListQuery>,
 ) -> Result<HttpResponse> {
     validate_request(&*query)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let after_id = parse_id_cursor(query.after_id, "minecraft profile")?;
     let limit = page.limit_or(50, 100);
     tracing::debug!(
@@ -294,7 +293,7 @@ pub async fn list_minecraft_profiles(
     let profiles = slice
         .items
         .iter()
-        .map(yggdrasil_service::profile_summary)
+        .map(protocol::profile_summary)
         .collect::<Vec<_>>();
     tracing::debug!(
         user_id = user.id,
@@ -334,18 +333,18 @@ pub async fn create_minecraft_profile(
         "received current user minecraft profile create request"
     );
     validate_request(&*body)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
-    let profile = yggdrasil_service::create_profile(state.get_ref(), user.id, &body.name).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+    let user = local::current_user(state.get_ref(), &req).await?;
+    let profile = protocol::create_profile(state.get_ref(), user.id, &body.name).await?;
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftProfileCreate,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftProfileCreate,
+        audit::AuditEntityType::MinecraftProfile,
         Some(profile.id),
         Some(&profile.name),
         || {
-            audit_service::details(audit_service::MinecraftProfileAuditDetails {
+            audit::details(audit::MinecraftProfileAuditDetails {
                 profile_uuid: &profile.uuid,
                 profile_name: &profile.name,
                 deleted_texture_count: None,
@@ -360,11 +359,7 @@ pub async fn create_minecraft_profile(
         profile_uuid = %profile.uuid,
         "current user minecraft profile created"
     );
-    Ok(
-        HttpResponse::Ok().json(ApiResponse::ok(yggdrasil_service::profile_summary(
-            &profile,
-        ))),
-    )
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_summary(&profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -404,10 +399,9 @@ pub async fn rename_minecraft_profile(
             error.message.unwrap_or_default(),
         ));
     }
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let Some(renamed) =
-        yggdrasil_service::rename_profile_for_user(state.get_ref(), user.id, &uuid, &body.name)
-            .await?
+        protocol::rename_profile_for_user(state.get_ref(), user.id, &uuid, &body.name).await?
     else {
         tracing::debug!(
             user_id = user.id,
@@ -420,7 +414,7 @@ pub async fn rename_minecraft_profile(
         ));
     };
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
+    let ctx = audit::AuditContext::from_request(&req, user.id);
     log_profile_rename_audit(state.get_ref(), &ctx, &renamed).await;
 
     tracing::debug!(
@@ -430,11 +424,7 @@ pub async fn rename_minecraft_profile(
         temporarily_invalidated_token_count = renamed.temporarily_invalidated_token_count,
         "current user minecraft profile renamed"
     );
-    Ok(
-        HttpResponse::Ok().json(ApiResponse::ok(yggdrasil_service::profile_summary(
-            &renamed.profile,
-        ))),
-    )
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_summary(&renamed.profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -444,7 +434,7 @@ pub async fn rename_minecraft_profile(
     operation_id = "list_current_user_minecraft_profile_textures",
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Current user's Minecraft profile textures", body = inline(ApiResponse<Vec<texture_service::MinecraftTextureMetadata>>)),
+        (status = 200, description = "Current user's Minecraft profile textures", body = inline(ApiResponse<Vec<texture::MinecraftTextureMetadata>>)),
         (status = 400, description = "Invalid profile UUID"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Profile not found"),
@@ -471,7 +461,7 @@ pub async fn list_minecraft_profile_textures(
             error.message.unwrap_or_default(),
         ));
     }
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let Some(profile) =
         minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
             .await?
@@ -486,7 +476,7 @@ pub async fn list_minecraft_profile_textures(
             format!("minecraft profile '{uuid}'"),
         ));
     };
-    let textures = texture_service::texture_metadata_for_profile(state.get_ref(), &profile).await?;
+    let textures = texture::texture_metadata_for_profile(state.get_ref(), &profile).await?;
     tracing::debug!(
         user_id = user.id,
         profile_id = profile.id,
@@ -530,9 +520,8 @@ pub async fn delete_minecraft_profile(
             error.message.unwrap_or_default(),
         ));
     }
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
-    let Some(deleted) =
-        yggdrasil_service::delete_profile_for_user(state.get_ref(), user.id, &uuid).await?
+    let user = local::current_user(state.get_ref(), &req).await?;
+    let Some(deleted) = protocol::delete_profile_for_user(state.get_ref(), user.id, &uuid).await?
     else {
         tracing::debug!(
             user_id = user.id,
@@ -545,7 +534,7 @@ pub async fn delete_minecraft_profile(
         ));
     };
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
+    let ctx = audit::AuditContext::from_request(&req, user.id);
     log_profile_delete_audit(state.get_ref(), &ctx, &deleted).await;
 
     tracing::debug!(
@@ -561,18 +550,18 @@ pub async fn delete_minecraft_profile(
 
 pub(crate) async fn log_profile_delete_audit(
     state: &AppState,
-    ctx: &audit_service::AuditContext,
-    deleted: &yggdrasil_service::DeleteMinecraftProfileResult,
+    ctx: &audit::AuditContext,
+    deleted: &protocol::DeleteMinecraftProfileResult,
 ) {
-    audit_service::log_with_details(
+    audit::log_with_details(
         state,
         ctx,
-        audit_service::AuditAction::MinecraftProfileDelete,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftProfileDelete,
+        audit::AuditEntityType::MinecraftProfile,
         Some(deleted.profile.id),
         Some(&deleted.profile.name),
         || {
-            audit_service::details(audit_service::MinecraftProfileAuditDetails {
+            audit::details(audit::MinecraftProfileAuditDetails {
                 profile_uuid: &deleted.profile.uuid,
                 profile_name: &deleted.profile.name,
                 deleted_texture_count: Some(deleted.deleted_texture_count),
@@ -585,18 +574,18 @@ pub(crate) async fn log_profile_delete_audit(
 
 pub(crate) async fn log_profile_rename_audit(
     state: &AppState,
-    ctx: &audit_service::AuditContext,
-    renamed: &yggdrasil_service::RenameMinecraftProfileResult,
+    ctx: &audit::AuditContext,
+    renamed: &protocol::RenameMinecraftProfileResult,
 ) {
-    audit_service::log_with_details(
+    audit::log_with_details(
         state,
         ctx,
-        audit_service::AuditAction::MinecraftProfileRename,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftProfileRename,
+        audit::AuditEntityType::MinecraftProfile,
         Some(renamed.profile.id),
         Some(&renamed.profile.name),
         || {
-            audit_service::details(audit_service::MinecraftProfileRenameAuditDetails {
+            audit::details(audit::MinecraftProfileRenameAuditDetails {
                 profile_uuid: &renamed.profile.uuid,
                 old_profile_name: &renamed.old_name,
                 new_profile_name: &renamed.profile.name,
@@ -609,19 +598,19 @@ pub(crate) async fn log_profile_rename_audit(
 
 pub(crate) async fn log_profile_texture_audit(
     state: &AppState,
-    ctx: &audit_service::AuditContext,
-    action: audit_service::AuditAction,
-    stored: &texture_service::StoredTexture,
+    ctx: &audit::AuditContext,
+    action: audit::AuditAction,
+    stored: &texture::StoredTexture,
 ) {
-    audit_service::log_with_details(
+    audit::log_with_details(
         state,
         ctx,
         action,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditEntityType::MinecraftTexture,
         Some(stored.texture.binding.id),
         Some(&stored.profile.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: &stored.profile.uuid,
                 profile_name: &stored.profile.name,
                 texture_type: stored.texture.binding.texture_type,
@@ -639,7 +628,7 @@ pub(crate) async fn log_profile_texture_audit(
 }
 
 fn parse_profile_texture_type(value: &str) -> Result<MinecraftTextureType> {
-    texture_service::parse_texture_type(value).map_err(|_| {
+    texture::parse_texture_type(value).map_err(|_| {
         tracing::debug!(
             texture_type_raw = value,
             "minecraft profile texture request rejected invalid texture type"
@@ -651,48 +640,48 @@ fn parse_profile_texture_type(value: &str) -> Result<MinecraftTextureType> {
     })
 }
 
-fn texture_error_to_api_error(error: texture_service::TextureError) -> AsterError {
+fn texture_error_to_api_error(error: texture::TextureError) -> AsterError {
     match error.kind() {
-        texture_service::TextureErrorKind::InvalidToken => AsterError::auth_unauthorized_code(
+        texture::TextureErrorKind::InvalidToken => AsterError::auth_unauthorized_code(
             AsterErrorCode::AuthTokenInvalid,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::ForbiddenProfile => {
+        texture::TextureErrorKind::ForbiddenProfile => {
             AsterError::auth_forbidden(error.protocol_message())
         }
-        texture_service::TextureErrorKind::UploadDisabled => AsterError::auth_forbidden_code(
+        texture::TextureErrorKind::UploadDisabled => AsterError::auth_forbidden_code(
             AsterErrorCode::MinecraftTextureUploadDisabled,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::UserBanForbidden => AsterError::auth_forbidden_code(
+        texture::TextureErrorKind::UserBanForbidden => AsterError::auth_forbidden_code(
             AsterErrorCode::UserBanForbidden,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::NotFound => AsterError::record_not_found_code(
+        texture::TextureErrorKind::NotFound => AsterError::record_not_found_code(
             AsterErrorCode::MinecraftTextureNotFound,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::Storage => AsterError::internal_error_code(
+        texture::TextureErrorKind::Storage => AsterError::internal_error_code(
             AsterErrorCode::MinecraftTextureStoreFailed,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidTextureType => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidTextureType => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidType,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidContentType => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidContentType => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureUnsupportedMime,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::MissingFile => AsterError::validation_error_code(
+        texture::TextureErrorKind::MissingFile => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidPng,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidPng => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidPng => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidPng,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidDimensions => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidDimensions => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidDimensions,
             error.protocol_message(),
         ),

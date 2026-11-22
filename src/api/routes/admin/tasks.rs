@@ -6,8 +6,8 @@ use crate::api::dto::{
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::auth_service::AuthUserInfo;
-use crate::services::{audit_service, task_service};
+use crate::services::auth::local::AuthUserInfo;
+use crate::services::{ops::audit, ops::task};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
@@ -27,7 +27,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     operation_id = "admin_list_tasks",
     params(LimitQuery, AdminTaskListQuery),
     responses(
-        (status = 200, description = "Background tasks", body = inline(ApiResponse<CursorPage<task_service::types::TaskInfo, DateTimeIdCursor>>)),
+        (status = 200, description = "Background tasks", body = inline(ApiResponse<CursorPage<task::types::TaskInfo, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -46,10 +46,10 @@ pub async fn list_tasks(
         status = ?query.status,
         "admin listing tasks"
     );
-    let page = task_service::list_tasks_paginated_for_admin(
+    let page = task::list_tasks_paginated_for_admin(
         state.get_ref(),
         limit,
-        task_service::AdminTaskListFilters {
+        task::AdminTaskListFilters {
             kind: query.kind,
             status: query.status,
         },
@@ -71,7 +71,7 @@ pub async fn list_tasks(
     operation_id = "admin_retry_task",
     params(("id" = i64, Path, description = "Background task ID")),
     responses(
-        (status = 200, description = "Task reset for retry", body = inline(ApiResponse<task_service::types::TaskInfo>)),
+        (status = 200, description = "Task reset for retry", body = inline(ApiResponse<task::types::TaskInfo>)),
         (status = 400, description = "Task cannot be retried"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -86,9 +86,8 @@ pub async fn retry_task(
 ) -> Result<HttpResponse> {
     let task_id = *path;
     tracing::debug!(task_id, "admin retry task request received");
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    let task =
-        task_service::retry_task_for_admin_with_audit(state.get_ref(), task_id, &ctx).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    let task = task::retry_task_for_admin_with_audit(state.get_ref(), task_id, &ctx).await?;
     tracing::debug!(
         task_id = task.id,
         kind = ?task.kind,
@@ -124,25 +123,25 @@ pub async fn cleanup_tasks(
         status = ?body.status,
         "admin cleanup tasks request received"
     );
-    let removed = task_service::cleanup_tasks_for_admin(
+    let removed = task::cleanup_tasks_for_admin(
         state.get_ref(),
-        task_service::AdminTaskCleanupFilters {
+        task::AdminTaskCleanupFilters {
             finished_before: body.finished_before,
             kind: body.kind,
             status: body.status,
         },
     )
     .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminCleanupTasks,
-        audit_service::AuditEntityType::Task,
+        audit::AuditAction::AdminCleanupTasks,
+        audit::AuditEntityType::Task,
         None,
         None,
         || {
-            audit_service::details(audit_service::AdminTaskCleanupAuditDetails {
+            audit::details(audit::AdminTaskCleanupAuditDetails {
                 removed,
                 finished_before: body.finished_before,
                 kind: body.kind,

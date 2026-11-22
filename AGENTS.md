@@ -22,7 +22,7 @@ src/db/                      数据库连接、重试、事务、repository
 src/entities/                SeaORM Entity
 src/metrics/                 metrics feature 下的 Prometheus 实现
 src/runtime/                 AppState、启动、关闭、日志、后台任务循环
-src/services/                Auth、external auth、config、mail、audit、task、health、example
+src/services/                领域平面组织：auth/（local、external、passkey、captcha）、user/、ops/、texture/、yggdrasil/、mail/
 src/types/                   共享枚举和 DB wrapper 类型
 src/utils/                   crypto、ID、path、number、email、RAII 等工具
 migration/                   SeaORM migration crate

@@ -222,7 +222,7 @@ async fn cleanup_expired_external_auth_flows_removes_only_expired_flows() {
     .await
     .expect("active external auth flow should insert");
 
-    let removed = aster_yggdrasil::services::external_auth_service::cleanup_expired_flows(&state)
+    let removed = aster_yggdrasil::services::auth::external::cleanup_expired_flows(&state)
         .await
         .expect("external auth flow cleanup should succeed");
 

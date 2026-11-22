@@ -9,9 +9,7 @@ use crate::api::dto::{
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{
-    audit_service, auth_service::AuthUserInfo, yggdrasil_session_forward_service,
-};
+use crate::services::{auth::local::AuthUserInfo, ops::audit, yggdrasil::session_forward};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::CursorPage;
 use aster_forge_api::{parse_enabled_priority_id_cursor, parse_id_cursor};
@@ -37,7 +35,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         ("sort_by" = Option<aster_yggdrasil_model::types::yggdrasil::YggdrasilSessionForwardServerSortBy>, Query, description = "Forwarding server list sort mode"),
     ),
     responses(
-        (status = 200, description = "Yggdrasil session forwarding servers", body = inline(ApiResponse<CursorPage<yggdrasil_session_forward_service::AdminYggdrasilSessionForwardServerInfo, yggdrasil_session_forward_service::SessionForwardServerCursor>>)),
+        (status = 200, description = "Yggdrasil session forwarding servers", body = inline(ApiResponse<CursorPage<session_forward::AdminYggdrasilSessionForwardServerInfo, session_forward::SessionForwardServerCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -63,7 +61,7 @@ pub async fn list_session_forward_servers(
         )?,
         YggdrasilSessionForwardServerSortBy::Id => None,
     };
-    let servers = yggdrasil_session_forward_service::list_servers(
+    let servers = session_forward::list_servers(
         state.get_ref(),
         page.limit_or(50, 100),
         after_id,
@@ -81,7 +79,7 @@ pub async fn list_session_forward_servers(
     operation_id = "admin_get_yggdrasil_session_forward_server",
     params(("id" = i64, Path, description = "Yggdrasil session forwarding server ID")),
     responses(
-        (status = 200, description = "Yggdrasil session forwarding server", body = inline(ApiResponse<yggdrasil_session_forward_service::AdminYggdrasilSessionForwardServerInfo>)),
+        (status = 200, description = "Yggdrasil session forwarding server", body = inline(ApiResponse<session_forward::AdminYggdrasilSessionForwardServerInfo>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Yggdrasil session forwarding server not found"),
@@ -92,7 +90,7 @@ pub async fn get_session_forward_server(
     state: web::Data<AppState>,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let server = yggdrasil_session_forward_service::get_server(state.get_ref(), *path).await?;
+    let server = session_forward::get_server(state.get_ref(), *path).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(server)))
 }
 
@@ -103,7 +101,7 @@ pub async fn get_session_forward_server(
     operation_id = "admin_create_yggdrasil_session_forward_server",
     request_body = CreateYggdrasilSessionForwardServerReq,
     responses(
-        (status = 201, description = "Yggdrasil session forwarding server created", body = inline(ApiResponse<yggdrasil_session_forward_service::AdminYggdrasilSessionForwardServerInfo>)),
+        (status = 201, description = "Yggdrasil session forwarding server created", body = inline(ApiResponse<session_forward::AdminYggdrasilSessionForwardServerInfo>)),
         (status = 400, description = "Invalid Yggdrasil session forwarding server"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -117,17 +115,16 @@ pub async fn create_session_forward_server(
 ) -> Result<HttpResponse> {
     let body = body.into_inner();
     validate_request(&body)?;
-    let server =
-        yggdrasil_session_forward_service::create_server(state.get_ref(), body.into()).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let server = session_forward::create_server(state.get_ref(), body.into()).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminCreateYggdrasilSessionForwardServer,
-        audit_service::AuditEntityType::YggdrasilSession,
+        audit::AuditAction::AdminCreateYggdrasilSessionForwardServer,
+        audit::AuditEntityType::YggdrasilSession,
         Some(server.id),
         Some(&server.display_name),
-        || yggdrasil_session_forward_service::server_audit_details(&server),
+        || session_forward::server_audit_details(&server),
     )
     .await;
     Ok(HttpResponse::Created().json(ApiResponse::ok(server)))
@@ -141,7 +138,7 @@ pub async fn create_session_forward_server(
     params(("id" = i64, Path, description = "Yggdrasil session forwarding server ID")),
     request_body = UpdateYggdrasilSessionForwardServerReq,
     responses(
-        (status = 200, description = "Yggdrasil session forwarding server updated", body = inline(ApiResponse<yggdrasil_session_forward_service::AdminYggdrasilSessionForwardServerInfo>)),
+        (status = 200, description = "Yggdrasil session forwarding server updated", body = inline(ApiResponse<session_forward::AdminYggdrasilSessionForwardServerInfo>)),
         (status = 400, description = "Invalid Yggdrasil session forwarding server"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -157,18 +154,16 @@ pub async fn update_session_forward_server(
 ) -> Result<HttpResponse> {
     let body = body.into_inner();
     validate_request(&body)?;
-    let server =
-        yggdrasil_session_forward_service::update_server(state.get_ref(), *path, body.into())
-            .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let server = session_forward::update_server(state.get_ref(), *path, body.into()).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminUpdateYggdrasilSessionForwardServer,
-        audit_service::AuditEntityType::YggdrasilSession,
+        audit::AuditAction::AdminUpdateYggdrasilSessionForwardServer,
+        audit::AuditEntityType::YggdrasilSession,
         Some(server.id),
         Some(&server.display_name),
-        || yggdrasil_session_forward_service::server_audit_details(&server),
+        || session_forward::server_audit_details(&server),
     )
     .await;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(server)))
@@ -194,16 +189,16 @@ pub async fn delete_session_forward_server(
     req: HttpRequest,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let server = yggdrasil_session_forward_service::delete_server(state.get_ref(), *path).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let server = session_forward::delete_server(state.get_ref(), *path).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminDeleteYggdrasilSessionForwardServer,
-        audit_service::AuditEntityType::YggdrasilSession,
+        audit::AuditAction::AdminDeleteYggdrasilSessionForwardServer,
+        audit::AuditEntityType::YggdrasilSession,
         Some(server.id),
         Some(&server.display_name),
-        || yggdrasil_session_forward_service::server_audit_details(&server),
+        || session_forward::server_audit_details(&server),
     )
     .await;
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::ok_empty()))

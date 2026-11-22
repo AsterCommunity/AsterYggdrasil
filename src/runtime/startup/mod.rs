@@ -13,7 +13,7 @@ mod tests {
         let state = test_support::setup_state().await;
         let db = state.db_handles.reader().clone();
 
-        crate::services::audit_service::runtime::record_server_start(&state).await;
+        crate::services::ops::audit::runtime::record_server_start(&state).await;
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
         state
             .audit_writer()

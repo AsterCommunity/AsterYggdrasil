@@ -3,7 +3,7 @@
 use crate::api::response::ApiResponse;
 use crate::errors::Result;
 use crate::runtime::AppState;
-use crate::services::admin_overview_service;
+use crate::services::ops::admin;
 use actix_web::{HttpResponse, web};
 
 #[aster_forge_api_docs_macros::path(
@@ -12,7 +12,7 @@ use actix_web::{HttpResponse, web};
     tag = "admin",
     operation_id = "get_admin_overview",
     responses(
-        (status = 200, description = "Admin overview", body = inline(ApiResponse<admin_overview_service::AdminOverviewResp>)),
+        (status = 200, description = "Admin overview", body = inline(ApiResponse<admin::overview::AdminOverviewResp>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -20,7 +20,7 @@ use actix_web::{HttpResponse, web};
 )]
 pub async fn get_overview(state: web::Data<AppState>) -> Result<HttpResponse> {
     tracing::debug!("admin overview request received");
-    let overview = admin_overview_service::overview(state.get_ref()).await?;
+    let overview = admin::overview::overview(state.get_ref()).await?;
     tracing::debug!(
         total_users = overview.summary.total_users,
         minecraft_profiles = overview.summary.minecraft_profile_count,

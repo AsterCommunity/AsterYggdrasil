@@ -11,7 +11,7 @@ use aster_yggdrasil::config::definitions::BRANDING_TITLE_KEY;
 use aster_yggdrasil::db::repository::user_repo;
 use aster_yggdrasil::entities::{audit_log, background_task};
 use aster_yggdrasil::runtime::AppState;
-use aster_yggdrasil::services::{audit_service, mail::outbox as mail_outbox_service};
+use aster_yggdrasil::services::{mail::outbox as mail_outbox_service, ops::audit};
 use aster_yggdrasil::types::{
     task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
 };
@@ -138,10 +138,7 @@ async fn create_mail_outbox_row_with_attempt_count(
         .expect("mail outbox row should exist")
 }
 
-async fn latest_audit_entry(
-    state: &AppState,
-    action: audit_service::AuditAction,
-) -> audit_log::Model {
+async fn latest_audit_entry(state: &AppState, action: audit::AuditAction) -> audit_log::Model {
     audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq(action))
         .order_by_desc(audit_log::Column::Id)
@@ -162,8 +159,8 @@ async fn user_id_by_username(state: &AppState, username: &str) -> i64 {
 async fn insert_account_audit_entry(
     state: &AppState,
     user_id: i64,
-    action: audit_service::AuditAction,
-    entity_type: audit_service::AuditEntityType,
+    action: audit::AuditAction,
+    entity_type: audit::AuditEntityType,
     entity_id: i64,
     entity_name: &str,
     created_at: chrono::DateTime<Utc>,
@@ -197,15 +194,15 @@ async fn insert_account_audit_entry(
 async fn audit_log_persists_external_auth_provider_entry() {
     let state = common::setup().await;
 
-    audit_service::log(
+    audit::log(
         &state,
-        &audit_service::AuditContext {
+        &audit::AuditContext {
             user_id: 42,
             ip_address: None,
             user_agent: None,
         },
-        audit_service::AuditAction::AdminTestExternalAuthProvider,
-        audit_service::AuditEntityType::ExternalAuthProvider,
+        audit::AuditAction::AdminTestExternalAuthProvider,
+        audit::AuditEntityType::ExternalAuthProvider,
         None,
         Some("draft"),
         Some(serde_json::json!({
@@ -225,9 +222,7 @@ async fn audit_log_persists_external_auth_provider_entry() {
     }
 
     let entry = audit_log::Entity::find()
-        .filter(
-            audit_log::Column::Action.eq(audit_service::AuditAction::AdminTestExternalAuthProvider),
-        )
+        .filter(audit_log::Column::Action.eq(audit::AuditAction::AdminTestExternalAuthProvider))
         .one(state.writer_db())
         .await
         .expect("audit log query should succeed")
@@ -336,8 +331,8 @@ async fn account_audit_logs_clamp_limit_and_apply_offset() {
         insert_account_audit_entry(
             &state_for_insert,
             user_id,
-            audit_service::AuditAction::MinecraftProfileCreate,
-            audit_service::AuditEntityType::MinecraftProfile,
+            audit::AuditAction::MinecraftProfileCreate,
+            audit::AuditEntityType::MinecraftProfile,
             10_000 + index,
             &format!("PagedProfile{index:03}"),
             base + Duration::seconds(index),
@@ -403,8 +398,8 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     let before_match_id = insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         20_001,
         "BoundaryBefore",
         base,
@@ -413,8 +408,8 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     let lower_bound_id = insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         20_002,
         "BoundaryLower",
         base + Duration::minutes(1),
@@ -423,8 +418,8 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     let upper_bound_id = insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         20_003,
         "BoundaryUpper",
         base + Duration::minutes(2),
@@ -433,8 +428,8 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     let after_match_id = insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         20_004,
         "BoundaryAfter",
         base + Duration::minutes(3),
@@ -443,8 +438,8 @@ async fn account_audit_logs_filter_by_rfc3339_bounds_and_entity_fields() {
     insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftProfileCreate,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftProfileCreate,
+        audit::AuditEntityType::MinecraftProfile,
         20_002,
         "WrongAction",
         base + Duration::minutes(1),
@@ -509,8 +504,8 @@ async fn account_audit_logs_accept_admin_shape_sort_query() {
     insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::UserLogout,
-        audit_service::AuditEntityType::AuthSession,
+        audit::AuditAction::UserLogout,
+        audit::AuditEntityType::AuthSession,
         40_001,
         "SortLogout",
         base,
@@ -519,8 +514,8 @@ async fn account_audit_logs_accept_admin_shape_sort_query() {
     insert_account_audit_entry(
         &state_for_insert,
         user_id,
-        audit_service::AuditAction::MinecraftProfileCreate,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftProfileCreate,
+        audit::AuditEntityType::MinecraftProfile,
         40_002,
         "SortProfile",
         base + Duration::seconds(1),
@@ -529,8 +524,8 @@ async fn account_audit_logs_accept_admin_shape_sort_query() {
     insert_account_audit_entry(
         &state_for_insert,
         other_user_id,
-        audit_service::AuditAction::ConfigUpdate,
-        audit_service::AuditEntityType::SystemConfig,
+        audit::AuditAction::ConfigUpdate,
+        audit::AuditEntityType::SystemConfig,
         40_003,
         "OtherUserConfig",
         base + Duration::seconds(2),
@@ -645,8 +640,8 @@ async fn account_overview_returns_latest_five_current_user_activities() {
         let id = insert_account_audit_entry(
             &state_for_insert,
             user_id,
-            audit_service::AuditAction::MinecraftTextureBind,
-            audit_service::AuditEntityType::MinecraftProfile,
+            audit::AuditAction::MinecraftTextureBind,
+            audit::AuditEntityType::MinecraftProfile,
             30_000 + index,
             &format!("OverviewProfile{index}"),
             base + Duration::seconds(index),
@@ -657,8 +652,8 @@ async fn account_overview_returns_latest_five_current_user_activities() {
     let other_user_latest_id = insert_account_audit_entry(
         &state_for_insert,
         other_user_id,
-        audit_service::AuditAction::MinecraftTextureBind,
-        audit_service::AuditEntityType::MinecraftProfile,
+        audit::AuditAction::MinecraftTextureBind,
+        audit::AuditEntityType::MinecraftProfile,
         39_999,
         "OtherUserLatest",
         base + Duration::minutes(10),
@@ -893,7 +888,7 @@ async fn mail_outbox_dispatch_records_delivery_audit_logs() {
 
     assert_eq!(stats.claimed, 1);
     assert_eq!(stats.sent, 1);
-    let sent_entry = latest_audit_entry(&state, audit_service::AuditAction::MailSend).await;
+    let sent_entry = latest_audit_entry(&state, audit::AuditAction::MailSend).await;
     assert_eq!(sent_entry.user_id, 0);
     assert_eq!(sent_entry.entity_type, "mail");
     assert_eq!(sent_entry.entity_id, Some(sent_row.id));
@@ -923,8 +918,7 @@ async fn mail_outbox_dispatch_records_delivery_audit_logs() {
 
     assert_eq!(stats.claimed, 1);
     assert_eq!(stats.failed, 1);
-    let failed_entry =
-        latest_audit_entry(&state, audit_service::AuditAction::MailDeliveryFailed).await;
+    let failed_entry = latest_audit_entry(&state, audit::AuditAction::MailDeliveryFailed).await;
     assert_eq!(failed_entry.user_id, 0);
     assert_eq!(failed_entry.entity_type, "mail");
     assert_eq!(failed_entry.entity_id, Some(failed_row.id));

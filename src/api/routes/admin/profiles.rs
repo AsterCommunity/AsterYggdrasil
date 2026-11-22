@@ -7,8 +7,8 @@ use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::auth_service::AuthUserInfo;
-use crate::services::{audit_service, texture_service, yggdrasil_service};
+use crate::services::auth::local::AuthUserInfo;
+use crate::services::{ops::audit, texture, yggdrasil::protocol};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 
@@ -52,7 +52,7 @@ async fn find_profile_by_uuid(
     operation_id = "admin_list_minecraft_profiles",
     params(LimitQuery, AdminMinecraftProfileListQuery),
     responses(
-        (status = 200, description = "Minecraft profiles", body = inline(ApiResponse<CursorPage<yggdrasil_service::MinecraftProfileInfo, IdCursor>>)),
+        (status = 200, description = "Minecraft profiles", body = inline(ApiResponse<CursorPage<protocol::MinecraftProfileInfo, IdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -95,7 +95,7 @@ pub async fn list_minecraft_profiles(
     let items = slice
         .items
         .iter()
-        .map(yggdrasil_service::profile_info)
+        .map(protocol::profile_info)
         .collect::<Vec<_>>();
     tracing::debug!(
         returned = items.len(),
@@ -163,7 +163,7 @@ pub async fn list_user_minecraft_profiles(
     let profiles = slice
         .items
         .iter()
-        .map(yggdrasil_service::profile_summary)
+        .map(protocol::profile_summary)
         .collect::<Vec<_>>();
     tracing::debug!(
         user_id,
@@ -188,7 +188,7 @@ pub async fn list_user_minecraft_profiles(
     operation_id = "admin_get_minecraft_profile",
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Minecraft profile", body = inline(ApiResponse<yggdrasil_service::MinecraftProfileInfo>)),
+        (status = 200, description = "Minecraft profile", body = inline(ApiResponse<protocol::MinecraftProfileInfo>)),
         (status = 400, description = "Invalid profile UUID"),
         (status = 404, description = "Profile not found"),
         (status = 401, description = "Unauthorized"),
@@ -210,7 +210,7 @@ pub async fn get_minecraft_profile(
         user_id = profile.user_id,
         "admin loaded minecraft profile"
     );
-    Ok(HttpResponse::Ok().json(ApiResponse::ok(yggdrasil_service::profile_info(&profile))))
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_info(&profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -221,7 +221,7 @@ pub async fn get_minecraft_profile(
     request_body = RenameMinecraftProfileReq,
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Renamed Minecraft profile", body = inline(ApiResponse<yggdrasil_service::MinecraftProfileInfo>)),
+        (status = 200, description = "Renamed Minecraft profile", body = inline(ApiResponse<protocol::MinecraftProfileInfo>)),
         (status = 400, description = "Invalid profile UUID/name or duplicate profile"),
         (status = 404, description = "Profile not found"),
         (status = 401, description = "Unauthorized"),
@@ -244,9 +244,9 @@ pub async fn rename_minecraft_profile(
     validate_request(&*body)?;
     validate_profile_uuid(&uuid)?;
     let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
-    let renamed = yggdrasil_service::rename_profile(state.get_ref(), profile, &body.name).await?;
+    let renamed = protocol::rename_profile(state.get_ref(), profile, &body.name).await?;
 
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
     crate::api::routes::profiles::log_profile_rename_audit(state.get_ref(), &ctx, &renamed).await;
 
     tracing::debug!(
@@ -256,11 +256,7 @@ pub async fn rename_minecraft_profile(
         temporarily_invalidated_token_count = renamed.temporarily_invalidated_token_count,
         "admin renamed minecraft profile"
     );
-    Ok(
-        HttpResponse::Ok().json(ApiResponse::ok(yggdrasil_service::profile_info(
-            &renamed.profile,
-        ))),
-    )
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_info(&renamed.profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -270,7 +266,7 @@ pub async fn rename_minecraft_profile(
     operation_id = "admin_list_minecraft_profile_textures",
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Minecraft profile textures", body = inline(ApiResponse<Vec<texture_service::MinecraftTextureMetadata>>)),
+        (status = 200, description = "Minecraft profile textures", body = inline(ApiResponse<Vec<texture::MinecraftTextureMetadata>>)),
         (status = 400, description = "Invalid profile UUID"),
         (status = 404, description = "Profile not found"),
         (status = 401, description = "Unauthorized"),
@@ -289,7 +285,7 @@ pub async fn list_minecraft_profile_textures(
     );
     validate_profile_uuid(&uuid)?;
     let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
-    let textures = texture_service::texture_metadata_for_profile(state.get_ref(), &profile).await?;
+    let textures = texture::texture_metadata_for_profile(state.get_ref(), &profile).await?;
     tracing::debug!(
         profile_id = profile.id,
         profile_uuid = %profile.uuid,
@@ -327,15 +323,14 @@ pub async fn delete_minecraft_profile(
     validate_profile_uuid(&uuid)?;
     let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
     let Some(deleted) =
-        yggdrasil_service::delete_profile_for_user(state.get_ref(), profile.user_id, &profile.uuid)
-            .await?
+        protocol::delete_profile_for_user(state.get_ref(), profile.user_id, &profile.uuid).await?
     else {
         return Err(AsterError::record_not_found(format!(
             "minecraft profile '{uuid}'"
         )));
     };
 
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
     crate::api::routes::profiles::log_profile_delete_audit(state.get_ref(), &ctx, &deleted).await;
 
     tracing::debug!(
@@ -379,7 +374,7 @@ pub async fn delete_minecraft_profile_texture(
         "admin deleting minecraft profile texture"
     );
     validate_profile_uuid(&uuid)?;
-    let texture_type = match texture_service::parse_texture_type(&texture_type_raw) {
+    let texture_type = match texture::parse_texture_type(&texture_type_raw) {
         Ok(texture_type) => texture_type,
         Err(error) => {
             tracing::debug!(
@@ -391,13 +386,10 @@ pub async fn delete_minecraft_profile_texture(
         }
     };
     let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
-    let Some(deleted) = texture_service::delete_texture_for_profile_unchecked(
-        state.get_ref(),
-        &profile,
-        texture_type,
-    )
-    .await
-    .map_err(|error| AsterError::internal_error(error.protocol_message()))?
+    let Some(deleted) =
+        texture::delete_texture_for_profile_unchecked(state.get_ref(), &profile, texture_type)
+            .await
+            .map_err(|error| AsterError::internal_error(error.protocol_message()))?
     else {
         tracing::debug!(
             profile_id = profile.id,
@@ -407,16 +399,16 @@ pub async fn delete_minecraft_profile_texture(
         return Ok(HttpResponse::NoContent().finish());
     };
 
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureDelete,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureDelete,
+        audit::AuditEntityType::MinecraftTexture,
         Some(deleted.texture.binding.id),
         Some(&deleted.profile.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: &deleted.profile.uuid,
                 profile_name: &deleted.profile.name,
                 texture_type,
@@ -462,21 +454,21 @@ pub async fn delete_minecraft_textures_by_hash(
 ) -> Result<HttpResponse> {
     let hash = path.into_inner();
     tracing::debug!(hash, "admin deleting minecraft textures by hash");
-    let deleted = texture_service::delete_textures_by_hash(state.get_ref(), &hash)
+    let deleted = texture::delete_textures_by_hash(state.get_ref(), &hash)
         .await
         .map_err(|error| AsterError::internal_error(error.protocol_message()))?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
     let deleted_count = deleted.len();
     for item in deleted {
-        audit_service::log_with_details(
+        audit::log_with_details(
             state.get_ref(),
             &ctx,
-            audit_service::AuditAction::MinecraftTextureDelete,
-            audit_service::AuditEntityType::MinecraftTexture,
+            audit::AuditAction::MinecraftTextureDelete,
+            audit::AuditEntityType::MinecraftTexture,
             Some(item.texture.binding.id),
             Some(&item.profile.name),
             || {
-                audit_service::details(audit_service::MinecraftTextureAuditDetails {
+                audit::details(audit::MinecraftTextureAuditDetails {
                     profile_uuid: &item.profile.uuid,
                     profile_name: &item.profile.name,
                     texture_type: item.texture.binding.texture_type,

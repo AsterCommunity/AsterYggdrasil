@@ -14,7 +14,7 @@ use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, ban_service, texture_service};
+use crate::services::{auth::local, ops::audit, texture, user};
 use aster_forge_api::{
     LimitQuery, NullablePatch, parse_datetime_id_cursor, parse_sort_order_name_id_cursor,
 };
@@ -118,7 +118,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     operation_id = "list_current_user_wardrobe_textures",
     params(LimitQuery, WardrobeTextureListQuery),
     responses(
-        (status = 200, description = "Current user's wardrobe textures", body = inline(ApiResponse<CursorPage<texture_service::MinecraftWardrobeTextureMetadata, DateTimeIdCursor>>)),
+        (status = 200, description = "Current user's wardrobe textures", body = inline(ApiResponse<CursorPage<texture::MinecraftWardrobeTextureMetadata, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer" = [])),
@@ -130,7 +130,7 @@ pub async fn list_wardrobe_textures(
     query: web::Query<WardrobeTextureListQuery>,
 ) -> Result<HttpResponse> {
     validate_request(&*query)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let limit = page.limit_or(50, 100);
     let cursor =
         parse_datetime_id_cursor(query.after_updated_at, query.after_id, "wardrobe texture")?;
@@ -158,14 +158,9 @@ pub async fn list_wardrobe_textures(
         tag_search_method: query.tag_search_method,
         keyword,
     };
-    let page = texture_service::list_wardrobe_textures_cursor(
-        state.get_ref(),
-        user.id,
-        limit,
-        cursor,
-        filter,
-    )
-    .await?;
+    let page =
+        texture::list_wardrobe_textures_cursor(state.get_ref(), user.id, limit, cursor, filter)
+            .await?;
     tracing::debug!(
         user_id = user.id,
         returned = page.items.len(),
@@ -206,7 +201,7 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
     operation_id = "list_current_user_texture_library_tags",
     params(LimitQuery, TextureLibraryTagListQuery),
     responses(
-        (status = 200, description = "Administrator-managed texture library tags", body = inline(ApiResponse<CursorPage<texture_service::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
+        (status = 200, description = "Administrator-managed texture library tags", body = inline(ApiResponse<CursorPage<texture::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer" = [])),
@@ -218,7 +213,7 @@ pub async fn list_texture_library_tags(
     query: web::Query<TextureLibraryTagListQuery>,
 ) -> Result<HttpResponse> {
     validate_request(&*query)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let limit = page.limit_or(DEFAULT_TEXTURE_TAG_PAGE_SIZE, 100);
     let after = parse_sort_order_name_id_cursor(
         query.after_sort_order,
@@ -239,13 +234,8 @@ pub async fn list_texture_library_tags(
         has_keyword = keyword.is_some(),
         "listing administrator-managed texture library tags"
     );
-    let page = texture_service::list_texture_library_tags_paginated(
-        state.get_ref(),
-        limit,
-        after,
-        keyword,
-    )
-    .await?;
+    let page = texture::list_texture_library_tags_paginated(state.get_ref(), limit, after, keyword)
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
@@ -257,7 +247,7 @@ pub async fn list_texture_library_tags(
     request_body = UpdateWardrobeTextureReq,
     params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
     responses(
-        (status = 200, description = "Updated wardrobe texture", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Updated wardrobe texture", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 400, description = "Invalid texture metadata"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Wardrobe texture not found"),
@@ -272,7 +262,7 @@ pub async fn update_wardrobe_texture(
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(
         user_id = user.id,
         texture_id,
@@ -281,7 +271,7 @@ pub async fn update_wardrobe_texture(
         visibility_present = body.visibility.is_some(),
         "updating current user wardrobe texture metadata"
     );
-    let texture = texture_service::update_wardrobe_texture_metadata(
+    let texture = texture::update_wardrobe_texture_metadata(
         state.get_ref(),
         user.id,
         texture_id,
@@ -301,7 +291,7 @@ pub async fn update_wardrobe_texture(
     request_body = ReplaceWardrobeTextureTagsReq,
     params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
     responses(
-        (status = 200, description = "Updated wardrobe texture tags", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Updated wardrobe texture tags", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 400, description = "Invalid tag list"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Wardrobe texture or tag not found"),
@@ -316,20 +306,16 @@ pub async fn replace_wardrobe_texture_tags(
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(
         user_id = user.id,
         texture_id,
         tag_count = body.tag_ids.len(),
         "replacing current user wardrobe texture tags"
     );
-    let texture = texture_service::replace_wardrobe_texture_tags(
-        state.get_ref(),
-        user.id,
-        texture_id,
-        &body.tag_ids,
-    )
-    .await?;
+    let texture =
+        texture::replace_wardrobe_texture_tags(state.get_ref(), user.id, texture_id, &body.tag_ids)
+            .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
@@ -340,7 +326,7 @@ pub async fn replace_wardrobe_texture_tags(
     operation_id = "submit_current_user_texture_library_review",
     params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
     responses(
-        (status = 200, description = "Submitted or published wardrobe texture", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Submitted or published wardrobe texture", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 400, description = "Invalid texture state"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Wardrobe texture not found"),
@@ -353,20 +339,19 @@ pub async fn submit_texture_library_review(
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let texture =
-        texture_service::submit_texture_library_review(state.get_ref(), user.id, texture_id)
-            .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+        texture::submit_texture_library_review(state.get_ref(), user.id, texture_id).await?;
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureLibrarySubmit,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureLibrarySubmit,
+        audit::AuditEntityType::MinecraftTexture,
         Some(texture.id),
         Some(&texture.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: "",
                 profile_name: "",
                 texture_type: texture.texture_type,
@@ -391,7 +376,7 @@ pub async fn submit_texture_library_review(
     operation_id = "withdraw_current_user_texture_library_submission",
     params(("texture_id" = i64, Path, description = "Wardrobe texture ID")),
     responses(
-        (status = 200, description = "Withdrawn wardrobe texture library submission", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Withdrawn wardrobe texture library submission", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Wardrobe texture not found"),
     ),
@@ -403,20 +388,19 @@ pub async fn withdraw_texture_library_submission(
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let texture =
-        texture_service::withdraw_texture_library_submission(state.get_ref(), user.id, texture_id)
-            .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+        texture::withdraw_texture_library_submission(state.get_ref(), user.id, texture_id).await?;
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureLibraryWithdraw,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureLibraryWithdraw,
+        audit::AuditEntityType::MinecraftTexture,
         Some(texture.id),
         Some(&texture.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: "",
                 profile_name: "",
                 texture_type: texture.texture_type,
@@ -446,7 +430,7 @@ pub async fn withdraw_texture_library_submission(
     ),
     params(("texture_type" = String, Path, description = "Texture type: skin or cape")),
     responses(
-        (status = 200, description = "Wardrobe texture uploaded", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Wardrobe texture uploaded", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 400, description = "Invalid upload or texture"),
         (status = 401, description = "Unauthorized"),
     ),
@@ -464,18 +448,18 @@ pub async fn upload_wardrobe_texture(
         "received wardrobe texture upload request"
     );
     let texture_type = parse_texture_type(&texture_type_raw)?;
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(
         user_id = user.id,
         texture_type = ?texture_type,
         "receiving wardrobe texture upload"
     );
-    ban_service::ensure_user_not_banned(state.get_ref(), user.id, UserBanScope::TextureUpload)
+    user::ban::ensure_user_not_banned(state.get_ref(), user.id, UserBanScope::TextureUpload)
         .await?;
     let upload = receive_texture_upload(&state, payload, texture_type)
         .await
         .map_err(texture_error_to_api_error)?;
-    let stored = texture_service::store_wardrobe_texture(
+    let stored = texture::store_wardrobe_texture(
         state.get_ref(),
         user.id,
         texture_type,
@@ -488,7 +472,7 @@ pub async fn upload_wardrobe_texture(
     cleanup_upload_file(&upload.file_path).await;
     let stored = stored?;
     let response_texture = if let Some(display_name) = upload.display_name {
-        texture_service::update_wardrobe_texture_metadata(
+        texture::update_wardrobe_texture_metadata(
             state.get_ref(),
             user.id,
             stored.texture.id,
@@ -498,7 +482,7 @@ pub async fn upload_wardrobe_texture(
         )
         .await?
     } else {
-        texture_service::wardrobe_texture_metadata(state.get_ref(), &stored.texture)
+        texture::wardrobe_texture_metadata(state.get_ref(), &stored.texture)
     };
     tracing::debug!(
         user_id = user.id,
@@ -508,16 +492,16 @@ pub async fn upload_wardrobe_texture(
         "wardrobe texture upload completed"
     );
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         Some(stored.texture.id),
         None,
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: "",
                 profile_name: "",
                 texture_type: stored.texture.texture_type,
@@ -567,13 +551,13 @@ pub async fn delete_wardrobe_texture(
             "invalid wardrobe texture id",
         ));
     }
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(
         user_id = user.id,
         texture_id,
         "deleting current user wardrobe texture"
     );
-    let deleted = texture_service::delete_wardrobe_texture(state.get_ref(), user.id, texture_id)
+    let deleted = texture::delete_wardrobe_texture(state.get_ref(), user.id, texture_id)
         .await
         .map_err(texture_error_to_api_error)?;
     tracing::debug!(
@@ -583,16 +567,16 @@ pub async fn delete_wardrobe_texture(
         "deleted current user wardrobe texture"
     );
 
-    let ctx = audit_service::AuditContext::from_request(&req, user.id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, user.id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureDelete,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureDelete,
+        audit::AuditEntityType::MinecraftTexture,
         Some(deleted.id),
         None,
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: "",
                 profile_name: "",
                 texture_type: deleted.texture_type,
@@ -622,7 +606,7 @@ async fn receive_texture_upload(
     state: &AppState,
     mut payload: Multipart,
     texture_type: MinecraftTextureType,
-) -> std::result::Result<ReceivedTextureUpload, texture_service::TextureError> {
+) -> std::result::Result<ReceivedTextureUpload, texture::TextureError> {
     let policy = crate::config::yggdrasil::RuntimeYggdrasilPolicy::from_runtime_config(
         state.runtime_config(),
     );
@@ -640,8 +624,8 @@ async fn receive_texture_upload(
     while let Some(field) = payload.next().await {
         field_count += 1;
         let mut field = field.map_err(|error| {
-            texture_service::TextureError::with_detail(
-                texture_service::TextureErrorKind::InvalidPng,
+            texture::TextureError::with_detail(
+                texture::TextureErrorKind::InvalidPng,
                 format!("Invalid multipart payload: {error}"),
             )
         })?;
@@ -649,7 +633,7 @@ async fn receive_texture_upload(
             Some("model") => {
                 tracing::debug!(field_count, "reading wardrobe texture model field");
                 let text = read_small_text_field(&mut field).await?;
-                texture_model = texture_service::parse_skin_model(Some(&text))?;
+                texture_model = texture::parse_skin_model(Some(&text))?;
                 tracing::debug!(
                     field_count,
                     texture_model = ?texture_model,
@@ -661,8 +645,8 @@ async fn receive_texture_upload(
                 let text = read_small_text_field(&mut field).await?;
                 visibility =
                     MinecraftTextureVisibility::parse_form_value(&text).ok_or_else(|| {
-                        texture_service::TextureError::with_detail(
-                            texture_service::TextureErrorKind::InvalidDimensions,
+                        texture::TextureError::with_detail(
+                            texture::TextureErrorKind::InvalidDimensions,
                             "Invalid texture visibility.",
                         )
                     })?;
@@ -682,13 +666,13 @@ async fn receive_texture_upload(
                         field_count,
                         "wardrobe texture upload rejected non-png file field"
                     );
-                    return Err(texture_service::TextureError::new(
-                        texture_service::TextureErrorKind::InvalidContentType,
+                    return Err(texture::TextureError::new(
+                        texture::TextureErrorKind::InvalidContentType,
                     ));
                 }
                 let path = texture_upload_temp_path(state);
                 tracing::debug!(field_count, "writing wardrobe texture file field");
-                texture_service::write_multipart_texture_field_to_file(
+                texture::write_multipart_texture_field_to_file(
                     &mut field,
                     &path,
                     policy.max_texture_upload_bytes,
@@ -715,8 +699,8 @@ async fn receive_texture_upload(
             field_count,
             "wardrobe texture upload rejected because file field is missing"
         );
-        return Err(texture_service::TextureError::new(
-            texture_service::TextureErrorKind::MissingFile,
+        return Err(texture::TextureError::new(
+            texture::TextureErrorKind::MissingFile,
         ));
     };
     tracing::debug!(
@@ -737,22 +721,22 @@ async fn receive_texture_upload(
 
 async fn read_small_text_field(
     field: &mut actix_multipart::Field,
-) -> std::result::Result<String, texture_service::TextureError> {
+) -> std::result::Result<String, texture::TextureError> {
     let bytes = field.bytes(128).await.map_err(|_| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidDimensions,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidDimensions,
             "Multipart text field is too large.",
         )
     })?;
     let bytes = bytes.map_err(|error| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidPng,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidPng,
             format!("Invalid multipart text field: {error}"),
         )
     })?;
     let text = String::from_utf8(bytes.to_vec()).map_err(|error| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidDimensions,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidDimensions,
             format!("Multipart text field is not UTF-8: {error}"),
         )
     })?;
@@ -765,12 +749,12 @@ async fn read_small_text_field(
 
 async fn drain_field(
     field: &mut actix_multipart::Field,
-) -> std::result::Result<(), texture_service::TextureError> {
+) -> std::result::Result<(), texture::TextureError> {
     let mut chunk_count = 0_u64;
     while let Some(chunk) = field.next().await {
         chunk.map_err(|error| {
-            texture_service::TextureError::with_detail(
-                texture_service::TextureErrorKind::InvalidPng,
+            texture::TextureError::with_detail(
+                texture::TextureErrorKind::InvalidPng,
                 format!("Invalid multipart field: {error}"),
             )
         })?;
@@ -802,7 +786,7 @@ fn is_png_field(field: &actix_multipart::Field) -> bool {
 }
 
 fn parse_texture_type(value: &str) -> Result<MinecraftTextureType> {
-    texture_service::parse_texture_type(value).map_err(|_| {
+    texture::parse_texture_type(value).map_err(|_| {
         tracing::debug!(
             texture_type_raw = value,
             "wardrobe texture request rejected invalid texture type"
@@ -814,48 +798,48 @@ fn parse_texture_type(value: &str) -> Result<MinecraftTextureType> {
     })
 }
 
-fn texture_error_to_api_error(error: texture_service::TextureError) -> AsterError {
+fn texture_error_to_api_error(error: texture::TextureError) -> AsterError {
     match error.kind() {
-        texture_service::TextureErrorKind::InvalidToken => AsterError::auth_unauthorized_code(
+        texture::TextureErrorKind::InvalidToken => AsterError::auth_unauthorized_code(
             AsterErrorCode::AuthTokenInvalid,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::ForbiddenProfile => {
+        texture::TextureErrorKind::ForbiddenProfile => {
             AsterError::auth_forbidden(error.protocol_message())
         }
-        texture_service::TextureErrorKind::UploadDisabled => AsterError::auth_forbidden_code(
+        texture::TextureErrorKind::UploadDisabled => AsterError::auth_forbidden_code(
             AsterErrorCode::MinecraftTextureUploadDisabled,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::UserBanForbidden => AsterError::auth_forbidden_code(
+        texture::TextureErrorKind::UserBanForbidden => AsterError::auth_forbidden_code(
             AsterErrorCode::UserBanForbidden,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::NotFound => AsterError::record_not_found_code(
+        texture::TextureErrorKind::NotFound => AsterError::record_not_found_code(
             AsterErrorCode::WardrobeTextureNotFound,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::Storage => AsterError::internal_error_code(
+        texture::TextureErrorKind::Storage => AsterError::internal_error_code(
             AsterErrorCode::MinecraftTextureStoreFailed,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidTextureType => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidTextureType => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidType,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidContentType => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidContentType => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureUnsupportedMime,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::MissingFile => AsterError::validation_error_code(
+        texture::TextureErrorKind::MissingFile => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidPng,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidPng => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidPng => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidPng,
             error.protocol_message(),
         ),
-        texture_service::TextureErrorKind::InvalidDimensions => AsterError::validation_error_code(
+        texture::TextureErrorKind::InvalidDimensions => AsterError::validation_error_code(
             AsterErrorCode::MinecraftTextureInvalidDimensions,
             error.protocol_message(),
         ),

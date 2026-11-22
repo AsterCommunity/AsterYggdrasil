@@ -10,7 +10,7 @@ use crate::api::response::ApiResponse;
 use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, texture_service};
+use crate::services::{auth::local, ops::audit, texture};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 use aster_yggdrasil_model::types::yggdrasil::{MinecraftTextureType, TextureTagSearchMethod};
 
@@ -94,7 +94,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     operation_id = "list_public_texture_library_tags",
     params(LimitQuery, PublicTextureLibraryTagQuery),
     responses(
-        (status = 200, description = "Public texture library tags", body = inline(ApiResponse<CursorPage<texture_service::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
+        (status = 200, description = "Public texture library tags", body = inline(ApiResponse<CursorPage<texture::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
     ),
 )]
 pub async fn list_public_texture_library_tags(
@@ -116,13 +116,8 @@ pub async fn list_public_texture_library_tags(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_owned);
-    let page = texture_service::list_texture_library_tags_paginated(
-        state.get_ref(),
-        limit,
-        after,
-        keyword,
-    )
-    .await?;
+    let page = texture::list_texture_library_tags_paginated(state.get_ref(), limit, after, keyword)
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
@@ -133,7 +128,7 @@ pub async fn list_public_texture_library_tags(
     operation_id = "list_public_texture_library_textures",
     params(LimitQuery, PublicTextureLibraryQuery),
     responses(
-        (status = 200, description = "Public texture library textures", body = inline(ApiResponse<CursorPage<texture_service::PublicTextureLibraryTextureMetadata, DateTimeIdCursor>>)),
+        (status = 200, description = "Public texture library textures", body = inline(ApiResponse<CursorPage<texture::PublicTextureLibraryTextureMetadata, DateTimeIdCursor>>)),
         (status = 400, description = "Invalid query"),
     ),
 )]
@@ -159,8 +154,7 @@ pub async fn list_public_textures(
         keyword,
     };
     let page =
-        texture_service::list_public_texture_library_cursor(state.get_ref(), limit, cursor, filter)
-            .await?;
+        texture::list_public_texture_library_cursor(state.get_ref(), limit, cursor, filter).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(page)))
 }
 
@@ -194,7 +188,7 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
     operation_id = "get_public_texture_library_texture",
     params(("texture_id" = i64, Path, description = "Public texture ID")),
     responses(
-        (status = 200, description = "Public texture detail", body = inline(ApiResponse<texture_service::PublicTextureLibraryTextureMetadata>)),
+        (status = 200, description = "Public texture detail", body = inline(ApiResponse<texture::PublicTextureLibraryTextureMetadata>)),
         (status = 404, description = "Public texture not found"),
     ),
 )]
@@ -203,8 +197,7 @@ pub async fn get_public_texture(
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
     let texture_id = path.into_inner();
-    let texture =
-        texture_service::get_public_texture_library_texture(state.get_ref(), texture_id).await?;
+    let texture = texture::get_public_texture_library_texture(state.get_ref(), texture_id).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(texture)))
 }
 
@@ -216,7 +209,7 @@ pub async fn get_public_texture(
     request_body = CopyPublicTextureReq,
     params(("texture_id" = i64, Path, description = "Public texture ID")),
     responses(
-        (status = 200, description = "Copied texture in current user's wardrobe", body = inline(ApiResponse<texture_service::MinecraftWardrobeTextureMetadata>)),
+        (status = 200, description = "Copied texture in current user's wardrobe", body = inline(ApiResponse<texture::MinecraftWardrobeTextureMetadata>)),
         (status = 400, description = "Invalid copy request"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Public texture not found"),
@@ -230,7 +223,7 @@ pub async fn copy_public_texture(
     body: web::Bytes,
 ) -> Result<HttpResponse> {
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
+    let user = local::current_user(state.get_ref(), &req).await?;
     let body = if body.is_empty() {
         CopyPublicTextureReq::default()
     } else {
@@ -242,7 +235,7 @@ pub async fn copy_public_texture(
         })?
     };
     validate_request(&body)?;
-    let texture = texture_service::copy_public_texture_to_wardrobe(
+    let texture = texture::copy_public_texture_to_wardrobe(
         state.get_ref(),
         user.id,
         texture_id,
@@ -260,7 +253,7 @@ pub async fn copy_public_texture(
     request_body = CreateTextureReportReq,
     params(("texture_id" = i64, Path, description = "Public texture ID")),
     responses(
-        (status = 200, description = "Created texture report", body = inline(ApiResponse<texture_service::TextureReportInfo>)),
+        (status = 200, description = "Created texture report", body = inline(ApiResponse<texture::TextureReportInfo>)),
         (status = 400, description = "Invalid report request"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Public texture not found"),
@@ -275,8 +268,8 @@ pub async fn create_texture_report(
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
     let texture_id = path.into_inner();
-    let user = auth_service::current_user(state.get_ref(), &req).await?;
-    let report = texture_service::create_texture_library_report(
+    let user = local::current_user(state.get_ref(), &req).await?;
+    let report = texture::create_texture_library_report(
         state.get_ref(),
         user.id,
         texture_id,
@@ -288,7 +281,7 @@ pub async fn create_texture_report(
         state.get_ref(),
         &req,
         user.id,
-        audit_service::AuditAction::MinecraftTextureReportCreate,
+        audit::AuditAction::MinecraftTextureReportCreate,
         &report,
     )
     .await;
@@ -299,19 +292,19 @@ async fn log_texture_report_audit(
     state: &AppState,
     req: &HttpRequest,
     actor_user_id: i64,
-    action: audit_service::AuditAction,
-    report: &texture_service::TextureReportInfo,
+    action: audit::AuditAction,
+    report: &texture::TextureReportInfo,
 ) {
-    let ctx = audit_service::AuditContext::from_request(req, actor_user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(req, actor_user_id);
+    audit::log_with_details(
         state,
         &ctx,
         action,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditEntityType::MinecraftTexture,
         Some(report.texture_id),
         report.texture.as_ref().map(|texture| texture.name.as_str()),
         || {
-            audit_service::details(audit_service::MinecraftTextureReportAuditDetails {
+            audit::details(audit::MinecraftTextureReportAuditDetails {
                 texture_id: report.texture_id,
                 report_id: report.id,
                 reason: report.reason,

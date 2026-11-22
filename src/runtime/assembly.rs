@@ -35,7 +35,7 @@ pub async fn run(state: crate::runtime::AppState) -> io::Result<()> {
             state.clone(),
         ))
         .component(crate::services::mail::outbox_runtime::mail_runtime_component(app_state))
-        .component(crate::services::audit_service::runtime::audit_runtime_component(app_state))
+        .component(crate::services::ops::audit::runtime::audit_runtime_component(app_state))
         .component(crate::db::runtime::database_component(
             app_state.db_handles.clone(),
         ));
@@ -81,7 +81,7 @@ mod tests {
                 .register(registry);
             crate::services::mail::outbox_runtime::mail_runtime_component(&state)
                 .register(registry);
-            crate::services::audit_service::runtime::audit_runtime_component(&state)
+            crate::services::ops::audit::runtime::audit_runtime_component(&state)
                 .register(registry);
             crate::db::runtime::database_component(db_handles).register(registry);
         });

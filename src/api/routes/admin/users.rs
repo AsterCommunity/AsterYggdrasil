@@ -7,10 +7,9 @@ use crate::api::dto::{
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::admin_user_service;
-use crate::services::audit_service;
-use crate::services::auth_service::AuthUserInfo;
-use crate::services::user_invitation_service;
+use crate::services::auth::local::AuthUserInfo;
+use crate::services::ops::audit;
+use crate::services::user;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use aster_forge_api::{CreatedAtCursorQuery, LimitQuery, parse_datetime_id_cursor};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -24,8 +23,8 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         .ok_or_else(|| AsterError::internal_error("missing authenticated user in request context"))
 }
 
-fn user_audit_details(user: &admin_user_service::AdminUserInfo) -> Option<serde_json::Value> {
-    audit_service::details(audit_service::UserAuditDetails {
+fn user_audit_details(user: &user::admin::AdminUserInfo) -> Option<serde_json::Value> {
+    audit::details(audit::UserAuditDetails {
         username: &user.username,
         email: &user.email,
         role: user.role,
@@ -44,7 +43,7 @@ fn user_audit_details(user: &admin_user_service::AdminUserInfo) -> Option<serde_
     operation_id = "admin_list_users",
     params(LimitQuery, AdminUserListQuery),
     responses(
-        (status = 200, description = "Users", body = inline(ApiResponse<CursorPage<admin_user_service::AdminUserInfo, DateTimeIdCursor>>)),
+        (status = 200, description = "Users", body = inline(ApiResponse<CursorPage<user::admin::AdminUserInfo, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -65,10 +64,10 @@ pub async fn list_users(
         status = ?query.status,
         "admin listing users"
     );
-    let users = admin_user_service::list_users(
+    let users = user::admin::list_users(
         state.get_ref(),
         limit,
-        admin_user_service::AdminUserListFilters {
+        user::admin::AdminUserListFilters {
             keyword: query.keyword.clone(),
             role: query.role,
             status: query.status,
@@ -91,7 +90,7 @@ pub async fn list_users(
     operation_id = "admin_create_user",
     request_body = CreateAdminUserReq,
     responses(
-        (status = 201, description = "User created", body = inline(ApiResponse<admin_user_service::CreateAdminUserOutput>)),
+        (status = 201, description = "User created", body = inline(ApiResponse<user::admin::CreateAdminUserOutput>)),
         (status = 400, description = "Validation error"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -110,9 +109,9 @@ pub async fn create_user(
         status = ?body.status.unwrap_or(UserStatus::Active),
         "admin creating user"
     );
-    let output = admin_user_service::create_user(
+    let output = user::admin::create_user(
         state.get_ref(),
-        admin_user_service::AdminCreateUserInput {
+        user::admin::AdminCreateUserInput {
             username: body.username.clone(),
             email: body.email.clone(),
             password: body.password.clone(),
@@ -124,12 +123,12 @@ pub async fn create_user(
     )
     .await?;
     let user = &output.user;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminCreateUser,
-        audit_service::AuditEntityType::User,
+        audit::AuditAction::AdminCreateUser,
+        audit::AuditEntityType::User,
         Some(user.id),
         Some(&user.username),
         || {
@@ -160,7 +159,7 @@ pub async fn create_user(
     operation_id = "admin_create_user_invitation",
     request_body = CreateUserInvitationReq,
     responses(
-        (status = 201, description = "User invitation created", body = inline(ApiResponse<crate::services::user_invitation_service::AdminUserInvitationInfo>)),
+        (status = 201, description = "User invitation created", body = inline(ApiResponse<crate::services::user::invitation::AdminUserInvitationInfo>)),
         (status = 400, description = "Validation error"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -177,14 +176,13 @@ pub async fn create_user_invitation(
     validate_request(&body)?;
     let admin_user_id = current_admin_user_id(&req)?;
     let invitation =
-        user_invitation_service::create_invitation(state.get_ref(), &body.email, admin_user_id)
-            .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, admin_user_id);
-    audit_service::log_with_details(
+        user::invitation::create_invitation(state.get_ref(), &body.email, admin_user_id).await?;
+    let ctx = audit::AuditContext::from_request(&req, admin_user_id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminCreateInvitation,
-        audit_service::AuditEntityType::Invitation,
+        audit::AuditAction::AdminCreateInvitation,
+        audit::AuditEntityType::Invitation,
         Some(invitation.id),
         Some(&invitation.email),
         || invitation_audit_details(&invitation),
@@ -200,7 +198,7 @@ pub async fn create_user_invitation(
     operation_id = "admin_list_user_invitations",
     params(LimitQuery, CreatedAtCursorQuery),
     responses(
-        (status = 200, description = "User invitations", body = inline(ApiResponse<CursorPage<crate::services::user_invitation_service::AdminUserInvitationInfo, DateTimeIdCursor>>)),
+        (status = 200, description = "User invitations", body = inline(ApiResponse<CursorPage<crate::services::user::invitation::AdminUserInvitationInfo, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -217,8 +215,7 @@ pub async fn list_user_invitations(
         "user invitation",
     )?;
     let invitations =
-        user_invitation_service::list_invitations(state.get_ref(), page.limit_or(20, 100), cursor)
-            .await?;
+        user::invitation::list_invitations(state.get_ref(), page.limit_or(20, 100), cursor).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(invitations)))
 }
 
@@ -229,7 +226,7 @@ pub async fn list_user_invitations(
     operation_id = "admin_revoke_user_invitation",
     params(("id" = i64, Path, description = "Invitation ID")),
     responses(
-        (status = 200, description = "User invitation revoked", body = inline(ApiResponse<crate::services::user_invitation_service::AdminUserInvitationInfo>)),
+        (status = 200, description = "User invitation revoked", body = inline(ApiResponse<crate::services::user::invitation::AdminUserInvitationInfo>)),
         (status = 400, description = "Invitation cannot be revoked"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -242,13 +239,13 @@ pub async fn revoke_user_invitation(
     req: HttpRequest,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let invitation = user_invitation_service::revoke_invitation(state.get_ref(), *path).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let invitation = user::invitation::revoke_invitation(state.get_ref(), *path).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminRevokeInvitation,
-        audit_service::AuditEntityType::Invitation,
+        audit::AuditAction::AdminRevokeInvitation,
+        audit::AuditEntityType::Invitation,
         Some(invitation.id),
         Some(&invitation.email),
         || invitation_audit_details(&invitation),
@@ -258,9 +255,9 @@ pub async fn revoke_user_invitation(
 }
 
 fn invitation_audit_details(
-    invitation: &user_invitation_service::AdminUserInvitationInfo,
+    invitation: &user::invitation::AdminUserInvitationInfo,
 ) -> Option<serde_json::Value> {
-    audit_service::details(serde_json::json!({
+    audit::details(serde_json::json!({
         "email": invitation.email,
         "status": invitation.status,
         "invited_by": invitation.invited_by,
@@ -277,7 +274,7 @@ fn invitation_audit_details(
     operation_id = "admin_get_user",
     params(("id" = i64, Path, description = "User ID")),
     responses(
-        (status = 200, description = "User", body = inline(ApiResponse<admin_user_service::AdminUserInfo>)),
+        (status = 200, description = "User", body = inline(ApiResponse<user::admin::AdminUserInfo>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "User not found"),
@@ -287,7 +284,7 @@ fn invitation_audit_details(
 pub async fn get_user(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
     let user_id = *path;
     tracing::debug!(user_id, "admin loading user");
-    let user = admin_user_service::get_user(state.get_ref(), user_id).await?;
+    let user = user::admin::get_user(state.get_ref(), user_id).await?;
     tracing::debug!(
         user_id = user.id,
         role = ?user.role,
@@ -305,7 +302,7 @@ pub async fn get_user(state: web::Data<AppState>, path: web::Path<i64>) -> Resul
     params(("id" = i64, Path, description = "User ID")),
     request_body = UpdateAdminUserReq,
     responses(
-        (status = 200, description = "User updated", body = inline(ApiResponse<admin_user_service::AdminUserInfo>)),
+        (status = 200, description = "User updated", body = inline(ApiResponse<user::admin::AdminUserInfo>)),
         (status = 400, description = "Validation error"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -331,10 +328,10 @@ pub async fn update_user(
         must_change_password_changed = body.must_change_password.is_some(),
         "admin updating user"
     );
-    let user = admin_user_service::update_user(
+    let user = user::admin::update_user(
         state.get_ref(),
         user_id,
-        admin_user_service::AdminUpdateUserInput {
+        user::admin::AdminUpdateUserInput {
             username: body.username.clone(),
             email: body.email.clone(),
             password: body.password.clone(),
@@ -345,17 +342,17 @@ pub async fn update_user(
         },
     )
     .await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
     let action = if body.status == Some(UserStatus::Disabled) {
-        audit_service::AuditAction::AdminDisableUser
+        audit::AuditAction::AdminDisableUser
     } else {
-        audit_service::AuditAction::AdminUpdateUser
+        audit::AuditAction::AdminUpdateUser
     };
-    audit_service::log_with_details(
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
         action,
-        audit_service::AuditEntityType::User,
+        audit::AuditEntityType::User,
         Some(user.id),
         Some(&user.username),
         || user_audit_details(&user),
@@ -391,16 +388,16 @@ pub async fn revoke_user_sessions(
 ) -> Result<HttpResponse> {
     let user_id = *path;
     tracing::debug!(user_id, "admin revoking user sessions");
-    let removed = admin_user_service::revoke_user_sessions(state.get_ref(), user_id).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let removed = user::admin::revoke_user_sessions(state.get_ref(), user_id).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminRevokeUserSessions,
-        audit_service::AuditEntityType::User,
+        audit::AuditAction::AdminRevokeUserSessions,
+        audit::AuditEntityType::User,
         Some(user_id),
         Some(&format!("user #{user_id}")),
-        || audit_service::details(audit_service::UserSessionRevokeAuditDetails { removed }),
+        || audit::details(audit::UserSessionRevokeAuditDetails { removed }),
     )
     .await;
     tracing::debug!(user_id, removed, "admin revoked user sessions");
@@ -418,7 +415,7 @@ pub async fn revoke_user_sessions(
     operation_id = "admin_delete_user",
     params(("id" = i64, Path, description = "User ID")),
     responses(
-        (status = 200, description = "User deleted", body = inline(ApiResponse<admin_user_service::DeleteAdminUserOutput>)),
+        (status = 200, description = "User deleted", body = inline(ApiResponse<user::admin::DeleteAdminUserOutput>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "User not found"),
@@ -432,13 +429,13 @@ pub async fn delete_user(
 ) -> Result<HttpResponse> {
     let user_id = *path;
     tracing::debug!(user_id, "admin deleting user");
-    let output = admin_user_service::delete_user(state.get_ref(), user_id).await?;
-    let ctx = audit_service::AuditContext::from_request(&req, current_admin_user_id(&req)?);
-    audit_service::log_with_details(
+    let output = user::admin::delete_user(state.get_ref(), user_id).await?;
+    let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::AdminDeleteUser,
-        audit_service::AuditEntityType::User,
+        audit::AuditAction::AdminDeleteUser,
+        audit::AuditEntityType::User,
         Some(output.user.id),
         Some(&output.user.username),
         || user_audit_details(&output.user),

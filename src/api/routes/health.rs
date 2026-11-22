@@ -3,7 +3,7 @@
 use crate::api::error_code::AsterErrorCode;
 use crate::api::response::{ApiResponse, HealthResponse};
 use crate::runtime::AppState;
-use crate::services::health_service;
+use crate::services::ops::health;
 use actix_web::{HttpResponse, web};
 
 const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
@@ -45,7 +45,7 @@ pub async fn health() -> HttpResponse {
 )]
 pub async fn ready(state: web::Data<AppState>) -> HttpResponse {
     tracing::debug!("serving readiness probe");
-    match health_service::check_ready(state.get_ref()).await {
+    match health::check_ready(state.get_ref()).await {
         Ok(_) => {
             tracing::debug!("readiness probe succeeded");
             HttpResponse::Ok().json(ApiResponse::ok(status_response("ready")))

@@ -1,0 +1,351 @@
+use std::time::Duration as StdDuration;
+
+use chrono::Utc;
+use tokio_util::sync::CancellationToken;
+
+use super::{
+    TASK_HEARTBEAT_INTERVAL_SECS, task_expiration_from, task_lease_expires_at, truncate_error,
+};
+use crate::db::repository::background_task_repo;
+use crate::errors::{AsterError, Result};
+use crate::runtime::{AppState, TaskRuntimeState};
+use crate::services::ops::task::{
+    registry,
+    steps::{parse_task_steps_json, serialize_task_steps},
+};
+use aster_forge_tasks::{DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed};
+use aster_yggdrasil_model::entities::background_task;
+use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
+
+pub(super) async fn run_claimed_tasks(
+    state: &AppState,
+    claimed_tasks: Vec<(background_task::Model, TaskLease)>,
+    shutdown_token: CancellationToken,
+) -> Result<DispatchStats> {
+    aster_forge_tasks::run_claimed_task_batch_with_store(
+        BackgroundTaskExecutionStore {
+            state: state.clone(),
+        },
+        claimed_tasks,
+        |(task, _)| (task.created_at, task.id),
+        shutdown_token,
+        aster_forge_tasks::ClaimedTaskExecutionConfig {
+            renewal_timeout: aster_forge_tasks::task_lease_renewal_timeout(
+                super::super::TASK_PROCESSING_STALE_SECS,
+                TASK_HEARTBEAT_INTERVAL_SECS,
+            ),
+            heartbeat_interval: StdDuration::from_secs(TASK_HEARTBEAT_INTERVAL_SECS),
+            lease_expires_at: task_lease_expires_at,
+            retry_delay_secs: aster_forge_tasks::default_task_retry_delay_secs,
+        },
+    )
+    .await
+}
+
+#[derive(Clone)]
+struct BackgroundTaskExecutionStore {
+    state: AppState,
+}
+
+#[async_trait::async_trait]
+impl aster_forge_tasks::TaskHeartbeatStore for BackgroundTaskExecutionStore {
+    type Error = AsterError;
+
+    async fn touch_task_heartbeat(
+        &self,
+        lease: TaskLease,
+        now: chrono::DateTime<Utc>,
+        lease_expires_at: chrono::DateTime<Utc>,
+    ) -> std::result::Result<TaskHeartbeatOutcome, AsterError> {
+        let renewed = background_task_repo::touch_heartbeat(
+            self.state.writer_db(),
+            lease.task_id,
+            lease.processing_token,
+            now,
+            lease_expires_at,
+        )
+        .await?;
+        Ok(TaskHeartbeatOutcome::from(renewed))
+    }
+}
+
+#[async_trait::async_trait]
+impl aster_forge_tasks::ClaimedTaskExecutionStore<background_task::Model, BackgroundTaskKind>
+    for BackgroundTaskExecutionStore
+{
+    async fn process_task(
+        &self,
+        task: &background_task::Model,
+        context: aster_forge_tasks::TaskExecutionContext,
+    ) -> Result<()> {
+        registry::process_task(&self.state, task, context).await
+    }
+
+    /// Confirms that the task body persisted its terminal success for this
+    /// exact lease. Task bodies write `Succeeded` through the repo during
+    /// execution, so this validates the row carries that state under the
+    /// current processing token.
+    async fn confirm_task_succeeded(
+        &self,
+        _task: &background_task::Model,
+        lease: TaskLease,
+    ) -> Result<bool> {
+        let current = background_task_repo::find_by_id(self.state.writer_db(), lease.task_id)
+            .await
+            .ok();
+        match current {
+            Some(current) => Ok(current.processing_token == lease.processing_token
+                && current.status == BackgroundTaskStatus::Succeeded),
+            None => Ok(false),
+        }
+    }
+
+    fn is_lease_lost_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_lease_lost(error)
+    }
+
+    fn is_lease_renewal_timed_out_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_lease_renewal_timed_out(error)
+    }
+
+    fn is_worker_shutdown_requested_error(&self, error: &AsterError) -> bool {
+        super::super::is_task_worker_shutdown_requested(error)
+    }
+
+    fn is_cancellation_requested_error(&self, _error: &AsterError) -> bool {
+        // The product has no user-facing task cancellation yet.
+        false
+    }
+
+    async fn cancel_task_if_requested(
+        &self,
+        _task: &background_task::Model,
+        _lease: TaskLease,
+    ) -> Result<bool> {
+        // No cancellation requests can exist without the cancellation feature.
+        Ok(false)
+    }
+
+    fn retry_class(
+        &self,
+        task: &background_task::Model,
+        error: &AsterError,
+    ) -> aster_forge_tasks::TaskRetryClass {
+        registry::task_retry_class(task.kind, error)
+    }
+
+    fn storage_error(&self, error: &AsterError) -> String {
+        truncate_error(error.message())
+    }
+
+    fn display_error(&self, storage_error: &str) -> String {
+        storage_error.to_string()
+    }
+
+    async fn failed_steps_json(
+        &self,
+        task: &background_task::Model,
+        display_error: &str,
+    ) -> Option<String> {
+        let latest = background_task_repo::find_by_id(self.state.writer_db(), task.id)
+            .await
+            .ok()?;
+        let mut steps =
+            parse_task_steps_json(latest.steps_json.as_ref().map(|raw| raw.as_ref())).ok()?;
+        if steps.is_empty() {
+            return None;
+        }
+        mark_active_step_failed(&mut steps, Some(display_error));
+        serialize_task_steps(&steps).ok().map(Into::into)
+    }
+
+    async fn mark_task_failed(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+        failure: aster_forge_tasks::TaskPermanentFailure<'_>,
+    ) -> Result<bool> {
+        background_task_repo::mark_failed(
+            self.state.writer_db(),
+            background_task_repo::TaskFailureUpdate {
+                id: task.id,
+                processing_token: lease.processing_token,
+                attempt_count: failure.attempt_count,
+                last_error: failure.storage_error,
+                finished_at: failure.finished_at,
+                expires_at: task_expiration_from(&self.state, failure.finished_at),
+                steps_json: failure.failed_steps_json,
+                failure_can_retry: failure.failure_can_retry,
+            },
+        )
+        .await
+    }
+
+    async fn mark_task_retry(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+        retry: aster_forge_tasks::TaskRetryUpdate<'_>,
+    ) -> Result<bool> {
+        background_task_repo::mark_retry(
+            self.state.writer_db(),
+            task.id,
+            lease.processing_token,
+            retry.attempt_count,
+            retry.retry_at,
+            retry.storage_error,
+            retry.failed_steps_json,
+        )
+        .await
+    }
+
+    async fn release_task_for_shutdown(
+        &self,
+        task: &background_task::Model,
+        lease: TaskLease,
+    ) -> Result<bool> {
+        background_task_repo::release_processing(
+            self.state.writer_db(),
+            task.id,
+            lease.processing_token,
+            Utc::now(),
+            BackgroundTaskStatus::Retry,
+        )
+        .await
+    }
+
+    fn record_task_transition(&self, task: &background_task::Model, status: &'static str) {
+        self.state
+            .metrics()
+            .record_background_task_transition(task.kind.as_str(), status);
+    }
+
+    fn wake_dispatcher(&self) {
+        self.state.wake_background_task_dispatcher();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use aster_forge_tasks::{ClaimedTaskExecutionStore, TaskLease};
+    use aster_yggdrasil_migration::Migrator;
+    use chrono::{Duration, Utc};
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    use super::BackgroundTaskExecutionStore;
+    use crate::runtime::{AppState, AppStateParts};
+    use aster_yggdrasil_model::entities::background_task;
+    use aster_yggdrasil_model::types::{
+        task::BackgroundTaskKind, task::BackgroundTaskStatus, task::StoredTaskPayload,
+    };
+    async fn test_state() -> AppState {
+        let db = crate::db::connect_with_metrics(
+            &crate::config::DatabaseConfig {
+                url: "sqlite::memory:".into(),
+                pool_size: 1,
+                retry_count: 0,
+            },
+            aster_forge_metrics::NoopMetrics::arc(),
+        )
+        .await
+        .expect("test database should connect");
+        Migrator::up(&db, None)
+            .await
+            .expect("test database migration should run");
+        crate::services::ops::config::ensure_defaults(&db)
+            .await
+            .expect("system config defaults should be installed");
+        let runtime_config = Arc::new(crate::config::RuntimeConfig::new());
+        runtime_config
+            .reload(&db)
+            .await
+            .expect("runtime config should load");
+        let cache = aster_forge_cache::create_cache(&aster_forge_cache::CacheConfig {
+            ..Default::default()
+        })
+        .await;
+        let config = Arc::new(crate::config::Config::default());
+        let texture_storage = crate::texture_storage::create_texture_store(&config.texture_storage)
+            .expect("object storage should initialize");
+
+        AppState::from_parts(AppStateParts {
+            audit_writer: std::sync::Arc::new(aster_forge_audit::AuditWriter::new(db.clone())),
+            db_handles: aster_forge_db::DbHandles::single(db),
+            config,
+            runtime_config,
+            cache,
+            texture_storage,
+            mail_sender: aster_forge_mail::memory_sender(),
+            config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test(
+                "aster_yggdrasil",
+            ),
+            metrics: aster_forge_metrics::NoopMetrics::arc(),
+        })
+        .expect("task dispatch execute test AppState should build")
+    }
+
+    #[tokio::test]
+    async fn shutdown_release_returns_processing_task_to_retry_without_failure_update() {
+        let state = test_state().await;
+        let now = Utc::now();
+        let task = background_task::ActiveModel {
+            kind: Set(BackgroundTaskKind::SystemRuntime),
+            status: Set(BackgroundTaskStatus::Processing),
+            creator_user_id: Set(None),
+            display_name: Set("Shutdown release task".to_string()),
+            payload_json: Set(StoredTaskPayload(
+                serde_json::json!({ "task_name": "task-cleanup" }).to_string(),
+            )),
+            result_json: Set(None),
+            runtime_json: Set(None),
+            steps_json: Set(None),
+            progress_current: Set(0),
+            progress_total: Set(1),
+            status_text: Set(Some("in progress".to_string())),
+            attempt_count: Set(2),
+            max_attempts: Set(3),
+            next_run_at: Set(now - Duration::seconds(30)),
+            processing_token: Set(7),
+            processing_started_at: Set(Some(now - Duration::seconds(20))),
+            last_heartbeat_at: Set(Some(now - Duration::seconds(5))),
+            lease_expires_at: Set(Some(now + Duration::seconds(30))),
+            started_at: Set(Some(now - Duration::seconds(20))),
+            finished_at: Set(None),
+            last_error: Set(Some("previous failure".to_string())),
+            failure_can_retry: Set(Some(true)),
+            expires_at: Set(now + Duration::hours(24)),
+            created_at: Set(now - Duration::hours(1)),
+            updated_at: Set(now - Duration::seconds(5)),
+            ..Default::default()
+        }
+        .insert(state.writer_db())
+        .await
+        .expect("processing task should insert");
+
+        let store = BackgroundTaskExecutionStore {
+            state: state.clone(),
+        };
+        store
+            .release_task_for_shutdown(&task, TaskLease::new(task.id, 7))
+            .await
+            .expect("shutdown release should succeed");
+
+        let released = background_task::Entity::find_by_id(task.id)
+            .one(state.reader_db())
+            .await
+            .expect("released task should query")
+            .expect("released task should exist");
+        assert_eq!(released.status, BackgroundTaskStatus::Retry);
+        assert_eq!(released.processing_token, 7);
+        assert_eq!(released.attempt_count, 2);
+        assert_eq!(released.last_error.as_deref(), Some("previous failure"));
+        assert_eq!(released.failure_can_retry, Some(true));
+        assert_eq!(released.status_text, None);
+        assert_eq!(released.processing_started_at, None);
+        assert_eq!(released.last_heartbeat_at, None);
+        assert_eq!(released.lease_expires_at, None);
+        assert_eq!(released.finished_at, None);
+    }
+}

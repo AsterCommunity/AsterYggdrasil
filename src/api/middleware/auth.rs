@@ -12,7 +12,7 @@ use crate::api::middleware::csrf;
 use crate::api::request_auth::access_cookie_token;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
-use crate::services::auth_service;
+use crate::services::auth::local;
 use aster_forge_middleware::actix::csrf::{RequestSourceMode, is_unsafe_method};
 
 pub struct JwtAuth;
@@ -65,8 +65,8 @@ where
                 )?;
                 csrf::ensure_service_double_submit_token(&req)?;
             }
-            let user = auth_service::current_user(state.get_ref(), req.request()).await?;
-            let user = auth_service::auth_request_user_info(state.get_ref(), user).await?;
+            let user = local::current_user(state.get_ref(), req.request()).await?;
+            let user = local::auth_request_user_info(state.get_ref(), user).await?;
 
             tracing::Span::current().record("user_id", user.id);
             req.extensions_mut().insert(user);

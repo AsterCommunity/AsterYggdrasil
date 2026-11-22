@@ -4,8 +4,8 @@ use crate::api::dto::{ExecuteConfigActionReq, ExecuteConfigActionResp, SetConfig
 use crate::api::response::ApiResponse;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::auth_service::AuthUserInfo;
-use crate::services::{audit_service, config_service};
+use crate::services::auth::local::AuthUserInfo;
+use crate::services::{ops::audit, ops::config};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_forge_api::{CursorPage, IdCursor};
@@ -35,7 +35,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     operation_id = "list_config",
     params(LimitQuery, ConfigCursorQuery),
     responses(
-        (status = 200, description = "List config entries", body = inline(ApiResponse<CursorPage<config_service::SystemConfig, IdCursor>>)),
+        (status = 200, description = "List config entries", body = inline(ApiResponse<CursorPage<config::SystemConfig, IdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -53,7 +53,7 @@ pub async fn list_config(
         has_cursor = after_id.is_some(),
         "admin listing config entries"
     );
-    let configs = config_service::list_cursor(state.get_ref(), limit, after_id).await?;
+    let configs = config::list_cursor(state.get_ref(), limit, after_id).await?;
     tracing::debug!(
         count = configs.items.len(),
         total = configs.total,
@@ -68,14 +68,14 @@ pub async fn list_config(
     tag = "admin",
     operation_id = "config_schema",
     responses(
-        (status = 200, description = "Config schema", body = inline(ApiResponse<Vec<config_service::ConfigSchemaItem>>)),
+        (status = 200, description = "Config schema", body = inline(ApiResponse<Vec<config::ConfigSchemaItem>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
     security(("bearer" = [])),
 )]
 pub async fn config_schema() -> Result<HttpResponse> {
-    let schema = config_service::get_schema();
+    let schema = config::get_schema();
     tracing::debug!(count = schema.len(), "admin loaded config schema");
     Ok(HttpResponse::Ok().json(ApiResponse::ok(schema)))
 }
@@ -93,7 +93,7 @@ pub async fn config_schema() -> Result<HttpResponse> {
     security(("bearer" = [])),
 )]
 pub async fn config_template_variables() -> Result<HttpResponse> {
-    let groups = config_service::list_template_variable_groups()?;
+    let groups = config::list_template_variable_groups()?;
     tracing::debug!(
         count = groups.len(),
         "admin loaded config template variable groups"
@@ -108,7 +108,7 @@ pub async fn config_template_variables() -> Result<HttpResponse> {
     operation_id = "get_config",
     params(("key" = String, Path, description = "Config key")),
     responses(
-        (status = 200, description = "Config entry", body = inline(ApiResponse<config_service::SystemConfig>)),
+        (status = 200, description = "Config entry", body = inline(ApiResponse<config::SystemConfig>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Config key not found"),
@@ -121,7 +121,7 @@ pub async fn get_config(
 ) -> Result<HttpResponse> {
     let key = path.into_inner();
     tracing::debug!(key, "admin loading config entry");
-    let config = config_service::get_by_key(state.get_ref(), &key).await?;
+    let config = config::get_by_key(state.get_ref(), &key).await?;
     tracing::debug!(key, config_id = config.id, "admin loaded config entry");
     Ok(HttpResponse::Ok().json(ApiResponse::ok(config)))
 }
@@ -134,7 +134,7 @@ pub async fn get_config(
     params(("key" = String, Path, description = "Config key")),
     request_body = SetConfigReq,
     responses(
-        (status = 200, description = "Config value set", body = inline(ApiResponse<config_service::SystemConfigUpdateResult>)),
+        (status = 200, description = "Config value set", body = inline(ApiResponse<config::SystemConfigUpdateResult>)),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -155,8 +155,8 @@ pub async fn set_config(
         has_visibility = body.visibility.is_some(),
         "admin setting config entry"
     );
-    let ctx = audit_service::AuditContext::from_request(&req, user_id);
-    let result = config_service::set_with_audit_and_visibility_result(
+    let ctx = audit::AuditContext::from_request(&req, user_id);
+    let result = config::set_with_audit_and_visibility_result(
         state.get_ref(),
         &key,
         &body.value,
@@ -197,8 +197,8 @@ pub async fn delete_config(
     let user_id = current_admin_user_id(&req)?;
     let key = path.into_inner();
     tracing::debug!(admin_user_id = user_id, key, "admin deleting config entry");
-    let ctx = audit_service::AuditContext::from_request(&req, user_id);
-    config_service::delete_with_audit(state.get_ref(), &key, &ctx).await?;
+    let ctx = audit::AuditContext::from_request(&req, user_id);
+    config::delete_with_audit(state.get_ref(), &key, &ctx).await?;
     tracing::debug!(admin_user_id = user_id, key, "admin deleted config entry");
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::ok_empty()))
 }
@@ -236,10 +236,10 @@ pub async fn execute_config_action(
         has_values = body.values.as_ref().is_some_and(|values| !values.is_empty()),
         "admin executing config action"
     );
-    let ctx = audit_service::AuditContext::from_request(&req, user_id);
-    let action_result = config_service::execute_action_with_audit(
+    let ctx = audit::AuditContext::from_request(&req, user_id);
+    let action_result = config::execute_action_with_audit(
         state.get_ref(),
-        config_service::ExecuteConfigActionInput {
+        config::ExecuteConfigActionInput {
             key: &key,
             action: body.action,
             actor_user_id: user_id,

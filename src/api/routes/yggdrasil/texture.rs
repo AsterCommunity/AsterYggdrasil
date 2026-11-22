@@ -4,8 +4,8 @@ use futures::StreamExt;
 
 use crate::api::cache::{not_modified_response, request_etag_matches, weak_etag_for_sha256_hash};
 use crate::runtime::AppState;
-use crate::services::yggdrasil_service::{YggdrasilError, YggdrasilErrorKind};
-use crate::services::{audit_service, texture_service, yggdrasil_service};
+use crate::services::yggdrasil::protocol::{YggdrasilError, YggdrasilErrorKind};
+use crate::services::{ops::audit, texture, yggdrasil::protocol};
 use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 
 use super::yggdrasil_error_response;
@@ -54,7 +54,7 @@ pub async fn upload_texture(
             error.message.unwrap_or_default(),
         ));
     }
-    let texture_type = match texture_service::parse_texture_type(&texture_type_raw) {
+    let texture_type = match texture::parse_texture_type(&texture_type_raw) {
         Ok(texture_type) => texture_type,
         Err(error) => return texture_error_response(error),
     };
@@ -67,14 +67,12 @@ pub async fn upload_texture(
             texture_type = ?texture_type,
             "yggdrasil texture upload rejected missing bearer token"
         );
-        return texture_error_response(texture_service::TextureError::new(
-            texture_service::TextureErrorKind::InvalidToken,
+        return texture_error_response(texture::TextureError::new(
+            texture::TextureErrorKind::InvalidToken,
         ));
     };
     let (token, profile) =
-        match texture_service::authenticate_texture_access(state.get_ref(), &access_token, &uuid)
-            .await
-        {
+        match texture::authenticate_texture_access(state.get_ref(), &access_token, &uuid).await {
             Ok(value) => value,
             Err(error) => return texture_error_response(error),
         };
@@ -90,7 +88,7 @@ pub async fn upload_texture(
         Ok(upload) => upload,
         Err(error) => return texture_error_response(error),
     };
-    let stored = match texture_service::store_texture(
+    let stored = match texture::store_texture(
         state.get_ref(),
         &profile,
         texture_type,
@@ -107,16 +105,16 @@ pub async fn upload_texture(
     };
     cleanup_upload_file(&upload.file_path).await;
 
-    let ctx = audit_service::AuditContext::from_request(&req, token.user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, token.user_id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureUpload,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureUpload,
+        audit::AuditEntityType::MinecraftTexture,
         Some(stored.texture.binding.id),
         Some(&stored.profile.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: &stored.profile.uuid,
                 profile_name: &stored.profile.name,
                 texture_type,
@@ -182,7 +180,7 @@ pub async fn delete_texture(
             error.message.unwrap_or_default(),
         ));
     }
-    let texture_type = match texture_service::parse_texture_type(&texture_type_raw) {
+    let texture_type = match texture::parse_texture_type(&texture_type_raw) {
         Ok(texture_type) => texture_type,
         Err(error) => return texture_error_response(error),
     };
@@ -194,14 +192,12 @@ pub async fn delete_texture(
             texture_type = ?texture_type,
             "yggdrasil texture delete rejected missing bearer token"
         );
-        return texture_error_response(texture_service::TextureError::new(
-            texture_service::TextureErrorKind::InvalidToken,
+        return texture_error_response(texture::TextureError::new(
+            texture::TextureErrorKind::InvalidToken,
         ));
     };
     let (token, profile) =
-        match texture_service::authenticate_texture_access(state.get_ref(), &access_token, &uuid)
-            .await
-        {
+        match texture::authenticate_texture_access(state.get_ref(), &access_token, &uuid).await {
             Ok(value) => value,
             Err(error) => return texture_error_response(error),
         };
@@ -212,22 +208,21 @@ pub async fn delete_texture(
         texture_type = ?texture_type,
         "yggdrasil texture delete authenticated"
     );
-    let deleted =
-        match texture_service::delete_texture(state.get_ref(), &profile, texture_type).await {
-            Ok(deleted) => deleted,
-            Err(error) => return texture_error_response(error),
-        };
+    let deleted = match texture::delete_texture(state.get_ref(), &profile, texture_type).await {
+        Ok(deleted) => deleted,
+        Err(error) => return texture_error_response(error),
+    };
 
-    let ctx = audit_service::AuditContext::from_request(&req, token.user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(&req, token.user_id);
+    audit::log_with_details(
         state.get_ref(),
         &ctx,
-        audit_service::AuditAction::MinecraftTextureDelete,
-        audit_service::AuditEntityType::MinecraftTexture,
+        audit::AuditAction::MinecraftTextureDelete,
+        audit::AuditEntityType::MinecraftTexture,
         deleted.as_ref().map(|texture| texture.binding.id),
         Some(&profile.name),
         || {
-            audit_service::details(audit_service::MinecraftTextureAuditDetails {
+            audit::details(audit::MinecraftTextureAuditDetails {
                 profile_uuid: &profile.uuid,
                 profile_name: &profile.name,
                 texture_type,
@@ -277,13 +272,13 @@ pub async fn texture_by_hash(
     let hash = path.into_inner();
     tracing::debug!(hash, "received yggdrasil texture by hash request");
     let etag = weak_etag_for_sha256_hash(&hash);
-    let Some(texture) = (match texture_service::texture_blob_by_hash(state.get_ref(), &hash).await {
+    let Some(texture) = (match texture::texture_blob_by_hash(state.get_ref(), &hash).await {
         Ok(texture) => texture,
         Err(error) => return error.error_response(),
     }) else {
-        if let Some(default_skin) = texture_service::embedded_default_skin_by_hash(&hash) {
+        if let Some(default_skin) = texture::embedded_default_skin_by_hash(&hash) {
             if request_etag_matches(&req, &etag) {
-                return not_modified_response(etag, texture_service::TEXTURE_CACHE_CONTROL);
+                return not_modified_response(etag, texture::TEXTURE_CACHE_CONTROL);
             }
             tracing::debug!(
                 hash,
@@ -294,7 +289,7 @@ pub async fn texture_by_hash(
                 .content_type("image/png")
                 .insert_header((
                     actix_web::http::header::CACHE_CONTROL,
-                    texture_service::TEXTURE_CACHE_CONTROL,
+                    texture::TEXTURE_CACHE_CONTROL,
                 ))
                 .insert_header((actix_web::http::header::ETAG, etag))
                 .insert_header((
@@ -307,9 +302,9 @@ pub async fn texture_by_hash(
         return HttpResponse::NotFound().finish();
     };
     if request_etag_matches(&req, &etag) {
-        return not_modified_response(etag, texture_service::TEXTURE_CACHE_CONTROL);
+        return not_modified_response(etag, texture::TEXTURE_CACHE_CONTROL);
     }
-    let download = match texture_service::download_texture_blob(state.get_ref(), &texture).await {
+    let download = match texture::download_texture_blob(state.get_ref(), &texture).await {
         Ok(download) => download,
         Err(error) => return error.error_response(),
     };
@@ -359,7 +354,7 @@ pub async fn forwarded_texture_by_hash(
         texture_hash = %texture_hash,
         "received forwarded yggdrasil texture request by hash"
     );
-    let Some(url) = (match yggdrasil_service::forwarded_texture_url(
+    let Some(url) = (match protocol::forwarded_texture_url(
         state.get_ref(),
         upstream_id,
         &texture_hash,
@@ -445,7 +440,7 @@ async fn proxy_forwarded_texture_url(
         .content_type("image/png")
         .insert_header((
             actix_web::http::header::CACHE_CONTROL,
-            texture_service::TEXTURE_CACHE_CONTROL,
+            texture::TEXTURE_CACHE_CONTROL,
         ))
         .insert_header((
             actix_web::http::header::CONTENT_LENGTH,
@@ -463,7 +458,7 @@ async fn receive_texture_upload(
     state: &AppState,
     mut payload: Multipart,
     texture_type: MinecraftTextureType,
-) -> std::result::Result<ReceivedTextureUpload, texture_service::TextureError> {
+) -> std::result::Result<ReceivedTextureUpload, texture::TextureError> {
     let policy = crate::config::yggdrasil::RuntimeYggdrasilPolicy::from_runtime_config(
         state.runtime_config(),
     );
@@ -479,8 +474,8 @@ async fn receive_texture_upload(
     while let Some(field) = payload.next().await {
         field_count += 1;
         let mut field = field.map_err(|error| {
-            texture_service::TextureError::with_detail(
-                texture_service::TextureErrorKind::InvalidPng,
+            texture::TextureError::with_detail(
+                texture::TextureErrorKind::InvalidPng,
                 format!("Invalid multipart payload: {error}"),
             )
         })?;
@@ -491,7 +486,7 @@ async fn receive_texture_upload(
                     "reading yggdrasil texture model multipart field"
                 );
                 let text = read_small_text_field(&mut field).await?;
-                texture_model = texture_service::parse_skin_model(Some(&text))?;
+                texture_model = texture::parse_skin_model(Some(&text))?;
                 tracing::debug!(
                     field_count,
                     texture_model = ?texture_model,
@@ -504,8 +499,8 @@ async fn receive_texture_upload(
                         field_count,
                         "yggdrasil texture upload rejected non-png file field"
                     );
-                    return Err(texture_service::TextureError::new(
-                        texture_service::TextureErrorKind::InvalidContentType,
+                    return Err(texture::TextureError::new(
+                        texture::TextureErrorKind::InvalidContentType,
                     ));
                 }
                 let path = texture_upload_temp_path(state);
@@ -513,7 +508,7 @@ async fn receive_texture_upload(
                     field_count,
                     "writing yggdrasil texture file multipart field"
                 );
-                texture_service::write_multipart_texture_field_to_file(
+                texture::write_multipart_texture_field_to_file(
                     &mut field,
                     &path,
                     policy.max_texture_upload_bytes,
@@ -540,8 +535,8 @@ async fn receive_texture_upload(
             field_count,
             "yggdrasil texture upload rejected because file field is missing"
         );
-        return Err(texture_service::TextureError::new(
-            texture_service::TextureErrorKind::MissingFile,
+        return Err(texture::TextureError::new(
+            texture::TextureErrorKind::MissingFile,
         ));
     };
     tracing::debug!(
@@ -558,22 +553,22 @@ async fn receive_texture_upload(
 
 async fn read_small_text_field(
     field: &mut actix_multipart::Field,
-) -> std::result::Result<String, texture_service::TextureError> {
+) -> std::result::Result<String, texture::TextureError> {
     let bytes = field.bytes(128).await.map_err(|_| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidDimensions,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidDimensions,
             "Multipart text field is too large.",
         )
     })?;
     let bytes = bytes.map_err(|error| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidPng,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidPng,
             format!("Invalid multipart text field: {error}"),
         )
     })?;
     let text = String::from_utf8(bytes.to_vec()).map_err(|error| {
-        texture_service::TextureError::with_detail(
-            texture_service::TextureErrorKind::InvalidDimensions,
+        texture::TextureError::with_detail(
+            texture::TextureErrorKind::InvalidDimensions,
             format!("Multipart text field is not UTF-8: {error}"),
         )
     })?;
@@ -586,12 +581,12 @@ async fn read_small_text_field(
 
 async fn drain_field(
     field: &mut actix_multipart::Field,
-) -> std::result::Result<(), texture_service::TextureError> {
+) -> std::result::Result<(), texture::TextureError> {
     let mut chunk_count = 0_u64;
     while let Some(chunk) = field.next().await {
         chunk.map_err(|error| {
-            texture_service::TextureError::with_detail(
-                texture_service::TextureErrorKind::InvalidPng,
+            texture::TextureError::with_detail(
+                texture::TextureErrorKind::InvalidPng,
                 format!("Invalid multipart field: {error}"),
             )
         })?;
@@ -619,7 +614,7 @@ fn is_png_field(field: &actix_multipart::Field) -> bool {
         .unwrap_or(false)
 }
 
-fn texture_error_response(error: texture_service::TextureError) -> HttpResponse {
+fn texture_error_response(error: texture::TextureError) -> HttpResponse {
     let status = error.status_code();
     if status.is_server_error() {
         tracing::error!(

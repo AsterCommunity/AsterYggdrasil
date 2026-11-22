@@ -17,12 +17,12 @@ pub async fn prepare_runtime_config<C>(
 where
     C: ConnectionTrait,
 {
-    crate::services::config_service::bootstrap_insecure_cookies(
+    crate::services::ops::config::bootstrap_insecure_cookies(
         writer,
         auth_config.bootstrap_insecure_cookies,
     )
     .await?;
-    crate::services::config_service::ensure_defaults(writer).await?;
+    crate::services::ops::config::ensure_defaults(writer).await?;
 
     let runtime_config = Arc::new(RuntimeConfig::new());
     runtime_config.reload(reader).await?;

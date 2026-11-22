@@ -29,8 +29,8 @@ const TEST_BROWSER_ORIGIN: &str = "http://localhost:8080";
 fn decode_test_claims(
     token: &str,
     expected: aster_forge_auth::AuthTokenType,
-) -> aster_yggdrasil::services::auth_service::AuthenticatedClaims {
-    aster_yggdrasil::services::auth_service::verify_typed_token(
+) -> aster_yggdrasil::services::auth::local::AuthenticatedClaims {
+    aster_yggdrasil::services::auth::local::verify_typed_token(
         token,
         "test-secret-key-for-integration-tests",
         expected,
@@ -3173,7 +3173,7 @@ async fn cleanup_expired_auth_sessions_removes_only_expired_sessions() {
     .expect("active auth session should insert");
 
     let removed =
-        aster_yggdrasil::services::auth_service::cleanup_expired_auth_sessions(&state_for_insert)
+        aster_yggdrasil::services::auth::local::cleanup_expired_auth_sessions(&state_for_insert)
             .await
             .expect("auth session cleanup should succeed");
 

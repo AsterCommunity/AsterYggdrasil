@@ -8,7 +8,7 @@ use crate::api::dto::{
 use crate::api::response::ApiResponse;
 use crate::errors::Result;
 use crate::runtime::AppState;
-use crate::services::{audit_service, auth_service, ban_service};
+use crate::services::{auth::local, ops::audit, user};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor};
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -21,7 +21,7 @@ use aster_forge_api::{CursorPage, DateTimeIdCursor};
     operation_id = "admin_list_user_bans",
     params(LimitQuery, AdminUserBanListQuery),
     responses(
-        (status = 200, description = "User capability bans", body = inline(ApiResponse<CursorPage<ban_service::UserBanInfo, DateTimeIdCursor>>)),
+        (status = 200, description = "User capability bans", body = inline(ApiResponse<CursorPage<user::ban::UserBanInfo, DateTimeIdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -34,9 +34,9 @@ pub async fn list_user_bans(
 ) -> Result<HttpResponse> {
     validate_request(&*query)?;
     let cursor = parse_datetime_id_cursor(query.after_created_at, query.after_id, "user ban")?;
-    let bans = ban_service::list_user_bans(
+    let bans = user::ban::list_user_bans(
         state.get_ref(),
-        ban_service::ListUserBansInput {
+        user::ban::ListUserBansInput {
             limit: page.limit_or(50, 100),
             cursor,
             user_id: query.user_id,
@@ -56,7 +56,7 @@ pub async fn list_user_bans(
     operation_id = "admin_get_user_ban",
     params(("ban_id" = i64, Path, description = "User ban ID")),
     responses(
-        (status = 200, description = "User capability ban detail", body = inline(ApiResponse<ban_service::UserBanInfo>)),
+        (status = 200, description = "User capability ban detail", body = inline(ApiResponse<user::ban::UserBanInfo>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "User ban not found"),
@@ -67,7 +67,7 @@ pub async fn get_user_ban(
     state: web::Data<AppState>,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let ban = ban_service::get_user_ban(state.get_ref(), path.into_inner()).await?;
+    let ban = user::ban::get_user_ban(state.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(ban)))
 }
 
@@ -79,7 +79,7 @@ pub async fn get_user_ban(
     request_body = CreateUserBanReq,
     params(("user_id" = i64, Path, description = "Target user ID")),
     responses(
-        (status = 200, description = "Created user capability ban", body = inline(ApiResponse<ban_service::UserBanInfo>)),
+        (status = 200, description = "Created user capability ban", body = inline(ApiResponse<user::ban::UserBanInfo>)),
         (status = 400, description = "Invalid user ban request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -94,11 +94,11 @@ pub async fn create_user_ban(
     body: web::Json<CreateUserBanReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let actor = auth_service::current_user(state.get_ref(), &req).await?;
-    let ban = ban_service::create_user_ban(
+    let actor = local::current_user(state.get_ref(), &req).await?;
+    let ban = user::ban::create_user_ban(
         state.get_ref(),
         actor.id,
-        ban_service::CreateUserBanInput {
+        user::ban::CreateUserBanInput {
             target_user_id: path.into_inner(),
             scopes: body.scopes.clone(),
             reason: body.reason.clone(),
@@ -113,7 +113,7 @@ pub async fn create_user_ban(
         state.get_ref(),
         &req,
         actor.id,
-        audit_service::AuditAction::AdminCreateUserBan,
+        audit::AuditAction::AdminCreateUserBan,
         &ban,
     )
     .await;
@@ -128,7 +128,7 @@ pub async fn create_user_ban(
     request_body = UpdateUserBanReq,
     params(("ban_id" = i64, Path, description = "User ban ID")),
     responses(
-        (status = 200, description = "Updated user capability ban", body = inline(ApiResponse<ban_service::UserBanInfo>)),
+        (status = 200, description = "Updated user capability ban", body = inline(ApiResponse<user::ban::UserBanInfo>)),
         (status = 400, description = "Invalid user ban request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -143,12 +143,12 @@ pub async fn update_user_ban(
     body: web::Json<UpdateUserBanReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let actor = auth_service::current_user(state.get_ref(), &req).await?;
-    let ban = ban_service::update_user_ban(
+    let actor = local::current_user(state.get_ref(), &req).await?;
+    let ban = user::ban::update_user_ban(
         state.get_ref(),
         actor.id,
         path.into_inner(),
-        ban_service::UpdateUserBanInput {
+        user::ban::UpdateUserBanInput {
             scopes: body.scopes.clone(),
             reason: body.reason.clone(),
             public_reason: body.public_reason.clone(),
@@ -162,7 +162,7 @@ pub async fn update_user_ban(
         state.get_ref(),
         &req,
         actor.id,
-        audit_service::AuditAction::AdminUpdateUserBan,
+        audit::AuditAction::AdminUpdateUserBan,
         &ban,
     )
     .await;
@@ -177,7 +177,7 @@ pub async fn update_user_ban(
     request_body = RevokeUserBanReq,
     params(("ban_id" = i64, Path, description = "User ban ID")),
     responses(
-        (status = 200, description = "Revoked user capability ban", body = inline(ApiResponse<ban_service::UserBanInfo>)),
+        (status = 200, description = "Revoked user capability ban", body = inline(ApiResponse<user::ban::UserBanInfo>)),
         (status = 400, description = "Invalid user ban state"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -192,8 +192,8 @@ pub async fn revoke_user_ban(
     body: web::Json<RevokeUserBanReq>,
 ) -> Result<HttpResponse> {
     validate_request(&*body)?;
-    let actor = auth_service::current_user(state.get_ref(), &req).await?;
-    let ban = ban_service::revoke_user_ban(
+    let actor = local::current_user(state.get_ref(), &req).await?;
+    let ban = user::ban::revoke_user_ban(
         state.get_ref(),
         actor.id,
         path.into_inner(),
@@ -204,7 +204,7 @@ pub async fn revoke_user_ban(
         state.get_ref(),
         &req,
         actor.id,
-        audit_service::AuditAction::AdminRevokeUserBan,
+        audit::AuditAction::AdminRevokeUserBan,
         &ban,
     )
     .await;
@@ -218,7 +218,7 @@ pub async fn revoke_user_ban(
     operation_id = "admin_list_user_ban_events",
     params(("ban_id" = i64, Path, description = "User ban ID")),
     responses(
-        (status = 200, description = "User ban events", body = inline(ApiResponse<Vec<ban_service::UserBanEventInfo>>)),
+        (status = 200, description = "User ban events", body = inline(ApiResponse<Vec<user::ban::UserBanEventInfo>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "User ban not found"),
@@ -229,7 +229,7 @@ pub async fn list_user_ban_events(
     state: web::Data<AppState>,
     path: web::Path<i64>,
 ) -> Result<HttpResponse> {
-    let events = ban_service::list_user_ban_events(state.get_ref(), path.into_inner()).await?;
+    let events = user::ban::list_user_ban_events(state.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(events)))
 }
 
@@ -237,19 +237,19 @@ async fn log_user_ban_audit(
     state: &AppState,
     req: &HttpRequest,
     actor_user_id: i64,
-    action: audit_service::AuditAction,
-    ban: &ban_service::UserBanInfo,
+    action: audit::AuditAction,
+    ban: &user::ban::UserBanInfo,
 ) {
-    let ctx = audit_service::AuditContext::from_request(req, actor_user_id);
-    audit_service::log_with_details(
+    let ctx = audit::AuditContext::from_request(req, actor_user_id);
+    audit::log_with_details(
         state,
         &ctx,
         action,
-        audit_service::AuditEntityType::UserBan,
+        audit::AuditEntityType::UserBan,
         Some(ban.id),
         Some(&ban_scope_entity_name(&ban.scopes)),
         || {
-            audit_service::details(audit_service::UserBanAuditDetails {
+            audit::details(audit::UserBanAuditDetails {
                 target_user_id: ban.user_id,
                 scopes: &ban.scopes,
                 status: ban.status,

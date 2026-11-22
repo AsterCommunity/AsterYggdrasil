@@ -3,7 +3,7 @@
 use crate::api::cache::conditional_bytes_response;
 use crate::errors::Result;
 use crate::runtime::AppState;
-use crate::services::profile_service;
+use crate::services::user;
 use actix_web::{HttpRequest, HttpResponse, web};
 
 #[aster_forge_api_docs_macros::path(
@@ -30,7 +30,7 @@ pub async fn get_user_avatar(
 ) -> Result<HttpResponse> {
     let (user_id, size) = path.into_inner();
     tracing::debug!(user_id, size, "admin loading user avatar");
-    let bytes = profile_service::get_avatar_bytes(state.get_ref(), user_id, size).await?;
+    let bytes = user::profile::get_avatar_bytes(state.get_ref(), user_id, size).await?;
     tracing::debug!(
         user_id,
         size,
@@ -40,7 +40,7 @@ pub async fn get_user_avatar(
     Ok(conditional_bytes_response(
         &req,
         bytes,
-        profile_service::AVATAR_CONTENT_TYPE,
-        profile_service::AVATAR_CACHE_CONTROL,
+        user::profile::AVATAR_CONTENT_TYPE,
+        user::profile::AVATAR_CACHE_CONTROL,
     ))
 }

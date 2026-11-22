@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
-use crate::services::config_service::ConfigActionType;
-use crate::services::external_auth_service::{
+use crate::services::auth::external::{
     CreateExternalAuthProviderInput, ExternalAuthProviderTestParamsInput,
     UpdateExternalAuthProviderInput,
 };
-use crate::services::yggdrasil_session_forward_service::{
+use crate::services::ops::config::ConfigActionType;
+use crate::services::yggdrasil::session_forward::{
     CreateYggdrasilSessionForwardServerInput, UpdateYggdrasilSessionForwardServerInput,
 };
 use aster_forge_api::NullablePatch;

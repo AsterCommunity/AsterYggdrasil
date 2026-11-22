@@ -9,7 +9,7 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::{Value, json};
 
 use aster_yggdrasil::entities::{audit_log, user_ban, user_ban_event};
-use aster_yggdrasil::services::audit_service;
+use aster_yggdrasil::services::ops::audit;
 
 async fn create_operator_user<S, B>(
     app: &S,
@@ -360,9 +360,9 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
             .expect("audit writer flush should succeed");
     }
     for (action, entity_id) in [
-        (audit_service::AuditAction::AdminCreateUserBan, ban_id),
-        (audit_service::AuditAction::AdminUpdateUserBan, ban_id),
-        (audit_service::AuditAction::AdminRevokeUserBan, ban_id),
+        (audit::AuditAction::AdminCreateUserBan, ban_id),
+        (audit::AuditAction::AdminUpdateUserBan, ban_id),
+        (audit::AuditAction::AdminRevokeUserBan, ban_id),
     ] {
         let count = audit_log::Entity::find()
             .filter(audit_log::Column::Action.eq(action))

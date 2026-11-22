@@ -5,7 +5,7 @@ use actix_web::{HttpRequest, HttpResponse, web};
 use crate::api::cache::conditional_bytes_response;
 use crate::errors::Result;
 use crate::runtime::AppState;
-use crate::services::texture_service;
+use crate::services::texture;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/texture-previews").route(
@@ -34,12 +34,11 @@ pub async fn texture_preview_by_hash(
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse> {
     let (hash, file_name) = path.into_inner();
-    let preview =
-        texture_service::texture_preview_by_hash(state.get_ref(), &hash, &file_name).await?;
+    let preview = texture::texture_preview_by_hash(state.get_ref(), &hash, &file_name).await?;
     Ok(conditional_bytes_response(
         &req,
         preview.bytes,
         "image/png",
-        texture_service::TEXTURE_PREVIEW_CACHE_CONTROL,
+        texture::TEXTURE_PREVIEW_CACHE_CONTROL,
     ))
 }
