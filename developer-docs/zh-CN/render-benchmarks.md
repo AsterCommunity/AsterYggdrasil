@@ -67,5 +67,14 @@ criterion 把原始测量和图表写到 `target/criterion/`。输入皮肤使�
 
 - 只在同机器、同电源方案、同工具链下用 `--baseline 2026-11-23` 对照；绝对数字不能跨机器比较。
 - 参考机器的重复运行波动约在 ±4% 以内（多数用例 ±2%），小于 5% 的差异视为噪声。
+- 单次运行不构成结论：同一套环境下连续两轮都比基线慢 10% 以上，才算回归信号。这个阈值是实测噪声的两倍多，避免把笔记本抖动当成 bug 报。
 - 参考运行用的是笔记本的 `Silent` 降频档，这批数字是下界。做容量规划前应在高性能电源方案下复测，并把电源方案写进任何新基线。
 - 基准只覆盖一张固定输入。真实皮肤的压缩特征不同，PNG 解码/编码成本会随内容变化。
+
+## 与 AsterDrive、AsterForge 的关系
+
+AsterDrive 对孤立热点的 criterion harness 形状与这里一致（`tests/benchmarks/`、`harness = false`、`required-features = ["benchmarks"]`），基线数字以带日期的散文形式记在 harness 旁边；它的机器可读基线文件（`tests/performance/baselines/*.json`，按 provider 和 payload 匹配，配校验过的更新脚本和显式的 p95/吞吐策略）属于 provider-range 工件套件，不用于 criterion 热点。
+
+AsterForge 只在 crate 内 bench `aster_forge_cache`，没有渲染相关基准，这里也没有需要上提的机制。
+
+本页采用带日期的散文基线，是因为 #17 要求把基线记进 `developer-docs`，并把 CI 接线留在范围外。暂不提交版本化基线文件：没有消费它的 runner，那就是死数据。等渲染 bench 真的进 CI，或出现第二个 micro-bench 时，再按 AsterDrive 的形状（版本化 profile、校验更新脚本、显式回归策略）引入。

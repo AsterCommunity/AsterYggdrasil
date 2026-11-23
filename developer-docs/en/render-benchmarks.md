@@ -86,8 +86,30 @@ slightly below quadratic. `Quality` costs about 2.2x `Default` for the same
   `--baseline 2026-11-23`. Absolute numbers do not transfer between machines.
 - Run-to-run noise on the reference machine stayed within about +/-4% (most
   cases +/-2%), so treat differences below 5% as noise.
+- A single run is not a verdict: two consecutive runs on the same setup that are
+  both at least 10% slower than this baseline is the regression signal. That
+  threshold sits more than twice above the measured noise, so laptop jitter does
+  not turn into a bug report.
 - The reference run used the laptop's throttled `Silent` preset, so these
   numbers are a lower bound. Re-run on a performance plan before using them for
   capacity planning, and record the plan next to any new baseline.
 - The benchmark covers one fixed input. Real skins compress differently, so
   PNG decode/encode cost can shift with texture content.
+
+## Relation to AsterDrive and AsterForge
+
+AsterDrive keeps the same criterion harness shape for isolated hotspots
+(`tests/benchmarks/`, `harness = false`, `required-features = ["benchmarks"]`)
+and records dated prose numbers next to the harness. Its machine-readable
+baseline files (`tests/performance/baselines/*.json`, matched by provider and
+payload, maintained by a validating updater, with an explicit p95/throughput
+policy) belong to the provider-range artifact suite, not to criterion hotspots.
+AsterForge only benches `aster_forge_cache` inside that crate; it has no render
+benchmark and nothing here to delegate upward.
+
+This page follows the dated-prose convention because #17 asks for the baseline
+in `developer-docs` and keeps CI wiring out of scope. No versioned baseline file
+is committed yet: with no runner comparing against it, it would be dead data.
+Adopt the AsterDrive shape (versioned profile, validating updater, explicit
+regression policy) if the render bench is ever gated in CI or a second
+micro-benchmark appears.
