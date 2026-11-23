@@ -253,6 +253,8 @@ cargo test shutdown_release_returns_processing_task_to_retry_without_failure_upd
 
 When changing migrations, repositories, or SQL, at least run the SQLite coverage; for cross-database semantics, run `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo test --test test_database_backends`. When changing frontend services or key pages, run `bun run test`; for page workflows, run the relevant Playwright tests.
 
+Render benchmark baselines, the reference environment, and the comparability rules are recorded in [Render benchmark baseline](./render-benchmarks.md).
+
 ## Product Boundary Checklist
 
 Before adding a module to AsterYggdrasil, ask:

@@ -254,6 +254,8 @@ cargo test shutdown_release_returns_processing_task_to_retry_without_failure_upd
 
 改 migration、repository 或 SQL 时至少跑 SQLite 相关测试；涉及跨库语义时再跑 `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo test --test test_database_backends`。改前端 service 或关键页面流程时跑 `bun run test`，涉及页面交互再跑对应 Playwright。
 
+渲染基准基线、参考环境和可比性规则见 [渲染基准基线](./render-benchmarks.md)。
+
 ## 产品边界检查清单
 
 往 AsterYggdrasil 加模块前先问：
