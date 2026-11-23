@@ -907,7 +907,9 @@ macro_rules! create_test_app {
                     web::scope(aster_yggdrasil::config::yggdrasil::DEFAULT_YGGDRASIL_API_ROOT)
                         .configure(aster_yggdrasil::api::routes::yggdrasil::configure),
                 )
-                .service(aster_yggdrasil::api::routes::health::routes(false))
+                .service(aster_yggdrasil::api::routes::health::routes(
+                    &aster_yggdrasil::config::Config::default().observability,
+                ))
                 .service(
                     web::scope("/api/v1").configure(aster_yggdrasil::api::routes::configure_api),
                 )

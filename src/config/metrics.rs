@@ -32,6 +32,70 @@ impl ObservabilityConfig {
     pub(crate) fn otlp_enabled(&self) -> bool {
         cfg!(feature = "otlp-metrics") && self.otlp_metrics.enabled
     }
+
+    /// Startup-time validation, mirroring AsterDrive's `ObservabilityConfig`:
+    /// enabled exporters require a sane deployment identity, and enabled OTLP
+    /// settings must satisfy Forge's push configuration rules. Inactive
+    /// sections stay unvalidated — they must not block startup.
+    pub fn validate(&self) -> crate::errors::Result<()> {
+        if (self.prometheus_enabled() || self.otlp_enabled())
+            && (self.environment.trim().is_empty()
+                || self.environment.len() > 128
+                || self.environment.chars().any(char::is_control))
+        {
+            return Err(crate::errors::AsterError::config_error(
+                "invalid observability deployment identity",
+            ));
+        }
+        #[cfg(feature = "otlp-metrics")]
+        if self.otlp_metrics.enabled {
+            self.otlp_metrics
+                .forge_config()
+                .validate()
+                .map_err(|error| crate::errors::AsterError::config_error(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    /// Builds the Forge provider for this configuration, mirroring
+    /// AsterDrive's `ObservabilityConfig::create_provider`: an empty builder
+    /// for all-disabled sections, then resource identity, the enabled
+    /// exporters, and the push profile before build.
+    pub fn create_provider(
+        &self,
+    ) -> aster_forge_metrics::MetricResult<aster_forge_metrics::MetricsProvider> {
+        let builder = aster_forge_metrics::MetricsProvider::builder();
+        if !self.prometheus_enabled() && !self.otlp_enabled() {
+            // Inactive OTLP settings need not be valid and must not start a worker.
+            return builder.build();
+        }
+
+        let builder = builder.with_resource(aster_forge_metrics::MetricsResource {
+            service_name: "asteryggdrasil".into(),
+            service_version: env!("CARGO_PKG_VERSION").into(),
+            environment: self.environment.clone(),
+            role: "server".into(),
+            ..aster_forge_metrics::MetricsResource::default()
+        })?;
+
+        #[cfg(feature = "metrics")]
+        let builder = if self.prometheus_enabled() {
+            builder.with_prometheus()?
+        } else {
+            builder
+        };
+
+        #[cfg(feature = "otlp-metrics")]
+        let builder = if self.otlp_enabled() {
+            builder.with_otlp(self.otlp_metrics.forge_config())?.0
+        } else {
+            builder
+        };
+
+        builder
+            .with_profile("com.astercosm.yggdrasil", "astercosm-metrics/v1")?
+            .build()
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

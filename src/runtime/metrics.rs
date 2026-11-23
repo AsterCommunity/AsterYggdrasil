@@ -1,11 +1,12 @@
 //! Runtime metrics recorder initialization.
+//!
+//! Provider construction lives on [`crate::config::metrics::ObservabilityConfig`]
+//! (mirroring AsterDrive); this module only wraps the Forge provider into the
+//! instance-owned recorder used across the application.
 
 use std::sync::Arc;
 
-use aster_forge_metrics::{
-    InfrastructureMetricsRecorder, MetricResult, MetricsProvider, MetricsResource,
-    SharedMetricsRecorder,
-};
+use aster_forge_metrics::{InfrastructureMetricsRecorder, SharedMetricsRecorder};
 
 use crate::config::metrics::ObservabilityConfig;
 use crate::errors::{AsterError, Result};
@@ -21,7 +22,7 @@ pub fn create_metrics_recorder(config: &ObservabilityConfig) -> Result<SharedMet
     if config.otlp_metrics.enabled && !config.otlp_enabled() {
         tracing::warn!("OTLP metrics are configured but this build lacks the otlp-metrics feature");
     }
-    let provider = build_provider(config).map_err(|error| {
+    let provider = config.create_provider().map_err(|error| {
         AsterError::config_error(format!("failed to configure observability: {error}"))
     })?;
     if !provider.enabled() {
@@ -31,38 +32,6 @@ pub fn create_metrics_recorder(config: &ObservabilityConfig) -> Result<SharedMet
         AsterError::internal_error(format!("failed to initialize metrics recorder: {error}"))
     })?;
     Ok(Arc::new(recorder))
-}
-
-fn build_provider(config: &ObservabilityConfig) -> MetricResult<MetricsProvider> {
-    let builder = MetricsProvider::builder();
-    if !config.prometheus_enabled() && !config.otlp_enabled() {
-        // Inactive OTLP settings need not be valid and must not start a worker.
-        return builder.build();
-    }
-
-    let builder = builder.with_resource(MetricsResource {
-        service_name: "asteryggdrasil".into(),
-        service_version: env!("CARGO_PKG_VERSION").into(),
-        environment: config.environment.clone(),
-        role: "server".into(),
-        ..MetricsResource::default()
-    })?;
-
-    #[cfg(feature = "metrics")]
-    let builder = if config.prometheus_enabled() {
-        builder.with_prometheus()?
-    } else {
-        builder
-    };
-
-    #[cfg(feature = "otlp-metrics")]
-    let builder = if config.otlp_enabled() {
-        builder.with_otlp(config.otlp_metrics.forge_config())?.0
-    } else {
-        builder
-    };
-
-    builder.build()
 }
 
 #[cfg(test)]
@@ -76,7 +45,7 @@ mod tests {
     async fn disabled_metrics_leave_health_up_and_scrape_unavailable() {
         crate::runtime::test_support::ensure_static_config();
         let config = ObservabilityConfig::default();
-        assert!(!build_provider(&config).unwrap().enabled());
+        assert!(!config.create_provider().unwrap().enabled());
         assert!(
             create_metrics_recorder(&config)
                 .unwrap()
@@ -85,7 +54,7 @@ mod tests {
         );
 
         let app = actix_test::init_service(App::new().configure(|cfg| {
-            crate::api::configure(cfg, config.prometheus_enabled());
+            crate::api::configure(cfg, &config);
         }))
         .await;
         for (uri, expected) in [
@@ -106,7 +75,7 @@ mod tests {
         config.prometheus.enabled = !cfg!(feature = "metrics");
         config.otlp_metrics.enabled = !cfg!(feature = "otlp-metrics");
         config.otlp_metrics.endpoint = "not an endpoint".into();
-        assert!(!build_provider(&config).unwrap().enabled());
+        assert!(!config.create_provider().unwrap().enabled());
     }
 
     #[cfg(feature = "metrics")]
@@ -123,7 +92,7 @@ mod tests {
         let app = actix_test::init_service(
             App::new()
                 .app_data(web::Data::new(recorder.provider().unwrap()))
-                .configure(|cfg| crate::api::configure(cfg, config.prometheus_enabled())),
+                .configure(|cfg| crate::api::configure(cfg, &config)),
         )
         .await;
         let req = actix_test::TestRequest::get()
@@ -216,7 +185,7 @@ mod tests {
             let app = actix_test::init_service(
                 App::new()
                     .app_data(web::Data::new(provider.clone()))
-                    .configure(|cfg| crate::api::configure(cfg, config.prometheus_enabled())),
+                    .configure(|cfg| crate::api::configure(cfg, &config)),
             )
             .await;
             let request = actix_test::TestRequest::get()

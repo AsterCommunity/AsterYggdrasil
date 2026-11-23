@@ -17,17 +17,21 @@ pub fn record_health_report(
     let _ = (metrics, scope, report);
 }
 
-/// Adds the scrape route only when Prometheus is compiled and configured.
-pub fn configure_route(scope: Scope, prometheus_enabled: bool) -> Scope {
+/// Adds the scrape route only when Prometheus is compiled and configured,
+/// mirroring AsterDrive's `attach_optional_routes(scope, config)`.
+pub fn configure_route(
+    scope: Scope,
+    config: &crate::config::metrics::ObservabilityConfig,
+) -> Scope {
     // OTLP pushes metrics to a collector and must not expose a scrape endpoint.
     #[cfg(feature = "metrics")]
-    if prometheus_enabled {
+    if config.prometheus_enabled() {
         return scope.service(aster_forge_observability::actix::prometheus_resource(
             "/metrics",
         ));
     }
 
     #[cfg(not(feature = "metrics"))]
-    let _ = prometheus_enabled;
+    let _ = config;
     scope
 }
