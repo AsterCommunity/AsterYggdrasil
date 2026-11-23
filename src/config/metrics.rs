@@ -61,41 +61,51 @@ impl ObservabilityConfig {
     /// AsterDrive's `ObservabilityConfig::create_provider`: an empty builder
     /// for all-disabled sections, then resource identity, the enabled
     /// exporters, and the push profile before build.
-    pub fn create_provider(
-        &self,
-    ) -> aster_forge_metrics::MetricResult<aster_forge_metrics::MetricsProvider> {
+    pub fn create_provider(&self) -> crate::errors::Result<aster_forge_metrics::MetricsProvider> {
+        self.validate()?;
         let builder = aster_forge_metrics::MetricsProvider::builder();
         if !self.prometheus_enabled() && !self.otlp_enabled() {
             // Inactive OTLP settings need not be valid and must not start a worker.
-            return builder.build();
+            return builder.build().map_err(metrics_error);
         }
 
-        let builder = builder.with_resource(aster_forge_metrics::MetricsResource {
-            service_name: "asteryggdrasil".into(),
-            service_version: env!("CARGO_PKG_VERSION").into(),
-            environment: self.environment.clone(),
-            role: "server".into(),
-            ..aster_forge_metrics::MetricsResource::default()
-        })?;
+        let builder = builder
+            .with_resource(aster_forge_metrics::MetricsResource {
+                service_name: "asteryggdrasil".into(),
+                service_version: env!("CARGO_PKG_VERSION").into(),
+                environment: self.environment.clone(),
+                role: "server".into(),
+                ..aster_forge_metrics::MetricsResource::default()
+            })
+            .map_err(metrics_error)?;
 
         #[cfg(feature = "metrics")]
         let builder = if self.prometheus_enabled() {
-            builder.with_prometheus()?
+            builder.with_prometheus().map_err(metrics_error)?
         } else {
             builder
         };
 
         #[cfg(feature = "otlp-metrics")]
         let builder = if self.otlp_enabled() {
-            builder.with_otlp(self.otlp_metrics.forge_config())?.0
+            builder
+                .with_otlp(self.otlp_metrics.forge_config())
+                .map_err(metrics_error)?
+                .0
         } else {
             builder
         };
 
         builder
-            .with_profile("com.astercosm.yggdrasil", "astercosm-metrics/v1")?
+            .with_profile("com.astercosm.yggdrasil", "astercosm-metrics/v1")
+            .map_err(metrics_error)?
             .build()
+            .map_err(metrics_error)
     }
+}
+
+fn metrics_error(error: aster_forge_metrics::MetricError) -> crate::errors::AsterError {
+    crate::errors::AsterError::config_error(error.to_string())
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -156,6 +166,7 @@ impl OtlpMetricsConfig {
 #[cfg(test)]
 mod tests {
     use crate::config::Config;
+    use crate::config::metrics::ObservabilityConfig;
 
     #[test]
     fn absent_observability_disables_both_exporters() {
@@ -190,6 +201,48 @@ mod tests {
         let debug = format!("{observability:?}");
         assert!(!debug.contains("test-secret"));
         assert!(!debug.contains("127.0.0.1"));
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn validate_rejects_invalid_deployment_identity_only_when_exporters_enabled() {
+        for environment in ["", "   ", "x".repeat(129).as_str(), "bad\u{0007}identity"] {
+            let mut config = ObservabilityConfig::default();
+            config.prometheus.enabled = true;
+            config.environment = environment.to_string();
+            let error = config.validate().unwrap_err();
+            assert!(
+                error.message().contains("deployment identity"),
+                "{environment:?} should be rejected: {error}"
+            );
+        }
+
+        // The same identities are fine while every exporter is disabled.
+        let mut config = ObservabilityConfig::default();
+        config.environment = String::new();
+        config
+            .validate()
+            .expect("inactive sections must not block startup");
+    }
+
+    #[cfg(feature = "otlp-metrics")]
+    #[test]
+    fn validate_rejects_invalid_active_otlp_push_settings() {
+        let mut config = ObservabilityConfig::default();
+        config.otlp_metrics.enabled = true;
+        config.otlp_metrics.timeout_seconds = config.otlp_metrics.interval_seconds + 1;
+        let error = config.validate().unwrap_err();
+        assert!(
+            error.message().contains("invalid metrics configuration"),
+            "{error}"
+        );
+
+        // Inactive OTLP settings stay unvalidated.
+        let mut config = ObservabilityConfig::default();
+        config.otlp_metrics.timeout_seconds = config.otlp_metrics.interval_seconds + 1;
+        config
+            .validate()
+            .expect("inactive sections must not block startup");
     }
 
     #[test]
