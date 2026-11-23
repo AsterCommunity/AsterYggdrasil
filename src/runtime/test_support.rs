@@ -11,6 +11,14 @@ use aster_forge_audit::AuditWriter;
 use super::state::{AppState, AppStateParts};
 use crate::config::{Config, DatabaseConfig, RuntimeConfig};
 
+/// Makes `crate::api::configure` safe in unit tests that do not run bootstrap:
+/// `routes/mod.rs` reads rate-limit and network-trust settings from the
+/// process-wide static config at route registration time (pre-existing debt;
+/// the routes should take those as explicit parameters instead).
+pub fn ensure_static_config() {
+    let _ = crate::config::set_config_for_test(Arc::new(Config::default()));
+}
+
 /// Builds a fully migrated `AppState` on an in-memory SQLite database.
 pub async fn setup_state() -> AppState {
     let db = connect_in_memory().await;

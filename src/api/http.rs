@@ -46,6 +46,24 @@ pub fn http_component(
     })
 }
 
+fn configure_product_api(
+    cfg: &mut web::ServiceConfig,
+    observability: &crate::config::metrics::ObservabilityConfig,
+) {
+    crate::api::configure(cfg, observability);
+}
+
+#[cfg(feature = "metrics")]
+fn prometheus_provider_data(
+    metrics_data: &web::Data<dyn aster_forge_metrics::MetricsRecorder>,
+    prometheus_enabled: bool,
+) -> Option<web::Data<aster_forge_metrics::MetricsProvider>> {
+    prometheus_enabled
+        .then(|| metrics_data.provider())
+        .flatten()
+        .map(web::Data::new)
+}
+
 fn build_http_service_component(
     config: HttpRuntimeConfig<'_>,
     state: web::Data<crate::runtime::AppState>,
@@ -53,12 +71,14 @@ fn build_http_service_component(
     metrics_data: web::Data<dyn aster_forge_metrics::MetricsRecorder>,
 ) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
     let shutdown_data = web::Data::new(shutdown_token.clone());
+    let observability = state.config().observability.clone();
     let server = HttpServer::new(move || {
         // The Prometheus export resource reads the instance-owned Forge provider
-        // from app data; it is only present when the metrics backend is enabled.
+        // from app data. Only inject it when the pull exporter is configured.
         #[cfg(feature = "metrics")]
-        let app = match metrics_data.provider() {
-            Some(provider) => App::new().app_data(web::Data::new(provider)),
+        let app = match prometheus_provider_data(&metrics_data, observability.prometheus_enabled())
+        {
+            Some(provider) => App::new().app_data(provider),
             None => App::new(),
         };
         #[cfg(not(feature = "metrics"))]
@@ -72,7 +92,7 @@ fn build_http_service_component(
             .app_data(state.clone())
             .app_data(shutdown_data.clone())
             .app_data(metrics_data.clone())
-            .configure(crate::api::configure)
+            .configure(|cfg| configure_product_api(cfg, &observability))
     })
     .workers(config.workers)
     .bind((config.host, config.port))?
@@ -94,4 +114,55 @@ fn build_http_service_component(
             handle.stop(true).await;
         },
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::configure_product_api;
+    use actix_web::{App, http::StatusCode, test as actix_test};
+
+    #[actix_web::test]
+    async fn configured_http_api_keeps_scrape_route_disabled_by_default() {
+        crate::runtime::test_support::ensure_static_config();
+        let app = actix_test::init_service(App::new().configure(|cfg| {
+            configure_product_api(cfg, &crate::config::Config::default().observability)
+        }))
+        .await;
+
+        for (uri, expected) in [
+            ("/health", StatusCode::OK),
+            ("/health/metrics", StatusCode::NOT_FOUND),
+        ] {
+            let request = actix_test::TestRequest::get().uri(uri).to_request();
+            assert_eq!(
+                actix_test::call_service(&app, request).await.status(),
+                expected
+            );
+        }
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn prometheus_provider_data_is_injected_only_when_scraping_is_enabled() {
+        use super::prometheus_provider_data;
+        use aster_forge_metrics::{
+            InfrastructureMetricsRecorder, MetricsProvider, MetricsRecorder,
+        };
+        use std::sync::Arc;
+
+        let provider = MetricsProvider::builder()
+            .with_prometheus()
+            .unwrap()
+            .build()
+            .unwrap();
+        let recorder: Arc<dyn MetricsRecorder> =
+            Arc::new(InfrastructureMetricsRecorder::new(provider).unwrap());
+        let metrics_data = actix_web::web::Data::from(recorder);
+
+        assert!(prometheus_provider_data(&metrics_data, false).is_none());
+        assert!(
+            prometheus_provider_data(&metrics_data, true)
+                .is_some_and(|provider| provider.enabled())
+        );
+    }
 }

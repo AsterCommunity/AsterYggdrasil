@@ -983,9 +983,12 @@ dependencies = [
  "hashbrown 0.17.1",
  "opentelemetry",
  "opentelemetry-prometheus",
+ "opentelemetry-proto",
  "opentelemetry_sdk",
  "parking_lot 0.13.0",
  "prometheus",
+ "prost",
+ "reqwest",
  "sysinfo 0.40.4",
  "thiserror 2.0.21",
  "tokio",
@@ -5262,6 +5265,17 @@ dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
  "prometheus",
+]
+
+[[package]]
+name = "opentelemetry-proto"
+version = "0.33.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d576f5dddc3299341bcd85a04be17b2564844c0c9563214f02d85f2524d1afae"
+dependencies = [
+ "opentelemetry",
+ "opentelemetry_sdk",
+ "prost",
 ]
 
 [[package]]

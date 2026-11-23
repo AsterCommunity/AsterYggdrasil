@@ -20,6 +20,7 @@ pub mod deployment;
 mod loader;
 pub mod local_email_policy;
 pub mod mail;
+pub mod metrics;
 pub mod operations;
 pub mod runtime;
 mod runtime_config;

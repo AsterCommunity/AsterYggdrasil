@@ -69,6 +69,27 @@ file = ""
 enable_rotation = true
 max_backups = 5
 
+# Exporters are off by default, including when upgrading a metrics-enabled build.
+# Changes take effect at restart. Environment overrides use ASTER__OBSERVABILITY__*.
+[observability]
+# Replaces ASTER_DEPLOYMENT_ENVIRONMENT; override with ASTER__OBSERVABILITY__ENVIRONMENT.
+environment = "production"
+
+[observability.prometheus]
+# Requires --features metrics. Scrape /health/metrics on the service listener.
+# Restrict access to the scrape path with a reverse proxy or a private network.
+enabled = false
+
+[observability.otlp_metrics]
+# Requires --features otlp-metrics. Use the complete OTLP HTTP metrics URL.
+enabled = false
+endpoint = "http://127.0.0.1:4318/v1/metrics"
+interval_seconds = 60
+timeout_seconds = 5
+
+[observability.otlp_metrics.headers]
+# Optional HTTP headers, such as Authorization. Use HTTPS with credentials.
+
 [network_trust]
 trusted_proxies = []
 

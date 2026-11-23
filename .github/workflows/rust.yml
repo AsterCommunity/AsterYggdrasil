@@ -137,8 +137,9 @@ jobs:
       - name: Prepare coverage output directory
         run: mkdir -p coverage/rust
 
+      # Single feature-complete run, matching AsterDrive's coverage job.
       - name: Run tests with coverage
-        run: cargo llvm-cov --workspace --no-fail-fast --lcov --output-path coverage/rust/lcov.info
+        run: cargo llvm-cov --workspace --features metrics,otlp-metrics,openapi --no-fail-fast --lcov --output-path coverage/rust/lcov.info
 
       - name: Generate HTML coverage report
         if: success()

@@ -180,6 +180,12 @@ metrics = [
     "aster_forge_metrics/backend-prometheus",
     "aster_forge_metrics/runtime-health",
 ]
+otlp-metrics = [
+    "server",
+    "aster_forge_metrics/allocator-metrics",
+    "aster_forge_metrics/otlp",
+    "aster_forge_metrics/runtime-health",
+]
 openapi = [
     "dep:utoipa",
     "dep:utoipa-swagger-ui",
@@ -192,7 +198,7 @@ openapi = [
     "aster_forge_runtime/openapi",
     "aster_forge_tasks/openapi",
 ]
-full = ["server", "metrics", "openapi"]
+full = ["server", "metrics", "otlp-metrics", "openapi"]
 benchmarks = ["dep:criterion"]
 jemalloc = ["dep:tikv-jemallocator", "aster_forge_alloc/jemalloc"]
 jemalloc-stats = [
