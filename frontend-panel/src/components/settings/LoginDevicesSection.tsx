@@ -192,8 +192,8 @@ export function LoginDevicesSection() {
 	}
 
 	return (
-		<div className="rounded-lg border border-border/70 bg-background/55 p-4 dark:border-white/10 dark:bg-input/10">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		<div className="@container/devices rounded-lg border border-border/70 bg-background/55 p-4 dark:border-white/10 dark:bg-input/10">
+			<div className="flex flex-col gap-3 @min-[42rem]/devices:flex-row @min-[42rem]/devices:items-center @min-[42rem]/devices:justify-between">
 				<div className="min-w-0">
 					<h3 className="text-sm font-semibold">
 						{t("sessions.deviceListTitle")}
@@ -243,7 +243,7 @@ export function LoginDevicesSection() {
 					</Button>
 				</div>
 			</div>
-			<div className="mt-4 grid overflow-hidden rounded-lg border border-border/70 bg-muted/20 dark:border-white/10 dark:bg-muted/10 sm:grid-cols-3">
+			<div className="mt-4 grid overflow-hidden rounded-lg border border-border/70 bg-muted/20 dark:border-white/10 dark:bg-muted/10 @min-[48rem]/devices:grid-cols-3">
 				<SummaryMetric
 					icon="WifiHigh"
 					label={t("sessions.activeSessions")}
@@ -350,8 +350,8 @@ function SessionRow({
 		unknown: t("sessions.unknownDevice"),
 	});
 	return (
-		<article className="rounded-lg border border-border/70 bg-muted/18 p-3 transition-[border-color,background-color] hover:border-emerald-300/80 hover:bg-emerald-50/45 dark:border-white/10 dark:bg-muted/10 dark:hover:border-emerald-400/35 dark:hover:bg-emerald-400/10">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		<article className="@container/session rounded-lg border border-border/70 bg-muted/18 p-3 transition-[border-color,background-color] hover:border-emerald-300/80 hover:bg-emerald-50/45 dark:border-white/10 dark:bg-muted/10 dark:hover:border-emerald-400/35 dark:hover:bg-emerald-400/10 ">
+			<div className="flex flex-col gap-3 @min-[44rem]/session:flex-row @min-[44rem]/session:items-center @min-[44rem]/session:justify-between">
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="grid size-10 shrink-0 place-items-center rounded-lg bg-background shadow-xs dark:bg-input/20 dark:shadow-none">
 						<SessionPlatformIcon userAgent={session.user_agent} />
@@ -388,7 +388,7 @@ function SessionRow({
 					</div>
 				</div>
 
-				<div className="flex shrink-0 flex-wrap gap-2 text-xs sm:justify-end">
+				<div className="flex shrink-0 flex-wrap gap-2 text-xs @min-[44rem]/session:justify-end">
 					<SessionMetaPill
 						label={t("sessions.ipAddress")}
 						value={session.ip_address ?? t("sessions.unknownIp")}
@@ -444,7 +444,7 @@ function SummaryMetric({
 			"bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200",
 	}[tone];
 	return (
-		<div className="flex min-h-20 items-center gap-3 border-t border-border/70 px-4 py-3 first:border-t-0 dark:border-white/10 md:border-t-0 md:border-l md:first:border-l-0">
+		<div className="flex min-h-20 items-center gap-3 border-t border-border/70 px-4 py-3 first:border-t-0 dark:border-white/10 @min-[48rem]/devices:border-t-0 @min-[48rem]/devices:border-l @min-[48rem]/devices:first:border-l-0">
 			<div
 				className={cn("grid size-9 place-items-center rounded-lg", toneClass)}
 			>

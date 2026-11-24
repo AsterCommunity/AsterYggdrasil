@@ -227,7 +227,7 @@ function SectionBlock({
 			data-settings-section={id}
 			className="scroll-mt-24 border-b border-border/70 py-7 first:pt-0 last:border-b-0 dark:border-white/10"
 		>
-			<div className="grid gap-5 lg:grid-cols-[14rem_minmax(0,1fr)]">
+			<div className="grid gap-5 @min-[42rem]/settings:grid-cols-[14rem_minmax(0,1fr)]">
 				<div className="min-w-0">
 					<div className="flex items-center gap-2">
 						<span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary dark:bg-primary/15">
@@ -774,16 +774,16 @@ function EmailChangeSection({ user }: { user: AuthUserInfo }) {
 				</Badge>
 			</div>
 			<div className="grid gap-4 px-4 py-4">
-				<div className="grid gap-3 sm:grid-cols-2">
+				<div className="grid gap-3 @min-[44rem]/settings:grid-cols-2">
 					<DetailRow
 						label={t("personalSettings.currentEmail")}
-						value={<span className="truncate">{user.email}</span>}
+						value={<span className="block min-w-0 truncate">{user.email}</span>}
 					/>
 					<DetailRow
 						label={t("personalSettings.pendingEmail")}
 						value={
 							pendingEmail ? (
-								<span className="truncate">{pendingEmail}</span>
+								<span className="block min-w-0 truncate">{pendingEmail}</span>
 							) : (
 								<span className="text-muted-foreground">
 									{t("personalSettings.emptyValue")}
@@ -978,113 +978,119 @@ export default function AccountSettingsPage() {
 	const userProfileKey = `${user.id}:${user.profile?.display_name ?? ""}`;
 
 	return (
-		<div className="mx-auto grid w-full max-w-[104rem] gap-6 px-4 py-5 sm:px-6 lg:px-7 xl:grid-cols-[minmax(0,1fr)_15rem]">
-			<div className="min-w-0">
-				<div className="mb-5 border-b border-border/70 pb-5 dark:border-white/10">
-					<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-						<div className="min-w-0">
-							<h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
-								{t("personalSettings.title")}
-							</h1>
-							<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-								{t("personalSettings.description")}
-							</p>
-						</div>
-						<div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2 dark:border-white/10 dark:bg-card/90">
-							<UserAvatarImage
-								name={profileName}
-								avatar={user.profile?.avatar}
-								size="md"
-							/>
-							<div className="min-w-0">
-								<div className="truncate text-sm font-semibold">
-									{profileName}
-								</div>
-								<div className="truncate text-xs text-muted-foreground">
-									{user.email}
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-
+		<div className="@container/settings">
+			<div className="mx-auto grid w-full max-w-[104rem] gap-6 px-4 py-5 sm:px-6 lg:px-7 @min-[56rem]/settings:grid-cols-[minmax(0,1fr)_15rem]">
 				<div className="min-w-0">
-					<ProfileSection key={userProfileKey} user={user} />
-
-					<SectionBlock
-						id="security"
-						icon="Shield"
-						title={t("personalSettings.sections.security")}
-						description={t("personalSettings.sectionDescriptions.security")}
-					>
-						<div className="rounded-lg border border-border/70 bg-background/55 p-4 dark:border-white/10 dark:bg-input/10">
-							<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-								{accountRows.map((row) => (
-									<DetailRow
-										key={row.label}
-										label={row.label}
-										value={
-											row.label === t("personalSettings.accountStatus") ? (
-												<Badge
-													variant="outline"
-													className="h-6 w-fit rounded-md px-2"
-												>
-													{row.value}
-												</Badge>
-											) : (
-												<span className="truncate">{row.value}</span>
-											)
-										}
-									/>
-								))}
+					<div className="mb-5 border-b border-border/70 pb-5 dark:border-white/10">
+						<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+							<div className="min-w-0">
+								<h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
+									{t("personalSettings.title")}
+								</h1>
+								<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+									{t("personalSettings.description")}
+								</p>
 							</div>
-							<Separator className="my-4" />
-							<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-								<div className="text-sm leading-6 text-muted-foreground">
-									{t("personalSettings.securityDescription")}
+							<div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2 dark:border-white/10 dark:bg-card/90">
+								<UserAvatarImage
+									name={profileName}
+									avatar={user.profile?.avatar}
+									size="md"
+								/>
+								<div className="min-w-0">
+									<div className="truncate text-sm font-semibold">
+										{profileName}
+									</div>
+									<div className="truncate text-xs text-muted-foreground">
+										{user.email}
+									</div>
 								</div>
 							</div>
-							<div className="mt-4">
-								<EmailChangeSection user={user} />
-							</div>
-							<div className="mt-4">
-								<LoginDevicesSection />
-							</div>
 						</div>
-					</SectionBlock>
-
-					<SectionBlock
-						id="passkeys"
-						icon="Key"
-						title={t("personalSettings.sections.passkeys")}
-						description={t("personalSettings.sectionDescriptions.passkeys")}
-					>
-						<SecurityPasskeysSection />
-					</SectionBlock>
-
-					<SectionBlock
-						id="external-auth"
-						icon="LinkSimple"
-						title={t("personalSettings.sections.externalAuth")}
-						description={t("personalSettings.sectionDescriptions.externalAuth")}
-					>
-						<ExternalAuthLinksSection />
-					</SectionBlock>
-				</div>
-			</div>
-
-			<aside className="hidden xl:block">
-				<div className="sticky top-20 rounded-lg border border-border/70 bg-card p-2 shadow-sm dark:border-white/10 dark:bg-card/90 dark:shadow-none">
-					<div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						{t("personalSettings.sectionNav")}
 					</div>
-					<SectionNav
-						sections={sections}
-						activeSection={activeSection}
-						onSelect={scrollToSettingsSection}
-					/>
+
+					<div className="min-w-0">
+						<ProfileSection key={userProfileKey} user={user} />
+
+						<SectionBlock
+							id="security"
+							icon="Shield"
+							title={t("personalSettings.sections.security")}
+							description={t("personalSettings.sectionDescriptions.security")}
+						>
+							<div className="rounded-lg border border-border/70 bg-background/55 p-4 dark:border-white/10 dark:bg-input/10">
+								<div className="grid gap-2 @min-[44rem]/settings:grid-cols-2 @min-[90rem]/settings:grid-cols-3">
+									{accountRows.map((row) => (
+										<DetailRow
+											key={row.label}
+											label={row.label}
+											value={
+												row.label === t("personalSettings.accountStatus") ? (
+													<Badge
+														variant="outline"
+														className="h-6 w-fit rounded-md px-2"
+													>
+														{row.value}
+													</Badge>
+												) : (
+													<span className="block min-w-0 truncate">
+														{row.value}
+													</span>
+												)
+											}
+										/>
+									))}
+								</div>
+								<Separator className="my-4" />
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<div className="text-sm leading-6 text-muted-foreground">
+										{t("personalSettings.securityDescription")}
+									</div>
+								</div>
+								<div className="mt-4">
+									<EmailChangeSection user={user} />
+								</div>
+								<div className="mt-4">
+									<LoginDevicesSection />
+								</div>
+							</div>
+						</SectionBlock>
+
+						<SectionBlock
+							id="passkeys"
+							icon="Key"
+							title={t("personalSettings.sections.passkeys")}
+							description={t("personalSettings.sectionDescriptions.passkeys")}
+						>
+							<SecurityPasskeysSection />
+						</SectionBlock>
+
+						<SectionBlock
+							id="external-auth"
+							icon="LinkSimple"
+							title={t("personalSettings.sections.externalAuth")}
+							description={t(
+								"personalSettings.sectionDescriptions.externalAuth",
+							)}
+						>
+							<ExternalAuthLinksSection />
+						</SectionBlock>
+					</div>
 				</div>
-			</aside>
+
+				<aside className="hidden @min-[56rem]/settings:block">
+					<div className="sticky top-20 rounded-lg border border-border/70 bg-card p-2 shadow-sm dark:border-white/10 dark:bg-card/90 dark:shadow-none">
+						<div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							{t("personalSettings.sectionNav")}
+						</div>
+						<SectionNav
+							sections={sections}
+							activeSection={activeSection}
+							onSelect={scrollToSettingsSection}
+						/>
+					</div>
+				</aside>
+			</div>
 		</div>
 	);
 }
