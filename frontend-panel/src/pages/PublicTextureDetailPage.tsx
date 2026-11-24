@@ -2,7 +2,6 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AuthUserMenu } from "@/components/common/AuthUserMenu";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { PublicTextureHeaderActions } from "@/components/yggdrasil/PublicTextureHeaderActions";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePublicSession } from "@/hooks/usePublicSession";
 import { formatBytes } from "@/lib/numberUnit";
@@ -119,10 +119,9 @@ export default function PublicTextureDetailPage() {
 			hideLanguageOnMobile
 			headerActions={
 				isAuthenticated && user ? (
-					<AuthUserMenu
+					<PublicTextureHeaderActions
+						isAuthenticated={isAuthenticated}
 						user={user}
-						scope="public"
-						className="border-black/10 bg-white/64 text-[#102118] shadow-lg shadow-black/12 backdrop-blur hover:bg-white/80 aria-expanded:bg-white/80 dark:border-white/14 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:bg-white/14 dark:aria-expanded:bg-white/14"
 						onLogout={() => void logout()}
 					/>
 				) : (

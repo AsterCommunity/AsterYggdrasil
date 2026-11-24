@@ -20,6 +20,7 @@ type AuthUserMenuProps = {
 	scope?: "public" | "account" | "admin";
 	onLogout: () => void;
 	className?: string;
+	showAccountLink?: boolean;
 };
 
 export function AuthUserMenu({
@@ -27,6 +28,7 @@ export function AuthUserMenu({
 	scope = "account",
 	onLogout,
 	className,
+	showAccountLink = true,
 }: AuthUserMenuProps) {
 	const { t } = useTranslation();
 	const userName = user.username.trim() || "User";
@@ -104,14 +106,21 @@ export function AuthUserMenu({
 					</div>
 				</div>
 				{scope === "public" ? (
-					<div className="mt-2 grid gap-1">
-						<DropdownMenuItem
-							render={<Link to={accountPaths.home} />}
-							className="flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent focus:bg-accent"
-						>
-							<Icon name="Gauge" className="size-4 text-muted-foreground" />
-							{t("nav.account")}
-						</DropdownMenuItem>
+					<div
+						className={cn(
+							"mt-2 grid gap-1",
+							!showAccountLink && !adminEntryPath && "hidden",
+						)}
+					>
+						{showAccountLink ? (
+							<DropdownMenuItem
+								render={<Link to={accountPaths.home} />}
+								className="flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent focus:bg-accent"
+							>
+								<Icon name="Gauge" className="size-4 text-muted-foreground" />
+								{t("nav.account")}
+							</DropdownMenuItem>
+						) : null}
 						{adminEntryPath ? (
 							<DropdownMenuItem
 								render={<Link to={adminEntryPath} />}

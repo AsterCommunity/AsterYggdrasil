@@ -10,7 +10,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { AuthUserMenu } from "@/components/common/AuthUserMenu";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MinecraftPreviewPanel } from "@/components/yggdrasil/MinecraftPreviewPanel";
 import { MinecraftTextureImagePreview } from "@/components/yggdrasil/MinecraftTextureImagePreview";
+import { PublicTextureHeaderActions } from "@/components/yggdrasil/PublicTextureHeaderActions";
 import { TextureLibraryTextureAvatar } from "@/components/yggdrasil/TextureLibraryTextureAvatar";
 import { TextureTagFilterPopover } from "@/components/yggdrasil/TextureTagFilterPopover";
 import { TextureTagChips } from "@/components/yggdrasil/TextureTagList";
@@ -194,10 +194,9 @@ export default function PublicTextureLibraryPage() {
 			hideLanguageOnMobile
 			headerActions={
 				isAuthenticated && user ? (
-					<AuthUserMenu
+					<PublicTextureHeaderActions
+						isAuthenticated={isAuthenticated}
 						user={user}
-						scope="public"
-						className="border-black/10 bg-white/64 text-[#102118] shadow-lg shadow-black/12 backdrop-blur hover:bg-white/80 aria-expanded:bg-white/80 dark:border-white/14 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:bg-white/14 dark:aria-expanded:bg-white/14"
 						onLogout={() => void logout()}
 					/>
 				) : (
