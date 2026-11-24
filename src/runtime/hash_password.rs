@@ -4,7 +4,7 @@
 //! process listings. The output is one PHC string, suitable for
 //! `[observability.prometheus.basic_auth] password_hash`.
 
-use std::io::{self, Read};
+use std::io::{self, BufRead, Read};
 
 const MAX_PASSWORD_BYTES: usize = 4096;
 
@@ -15,11 +15,9 @@ const MAX_PASSWORD_BYTES: usize = 4096;
 /// Returns an error for empty input, control characters, oversized input or
 /// when the hashing primitive rejects the password.
 pub fn run() -> io::Result<()> {
-    let mut password = String::new();
-    io::stdin()
-        .take(MAX_PASSWORD_BYTES as u64 + 4)
-        .read_to_string(&mut password)?;
-    let password = password.trim_end_matches(['\r', '\n']);
+    let stdin = io::stdin();
+    let password = read_password(&mut stdin.lock())?;
+    let password = password.as_str();
     if !valid_password(password) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -32,6 +30,19 @@ pub fn run() -> io::Result<()> {
     Ok(())
 }
 
+/// Reads one line, capped at the supported password length.
+///
+/// `read_line` stops at the newline the user types; `read_to_string` would
+/// wait for EOF, which makes the command look hung in a terminal.
+fn read_password<R: BufRead>(reader: &mut R) -> io::Result<String> {
+    let mut password = String::new();
+    let mut limited = reader.by_ref().take(MAX_PASSWORD_BYTES as u64 + 2);
+    if limited.read_line(&mut password)? == 0 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty input"));
+    }
+    Ok(password.trim_end_matches(['\r', '\n']).to_owned())
+}
+
 fn valid_password(value: &str) -> bool {
     !value.is_empty() && value.len() <= MAX_PASSWORD_BYTES && !value.chars().any(char::is_control)
 }
@@ -39,6 +50,18 @@ fn valid_password(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A typed newline is the terminator: the rest of the stream must not be
+    /// consumed, otherwise an interactive caller waits for EOF.
+    #[test]
+    fn reads_one_line_and_leaves_the_rest_unread() {
+        let mut input = std::io::Cursor::new(b"secret\nstill-open".to_vec());
+        let password = read_password(&mut input).unwrap();
+        assert_eq!(password, "secret");
+        let mut rest = String::new();
+        input.read_to_string(&mut rest).unwrap();
+        assert_eq!(rest, "still-open");
+    }
 
     #[test]
     fn password_bounds_are_enforced() {

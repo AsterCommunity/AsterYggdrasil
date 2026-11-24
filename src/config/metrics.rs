@@ -171,14 +171,18 @@ impl PrometheusBasicAuth {
         if !self.enabled {
             return Ok(());
         }
-        let username = self.username.trim();
+        // Validate the stored value, not a trimmed copy: otherwise
+        // `username = "scrape\n"` passes startup and then never matches the
+        // header at runtime.
+        let username = &self.username;
         if username.is_empty()
             || username.len() > 256
+            || username != username.trim()
             || username.chars().any(char::is_control)
             || username.contains(':')
         {
             return Err(crate::errors::AsterError::config_error(
-                "prometheus basic auth username must be 1..256 printable characters without ':'",
+                "prometheus basic auth username must be 1..256 printable characters without ':' or surrounding whitespace",
             ));
         }
         if self.password_hash.is_empty()
@@ -376,7 +380,7 @@ mod tests {
         #[test]
         fn basic_auth_rejects_invalid_usernames() {
             let valid_hash = aster_forge_crypto::hash_password("secret").unwrap();
-            for username in ["", " ", "us:er", "bad\nuser"] {
+            for username in ["", " ", " scrape", "scrape\n", "us:er", "bad\nuser"] {
                 let config = config_with_auth(true, true, username, &valid_hash);
                 let error = config.validate().unwrap_err();
                 assert!(!error.message().contains(&valid_hash), "{error}");
