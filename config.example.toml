@@ -80,6 +80,14 @@ environment = "production"
 # Restrict access to the scrape path with a reverse proxy or a private network.
 enabled = false
 
+[observability.prometheus.basic_auth]
+# Optional Basic auth for the scrape route. Requires [observability.prometheus].
+# password_hash is an Argon2id PHC verifier, not the password:
+#   printf '%s\n' 'scrape-password' | asteryggdrasil hash-password
+enabled = false
+username = "prometheus"
+password_hash = ""
+
 [observability.otlp_metrics]
 # Requires --features otlp-metrics. Use the complete OTLP HTTP metrics URL.
 enabled = false

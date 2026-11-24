@@ -26,9 +26,20 @@ pub fn configure_route(
     // OTLP pushes metrics to a collector and must not expose a scrape endpoint.
     #[cfg(feature = "metrics")]
     if config.prometheus_enabled() {
-        return scope.service(aster_forge_observability::actix::prometheus_resource(
-            "/metrics",
-        ));
+        // The middleware is mounted even when Basic auth is disabled; it
+        // returns immediately in that case. Keeping one wiring path avoids a
+        // second resource definition drifting from the authenticated one.
+        return scope
+            .app_data(actix_web::web::Data::new(
+                config.prometheus.basic_auth.clone(),
+            ))
+            .service(
+                aster_forge_observability::actix::prometheus_resource("/metrics").wrap(
+                    actix_web::middleware::from_fn(
+                        crate::api::middleware::metrics_auth::middleware,
+                    ),
+                ),
+            );
     }
 
     #[cfg(not(feature = "metrics"))]

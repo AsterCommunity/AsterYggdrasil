@@ -47,6 +47,19 @@ impl ObservabilityConfig {
                 "invalid observability deployment identity",
             ));
         }
+        // A binary without the `metrics` feature does not serve the route at
+        // all; its credentials must not block startup (mirrors the exporter
+        // sections, which stay unvalidated when the feature is absent).
+        #[cfg(feature = "metrics")]
+        {
+            if self.prometheus.basic_auth.enabled && !self.prometheus.enabled {
+                return Err(crate::errors::AsterError::config_error(
+                    "prometheus basic auth requires [observability.prometheus] enabled",
+                ));
+            }
+            self.prometheus.basic_auth.validate()?;
+        }
+
         #[cfg(feature = "otlp-metrics")]
         if self.otlp_metrics.enabled {
             self.otlp_metrics
@@ -112,6 +125,80 @@ fn metrics_error(error: aster_forge_metrics::MetricError) -> crate::errors::Aste
 #[serde(default, deny_unknown_fields)]
 pub struct PrometheusConfig {
     pub enabled: bool,
+    /// Optional Basic authentication on the scrape route.
+    pub basic_auth: PrometheusBasicAuth,
+}
+
+/// Basic authentication for the Prometheus scrape endpoint.
+///
+/// The password is stored as an Argon2id PHC verifier (same encoding as login
+/// passwords), so a leaked configuration file does not leak the scrape
+/// credential. Generate one with `asteryggdrasil hash-password` (password read
+/// from stdin) and put the printed string in `password_hash`.
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PrometheusBasicAuth {
+    pub enabled: bool,
+    pub username: String,
+    pub password_hash: String,
+}
+
+impl fmt::Debug for PrometheusBasicAuth {
+    /// Never print the verifier: configuration dumps and panic reports end up
+    /// in logs.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PrometheusBasicAuth")
+            .field("enabled", &self.enabled)
+            .field("username", &self.username)
+            .field(
+                "password_hash",
+                &if self.password_hash.is_empty() {
+                    "<unset>"
+                } else {
+                    "<redacted>"
+                },
+            )
+            .finish()
+    }
+}
+
+impl PrometheusBasicAuth {
+    /// Startup validation for an enabled auth block.
+    ///
+    /// A disabled block keeps its fields unchecked so operators can stage
+    /// credentials in the file before turning the exporter on.
+    pub(crate) fn validate(&self) -> crate::errors::Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let username = self.username.trim();
+        if username.is_empty()
+            || username.len() > 256
+            || username.chars().any(char::is_control)
+            || username.contains(':')
+        {
+            return Err(crate::errors::AsterError::config_error(
+                "prometheus basic auth username must be 1..256 printable characters without ':'",
+            ));
+        }
+        if self.password_hash.is_empty()
+            || self.password_hash.len() > 4096
+            || self.password_hash.chars().any(char::is_control)
+        {
+            return Err(crate::errors::AsterError::config_error(
+                "prometheus basic auth password_hash must be a non-empty Argon2id PHC string",
+            ));
+        }
+        aster_forge_crypto::validate_password_hash(
+            &self.password_hash,
+            aster_forge_crypto::PasswordHashVerificationLimits::default(),
+        )
+        .map_err(|_| {
+            crate::errors::AsterError::config_error(
+                "prometheus basic auth password_hash is not a supported Argon2id PHC string",
+            )
+        })
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -245,6 +332,81 @@ mod tests {
         config
             .validate()
             .expect("inactive sections must not block startup");
+    }
+
+    #[cfg(feature = "metrics")]
+    mod basic_auth_tests {
+        use crate::config::metrics::{ObservabilityConfig, PrometheusBasicAuth, PrometheusConfig};
+
+        fn config_with_auth(
+            prometheus_enabled: bool,
+            enabled: bool,
+            username: &str,
+            password_hash: &str,
+        ) -> ObservabilityConfig {
+            ObservabilityConfig {
+                prometheus: PrometheusConfig {
+                    enabled: prometheus_enabled,
+                    basic_auth: PrometheusBasicAuth {
+                        enabled,
+                        username: username.to_owned(),
+                        password_hash: password_hash.to_owned(),
+                    },
+                },
+                ..Default::default()
+            }
+        }
+
+        /// Enabling auth without enabling the exporter is a configuration mistake,
+        /// not something to silently ignore.
+        #[test]
+        fn basic_auth_requires_prometheus_to_be_enabled() {
+            let config = config_with_auth(
+                false,
+                true,
+                "scrape",
+                &aster_forge_crypto::hash_password("secret").unwrap(),
+            );
+            let error = config.validate().unwrap_err();
+            assert!(error.message().contains("basic auth requires"), "{error}");
+        }
+
+        /// Username rules: non-empty, no ':' (it would split the Basic payload
+        /// differently) and no control characters.
+        #[test]
+        fn basic_auth_rejects_invalid_usernames() {
+            let valid_hash = aster_forge_crypto::hash_password("secret").unwrap();
+            for username in ["", " ", "us:er", "bad\nuser"] {
+                let config = config_with_auth(true, true, username, &valid_hash);
+                let error = config.validate().unwrap_err();
+                assert!(!error.message().contains(&valid_hash), "{error}");
+            }
+        }
+
+        /// A malformed verifier is rejected offline, and the error never echoes it.
+        #[test]
+        fn basic_auth_rejects_malformed_hash_without_echoing_it() {
+            let marker = "not-a-phc-verifier";
+            let config = config_with_auth(true, true, "scrape", marker);
+            let error = config.validate().unwrap_err();
+            assert!(!error.message().contains(marker), "{error}");
+        }
+
+        #[test]
+        fn basic_auth_accepts_a_valid_verifier_and_redacts_debug() {
+            let hash = aster_forge_crypto::hash_password("secret").unwrap();
+            let config = config_with_auth(true, true, "scrape", &hash);
+            config.validate().unwrap();
+            let debug = format!("{config:?}");
+            assert!(!debug.contains(&hash), "verifier leaked through Debug");
+        }
+
+        /// A disabled block may hold staged values: they must not block startup.
+        #[test]
+        fn disabled_basic_auth_block_is_not_validated() {
+            let config = config_with_auth(false, false, "us:er", "not-a-phc-verifier");
+            config.validate().unwrap();
+        }
     }
 
     #[test]

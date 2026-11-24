@@ -4,6 +4,7 @@ pub mod assembly;
 pub(crate) mod audit_recovery;
 pub mod bootstrap;
 pub mod entrypoint;
+pub mod hash_password;
 pub mod metrics;
 pub mod shutdown;
 pub mod startup;

@@ -209,4 +209,71 @@ mod tests {
         handle.stop(true).await;
         task.await.unwrap().unwrap();
     }
+    #[cfg(feature = "metrics")]
+    #[actix_web::test]
+    async fn basic_auth_gates_the_scrape_route() {
+        use actix_web::http::header;
+        use base64::{Engine, prelude::BASE64_STANDARD};
+
+        fn basic(user: &str, password: &str) -> String {
+            format!(
+                "Basic {}",
+                BASE64_STANDARD.encode(format!("{user}:{password}"))
+            )
+        }
+
+        crate::runtime::test_support::ensure_static_config();
+        let state = crate::runtime::test_support::setup_state().await;
+        let hash = aster_forge_crypto::hash_password("scrape-pass").unwrap();
+        let config = ObservabilityConfig {
+            prometheus: crate::config::metrics::PrometheusConfig {
+                enabled: true,
+                basic_auth: crate::config::metrics::PrometheusBasicAuth {
+                    enabled: true,
+                    username: "prometheus".to_owned(),
+                    password_hash: hash,
+                },
+            },
+            ..ObservabilityConfig::default()
+        };
+        let recorder = create_metrics_recorder(&config).unwrap();
+        let provider = recorder.provider().unwrap();
+        let app = actix_test::init_service(
+            App::new()
+                .app_data(web::Data::new(state))
+                .app_data(web::Data::new(provider))
+                .configure(|cfg| crate::api::configure(cfg, &config)),
+        )
+        .await;
+
+        let anonymous = actix_test::TestRequest::get()
+            .uri("/health/metrics")
+            .to_request();
+        let response = actix_test::call_service(&app, anonymous).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get(header::WWW_AUTHENTICATE).unwrap(),
+            "Basic realm=\"AsterYggdrasil metrics\""
+        );
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store"
+        );
+
+        for (credentials, expected) in [
+            (basic("prometheus", "scrape-pass"), StatusCode::OK),
+            (basic("prometheus", "wrong-pass"), StatusCode::UNAUTHORIZED),
+            (basic("other", "scrape-pass"), StatusCode::UNAUTHORIZED),
+        ] {
+            let request = actix_test::TestRequest::get()
+                .uri("/health/metrics")
+                .insert_header((header::AUTHORIZATION, credentials.clone()))
+                .to_request();
+            let response = actix_test::call_service(&app, request).await;
+            assert_eq!(response.status(), expected, "{credentials}");
+        }
+        crate::runtime::shutdown::shutdown_metrics(&recorder)
+            .await
+            .unwrap();
+    }
 }

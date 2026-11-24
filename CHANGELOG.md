@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Prometheus 抓取端点支持 Basic 认证**：新增 `[observability.prometheus.basic_auth]`（`enabled` / `username` / `password_hash`）。密码存 Argon2id PHC 验证串，校验复用登录的 Argon2 工作池与并发上限；未通过时返回 `401`、`WWW-Authenticate: Basic` 和 `Cache-Control: no-store`，响应体为空。新增离线命令 `asteryggdrasil hash-password`（密码从 stdin 读），用于生成 `password_hash`。
 - **Argon2 并发数可配置**：静态配置新增 `[auth] password_hash_max_concurrency`，默认 `2`（取自 `aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`）。每个 Argon2 任务约占用 64 MiB 工作内存，默认最坏并发工作内存约 128 MiB。修改后需要重启。
 - **audit 关机恢复**：进程关闭时审计写入器完成最终 drain；仍有未确认记录时，Forge 将其写入私有恢复目录 `data/audit-recovery/audit-{uuid}.json`（0600 文件、0700 目录），关机以错误收尾并报告路径，等待运维手工核对入库。系统不会自动 replay 这些记录。
 
