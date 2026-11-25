@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import {
 	type Dispatch,
 	useCallback,
@@ -1082,7 +1083,7 @@ function getSettingsGroupAction({
 	onOpenTestEmail: () => void;
 	onRotateYggdrasilSignatureKey: () => void;
 	rotatingYggdrasilKey: boolean;
-	t: (key: string, options?: Record<string, unknown>) => string;
+	t: TFunction<"translation", undefined>;
 }) {
 	if (category === "mail.config") {
 		return (
@@ -2196,7 +2197,7 @@ function getMailTemplateCode(key: string) {
 
 function formatMailTemplateGroupLabel(
 	templateCode: string,
-	t: (key: string, options?: Record<string, unknown>) => string,
+	t: TFunction<"translation", undefined>,
 ) {
 	return translateOrFallback(
 		t,
@@ -2207,7 +2208,7 @@ function formatMailTemplateGroupLabel(
 
 function formatTemplateVariableGroupLabel(
 	group: TemplateVariableGroup,
-	t: (key: string, options?: Record<string, unknown>) => string,
+	t: TFunction<"translation", undefined>,
 ) {
 	return translateOrFallback(
 		t,
@@ -2395,7 +2396,7 @@ function validateDraft(
 }
 
 function translateOrFallback(
-	t: (key: string, options?: Record<string, unknown>) => string,
+	t: TFunction<"translation", undefined>,
 	key: string | undefined,
 	fallback: string,
 ) {
@@ -2415,7 +2416,7 @@ function humanizeKey(key: string) {
 function formatSubcategoryLabel(
 	root: string,
 	category: string,
-	t: (key: string, options?: Record<string, unknown>) => string,
+	t: TFunction<"translation", undefined>,
 ) {
 	return translateOrFallback(
 		t,
@@ -2429,7 +2430,7 @@ function formatSubcategoryLabel(
 function formatSubcategoryDescription(
 	root: string,
 	category: string,
-	t: (key: string, options?: Record<string, unknown>) => string,
+	t: TFunction<"translation", undefined>,
 ) {
 	return translateOrFallback(
 		t,

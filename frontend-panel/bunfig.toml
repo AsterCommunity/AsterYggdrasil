@@ -1,0 +1,6 @@
+# Supply-chain cooldown: never resolve package versions published within the
+# last 24 hours, so a freshly compromised release cannot be auto-installed by
+# `bun install` / `bun update`. Escape hatch for a single urgent upgrade:
+# `bun update --minimum-release-age=0 <pkg>`.
+[install]
+minimumReleaseAge = "1d"
