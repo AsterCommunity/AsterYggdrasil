@@ -173,6 +173,47 @@ mod observability_startup_tests {
             .expect("configured metrics provider should shut down");
     }
 
+    /// Configs built in memory bypass the loader, so the entry re-runs the
+    /// section pass: an oversized shutdown budget fails before any runtime
+    /// component is assembled.
+    #[tokio::test]
+    async fn in_memory_config_with_invalid_worker_budget_fails_before_assembly() {
+        initialize_test_crypto();
+        let root = TestRuntimeRoot::create();
+        let mut config = isolated_config(root.path());
+        config.worker.drain_timeout_secs = 86_400;
+        config.worker.cancellation_timeout_secs = 1;
+
+        let error = match prepare_common_state(Arc::new(config)).await {
+            Ok(_) => panic!("section validation should reject the oversized shutdown budget"),
+            Err(error) => error,
+        };
+        assert!(error.message().contains("24 hours"), "{error}");
+    }
+
+    /// The cross-section pass also runs at the entry: a cluster profile over
+    /// local-only dependencies fails before assembly.
+    #[tokio::test]
+    async fn in_memory_config_with_cluster_conflict_fails_before_assembly() {
+        initialize_test_crypto();
+        let root = TestRuntimeRoot::create();
+        let mut config = isolated_config(root.path());
+        config.deployment.profile = crate::config::DeploymentProfile::Cluster;
+
+        let error = match prepare_common_state(Arc::new(config)).await {
+            Ok(_) => {
+                panic!(
+                    "cross-section validation should reject a cluster profile with local dependencies"
+                )
+            }
+            Err(error) => error,
+        };
+        assert!(
+            error.message().contains("invalid deployment profile"),
+            "{error}"
+        );
+    }
+
     #[cfg(feature = "otlp-metrics")]
     #[actix_web::test]
     async fn startup_failure_shuts_down_the_configured_otlp_exporter() {
