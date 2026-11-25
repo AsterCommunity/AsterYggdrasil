@@ -82,9 +82,7 @@ enabled = false
 
 [observability.prometheus.basic_auth]
 # Optional Basic auth for the scrape route. Requires [observability.prometheus].
-# password_hash is an Argon2id PHC verifier, not the password. Generate one
-# interactively so the password does not end up in shell history:
-#   asteryggdrasil hash-password
+# password_hash is an Argon2id PHC verifier, not the password.
 enabled = false
 username = "prometheus"
 password_hash = ""

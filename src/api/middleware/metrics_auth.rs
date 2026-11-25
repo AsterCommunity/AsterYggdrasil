@@ -15,7 +15,9 @@ use actix_web::{
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
 
-use crate::{config::metrics::PrometheusBasicAuth, runtime::AppState};
+use aster_forge_metrics::MetricsBasicAuthConfig;
+
+use crate::runtime::AppState;
 
 /// Checks the request against the configured scrape credentials.
 ///
@@ -23,7 +25,7 @@ use crate::{config::metrics::PrometheusBasicAuth, runtime::AppState};
 /// middleware mounted unconditionally.
 async fn authorized(
     state: &AppState,
-    config: &PrometheusBasicAuth,
+    config: &MetricsBasicAuthConfig,
     request: &actix_web::HttpRequest,
 ) -> bool {
     let Some((username, password)) = credentials(request) else {
@@ -89,7 +91,7 @@ pub async fn middleware(
     // future embedding that mounts only the metrics scope can still serve
     // /metrics without inventing a runtime pool.
     let config = request
-        .app_data::<web::Data<PrometheusBasicAuth>>()
+        .app_data::<web::Data<Option<MetricsBasicAuthConfig>>>()
         .map(|config| config.as_ref().clone())
         .or_else(|| {
             request
@@ -98,8 +100,11 @@ pub async fn middleware(
         });
     let state = request.app_data::<web::Data<AppState>>().cloned();
     let allowed = match (config, state) {
-        (Some(config), _) if !config.enabled => true,
-        (Some(config), Some(state)) => authorized(state.as_ref(), &config, request.request()).await,
+        (Some(None), _) => true,
+        (Some(Some(config)), _) if !config.enabled => true,
+        (Some(Some(config)), Some(state)) => {
+            authorized(state.as_ref(), &config, request.request()).await
+        }
         _ => false,
     };
     if !allowed {

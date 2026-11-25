@@ -228,11 +228,11 @@ mod tests {
         let config = ObservabilityConfig {
             prometheus: crate::config::metrics::PrometheusConfig {
                 enabled: true,
-                basic_auth: crate::config::metrics::PrometheusBasicAuth {
+                basic_auth: Some(aster_forge_metrics::MetricsBasicAuthConfig {
                     enabled: true,
                     username: "prometheus".to_owned(),
                     password_hash: hash,
-                },
+                }),
             },
             ..ObservabilityConfig::default()
         };

@@ -177,12 +177,14 @@ metrics = [
     "aster_forge_metrics/allocator-metrics",
     "aster_forge_metrics/backend-prometheus",
     "aster_forge_metrics/runtime-health",
+    "aster_forge_metrics/basic-auth",
 ]
 otlp-metrics = [
     "server",
     "aster_forge_metrics/allocator-metrics",
     "aster_forge_metrics/otlp",
     "aster_forge_metrics/runtime-health",
+    "aster_forge_metrics/basic-auth",
 ]
 openapi = [
     "dep:utoipa",

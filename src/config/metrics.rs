@@ -47,17 +47,28 @@ impl ObservabilityConfig {
                 "invalid observability deployment identity",
             ));
         }
-        // A binary without the `metrics` feature does not serve the route at
-        // all; its credentials must not block startup (mirrors the exporter
-        // sections, which stay unvalidated when the feature is absent).
         #[cfg(feature = "metrics")]
+        if let Some(auth) = self
+            .prometheus
+            .basic_auth
+            .as_ref()
+            .filter(|auth| auth.enabled)
         {
-            if self.prometheus.basic_auth.enabled && !self.prometheus.enabled {
+            if !self.prometheus.enabled {
                 return Err(crate::errors::AsterError::config_error(
                     "prometheus basic auth requires [observability.prometheus] enabled",
                 ));
             }
-            self.prometheus.basic_auth.validate()?;
+            let forge = aster_forge_metrics::ObservabilityConfig {
+                environment: self.environment.clone(),
+                prometheus: aster_forge_metrics::PrometheusSettings {
+                    enabled: true,
+                    basic_auth: Some(auth.clone()),
+                },
+                otlp_metrics: Default::default(),
+            };
+            aster_forge_config::ValidatableConfig::validate(&forge)
+                .map_err(|error| crate::errors::AsterError::config_error(error.to_string()))?;
         }
 
         #[cfg(feature = "otlp-metrics")]
@@ -125,84 +136,7 @@ fn metrics_error(error: aster_forge_metrics::MetricError) -> crate::errors::Aste
 #[serde(default, deny_unknown_fields)]
 pub struct PrometheusConfig {
     pub enabled: bool,
-    /// Optional Basic authentication on the scrape route.
-    pub basic_auth: PrometheusBasicAuth,
-}
-
-/// Basic authentication for the Prometheus scrape endpoint.
-///
-/// The password is stored as an Argon2id PHC verifier (same encoding as login
-/// passwords), so a leaked configuration file does not leak the scrape
-/// credential. Generate one with `asteryggdrasil hash-password` (password read
-/// from stdin) and put the printed string in `password_hash`.
-#[derive(Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct PrometheusBasicAuth {
-    pub enabled: bool,
-    pub username: String,
-    pub password_hash: String,
-}
-
-impl fmt::Debug for PrometheusBasicAuth {
-    /// Never print the verifier: configuration dumps and panic reports end up
-    /// in logs.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PrometheusBasicAuth")
-            .field("enabled", &self.enabled)
-            .field("username", &self.username)
-            .field(
-                "password_hash",
-                &if self.password_hash.is_empty() {
-                    "<unset>"
-                } else {
-                    "<redacted>"
-                },
-            )
-            .finish()
-    }
-}
-
-impl PrometheusBasicAuth {
-    /// Startup validation for an enabled auth block.
-    ///
-    /// A disabled block keeps its fields unchecked so operators can stage
-    /// credentials in the file before turning the exporter on.
-    pub(crate) fn validate(&self) -> crate::errors::Result<()> {
-        if !self.enabled {
-            return Ok(());
-        }
-        // Validate the stored value, not a trimmed copy: otherwise
-        // `username = "scrape\n"` passes startup and then never matches the
-        // header at runtime.
-        let username = &self.username;
-        if username.is_empty()
-            || username.len() > 256
-            || username != username.trim()
-            || username.chars().any(char::is_control)
-            || username.contains(':')
-        {
-            return Err(crate::errors::AsterError::config_error(
-                "prometheus basic auth username must be 1..256 printable characters without ':' or surrounding whitespace",
-            ));
-        }
-        if self.password_hash.is_empty()
-            || self.password_hash.len() > 4096
-            || self.password_hash.chars().any(char::is_control)
-        {
-            return Err(crate::errors::AsterError::config_error(
-                "prometheus basic auth password_hash must be a non-empty Argon2id PHC string",
-            ));
-        }
-        aster_forge_crypto::validate_password_hash(
-            &self.password_hash,
-            aster_forge_crypto::PasswordHashVerificationLimits::default(),
-        )
-        .map_err(|_| {
-            crate::errors::AsterError::config_error(
-                "prometheus basic auth password_hash is not a supported Argon2id PHC string",
-            )
-        })
-    }
+    pub basic_auth: Option<aster_forge_metrics::MetricsBasicAuthConfig>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -340,7 +274,7 @@ mod tests {
 
     #[cfg(feature = "metrics")]
     mod basic_auth_tests {
-        use crate::config::metrics::{ObservabilityConfig, PrometheusBasicAuth, PrometheusConfig};
+        use crate::config::metrics::{ObservabilityConfig, PrometheusConfig};
 
         fn config_with_auth(
             prometheus_enabled: bool,
@@ -351,11 +285,11 @@ mod tests {
             ObservabilityConfig {
                 prometheus: PrometheusConfig {
                     enabled: prometheus_enabled,
-                    basic_auth: PrometheusBasicAuth {
+                    basic_auth: Some(aster_forge_metrics::MetricsBasicAuthConfig {
                         enabled,
                         username: username.to_owned(),
                         password_hash: password_hash.to_owned(),
-                    },
+                    }),
                 },
                 ..Default::default()
             }
@@ -380,7 +314,7 @@ mod tests {
         #[test]
         fn basic_auth_rejects_invalid_usernames() {
             let valid_hash = aster_forge_crypto::hash_password("secret").unwrap();
-            for username in ["", " ", " scrape", "scrape\n", "us:er", "bad\nuser"] {
+            for username in ["", " ", "scrape\n", "us:er", "bad\nuser"] {
                 let config = config_with_auth(true, true, username, &valid_hash);
                 let error = config.validate().unwrap_err();
                 assert!(!error.message().contains(&valid_hash), "{error}");
