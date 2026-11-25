@@ -277,7 +277,7 @@ export function useMinecraftProfilesPageController() {
 			yggdrasilConfig,
 		);
 		if (validation.ok) return true;
-		toast.error(t(validation.key, validation.values));
+		toast.error(t(validation.key, validation.values ?? {}));
 		return false;
 	}
 

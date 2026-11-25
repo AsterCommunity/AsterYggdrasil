@@ -1,0 +1,16 @@
+# Supply-chain cooldown: never resolve package versions published within the
+# last 24 hours, so a freshly compromised release cannot be auto-installed by
+# `bun install` / `bun update`.
+#
+# Urgent single-package upgrade: the CLI flag below is a one-shot override for
+# that invocation only — it lifts the cooldown just for <pkg> and leaves this
+# config (and every other package) untouched. Do not add the package to
+# `minimumReleaseAgeExcludes` instead: that list is a permanent exemption.
+#
+#   bun update --minimum-release-age=0 <pkg>
+#
+# `bun install --frozen-lockfile` (CI and the Docker image) trusts bun.lock as
+# pinned and does not re-check publish ages, so cooldown-gated lock updates
+# still build into images immediately.
+[install]
+minimumReleaseAge = "1d"

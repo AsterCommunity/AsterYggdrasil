@@ -120,9 +120,10 @@ describe("AnimatedCollapsible", () => {
 			</AnimatedCollapsible>,
 		);
 
-		expect(container.firstElementChild).toHaveStyle({
-			transitionDuration: "0ms",
-		});
+		// jsdom 31's getComputedStyle no longer reflects non-layout inline
+		// properties (transition-* returns ""), so assert the inline style the
+		// component actually writes.
+		expect(container.firstElementChild?.style.transitionDuration).toBe("0ms");
 	});
 
 	it("cleans up queued animation frames when unmounted during an opening transition", () => {

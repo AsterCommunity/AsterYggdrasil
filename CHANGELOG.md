@@ -18,10 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Argon2 默认并发从 8 降到 2**：现有配置未显式设置 `password_hash_max_concurrency` 时，升级后每个进程的最坏并发 Argon2 工作内存从约 512 MiB 降到约 128 MiB。需要更高并发的部署请显式配置。
 - **Forge #90 批次升级**：全部 `aster_forge_*` 依赖升级到已发布的 crates.io 批次（audit/auth/cache/config/crypto/db/db_migration/external_auth/http/logging/mail/metrics/middleware/observability/panic/runtime/tasks/test/utils）。panic hook 的 crash-log 祖先目录改由 bootstrap 显式创建（`data/`）；Linux 保持私有 crash log 行为，macOS 等平台 Forge 私有文件机制尚未支持，启动时降级为不可用并打印警告（fail closed），不影响正常服务。
 - **替换 GPL 限流依赖**：移除 `actix-governor`（GPL-3.0-or-later），管理端 IP 限流改用 Forge `aster_forge_middleware` 0.1.0-alpha.6 的 GPL-free Actix 中间件（直接包装 MIT OR Apache-2.0 的 `governor` crate）。429 响应 envelope、burst/period 语义、trusted-proxy 客户端 IP 分桶和跨 worker 共享配额行为保持不变。`cargo deny check` 的 licenses 检查在无 exception 的情况下恢复通过。
+- **前端工具链迁移到 TypeScript 7 正式版**：`@typescript/native-preview`（tsgo）替换为 `typescript` 7.0.2，`build`/`check` 改走 `tsc`。`generate-api` 依赖 openapi-typescript 的 TS JS API，改用 `bunx` 临时注入 `@typescript/typescript6` 6.0.2 执行生成，项目本体保持 TS7（沿用 AsterDrive 模式）。同步适配 react-i18next 18 的 `TFunction` 类型、jsdom 31 的 `getComputedStyle` 行为、biome schema 2.6.8，前端依赖全量刷新（vitest 5、jsdom 31、vite-plugin-pwa 2、i18next 27、react-i18next 18 等）。
 
 ### Security
 
 - **修复未知账号登录的时序枚举**：未知标识符的虚拟 Argon2 验证改用与已存在账号相同的等待语义（`verify_password`）。此前使用非阻塞的 `try_verify_password`，许可池饱和时立即返回，攻击者可用并发请求制造饱和并凭响应时间区分账号是否存在。默认并发降为 2 后触发门槛更低。
+- **前端依赖供应链加固**：修复 `brace-expansion`（5.0.11）、`fast-uri`（3.1.7）、`ip-address`（10.7.6）传递依赖漏洞，`bun audit --audit-level=high` 恢复清零；新增 `frontend-panel/bunfig.toml` 设置 1 天发布冷静期（`minimumReleaseAge = "1d"`），`bun install`/`bun update` 不再自动解析发布不足 24 小时的版本，紧急升级可用 `bun update --minimum-release-age=0 <pkg>` 单包豁免。
 
 ## [v0.1.0-beta.1] - 2026-06-20
 
