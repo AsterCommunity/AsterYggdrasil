@@ -41,6 +41,17 @@ mod tests {
     use actix_web::web;
     use actix_web::{App, http::StatusCode, test as actix_test};
 
+    /// Production shape: the HTTP component registers one process-wide
+    /// checker (api/http.rs); tests that mount the scrape route do the same.
+    #[cfg(feature = "metrics")]
+    fn scrape_auth_data(
+        config: &aster_forge_metrics::MetricsBasicAuthConfig,
+    ) -> web::Data<crate::api::middleware::metrics_auth::MetricsAuth> {
+        web::Data::new(crate::api::middleware::metrics_auth::MetricsAuth::new(
+            config.clone(),
+        ))
+    }
+
     #[actix_web::test]
     async fn disabled_metrics_leave_health_up_and_scrape_unavailable() {
         crate::runtime::test_support::ensure_static_config();
@@ -92,6 +103,7 @@ mod tests {
         let app = actix_test::init_service(
             App::new()
                 .app_data(web::Data::new(recorder.provider().unwrap()))
+                .app_data(scrape_auth_data(&Default::default()))
                 .configure(|cfg| crate::api::configure(cfg, &config)),
         )
         .await;
@@ -182,12 +194,12 @@ mod tests {
                     .any(|bytes| bytes == config.environment.as_bytes())
             );
 
-            let app = actix_test::init_service(
-                App::new()
-                    .app_data(web::Data::new(provider.clone()))
-                    .configure(|cfg| crate::api::configure(cfg, &config)),
-            )
-            .await;
+            let app = App::new().app_data(web::Data::new(provider.clone()));
+            #[cfg(feature = "metrics")]
+            let app = app.app_data(scrape_auth_data(&Default::default()));
+            let app =
+                actix_test::init_service(app.configure(|cfg| crate::api::configure(cfg, &config)))
+                    .await;
             let request = actix_test::TestRequest::get()
                 .uri("/health/metrics")
                 .to_request();
@@ -224,54 +236,101 @@ mod tests {
 
         crate::runtime::test_support::ensure_static_config();
         let state = crate::runtime::test_support::setup_state().await;
-        let hash = aster_forge_crypto::hash_password("scrape-pass").unwrap();
         let config = ObservabilityConfig {
             prometheus: crate::config::metrics::PrometheusConfig {
                 enabled: true,
                 basic_auth: Some(aster_forge_metrics::MetricsBasicAuthConfig {
                     enabled: true,
                     username: "prometheus".to_owned(),
-                    password_hash: hash,
+                    password_hash: aster_forge_crypto::hash_password("scrape-pass").unwrap(),
                 }),
             },
             ..ObservabilityConfig::default()
         };
         let recorder = create_metrics_recorder(&config).unwrap();
-        let provider = recorder.provider().unwrap();
         let app = actix_test::init_service(
             App::new()
                 .app_data(web::Data::new(state))
-                .app_data(web::Data::new(provider))
+                .app_data(web::Data::new(recorder.provider().unwrap()))
+                .app_data(scrape_auth_data(
+                    config.prometheus.basic_auth.as_ref().unwrap(),
+                ))
                 .configure(|cfg| crate::api::configure(cfg, &config)),
         )
         .await;
 
-        let anonymous = actix_test::TestRequest::get()
+        // Every rejected shape: empty 401, challenge header, no caching.
+        for header_value in [
+            None,
+            Some("Bearer jwt".to_owned()),
+            Some("Basic".to_owned()),
+            Some("Basic ".to_owned()),
+            Some("Basic !!".to_owned()),
+            Some("Basic Og==".to_owned()),
+            Some(format!("Basic {}", BASE64_STANDARD.encode("no-colon"))),
+            Some(format!(
+                "Basic {}",
+                BASE64_STANDARD.encode([0xff, b':', b'x'])
+            )),
+            Some(basic("prometheus", "wrong-pass")),
+            Some(basic("other", "scrape-pass")),
+        ] {
+            let mut request = actix_test::TestRequest::get().uri("/health/metrics");
+            if let Some(value) = header_value {
+                request = request.insert_header((header::AUTHORIZATION, value));
+            }
+            let response = actix_test::call_service(&app, request.to_request()).await;
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            assert_eq!(
+                response.headers().get(header::WWW_AUTHENTICATE).unwrap(),
+                "Basic realm=\"AsterYggdrasil metrics\""
+            );
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).unwrap(),
+                "no-store"
+            );
+            assert!(actix_test::read_body(response).await.is_empty());
+        }
+
+        // Valid credentials submitted twice in one request are rejected.
+        let value = basic("prometheus", "scrape-pass");
+        let duplicate = actix_test::TestRequest::get()
             .uri("/health/metrics")
+            .append_header((header::AUTHORIZATION, value.clone()))
+            .append_header((header::AUTHORIZATION, value))
             .to_request();
-        let response = actix_test::call_service(&app, anonymous).await;
+        let response = actix_test::call_service(&app, duplicate).await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(
-            response.headers().get(header::WWW_AUTHENTICATE).unwrap(),
-            "Basic realm=\"AsterYggdrasil metrics\""
-        );
+        assert!(actix_test::read_body(response).await.is_empty());
+
+        // Mixed-case scheme succeeds; success responses are not cacheable.
+        let valid = actix_test::TestRequest::get()
+            .uri("/health/metrics")
+            .insert_header((
+                header::AUTHORIZATION,
+                format!("bAsIc {}", BASE64_STANDARD.encode("prometheus:scrape-pass")),
+            ))
+            .to_request();
+        let response = actix_test::call_service(&app, valid).await;
+        assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get(header::CACHE_CONTROL).unwrap(),
             "no-store"
         );
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/plain; version=0.0.4; charset=utf-8"
+        );
+        assert!(!actix_test::read_body(response).await.is_empty());
 
-        for (credentials, expected) in [
-            (basic("prometheus", "scrape-pass"), StatusCode::OK),
-            (basic("prometheus", "wrong-pass"), StatusCode::UNAUTHORIZED),
-            (basic("other", "scrape-pass"), StatusCode::UNAUTHORIZED),
-        ] {
-            let request = actix_test::TestRequest::get()
-                .uri("/health/metrics")
-                .insert_header((header::AUTHORIZATION, credentials.clone()))
-                .to_request();
-            let response = actix_test::call_service(&app, request).await;
-            assert_eq!(response.status(), expected, "{credentials}");
-        }
+        // Authentication stays scoped to the scrape route.
+        let health = actix_test::call_service(
+            &app,
+            actix_test::TestRequest::get().uri("/health").to_request(),
+        )
+        .await;
+        assert_eq!(health.status(), StatusCode::OK);
+
         crate::runtime::shutdown::shutdown_metrics(&recorder)
             .await
             .unwrap();

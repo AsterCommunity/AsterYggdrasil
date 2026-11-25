@@ -1,9 +1,11 @@
 //! Basic authentication for the Prometheus scrape route.
 //!
-//! Credentials are verified against `RuntimeConfig`'s Argon2 worker pool, so
-//! account login and scrape auth share one bounded work budget. A missing
-//! `AppState`, unknown user or invalid password all produce the same 401 body:
-//! the route must not reveal whether a username exists.
+//! Credentials are verified by an instance-owned Argon2 runtime that is
+//! independent of login, so scrape traffic and login traffic cannot exhaust
+//! each other's password-work budget (each permit holds the full Argon2
+//! working memory). A missing `MetricsAuth`, unknown user or invalid password
+//! all produce the same empty 401: the route must not reveal which half of
+//! the pair was wrong.
 
 use actix_web::{
     Error, HttpResponse,
@@ -13,37 +15,49 @@ use actix_web::{
     middleware::Next,
     web,
 };
+use aster_forge_auth::PasswordHashRuntime;
+use aster_forge_metrics::MetricsBasicAuthConfig;
 use base64::{Engine, prelude::BASE64_STANDARD};
 
-use aster_forge_metrics::MetricsBasicAuthConfig;
-
-use crate::runtime::AppState;
-
-/// Checks the request against the configured scrape credentials.
+/// Instance-owned checker for the scrape credential.
 ///
-/// Returns `true` when Basic auth is disabled, so callers can keep the
-/// middleware mounted unconditionally.
-async fn authorized(
-    state: &AppState,
-    config: &MetricsBasicAuthConfig,
-    request: &actix_web::HttpRequest,
-) -> bool {
-    let Some((username, password)) = credentials(request) else {
-        return false;
-    };
-    // Verify before comparing the username so a wrong user still pays the
-    // same Argon2 cost as a wrong password; otherwise the response time tells
-    // a scanner which half of the pair was wrong.
-    let Ok(runtimes) = state.runtime_config().auth_runtimes() else {
-        return false;
-    };
-    let password_matches = runtimes
-        .password_hash_runtime()
-        .verify_password(&password, &config.password_hash)
-        .await
-        .map(|verification| verification.is_valid)
-        .unwrap_or(false);
-    password_matches && username == config.username
+/// One per process, shared by HTTP workers and independent of login. The
+/// default Forge budget (two concurrent Argon2 jobs) is sized for a periodic
+/// scraper; saturation fails closed instead of queueing behind login work.
+pub struct MetricsAuth {
+    config: MetricsBasicAuthConfig,
+    runtime: PasswordHashRuntime,
+}
+
+impl MetricsAuth {
+    pub fn new(config: MetricsBasicAuthConfig) -> Self {
+        Self {
+            config,
+            runtime: PasswordHashRuntime::default(),
+        }
+    }
+
+    /// Checks the request against the configured scrape credentials.
+    ///
+    /// Returns `true` when Basic auth is disabled, so the middleware can stay
+    /// mounted unconditionally. `try_verify_password` is the Forge-prescribed
+    /// shape for a static credential shared by every request: saturation
+    /// rejects immediately and reveals nothing about the username, unlike
+    /// per-account login paths that must queue to keep timings uniform.
+    pub async fn authorize(&self, request: &actix_web::HttpRequest) -> bool {
+        if !self.config.enabled {
+            return true;
+        }
+        let Some((username, password)) = credentials(request) else {
+            return false;
+        };
+        let verification = self
+            .runtime
+            .try_verify_password(&password, &self.config.password_hash)
+            .await;
+        verification
+            .is_ok_and(|verification| verification.is_valid && username == self.config.username)
+    }
 }
 
 /// Parses exactly one `Authorization: Basic` header.
@@ -87,27 +101,11 @@ pub async fn middleware(
     request: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<EitherBody<impl MessageBody>>, Error> {
-    // The scope carries its own copy of the auth block, so a test app or a
-    // future embedding that mounts only the metrics scope can still serve
-    // /metrics without inventing a runtime pool.
-    let config = request
-        .app_data::<web::Data<Option<MetricsBasicAuthConfig>>>()
-        .map(|config| config.as_ref().clone())
-        .or_else(|| {
-            request
-                .app_data::<web::Data<AppState>>()
-                .map(|state| state.config.observability.prometheus.basic_auth.clone())
-        });
-    let state = request.app_data::<web::Data<AppState>>().cloned();
-    let allowed = match (config, state) {
-        (Some(None), _) => true,
-        (Some(Some(config)), _) if !config.enabled => true,
-        (Some(Some(config)), Some(state)) => {
-            authorized(state.as_ref(), &config, request.request()).await
-        }
-        _ => false,
+    let authorized = match request.app_data::<web::Data<MetricsAuth>>() {
+        Some(auth) => auth.authorize(request.request()).await,
+        None => false,
     };
-    if !allowed {
+    if !authorized {
         return Ok(request.into_response(unauthorized()).map_into_right_body());
     }
     let mut response = next.call(request).await?.map_into_left_body();
@@ -159,15 +157,41 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn accepts_one_basic_header_and_keeps_password_colons() {
-        let parsed = credentials(&request_with(Some(&basic("scrape", "p:a:ss"))));
-        assert_eq!(parsed, Some(("scrape".to_owned(), "p:a:ss".to_owned())));
+    async fn accepts_mixed_case_scheme_and_keeps_password_colons() {
+        let mixed = format!("bAsIc {}", BASE64_STANDARD.encode("scrape:pass"));
+        assert_eq!(
+            credentials(&request_with(Some(&mixed))),
+            Some(("scrape".to_owned(), "pass".to_owned()))
+        );
         // A colon in the configured username is rejected by config validation,
         // so any colon beyond the separator belongs to the password.
         assert_eq!(
             credentials(&request_with(Some(&basic("us:er", "pass")))),
             Some(("us".to_owned(), "er:pass".to_owned()))
         );
+    }
+
+    /// An empty username/password pair parses; rejection happens in
+    /// `authorize`, because config validation never accepts an empty username.
+    #[actix_web::test]
+    async fn parses_empty_pair_from_minimal_payload() {
+        assert_eq!(
+            credentials(&request_with(Some("Basic Og=="))),
+            Some((String::new(), String::new()))
+        );
+    }
+
+    #[actix_web::test]
+    async fn rejects_non_utf8_and_duplicate_authorization_headers() {
+        let non_utf8 = format!("Basic {}", BASE64_STANDARD.encode([0xff, b':', b'x']));
+        assert!(credentials(&request_with(Some(&non_utf8))).is_none());
+
+        let value = basic("scrape", "pass");
+        let request = test::TestRequest::get()
+            .append_header((header::AUTHORIZATION, value.clone()))
+            .append_header((header::AUTHORIZATION, value))
+            .to_http_request();
+        assert!(credentials(&request).is_none());
     }
 
     #[actix_web::test]
@@ -181,6 +205,52 @@ mod tests {
         assert_eq!(
             response.headers().get(header::CACHE_CONTROL).unwrap(),
             "no-store"
+        );
+    }
+
+    /// Disabled auth authorizes without touching credentials at all, so a
+    /// mis-typed or malicious header cannot wedge the scrape path.
+    #[actix_web::test]
+    async fn disabled_config_authorizes_without_parsing_credentials() {
+        let auth = MetricsAuth::new(MetricsBasicAuthConfig::default());
+        assert!(auth.authorize(&request_with(Some("Bearer jwt"))).await);
+        assert!(auth.authorize(&request_with(Some("Basic !!"))).await);
+    }
+
+    /// The checker binds its credential snapshot at construction (AsterDrive
+    /// parity): a rotated verifier lives in a new `MetricsAuth`, which rejects
+    /// the stale password and accepts the new one.
+    #[actix_web::test]
+    async fn credential_rotation_uses_the_construction_snapshot() {
+        let policy = aster_forge_crypto::PasswordHashPolicy::new(
+            aster_forge_crypto::PasswordHashWorkFactor::new(8, 1, 1, 32).unwrap(),
+            aster_forge_crypto::PasswordHashVerificationLimits::new(8, 1, 1, 32).unwrap(),
+        )
+        .unwrap();
+        let checker_for = |password_hash: &str| {
+            MetricsAuth::new(MetricsBasicAuthConfig {
+                enabled: true,
+                username: "prometheus".into(),
+                password_hash: password_hash.to_owned(),
+            })
+        };
+        let first =
+            checker_for(&aster_forge_crypto::hash_password_with_policy("first", &policy).unwrap());
+        let valid = request_with(Some(&basic("prometheus", "first")));
+        assert!(first.authorize(&valid).await);
+        assert!(
+            !first
+                .authorize(&request_with(Some(&basic("prometheus", "second"))))
+                .await
+        );
+
+        let rotated =
+            checker_for(&aster_forge_crypto::hash_password_with_policy("second", &policy).unwrap());
+        assert!(!rotated.authorize(&valid).await);
+        assert!(
+            rotated
+                .authorize(&request_with(Some(&basic("prometheus", "second"))))
+                .await
         );
     }
 }

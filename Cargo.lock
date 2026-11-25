@@ -986,6 +986,7 @@ checksum = "43222f500554fd0fe45493e0add97af684ba663f474608faefe5ee6cab5beb47"
 dependencies = [
  "aster_forge_alloc",
  "aster_forge_config",
+ "aster_forge_crypto",
  "aster_forge_http",
  "aster_forge_runtime",
  "hashbrown 0.17.1",

@@ -48,22 +48,21 @@ impl ObservabilityConfig {
             ));
         }
         #[cfg(feature = "metrics")]
-        if let Some(auth) = self
+        if self
             .prometheus
             .basic_auth
             .as_ref()
-            .filter(|auth| auth.enabled)
+            .is_some_and(|auth| auth.enabled)
         {
-            if !self.prometheus.enabled {
-                return Err(crate::errors::AsterError::config_error(
-                    "prometheus basic auth requires [observability.prometheus] enabled",
-                ));
-            }
+            // Forge owns the field rules (username shape, PHC verifier, Debug
+            // redaction). Validating the real exporter state through a Forge
+            // `ObservabilityConfig` reuses them wholesale, including the
+            // "basic_auth requires the Prometheus endpoint" check.
             let forge = aster_forge_metrics::ObservabilityConfig {
                 environment: self.environment.clone(),
                 prometheus: aster_forge_metrics::PrometheusSettings {
-                    enabled: true,
-                    basic_auth: Some(auth.clone()),
+                    enabled: self.prometheus.enabled,
+                    basic_auth: self.prometheus.basic_auth.clone(),
                 },
                 otlp_metrics: Default::default(),
             };
@@ -228,6 +227,32 @@ mod tests {
         assert!(!debug.contains("127.0.0.1"));
     }
 
+    /// The staged auth section lands in config even while disabled, mirroring
+    /// AsterDrive's deserialize round-trip; values are only validated when the
+    /// section is switched on.
+    #[test]
+    fn basic_auth_section_parses_from_toml_while_disabled() {
+        let config: Config = toml::from_str(
+            r#"
+            [observability.prometheus]
+            enabled = false
+            [observability.prometheus.basic_auth]
+            enabled = false
+            username = "file-user"
+            password_hash = "file-hash"
+            "#,
+        )
+        .unwrap();
+        let auth = config
+            .observability
+            .prometheus
+            .basic_auth
+            .expect("auth section must deserialize");
+        assert!(!auth.enabled);
+        assert_eq!(auth.username, "file-user");
+        assert_eq!(auth.password_hash, "file-hash");
+    }
+
     #[cfg(feature = "metrics")]
     #[test]
     fn validate_rejects_invalid_deployment_identity_only_when_exporters_enabled() {
@@ -306,7 +331,7 @@ mod tests {
                 &aster_forge_crypto::hash_password("secret").unwrap(),
             );
             let error = config.validate().unwrap_err();
-            assert!(error.message().contains("basic auth requires"), "{error}");
+            assert!(error.message().contains("basic_auth requires"), "{error}");
         }
 
         /// Username rules: non-empty, no ':' (it would split the Basic payload
@@ -337,6 +362,7 @@ mod tests {
             config.validate().unwrap();
             let debug = format!("{config:?}");
             assert!(!debug.contains(&hash), "verifier leaked through Debug");
+            assert!(!debug.contains("scrape"), "username leaked through Debug");
         }
 
         /// A disabled block may hold staged values: they must not block startup.
@@ -352,6 +378,7 @@ mod tests {
         for section in [
             "observability",
             "observability.prometheus",
+            "observability.prometheus.basic_auth",
             "observability.otlp_metrics",
         ] {
             let config = format!("[{section}]\nenabeld = true");
