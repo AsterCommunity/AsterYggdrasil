@@ -72,6 +72,16 @@ fn build_http_service_component(
 ) -> io::Result<RuntimeServiceComponent<actix_web::dev::Server>> {
     let shutdown_data = web::Data::new(shutdown_token.clone());
     let observability = state.config().observability.clone();
+    // One scrape-auth checker per process, shared by all HTTP workers and
+    // independent of login's Argon2 work budget.
+    #[cfg(feature = "metrics")]
+    let metrics_auth = web::Data::new(crate::api::middleware::metrics_auth::MetricsAuth::new(
+        observability
+            .prometheus
+            .basic_auth
+            .clone()
+            .unwrap_or_default(),
+    ));
     let server = HttpServer::new(move || {
         // The Prometheus export resource reads the instance-owned Forge provider
         // from app data. Only inject it when the pull exporter is configured.
@@ -83,6 +93,8 @@ fn build_http_service_component(
         };
         #[cfg(not(feature = "metrics"))]
         let app = App::new();
+        #[cfg(feature = "metrics")]
+        let app = app.app_data(metrics_auth.clone());
         app.wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             .wrap(aster_forge_middleware::actix::request_id::RequestIdMiddleware)
