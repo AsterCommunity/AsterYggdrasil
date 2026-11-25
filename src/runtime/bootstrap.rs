@@ -117,11 +117,22 @@ mod tests {
     #[test]
     fn unavailable_crash_log_does_not_replace_the_blocking_directory() {
         let root = aster_forge_test::temp::TestTempDir::new("panic-report-unavailable");
-        let blocked = root.path().join("data");
+        // The destination itself is a directory (AsterDrive pattern): try_new
+        // must fail on every platform without touching the blocked path.
+        let blocked = root.path().join("crash.log");
         std::fs::create_dir(&blocked).unwrap();
 
-        let writer = prepare_report_writer(&blocked);
+        let writer = prepare_report_writer(root.path());
         assert!(writer.write_report("panic report").is_err());
-        assert_eq!(std::fs::read_dir(&blocked).unwrap().count(), 0);
+        assert_eq!(
+            std::fs::read_dir(&blocked).unwrap().count(),
+            0,
+            "the blocking directory must stay empty"
+        );
+        assert_eq!(
+            std::fs::read_dir(root.path()).unwrap().count(),
+            1,
+            "no sibling crash-report artifacts may appear"
+        );
     }
 }

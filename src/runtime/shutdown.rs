@@ -111,14 +111,11 @@ mod tests {
         assert!(recorder.provider().unwrap().shutdown_result().is_some());
     }
 
-    #[cfg(feature = "metrics")]
-    #[tokio::test]
-    async fn audit_preservation_failure_still_drains_metrics_and_wins_the_error() {
-        use super::finish_runtime_with_recovery;
+    /// A writer that cannot confirm its records: the drain deadline passes with
+    /// the record still unconfirmed.
+    async fn failed_audit_writer() -> AuditWriter {
         use aster_forge_db::AuditLogCreate;
 
-        // A writer that cannot confirm its records: the tail must preserve them
-        // AND still run the metrics drain, with the audit error taking priority.
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let writer = AuditWriter::new(db);
         writer.start().await.unwrap();
@@ -142,14 +139,26 @@ mod tests {
                 .await
                 .is_err()
         );
+        writer
+    }
 
+    fn prometheus_recorder() -> aster_forge_metrics::SharedMetricsRecorder {
         let mut config = crate::config::metrics::ObservabilityConfig::default();
         config.prometheus.enabled = true;
-        let recorder = crate::runtime::metrics::create_metrics_recorder(&config)
-            .expect("Prometheus recorder should initialize");
+        crate::runtime::metrics::create_metrics_recorder(&config)
+            .expect("Prometheus recorder should initialize")
+    }
+
+    #[cfg(feature = "metrics")]
+    #[tokio::test]
+    async fn audit_error_wins_and_metrics_still_drains_on_any_platform() {
+        use super::finish_runtime_with_recovery;
+
+        let writer = failed_audit_writer().await;
+        let recorder = prometheus_recorder();
 
         let temp = aster_forge_test::temp::TestTempDir::new("shutdown-audit-recovery");
-        let recovery_dir = temp.path().canonicalize().unwrap().join("audit-recovery");
+        let recovery_dir = temp.path().join("audit-recovery");
         let error = finish_runtime_with_recovery(Ok(()), &writer, &recorder, &recovery_dir)
             .await
             .expect_err("unconfirmed audit records must fail the shutdown tail");
@@ -158,17 +167,40 @@ mod tests {
             "{error}"
         );
         assert!(
+            recorder.provider().unwrap().shutdown_result().is_some(),
+            "the metrics drain must still run after the audit tail fails"
+        );
+    }
+
+    /// Forge's recovery files only exist on unix; other platforms fail closed
+    /// before writing anything.
+    #[cfg(all(feature = "metrics", unix))]
+    #[tokio::test]
+    async fn audit_preservation_writes_exactly_one_recovery_envelope() {
+        use super::finish_runtime_with_recovery;
+
+        let writer = failed_audit_writer().await;
+        let recorder = prometheus_recorder();
+
+        // Forge opens every path component with NOFOLLOW, so the target must be
+        // fully resolved (macOS /var is a symlink).
+        let temp = aster_forge_test::temp::TestTempDir::new("shutdown-audit-recovery-files");
+        let recovery_dir = temp.path().canonicalize().unwrap().join("audit-recovery");
+        let error = finish_runtime_with_recovery(Ok(()), &writer, &recorder, &recovery_dir)
+            .await
+            .expect_err("unconfirmed audit records must fail the shutdown tail");
+        assert!(
+            error.to_string().contains("saved to"),
+            "unix drains report the preservation path: {error}"
+        );
+        assert_eq!(
             std::fs::read_dir(&recovery_dir)
                 .expect("recovery directory should exist")
                 .filter_map(Result::ok)
                 .filter(|entry| entry.file_name().to_string_lossy().starts_with("audit-"))
-                .count()
-                == 1,
+                .count(),
+            1,
             "the failed drain should leave exactly one recovery envelope"
-        );
-        assert!(
-            recorder.provider().unwrap().shutdown_result().is_some(),
-            "the metrics drain must still run after the audit tail fails"
         );
     }
 
