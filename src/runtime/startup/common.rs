@@ -12,8 +12,24 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
             AsterError::config_error(format!("failed to create runtime temp dir: {error}"))
         })?;
 
-    let metrics = crate::runtime::metrics::create_metrics_recorder(&config.observability)?;
-    let result = prepare_state(config, &metrics).await;
+    // Configs built in memory bypass the loader pipeline, so the loader's
+    // exact sequence — section validation, then the root cross-section pass —
+    // runs again at the runtime entry.
+    aster_forge_config::ConfigSections::validate_sections(config.as_ref())
+        .map_err(|error| AsterError::config_error(error.to_string()))?;
+    aster_forge_config::ValidatableConfig::validate(config.as_ref())
+        .map_err(|error| AsterError::config_error(error.to_string()))?;
+
+    let config_sync = aster_forge_config::build_config_sync_runtime(
+        &config.config_sync,
+        crate::services::ops::config::runtime::CONFIG_RELOAD_NAMESPACE,
+    )
+    .map_err(crate::services::ops::config::runtime::map_config_core_error)?;
+    let metrics = crate::runtime::metrics::create_metrics_recorder(
+        &config.observability,
+        config_sync.runtime_id(),
+    )?;
+    let result = prepare_state(config, &metrics, config_sync).await;
     if result.is_err() {
         // Preserve the startup failure if draining the exporter also fails.
         let _shutdown = crate::runtime::shutdown::shutdown_metrics(&metrics).await;
@@ -24,6 +40,7 @@ pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
 async fn prepare_state(
     config: Arc<Config>,
     metrics: &aster_forge_metrics::SharedMetricsRecorder,
+    config_sync: aster_forge_config::ConfigSyncRuntime,
 ) -> Result<AppState> {
     let db_handles =
         crate::db::runtime::prepare_database_handles(&config.database, metrics.clone()).await?;
@@ -42,11 +59,6 @@ async fn prepare_state(
         .await?;
     let cache = create_runtime_cache(config.as_ref()).await?;
     let texture_storage = texture_storage::create_texture_store(&config.texture_storage)?;
-    let config_sync = aster_forge_config::build_config_sync_runtime(
-        &config.config_sync,
-        crate::services::ops::config::runtime::CONFIG_RELOAD_NAMESPACE,
-    )
-    .map_err(crate::services::ops::config::runtime::map_config_core_error)?;
 
     let audit_writer = std::sync::Arc::new(aster_forge_audit::AuditWriter::new(
         db_handles.writer().clone(),

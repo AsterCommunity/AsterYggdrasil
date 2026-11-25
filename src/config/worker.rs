@@ -27,20 +27,22 @@ impl Default for WorkerConfig {
     }
 }
 
-impl WorkerConfig {
-    pub fn validate(&self) -> crate::errors::Result<()> {
+impl aster_forge_config::ValidatableConfig for WorkerConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
         if self
             .drain_timeout_secs
             .checked_add(self.cancellation_timeout_secs)
             .is_none_or(|sum| sum > 86_400)
         {
-            return Err(crate::errors::AsterError::config_error(
+            return Err(aster_forge_config::ConfigCoreError::invalid_value(
                 "worker shutdown budget must not exceed 24 hours",
             ));
         }
         Ok(())
     }
+}
 
+impl WorkerConfig {
     pub fn consumer_config(&self) -> aster_forge_tasks::TaskConsumerConfig {
         aster_forge_tasks::TaskConsumerConfig {
             drain_timeout: Duration::from_secs(self.drain_timeout_secs),
@@ -52,6 +54,7 @@ impl WorkerConfig {
 #[cfg(test)]
 mod tests {
     use super::WorkerConfig;
+    use aster_forge_config::ValidatableConfig as _;
     use std::time::Duration;
 
     #[test]

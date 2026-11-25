@@ -9,7 +9,7 @@ use actix_web::{HttpResponse, web};
 const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
 const READY_RUNTIME_UNAVAILABLE_MESSAGE: &str = "Runtime unavailable";
 
-pub fn routes(observability: &crate::config::metrics::ObservabilityConfig) -> actix_web::Scope {
+pub fn routes(observability: &aster_forge_metrics::ObservabilityConfig) -> actix_web::Scope {
     let scope = web::scope("/health")
         .route("", web::get().to(health))
         .route("", web::head().to(health))

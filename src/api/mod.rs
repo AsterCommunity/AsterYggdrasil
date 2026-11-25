@@ -21,7 +21,7 @@ use actix_web::web;
 
 pub fn configure(
     cfg: &mut web::ServiceConfig,
-    observability: &crate::config::metrics::ObservabilityConfig,
+    observability: &aster_forge_metrics::ObservabilityConfig,
 ) {
     cfg.service(web::scope(DEFAULT_YGGDRASIL_API_ROOT).configure(routes::yggdrasil::configure));
 

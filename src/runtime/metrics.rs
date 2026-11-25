@@ -1,30 +1,36 @@
 //! Runtime metrics recorder initialization.
 //!
-//! Provider construction lives on [`crate::config::metrics::ObservabilityConfig`]
-//! (mirroring AsterDrive); this module only wraps the Forge provider into the
-//! instance-owned recorder used across the application.
+//! Provider assembly and validation live in Forge
+//! ([`aster_forge_metrics::ObservabilityConfig::create_provider`]); this module
+//! only wraps the Forge provider into the instance-owned recorder used across
+//! the application.
 
 use std::sync::Arc;
 
-use aster_forge_metrics::{InfrastructureMetricsRecorder, SharedMetricsRecorder};
+use aster_forge_metrics::{
+    InfrastructureMetricsRecorder, ObservabilityConfig, SharedMetricsRecorder,
+};
 
-use crate::config::metrics::ObservabilityConfig;
 use crate::errors::{AsterError, Result};
 
 /// Creates one recorder from the startup configuration.
 ///
 /// The Forge provider is instance-owned: the Prometheus export path reads it from
 /// the recorder (`MetricsRecorder::provider`), and no global SDK provider is installed.
-pub fn create_metrics_recorder(config: &ObservabilityConfig) -> Result<SharedMetricsRecorder> {
-    if config.prometheus.enabled && !config.prometheus_enabled() {
+pub fn create_metrics_recorder(
+    config: &ObservabilityConfig,
+    instance_id: &str,
+) -> Result<SharedMetricsRecorder> {
+    if config.prometheus.enabled && !cfg!(feature = "metrics") {
         tracing::warn!("Prometheus is configured but this build lacks the metrics feature");
     }
-    if config.otlp_metrics.enabled && !config.otlp_enabled() {
+    if config.otlp_metrics.enabled && !cfg!(feature = "otlp-metrics") {
         tracing::warn!("OTLP metrics are configured but this build lacks the otlp-metrics feature");
     }
-    let provider = config.create_provider().map_err(|error| {
-        AsterError::config_error(format!("failed to configure observability: {error}"))
-    })?;
+    let provider =
+        crate::config::metrics::create_provider(config, instance_id).map_err(|error| {
+            AsterError::config_error(format!("failed to configure observability: {error}"))
+        })?;
     if !provider.enabled() {
         return Ok(aster_forge_metrics::NoopMetrics::arc());
     }
@@ -56,9 +62,8 @@ mod tests {
     async fn disabled_metrics_leave_health_up_and_scrape_unavailable() {
         crate::runtime::test_support::ensure_static_config();
         let config = ObservabilityConfig::default();
-        assert!(!config.create_provider().unwrap().enabled());
         assert!(
-            create_metrics_recorder(&config)
+            create_metrics_recorder(&config, "test-instance")
                 .unwrap()
                 .provider()
                 .is_none()
@@ -86,7 +91,12 @@ mod tests {
         config.prometheus.enabled = !cfg!(feature = "metrics");
         config.otlp_metrics.enabled = !cfg!(feature = "otlp-metrics");
         config.otlp_metrics.endpoint = "not an endpoint".into();
-        assert!(!config.create_provider().unwrap().enabled());
+        assert!(
+            create_metrics_recorder(&config, "test-instance")
+                .unwrap()
+                .provider()
+                .is_none()
+        );
     }
 
     #[cfg(feature = "metrics")]
@@ -98,7 +108,7 @@ mod tests {
             ..ObservabilityConfig::default()
         };
         config.prometheus.enabled = true;
-        let recorder = create_metrics_recorder(&config).unwrap();
+        let recorder = create_metrics_recorder(&config, "test-instance").unwrap();
         recorder.record_http_request("GET", "http", "/health", 200, 0.01);
         let app = actix_test::init_service(
             App::new()
@@ -116,6 +126,16 @@ mod tests {
         let exposition = std::str::from_utf8(&body).unwrap();
         assert!(exposition.contains("deployment_environment_name=\"staging\""));
         assert!(exposition.contains("service_name=\"asteryggdrasil\""));
+        assert!(exposition.contains("service_namespace=\"com.astercosm.yggdrasil\""));
+        assert!(exposition.contains("service_instance_id=\"test-instance\""));
+        assert!(exposition.contains("aster_role=\"server\""));
+        assert!(
+            exposition.contains(&format!(
+                "aster_metrics_schema_version=\"{}\"",
+                aster_forge_metrics::METRICS_PROFILE_VERSION
+            )),
+            "exposition must carry the Forge profile schema token"
+        );
         crate::runtime::shutdown::shutdown_metrics(&recorder)
             .await
             .unwrap();
@@ -131,7 +151,9 @@ mod tests {
             .otlp_metrics
             .headers
             .insert("Authorization".into(), "Bearer test-secret".into());
-        let error = create_metrics_recorder(&config).err().unwrap();
+        let error = create_metrics_recorder(&config, "test-instance")
+            .err()
+            .unwrap();
         assert!(error.message().contains("observability"));
         assert!(!error.message().contains("test-secret"));
     }
@@ -180,7 +202,7 @@ mod tests {
             config.prometheus.enabled = prometheus;
             config.otlp_metrics.enabled = true;
             config.otlp_metrics.endpoint = endpoint.clone();
-            let recorder = create_metrics_recorder(&config).unwrap();
+            let recorder = create_metrics_recorder(&config, "test-instance").unwrap();
             let provider = recorder.provider().unwrap();
             assert!(provider.enabled());
             recorder.record_http_request("GET", "http", "/health", 200, 0.01);
@@ -193,6 +215,18 @@ mod tests {
                 body.windows(config.environment.len())
                     .any(|bytes| bytes == config.environment.as_bytes())
             );
+            // The OTLP Resource must carry the product namespace and the Forge
+            // profile schema token (issue #21 acceptance).
+            for identity_marker in [
+                "com.astercosm.yggdrasil",
+                aster_forge_metrics::METRICS_PROFILE_VERSION,
+            ] {
+                assert!(
+                    body.windows(identity_marker.len())
+                        .any(|bytes| bytes == identity_marker.as_bytes()),
+                    "OTLP payload must carry {identity_marker}"
+                );
+            }
 
             let app = App::new().app_data(web::Data::new(provider.clone()));
             #[cfg(feature = "metrics")]
@@ -237,7 +271,7 @@ mod tests {
         crate::runtime::test_support::ensure_static_config();
         let state = crate::runtime::test_support::setup_state().await;
         let config = ObservabilityConfig {
-            prometheus: crate::config::metrics::PrometheusConfig {
+            prometheus: aster_forge_metrics::PrometheusSettings {
                 enabled: true,
                 basic_auth: Some(aster_forge_metrics::MetricsBasicAuthConfig {
                     enabled: true,
@@ -247,7 +281,7 @@ mod tests {
             },
             ..ObservabilityConfig::default()
         };
-        let recorder = create_metrics_recorder(&config).unwrap();
+        let recorder = create_metrics_recorder(&config, "test-instance").unwrap();
         let app = actix_test::init_service(
             App::new()
                 .app_data(web::Data::new(state))
