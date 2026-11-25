@@ -6,6 +6,7 @@
 	"nav": {
 		"home": "首页",
 		"account": "工作台",
+		"backToAccount": "返回工作台",
 		"profiles": "角色档案",
 		"textureLibrary": "材质库",
 		"wardrobe": "衣柜",
