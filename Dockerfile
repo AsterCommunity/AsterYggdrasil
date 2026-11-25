@@ -4,8 +4,10 @@ FROM node:24-alpine AS frontend
 RUN npm install -g bun@latest
 
 WORKDIR /build/frontend-panel
-COPY frontend-panel/package.json ./
-RUN bun install
+# bunfig.toml must land before `bun install`: it enforces the 1-day
+# minimum-release-age cooldown; bun.lock keeps the install reproducible.
+COPY frontend-panel/package.json frontend-panel/bunfig.toml frontend-panel/bun.lock ./
+RUN bun install --frozen-lockfile
 
 COPY frontend-panel/ ./
 RUN bun run build
