@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { usePollingTexturePreview } from "@/hooks/usePollingTexturePreview";
 import { cn } from "@/lib/utils";
 import type { PublicTextureLibraryTextureMetadata } from "@/types/api";
 import { MinecraftSkinAvatar } from "./MinecraftSkinAvatar";
@@ -28,6 +29,13 @@ export function TextureLibraryTextureAvatar({
 			type: t(`wardrobe.type.${texture.texture_type}`),
 		});
 
+	// Skins render through the player avatar (raw texture URL); only the
+	// non-skin slot consumes the generated preview, so skins never fetch it.
+	const { src } = usePollingTexturePreview(
+		texture.texture_type === "skin" ? null : texture.preview_url,
+		texture.url,
+	);
+
 	if (texture.texture_type === "skin") {
 		return (
 			<MinecraftSkinAvatar
@@ -51,7 +59,7 @@ export function TextureLibraryTextureAvatar({
 			title={label}
 		>
 			<img
-				src={texture.preview_url ?? texture.url}
+				src={src}
 				alt=""
 				crossOrigin="anonymous"
 				draggable={false}

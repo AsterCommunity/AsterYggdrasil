@@ -37,10 +37,14 @@ mod tests {
     use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
     #[test]
-    fn fallback_lane_contains_system_runtime_tasks() {
+    fn fallback_lane_contains_every_queued_task_kind() {
         assert_eq!(TASK_LANES, [TaskLane::Fallback]);
         assert_eq!(
             task_lane(BackgroundTaskKind::SystemRuntime),
+            TaskLane::Fallback
+        );
+        assert_eq!(
+            task_lane(BackgroundTaskKind::TexturePreviewGenerate),
             TaskLane::Fallback
         );
 
@@ -50,7 +54,13 @@ mod tests {
             limit: 4,
             cluster_limit: Some(4),
         };
-        assert_eq!(config.kinds, &[BackgroundTaskKind::SystemRuntime]);
+        assert_eq!(
+            config.kinds,
+            &[
+                BackgroundTaskKind::SystemRuntime,
+                BackgroundTaskKind::TexturePreviewGenerate
+            ]
+        );
         assert_eq!(config.cluster_limit, Some(4));
     }
 }

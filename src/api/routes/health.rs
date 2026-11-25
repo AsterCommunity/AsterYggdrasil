@@ -8,6 +8,7 @@ use actix_web::{HttpResponse, web};
 
 const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
 const READY_RUNTIME_UNAVAILABLE_MESSAGE: &str = "Runtime unavailable";
+const READY_ROLE_NOT_READY_MESSAGE: &str = "Process role is initializing or draining";
 
 pub fn routes(observability: &aster_forge_metrics::ObservabilityConfig) -> actix_web::Scope {
     let scope = web::scope("/health")
@@ -26,10 +27,15 @@ pub fn routes(observability: &aster_forge_metrics::ObservabilityConfig) -> actix
     operation_id = "health",
     responses(
         (status = 200, description = "Service is healthy", body = inline(HealthResponse)),
+        (status = 503, description = "Role is initializing or a local task worker stopped", body = inline(HealthResponse)),
     ),
 )]
-pub async fn health() -> HttpResponse {
+pub async fn health(role: Option<web::Data<crate::runtime::role::RoleHealth>>) -> HttpResponse {
     tracing::debug!("serving health probe");
+    if role.as_ref().is_some_and(|role| !role.live()) {
+        return HttpResponse::ServiceUnavailable()
+            .json(status_response("initializing_or_worker_stopped"));
+    }
     HttpResponse::Ok().json(status_response("ok"))
 }
 
@@ -40,11 +46,22 @@ pub async fn health() -> HttpResponse {
     operation_id = "ready",
     responses(
         (status = 200, description = "Service is ready", body = inline(ApiResponse<HealthResponse>)),
-        (status = 503, description = "Database is unavailable"),
+        (status = 503, description = "Database is unavailable or the process role is not ready"),
     ),
 )]
-pub async fn ready(state: web::Data<AppState>) -> HttpResponse {
+pub async fn ready(
+    state: web::Data<AppState>,
+    role: Option<web::Data<crate::runtime::role::RoleHealth>>,
+) -> HttpResponse {
     tracing::debug!("serving readiness probe");
+    if role.as_ref().is_some_and(|role| !role.ready()) {
+        tracing::debug!("readiness probe rejected: process role is not ready");
+        return HttpResponse::ServiceUnavailable().json(ApiResponse::<()>::error_body(
+            AsterErrorCode::RuntimeUnavailable,
+            READY_ROLE_NOT_READY_MESSAGE,
+            Some(true),
+        ));
+    }
     match health::check_ready(state.get_ref()).await {
         Ok(_) => {
             tracing::debug!("readiness probe succeeded");

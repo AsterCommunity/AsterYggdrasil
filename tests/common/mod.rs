@@ -478,6 +478,39 @@ pub async fn setup() -> AppState {
     setup_with_database_url(&database_url).await
 }
 
+/// Like [`setup`], but with storage and temp roots isolated to a fresh temp
+/// directory, so tests that touch preview caches never see objects written by
+/// other tests (or by a developer's local instance running in this directory).
+pub async fn setup_with_isolated_storage() -> AppState {
+    let base = setup().await;
+    let root = std::env::temp_dir().join(format!(
+        "asteryggdrasil-isolated-storage-{}",
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(root.join("tmp")).expect("isolated storage root should create");
+
+    let mut config = (*base.config).clone();
+    config.texture_storage.local_root = root.join("storage").to_string_lossy().into_owned();
+    config.server.temp_dir = root.join("tmp").to_string_lossy().into_owned();
+    let config = std::sync::Arc::new(config);
+
+    AppState::from_parts(AppStateParts {
+        db_handles: base.db_handles,
+        config: config.clone(),
+        runtime_config: base.runtime_config,
+        cache: base.cache,
+        texture_storage: aster_yggdrasil::texture_storage::create_texture_store(
+            &config.texture_storage,
+        )
+        .expect("isolated object storage should initialize"),
+        mail_sender: aster_forge_mail::memory_sender(),
+        config_sync: aster_forge_config::ConfigSyncRuntime::disabled_for_test("aster_yggdrasil"),
+        metrics: base.metrics,
+        audit_writer: base.audit_writer,
+    })
+    .expect("isolated-storage test AppState should build")
+}
+
 pub async fn setup_with_memory_cache() -> AppState {
     let base = setup().await;
     let cache_config = aster_forge_cache::CacheConfig {

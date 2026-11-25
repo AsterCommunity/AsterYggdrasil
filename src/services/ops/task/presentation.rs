@@ -30,6 +30,13 @@ fn title_message(payload: &TaskPayload) -> Option<TaskPresentationMessage> {
                 BTreeMap::<String, serde_json::Value>::new(),
             )
         }),
+        TaskPayload::TexturePreviewGenerate(payload) => Some(message(
+            TaskPresentationCode::TexturePreviewGenerateHash,
+            BTreeMap::from([(
+                "texture_hash".to_string(),
+                serde_json::Value::String(payload.texture_hash.clone()),
+            )]),
+        )),
     }
 }
 

@@ -16,6 +16,7 @@ mod spec;
 mod steps;
 #[cfg(test)]
 mod tests;
+pub(crate) mod texture_preview;
 pub mod types;
 
 use chrono::{Duration, Utc};

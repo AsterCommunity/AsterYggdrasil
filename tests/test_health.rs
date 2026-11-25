@@ -4,8 +4,128 @@
 mod common;
 
 use actix_web::test;
+use actix_web::web;
 use aster_yggdrasil::api::error_code::AsterErrorCode;
+use aster_yggdrasil::runtime::role::{RoleHealth, ServeRole};
 use serde_json::Value;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
+/// Mounts only the health scope with an explicit role health handle, mirroring
+/// what a role-gated process exposes.
+async fn probe_app_with_role(
+    state: aster_yggdrasil::runtime::AppState,
+    role_health: RoleHealth,
+) -> impl actix_web::dev::Service<
+    actix_http::Request,
+    Response = actix_web::dev::ServiceResponse,
+    Error = actix_web::Error,
+> {
+    let observability = state.config().observability.clone();
+    test::init_service(
+        actix_web::App::new()
+            .app_data(web::Data::new(state))
+            .app_data(web::Data::new(role_health))
+            .service(aster_yggdrasil::api::routes::health::routes(&observability)),
+    )
+    .await
+}
+
+fn role_health(role: ServeRole, initialized: bool) -> RoleHealth {
+    let consumers = if role.consumes_tasks() {
+        vec![aster_forge_tasks::TaskRuntimeStatus::default()]
+    } else {
+        Vec::new()
+    };
+    RoleHealth {
+        role,
+        consumers,
+        shutdown: Default::default(),
+        initialized: Arc::new(AtomicBool::new(initialized)),
+    }
+}
+
+#[actix_web::test]
+async fn uninitialized_role_probe_reports_not_live_and_not_ready() {
+    let state = common::setup().await;
+    let app = probe_app_with_role(state, role_health(ServeRole::Worker, false)).await;
+
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
+    assert_eq!(resp.status(), 503);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["status"], "initializing_or_worker_stopped");
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/health/ready").to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), 503);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["code"], AsterErrorCode::RuntimeUnavailable.as_str());
+    assert_eq!(body["msg"], "Process role is initializing or draining");
+    assert_eq!(body["error"]["retryable"], true);
+}
+
+#[actix_web::test]
+async fn api_role_probe_is_ready_after_initialization() {
+    let state = common::setup().await;
+    let app = probe_app_with_role(state, role_health(ServeRole::Api, true)).await;
+
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
+    assert_eq!(resp.status(), 200);
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/health/ready").to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["status"], "ready");
+}
+
+#[actix_web::test]
+async fn worker_role_with_unstarted_consumer_stays_unready_but_shows_role_gate() {
+    let state = common::setup().await;
+    let app = probe_app_with_role(state, role_health(ServeRole::Worker, true)).await;
+
+    // The consumer status in this fixture never started, so the role gate
+    // alone must reject readiness even though the database is healthy.
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/health/ready").to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), 503);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["msg"], "Process role is initializing or draining");
+
+    // Liveness is also gated on a running consumer while not draining.
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
+    assert_eq!(resp.status(), 503);
+}
+
+#[actix_web::test]
+async fn draining_role_stays_live_but_leaves_readiness() {
+    let state = common::setup().await;
+    let role_health = {
+        let role = role_health(ServeRole::Api, true);
+        role.shutdown.cancel();
+        role
+    };
+    let app = probe_app_with_role(state, role_health).await;
+
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
+    assert_eq!(resp.status(), 200, "a draining process must stay live");
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/health/ready").to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), 503, "a draining process must leave rotation");
+}
 
 #[actix_web::test]
 async fn health_returns_ok() {

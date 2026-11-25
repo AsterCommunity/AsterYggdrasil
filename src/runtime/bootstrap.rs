@@ -17,8 +17,15 @@ pub struct BootstrappedRuntime {
 }
 
 /// Installs process hooks, loads configuration, initializes logging, and prepares runtime state.
-pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
-    install_panic_hook();
+pub async fn bootstrap(
+    location: &crate::config::loader::ConfigLocation,
+) -> crate::errors::Result<BootstrappedRuntime> {
+    // Crash reports follow the instance data directory, not the working directory.
+    install_panic_hook(
+        &location
+            .base_dir()
+            .join(crate::utils::paths::DEFAULT_DATA_DIR),
+    );
     dotenvy::dotenv().ok();
 
     // Forge JWT signing requires the crypto backend to be initialized before the
@@ -27,7 +34,7 @@ pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
         tracing::warn!(%error, "JWT crypto provider was already initialized");
     }
 
-    let config = crate::config::init_config()?;
+    let config = crate::config::init_config_at(location)?;
     crate::api::middleware::csrf::init_token_names_from_auth_config(&config.auth)?;
 
     let logging = aster_forge_logging::init_logging(&config.logging);
@@ -43,8 +50,8 @@ pub async fn bootstrap() -> crate::errors::Result<BootstrappedRuntime> {
     })
 }
 
-fn install_panic_hook() {
-    let writer = prepare_report_writer(Path::new(crate::utils::paths::DEFAULT_DATA_DIR));
+fn install_panic_hook(data_dir: &Path) {
+    let writer = prepare_report_writer(data_dir);
     aster_forge_panic::install_panic_hook(
         aster_forge_panic::PanicHookConfig::new(
             "AsterYggdrasil",

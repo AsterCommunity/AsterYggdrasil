@@ -1,6 +1,12 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdminTextureLibraryTexturesPage from "@/pages/admin/AdminTextureLibraryTexturesPage";
 import type { AdminTextureLibraryPage } from "@/types/api";
 
@@ -37,6 +43,14 @@ vi.mock("react-i18next", () => ({
 vi.mock("sonner", () => ({
 	toast: toastMock,
 }));
+
+// Texture avatars fetch their generated preview; the preview URL resolves to
+// a blob object URL in tests. The raw texture is shown until it resolves.
+let previewObjectUrlCounter = 0;
+const previewObjectUrls: string[] = [];
+let previewFetchSpy: ReturnType<typeof vi.spyOn> | undefined;
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
 
 vi.mock("@/components/yggdrasil/MinecraftPreview", () => ({
 	MinecraftPreview: ({
@@ -186,6 +200,30 @@ function topDialog() {
 	return dialog as HTMLElement;
 }
 
+afterEach(() => {
+	previewFetchSpy?.mockRestore();
+	URL.createObjectURL = originalCreateObjectURL;
+	URL.revokeObjectURL = originalRevokeObjectURL;
+});
+
+beforeEach(() => {
+	previewObjectUrls.length = 0;
+	// Patch the static methods only: replacing the URL constructor entirely
+	// breaks router code that calls `new URL(...)`.
+	URL.createObjectURL = vi.fn(() => {
+		previewObjectUrlCounter += 1;
+		const url = `blob:preview-${previewObjectUrlCounter}`;
+		previewObjectUrls.push(url);
+		return url;
+	});
+	URL.revokeObjectURL = vi.fn();
+	previewFetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+		new Response(new Blob(["png-bytes"], { type: "image/png" }), {
+			status: 200,
+		}),
+	);
+});
+
 describe("AdminTextureLibraryTexturesPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -266,9 +304,14 @@ describe("AdminTextureLibraryTexturesPage", () => {
 			"title",
 			"Review Cape",
 		);
-		expect(
-			screen.getByTestId("admin-texture-preview-image-13"),
-		).toHaveAttribute("src", "/textures/cape-preview.png");
+		await screen.findByTestId("admin-texture-preview-image-13");
+		await waitFor(() => {
+			expect(
+				screen
+					.getByTestId("admin-texture-preview-image-13")
+					.getAttribute("src"),
+			).toMatch(/^blob:/);
+		});
 		expect(
 			document.querySelector(
 				'img[src="/api/v1/admin/avatars/users/1/512?v=2"]',

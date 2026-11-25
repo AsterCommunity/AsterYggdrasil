@@ -15,6 +15,7 @@
 pub use aster_yggdrasil_model::{entities, types};
 
 pub mod api;
+pub mod cli;
 pub mod config;
 pub mod db;
 pub mod errors;

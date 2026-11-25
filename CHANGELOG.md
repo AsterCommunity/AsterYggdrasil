@@ -9,12 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **正式 clap 4 CLI**：`aster_yggdrasil` 引入 clap 4 命令行框架，无子命令时行为与历史单进程启动完全一致。新增 `hash-password` 子命令：终端输入走 inquire 掩码提示并可在非法输入时重试，管道输入读到 EOF（`take(4099)` 多读 1 字节防止截断后静默接受）并剥离 CRLF，stdout 只输出 Argon2id PHC 串，全程不触碰配置、日志或服务器资源；secret 以 `secrecy::SecretString` 承载，Argon2 使用独立 `PasswordHashRuntime` 实例，不与登录共享工作池。
+- **serve 角色进程分离**：`aster_yggdrasil serve [all|api|worker]`（无参数默认 `all`，与历史行为兼容）按角色裁剪进程职责。`api` 角色只服务 HTTP，后台任务留在队列等待 worker；`worker` 角色消费后台任务，HTTP 只挂健康探针（`/health`、`/health/ready` 供编排器探测，`RoleHealth` 基于初始化标志、任务消费运行状态与 shutdown 信号判定 ready/live）。进程级 maintenance（系统指标更新、运行时配置热更新订阅）在所有角色持续运行；shutdown 依赖图按角色裁剪（mail drain 与 database 关闭只在消费角色等待 `task_consumers`）。
+- **CLI 支持 `--config-file` / `--data-dir`**：全局参数（`--config-file` 与 `--data-dir` 互斥，支持 `ASTER_CLI_CONFIG_FILE` / `ASTER_CLI_DATA_DIR` 环境变量），配置解析、默认配置生成、相对路径锚定与 crash log 目录全部跟随 CLI 解析出的实例位置；不传参数时行为与历史完全一致（cwd 下 `data/config.toml`）。
 - **Prometheus 抓取端点支持 Basic 认证**：新增 `[observability.prometheus.basic_auth]`（`enabled` / `username` / `password_hash`）。密码存 Argon2id PHC 验证串，校验走实例独立的 Argon2 运行时（默认并发 2），预算耗尽立即拒绝，与登录验证互不挤占工作内存；未通过时返回 `401`、`WWW-Authenticate: Basic` 和 `Cache-Control: no-store`，响应体为空，成功响应同样禁止缓存。
 - **Argon2 并发数可配置**：静态配置新增 `[auth] password_hash_max_concurrency`，默认 `2`（取自 `aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`）。每个 Argon2 任务约占用 64 MiB 工作内存，默认最坏并发工作内存约 128 MiB。修改后需要重启。
 - **audit 关机恢复**：进程关闭时审计写入器完成最终 drain；仍有未确认记录时，Forge 将其写入私有恢复目录 `data/audit-recovery/audit-{uuid}.json`（0600 文件、0700 目录），关机以错误收尾并报告路径，等待运维手工核对入库。系统不会自动 replay 这些记录。
 
 ### Changed
 
+- **材质预览改为后台任务生成（AsterDrive 缩略图范式）**：`GET /api/v1/texture-previews/{hash}/{file_name}` cache miss 不再在请求路径同步渲染（此前 api 进程内 spawn_blocking 渲染 3D 预览约 76ms），改为幂等入队 `texture_preview_generate` 后台任务并返回 `202 Accepted + Retry-After: 2`；worker 进程的 dispatch lane 渲染并写回对象存储后，下一次请求返回 200 immutable PNG。入队对活跃任务去重（只唤醒 dispatcher）、失败任务不再由请求流量重建（端点转 404，防止重试风暴）、并发首请求由 dedupe key 兜底；api 进程实现零渲染，`serve api` 与 worker 分离的收益覆盖到渲染面。渲染目标（hash + 皮肤模型）与渲染参数（runtime config 的当前 spec）解耦，参数调整由下一个任务自然生效。
+- **移除 actix 逐请求访问日志**：HTTP 中间件链删除 `middleware::Logger::default()`（AsterDrive 同款），请求可观测由 Prometheus 指标与 request id 承载；该中间件此前对每个前端静态资源请求输出一条带源码路径的 INFO 日志，service worker 预缓存场景下产生大量噪音。
 - **observability 配置接入 Forge 共享校验管线**：静态配置改用 Forge `aster_forge_metrics::ObservabilityConfig`（删除本地复制的默认值、脱敏 Debug、OTLP 映射与 provider 组装），根配置 derive `aster_forge_config::ValidateConfig`，加载走 `aster_forge_config::load_config`（段级校验 + 跨段部署规则一次执行，未编译 exporter 的配置段在反序列化时置零）。metrics 资源身份经 `MetricsIdentity` 提供，`service_instance_id` 取自 config-sync runtime id，profile namespace `com.astercosm.yggdrasil` 与 `astercosm-metrics/v1` schema token 由 Forge 常量统一。
 - **Argon2 默认并发从 8 降到 2**：现有配置未显式设置 `password_hash_max_concurrency` 时，升级后每个进程的最坏并发 Argon2 工作内存从约 512 MiB 降到约 128 MiB。需要更高并发的部署请显式配置。
 - **Forge #90 批次升级**：全部 `aster_forge_*` 依赖升级到已发布的 crates.io 批次（audit/auth/cache/config/crypto/db/db_migration/external_auth/http/logging/mail/metrics/middleware/observability/panic/runtime/tasks/test/utils）。panic hook 的 crash-log 祖先目录改由 bootstrap 显式创建（`data/`）；Linux 保持私有 crash log 行为，macOS 等平台 Forge 私有文件机制尚未支持，启动时降级为不可用并打印警告（fail closed），不影响正常服务。

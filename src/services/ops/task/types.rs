@@ -27,6 +27,7 @@ pub enum TaskPresentationCode {
     StatusTextQuiet,
     StatusTextSucceeded,
     StatusTextSystemHealthy,
+    TexturePreviewGenerateHash,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -55,6 +56,28 @@ pub struct TaskCreatorSummary {
 }
 
 pub type RuntimeTaskName = aster_forge_tasks::RuntimeTaskName<SystemRuntimeTaskKind>;
+
+/// Generation target for the `texture_preview_generate` task: the texture hash
+/// plus the skin model it binds to. The preview spec (engine, size, quality)
+/// is intentionally absent — the worker always renders with the runtime
+/// config's current spec, so spec changes are picked up by the next task
+/// without re-enqueueing by hand.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct TexturePreviewGenerateTaskPayload {
+    pub texture_hash: String,
+    pub texture_model: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+pub struct TexturePreviewGenerateTaskResult {
+    /// Preview file name the task ensured in object storage; a task that found
+    /// the preview already cached reports the existing name with
+    /// `reused_existing = true`.
+    pub file_name: String,
+    pub reused_existing: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
@@ -118,6 +141,7 @@ impl RuntimeTaskResult {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TaskPayload {
     SystemRuntime(RuntimeTaskPayload),
+    TexturePreviewGenerate(TexturePreviewGenerateTaskPayload),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +149,7 @@ pub enum TaskPayload {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TaskResult {
     SystemRuntime(RuntimeTaskResult),
+    TexturePreviewGenerate(TexturePreviewGenerateTaskResult),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -255,7 +280,9 @@ mod tests {
             encoded["system_health"]["components"][0]["details"][0]["value"],
             serde_json::json!({ "type": "text", "value": "sqlite" })
         );
-        let TaskResult::SystemRuntime(runtime_result) = &result;
+        let TaskResult::SystemRuntime(runtime_result) = &result else {
+            panic!("expected system runtime result variant");
+        };
         assert_eq!(
             runtime_result
                 .system_health

@@ -8,7 +8,9 @@ use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::BackgroundTaskKind;
 
 use super::dispatch::TaskLane;
-use super::spec::{ErasedBackgroundTaskSpec, SystemRuntimeTask, TaskProcessFuture};
+use super::spec::{
+    ErasedBackgroundTaskSpec, SystemRuntimeTask, TaskProcessFuture, TexturePreviewGenerateTask,
+};
 use super::types::{TaskPayload, TaskResult};
 
 aster_forge_tasks::task_registry! {
@@ -24,10 +26,12 @@ aster_forge_tasks::task_registry! {
         result: crate::services::ops::task::types::TaskResult;
         specs {
             SYSTEM_RUNTIME: super::SystemRuntimeTask => aster_yggdrasil_model::types::task::BackgroundTaskKind::SystemRuntime,
+            TEXTURE_PREVIEW_GENERATE: super::TexturePreviewGenerateTask => aster_yggdrasil_model::types::task::BackgroundTaskKind::TexturePreviewGenerate,
         }
         lanes {
             crate::services::ops::task::dispatch::TaskLane::Fallback => [
                 aster_yggdrasil_model::types::task::BackgroundTaskKind::SystemRuntime,
+                aster_yggdrasil_model::types::task::BackgroundTaskKind::TexturePreviewGenerate,
             ],
         }
     }

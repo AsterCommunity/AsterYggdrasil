@@ -1,3 +1,4 @@
+import { usePollingTexturePreview } from "@/hooks/usePollingTexturePreview";
 import { cn } from "@/lib/utils";
 
 type MinecraftTextureImagePreviewAspect = "wide" | "portrait";
@@ -28,7 +29,7 @@ export function MinecraftTextureImagePreview({
 	previewUrl,
 	textureUrl,
 }: MinecraftTextureImagePreviewProps) {
-	const src = previewUrl || textureUrl;
+	const { src } = usePollingTexturePreview(previewUrl, textureUrl);
 
 	return (
 		<div

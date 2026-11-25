@@ -1,22 +1,39 @@
 //! Database runtime component registration.
 
 use crate::errors::{AsterError, MapAsterErr, Result};
+use crate::runtime::role::ServeRole;
 use aster_forge_db::DbHandles;
 use aster_forge_metrics::SharedMetricsRecorder;
 
-const DATABASE_SHUTDOWN_DEPENDENCIES: &[&str] = &[
-    aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-    aster_forge_mail::MAIL_OUTBOX_COMPONENT,
-    aster_forge_audit::AUDIT_MANAGER_COMPONENT,
-];
 const DATABASE_MIGRATION_LOCK_NAMESPACE: &str = "aster_yggdrasil:database_migrations";
+
+/// Database handles close only after every component that may touch them has
+/// stopped. Task consumers exist only on roles that consume tasks; process
+/// maintenance (config reload) runs on every role.
+fn database_shutdown_dependencies(role: ServeRole) -> &'static [&'static str] {
+    if role.consumes_tasks() {
+        &[
+            aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
+            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+            aster_forge_mail::MAIL_OUTBOX_COMPONENT,
+            aster_forge_audit::AUDIT_MANAGER_COMPONENT,
+        ]
+    } else {
+        &[
+            aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
+            aster_forge_mail::MAIL_OUTBOX_COMPONENT,
+            aster_forge_audit::AUDIT_MANAGER_COMPONENT,
+        ]
+    }
+}
 
 /// Creates the database runtime component used by the product entrypoint.
 pub fn database_component(
     db_handles: DbHandles,
+    role: ServeRole,
 ) -> aster_forge_runtime::RuntimeComponentBundleRegistration<aster_forge_db::DatabaseRuntimeComponent>
 {
-    aster_forge_db::database_component_after(db_handles, DATABASE_SHUTDOWN_DEPENDENCIES)
+    aster_forge_db::database_component_after(db_handles, database_shutdown_dependencies(role))
 }
 
 /// Connects database handles and applies pending migrations.
@@ -39,8 +56,9 @@ pub async fn prepare_database_handles(
 
 #[cfg(test)]
 mod tests {
-    use super::{database_component, prepare_database_handles};
+    use super::{database_component, database_shutdown_dependencies, prepare_database_handles};
     use crate::config::DatabaseConfig;
+    use crate::runtime::role::ServeRole;
     use aster_forge_runtime::RuntimeComponentBundle;
     use aster_forge_runtime::{HealthCheckScope, HealthStatus};
 
@@ -52,7 +70,7 @@ mod tests {
         let db_handles = aster_forge_db::DbHandles::single(db);
 
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            database_component(db_handles).register(registry);
+            database_component(db_handles, ServeRole::All).register(registry);
         });
 
         let descriptor = registry
@@ -66,6 +84,7 @@ mod tests {
             descriptor.dependencies,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
+                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT,
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT
             ]
@@ -76,6 +95,22 @@ mod tests {
             aster_forge_db::DATABASE_CONNECTIONS_SHUTDOWN_PHASE
         );
         assert_eq!(descriptor.health_checks.len(), 1);
+    }
+
+    #[test]
+    fn shutdown_dependencies_track_the_serve_role() {
+        for role in [ServeRole::All, ServeRole::Worker] {
+            assert!(
+                database_shutdown_dependencies(role)
+                    .contains(&crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
+                "{role:?} consumes tasks and must wait for them"
+            );
+        }
+        assert!(
+            !database_shutdown_dependencies(ServeRole::Api)
+                .contains(&crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
+            "api role must not depend on task consumers it never registers"
+        );
     }
 
     #[tokio::test]

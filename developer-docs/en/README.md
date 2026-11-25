@@ -7,6 +7,7 @@ These docs describe the current implementation and extension contracts. New work
 ## Architecture
 
 - [Architecture overview](./architecture/index.md) — workspace crates, runtime model, config tracks, response envelope
+- [Logging conventions](./architecture/logging.md) — log/audit split, level semantics, field discipline, redaction regressions
 - [Service module ownership](./architecture/service-ownership.md) — subdomain layout, state traits, Forge delegation
 - [Config model](./architecture/config-model.md) — three tracks and their owners
 - [Auth model](./architecture/auth-model.md) — identity chain, roles, operator area grants, capability bans

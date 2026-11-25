@@ -17,7 +17,7 @@ pub mod branding;
 pub mod cors;
 pub mod definitions;
 pub mod deployment;
-mod loader;
+pub mod loader;
 pub mod local_email_policy;
 pub mod mail;
 pub mod metrics;
@@ -52,8 +52,12 @@ pub fn ensure_default_config_for_current_dir(
     loader::ensure_default_config_for_current_dir(default)
 }
 
-pub fn init_config() -> crate::errors::Result<Arc<Config>> {
-    let cfg = loader::load()?;
+/// Initializes the global configuration from a CLI-resolved location.
+///
+/// Generated default files, stable-key backfill, and relative-path resolution
+/// behave identically to the implicit current-directory location.
+pub fn init_config_at(location: &loader::ConfigLocation) -> crate::errors::Result<Arc<Config>> {
+    let cfg = loader::load_at(location)?;
     let cfg = CONFIG.get_or_init(|| Arc::new(cfg)).clone();
     Ok(cfg)
 }
