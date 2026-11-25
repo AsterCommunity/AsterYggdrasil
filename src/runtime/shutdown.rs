@@ -15,14 +15,27 @@ pub async fn finish_runtime(
     audit_writer: &aster_forge_audit::AuditWriter,
     metrics: &aster_forge_metrics::SharedMetricsRecorder,
 ) -> io::Result<()> {
-    // Audit recovery comes first: the writer may still hold unconfirmed records,
-    // and preservation must not race the exporter tail.
-    let audit = crate::runtime::audit_recovery::finish_audit(
+    finish_runtime_with_recovery(
         result,
         audit_writer,
+        metrics,
         crate::runtime::audit_recovery::recovery_directory().as_path(),
     )
-    .await;
+    .await
+}
+
+/// Testable variant taking the audit-recovery destination explicitly.
+async fn finish_runtime_with_recovery(
+    result: io::Result<()>,
+    audit_writer: &aster_forge_audit::AuditWriter,
+    metrics: &aster_forge_metrics::SharedMetricsRecorder,
+    recovery_directory: &std::path::Path,
+) -> io::Result<()> {
+    // Audit recovery comes first: the writer may still hold unconfirmed records,
+    // and preservation must not race the exporter tail.
+    let audit =
+        crate::runtime::audit_recovery::finish_audit(result, audit_writer, recovery_directory)
+            .await;
     let shutdown = shutdown_metrics(metrics).await;
     audit.and(shutdown.map_err(io::Error::other))
 }
@@ -96,6 +109,67 @@ mod tests {
             .expect("configured metrics provider should shut down cleanly");
 
         assert!(recorder.provider().unwrap().shutdown_result().is_some());
+    }
+
+    #[cfg(feature = "metrics")]
+    #[tokio::test]
+    async fn audit_preservation_failure_still_drains_metrics_and_wins_the_error() {
+        use super::finish_runtime_with_recovery;
+        use aster_forge_db::AuditLogCreate;
+
+        // A writer that cannot confirm its records: the tail must preserve them
+        // AND still run the metrics drain, with the audit error taking priority.
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        let writer = AuditWriter::new(db);
+        writer.start().await.unwrap();
+        writer
+            .record(AuditLogCreate {
+                user_id: 0,
+                action: "server_shutdown".into(),
+                entity_type: "system_config".into(),
+                entity_id: None,
+                entity_name: None,
+                details: None,
+                ip_address: None,
+                user_agent: None,
+                created_at: chrono::Utc::now(),
+            })
+            .await
+            .unwrap();
+        assert!(
+            writer
+                .flush(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await
+                .is_err()
+        );
+
+        let mut config = crate::config::metrics::ObservabilityConfig::default();
+        config.prometheus.enabled = true;
+        let recorder = crate::runtime::metrics::create_metrics_recorder(&config)
+            .expect("Prometheus recorder should initialize");
+
+        let temp = aster_forge_test::temp::TestTempDir::new("shutdown-audit-recovery");
+        let recovery_dir = temp.path().canonicalize().unwrap().join("audit-recovery");
+        let error = finish_runtime_with_recovery(Ok(()), &writer, &recorder, &recovery_dir)
+            .await
+            .expect_err("unconfirmed audit records must fail the shutdown tail");
+        assert!(
+            error.to_string().contains("unconfirmed audit records"),
+            "{error}"
+        );
+        assert!(
+            std::fs::read_dir(&recovery_dir)
+                .expect("recovery directory should exist")
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_name().to_string_lossy().starts_with("audit-"))
+                .count()
+                == 1,
+            "the failed drain should leave exactly one recovery envelope"
+        );
+        assert!(
+            recorder.provider().unwrap().shutdown_result().is_some(),
+            "the metrics drain must still run after the audit tail fails"
+        );
     }
 
     #[cfg(feature = "otlp-metrics")]

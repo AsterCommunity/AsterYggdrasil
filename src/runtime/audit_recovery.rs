@@ -30,7 +30,7 @@ pub(super) async fn finish_audit(
 mod tests {
     use std::io;
 
-    use super::finish_audit;
+    use super::{finish_audit, recovery_directory};
     use aster_forge_audit::AuditWriter;
     use aster_forge_db::AuditLogCreate;
 
@@ -142,6 +142,16 @@ mod tests {
         assert!(
             !error.to_string().contains("safe"),
             "driver errors and payloads stay out of the public error"
+        );
+    }
+
+    #[test]
+    fn recovery_directory_stays_under_the_product_data_dir() {
+        // The tail resolves this path relative to the process working directory,
+        // matching the crash-log and SQLite data conventions.
+        assert_eq!(
+            recovery_directory(),
+            std::path::Path::new("data").join("audit-recovery")
         );
     }
 }

@@ -82,12 +82,83 @@ mod tests {
             .to_request();
         let response = actix_test::call_service(&app, second).await;
         assert_eq!(response.status(), 429);
-        assert!(response.headers().contains_key("Retry-After"));
+        let retry_after = response
+            .headers()
+            .get("Retry-After")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        assert!(
+            retry_after.is_some_and(|seconds| (1..=60).contains(&seconds)),
+            "Retry-After must be a valid whole-second budget within the period: {retry_after:?}"
+        );
 
         let body: serde_json::Value = actix_test::read_body_json(response).await;
         assert_eq!(body["code"], AsterErrorCode::RateLimited.as_str());
         assert_eq!(body["error"]["retryable"], true);
         assert!(body["data"].is_null());
+    }
+
+    #[actix_web::test]
+    async fn burst_window_admits_the_full_burst_then_rejects() {
+        // burst=3 with a 60s period: the first three requests consume the whole
+        // bucket, the fourth is rejected, and nothing before that is limited.
+        let config = build_rate_limit(&tier(3), &[]);
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(RateLimit::new(&config))
+                .route("/", web::get().to(|| async { HttpResponse::Ok().finish() })),
+        )
+        .await;
+
+        let request = || {
+            actix_test::TestRequest::get()
+                .uri("/")
+                .peer_addr("198.51.100.21:12345".parse().unwrap())
+                .to_request()
+        };
+        for _ in 0..3 {
+            let response = actix_test::call_service(&app, request()).await;
+            assert_eq!(response.status(), 200);
+            assert!(
+                !response.headers().contains_key("Retry-After"),
+                "admitted requests must not carry rate-limit headers"
+            );
+        }
+        let rejected = actix_test::call_service(&app, request()).await;
+        assert_eq!(rejected.status(), 429);
+    }
+
+    #[actix_web::test]
+    async fn missing_peer_addr_shares_one_loopback_bucket() {
+        // UDS-style deployments have no peer address; every request then shares
+        // the loopback bucket regardless of the (spoofable) forwarded chain.
+        let config = build_rate_limit(&tier(1), &["10.0.0.0/8".to_string()]);
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(RateLimit::new(&config))
+                .route("/", web::get().to(|| async { HttpResponse::Ok().finish() })),
+        )
+        .await;
+
+        let forwarded = actix_test::TestRequest::get()
+            .uri("/")
+            .insert_header(("X-Forwarded-For", "203.0.113.10"))
+            .to_request();
+        assert_eq!(
+            actix_test::call_service(&app, forwarded).await.status(),
+            200
+        );
+
+        let other_forwarded = actix_test::TestRequest::get()
+            .uri("/")
+            .insert_header(("X-Forwarded-For", "198.51.100.2"))
+            .to_request();
+        let response = actix_test::call_service(&app, other_forwarded).await;
+        assert_eq!(
+            response.status(),
+            429,
+            "a different forwarded IP must not open a second bucket without a peer address"
+        );
     }
 
     #[actix_web::test]
