@@ -26,7 +26,7 @@ export function PublicTextureHeaderActions({
 				to={publicPaths.login}
 				className={cn(
 					buttonVariants({ variant: "default", size: "sm" }),
-					"h-10 rounded-full border-emerald-300/24 bg-emerald-500 px-3 text-white shadow-lg shadow-emerald-950/35 hover:bg-emerald-400 sm:px-4",
+					"h-10 rounded-lg border-emerald-300/24 bg-emerald-500 px-3 text-white shadow-lg shadow-emerald-950/35 hover:bg-emerald-400 sm:px-4",
 				)}
 			>
 				<Icon name="SignIn" className="size-4" />

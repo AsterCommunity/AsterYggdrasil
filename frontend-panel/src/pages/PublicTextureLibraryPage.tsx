@@ -193,24 +193,11 @@ export default function PublicTextureLibraryPage() {
 			variant="home"
 			hideLanguageOnMobile
 			headerActions={
-				isAuthenticated && user ? (
-					<PublicTextureHeaderActions
-						isAuthenticated={isAuthenticated}
-						user={user}
-						onLogout={() => void logout()}
-					/>
-				) : (
-					<Link
-						to={publicPaths.login}
-						className={cn(
-							buttonVariants({ variant: "default", size: "sm" }),
-							"h-10 rounded-lg border-emerald-300/24 bg-emerald-500 px-3 text-white shadow-lg shadow-emerald-950/35 hover:bg-emerald-400 sm:px-4",
-						)}
-					>
-						<Icon name="SignIn" className="size-4" />
-						<span className="hidden sm:inline">{t("home.loginRegister")}</span>
-					</Link>
-				)
+				<PublicTextureHeaderActions
+					isAuthenticated={isAuthenticated}
+					user={user}
+					onLogout={() => void logout()}
+				/>
 			}
 			footer={<AppFooter />}
 		>
