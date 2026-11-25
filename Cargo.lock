@@ -36,18 +36,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-governor"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a7ffa43d3e1e92518355ffbc82c146b5f0fe24fba87f19f405270da7a7b3c1e"
-dependencies = [
- "actix-http",
- "actix-web",
- "futures",
- "governor",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1019,11 +1007,10 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_middleware"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c531c514efbf9b77047a96e6c29272f7f02ea30e5f7b6e2519fa811671869ee7"
+checksum = "856dee6df9774d4936bae36298c5726417381ef4c74d5ccd68af640f928edf21"
 dependencies = [
- "actix-governor",
  "actix-web",
  "aster_forge_metrics",
  "aster_forge_utils",
@@ -1163,7 +1150,6 @@ dependencies = [
 name = "aster_yggdrasil"
 version = "0.1.0-beta.1"
 dependencies = [
- "actix-governor",
  "actix-http",
  "actix-multipart",
  "actix-web",
@@ -1208,7 +1194,6 @@ dependencies = [
  "fs2",
  "futures",
  "getrandom 0.4.3",
- "governor",
  "hex",
  "image",
  "jsonwebtoken",

@@ -2,9 +2,9 @@
 
 use crate::api::middleware::{admin::RequireAdminOrScope, auth::JwtAuth, rate_limit};
 use crate::config::{NetworkTrustConfig, RateLimitConfig};
-use actix_governor::Governor;
 use actix_web::middleware::Condition;
 use actix_web::web;
+use aster_forge_middleware::actix::rate_limit::RateLimit;
 use aster_yggdrasil_model::types::user::OperatorScope;
 
 pub mod audit_logs;
@@ -63,10 +63,10 @@ pub fn routes(
     rl: &RateLimitConfig,
     network_trust: &NetworkTrustConfig,
 ) -> impl actix_web::dev::HttpServiceFactory + use<> {
-    let limiter = rate_limit::build_governor(&rl.write, &network_trust.trusted_proxies);
+    let limiter = rate_limit::build_rate_limit(&rl.write, &network_trust.trusted_proxies);
 
     web::scope("/admin")
-        .wrap(Condition::new(rl.enabled, Governor::new(&limiter)))
+        .wrap(Condition::new(rl.enabled, RateLimit::new(&limiter)))
         .service(
             web::scope("")
                 .wrap(JwtAuth)

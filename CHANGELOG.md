@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Argon2 默认并发从 8 降到 2**：现有配置未显式设置 `password_hash_max_concurrency` 时，升级后每个进程的最坏并发 Argon2 工作内存从约 512 MiB 降到约 128 MiB。需要更高并发的部署请显式配置。
 - **Forge #90 批次升级**：全部 `aster_forge_*` 依赖升级到已发布的 crates.io 批次（audit/auth/cache/config/crypto/db/db_migration/external_auth/http/logging/mail/metrics/middleware/observability/panic/runtime/tasks/test/utils）。panic hook 的 crash-log 祖先目录改由 bootstrap 显式创建（`data/`）；Linux 保持私有 crash log 行为，macOS 等平台 Forge 私有文件机制尚未支持，启动时降级为不可用并打印警告（fail closed），不影响正常服务。
+- **替换 GPL 限流依赖**：移除 `actix-governor`（GPL-3.0-or-later），管理端 IP 限流改用 Forge `aster_forge_middleware` 0.1.0-alpha.6 的 GPL-free Actix 中间件（直接包装 MIT OR Apache-2.0 的 `governor` crate）。429 响应 envelope、burst/period 语义、trusted-proxy 客户端 IP 分桶和跨 worker 共享配额行为保持不变。`cargo deny check` 的 licenses 检查在无 exception 的情况下恢复通过。
 
 ### Security
 
