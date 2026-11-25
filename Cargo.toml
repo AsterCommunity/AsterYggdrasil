@@ -18,33 +18,32 @@ aster_yggdrasil_protocol = { path = "crates/aster_yggdrasil_protocol" }
 aster_yggdrasil_outbound = { path = "crates/aster_yggdrasil_outbound" }
 # Pin all Forge mechanisms together to the exact published crates.io versions;
 # members add only their required features.
-aster_forge_middleware = { version = "=0.1.0-alpha.4" }
-aster_forge_observability = { version = "=0.1.0-alpha.4" }
+aster_forge_middleware = { version = "=0.1.0-alpha.6" }
+aster_forge_observability = { version = "=0.1.0-alpha.5" }
 aster_forge_alloc = { version = "=0.1.0-alpha.2" }
 aster_forge_api = { version = "=0.1.0-alpha.2" }
 aster_forge_api_docs_macros = { version = "=0.1.0-alpha.1" }
-aster_forge_audit = { version = "=0.1.0-alpha.4" }
-aster_forge_auth = { version = "=0.1.0-alpha.4" }
-aster_forge_cache = { version = "=0.1.0-alpha.3", default-features = false }
-aster_forge_config = { version = "=0.1.0-alpha.3" }
-aster_forge_crypto = { version = "=0.1.0-alpha.3" }
-aster_forge_db = { version = "=0.1.0-alpha.4", default-features = false }
-aster_forge_db_migration = { version = "=0.1.0-alpha.2" }
-aster_forge_external_auth = { version = "=0.1.0-alpha.4" }
-aster_forge_http = { version = "=0.1.0-alpha.3" }
-aster_forge_logging = { version = "=0.1.0-alpha.2" }
-aster_forge_mail = { version = "=0.1.0-alpha.3" }
-aster_forge_metrics = { version = "=0.1.0-alpha.4" }
-aster_forge_panic = { version = "=0.1.0-alpha.3" }
-aster_forge_runtime = { version = "=0.1.0-alpha.3" }
+aster_forge_audit = { version = "=0.1.0-alpha.5" }
+aster_forge_auth = { version = "=0.1.0-alpha.5" }
+aster_forge_cache = { version = "=0.1.0-alpha.4", default-features = false }
+aster_forge_config = { version = "=0.1.0-alpha.4" }
+aster_forge_crypto = { version = "=0.1.0-alpha.4" }
+aster_forge_db = { version = "=0.1.0-alpha.5", default-features = false }
+aster_forge_db_migration = { version = "=0.1.0-alpha.3" }
+aster_forge_external_auth = { version = "=0.1.0-alpha.5" }
+aster_forge_http = { version = "=0.1.0-alpha.4" }
+aster_forge_logging = { version = "=0.1.0-alpha.3" }
+aster_forge_mail = { version = "=0.1.0-alpha.4" }
+aster_forge_metrics = { version = "=0.1.0-alpha.5" }
+aster_forge_panic = { version = "=0.1.0-alpha.4" }
+aster_forge_runtime = { version = "=0.1.0-alpha.4" }
 aster_forge_storage_core = { version = "=0.1.0-alpha.2" }
-aster_forge_tasks = { version = "=0.1.0-alpha.3", default-features = false }
-aster_forge_test = { version = "=0.1.0-alpha.4" }
-aster_forge_utils = { version = "=0.1.0-alpha.3" }
+aster_forge_tasks = { version = "=0.1.0-alpha.4", default-features = false }
+aster_forge_test = { version = "=0.1.0-alpha.5" }
+aster_forge_utils = { version = "=0.1.0-alpha.4" }
 aster_forge_validation = { version = "=0.1.0-alpha.1" }
 actix-web = { version = "4.20.0", features = ["compress-brotli", "compress-gzip"] }
 actix-multipart = "0.8.9"
-actix-governor = "0.10"
 actix-http = "3"
 async-trait = "0.1"
 aws-credential-types = { version = "1.3.1", features = ["hardcoded-credentials"] }
@@ -58,7 +57,6 @@ dotenvy = "0.15"
 fs2 = "0.4"
 futures = "0.3"
 getrandom = "0.4"
-governor = "0.10"
 hex = "0.4"
 http = "0.2.12"
 image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
@@ -238,7 +236,6 @@ aster_forge_utils = { workspace = true }
 aster_forge_validation = { workspace = true }
 actix-web = { workspace = true }
 actix-multipart = { workspace = true }
-actix-governor = { workspace = true }
 async-trait = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sdk-s3 = { workspace = true }
@@ -248,7 +245,6 @@ chrono = { workspace = true }
 config = { workspace = true }
 dotenvy = { workspace = true }
 futures = { workspace = true }
-governor = { workspace = true }
 hex = { workspace = true }
 image = { workspace = true }
 jsonwebtoken = { workspace = true }

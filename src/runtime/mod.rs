@@ -1,6 +1,7 @@
 //! Runtime state and lifecycle modules.
 
 pub mod assembly;
+pub(crate) mod audit_recovery;
 pub mod bootstrap;
 pub mod entrypoint;
 pub mod metrics;

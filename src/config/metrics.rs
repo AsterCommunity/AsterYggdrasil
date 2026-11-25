@@ -218,8 +218,10 @@ mod tests {
         }
 
         // The same identities are fine while every exporter is disabled.
-        let mut config = ObservabilityConfig::default();
-        config.environment = String::new();
+        let config = ObservabilityConfig {
+            environment: String::new(),
+            ..ObservabilityConfig::default()
+        };
         config
             .validate()
             .expect("inactive sections must not block startup");
