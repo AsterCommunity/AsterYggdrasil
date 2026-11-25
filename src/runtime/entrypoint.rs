@@ -14,8 +14,9 @@ pub async fn run() -> io::Result<()> {
         .await
         .map_err(to_io_error)?;
     let metrics = bootstrap.state.metrics().clone();
+    let audit_writer = bootstrap.state.audit_writer().clone();
     let result = crate::runtime::assembly::run(bootstrap.state).await;
-    crate::runtime::shutdown::finish_runtime(result, &metrics).await
+    crate::runtime::shutdown::finish_runtime(result, &audit_writer, &metrics).await
 }
 
 fn to_io_error(error: impl ToString) -> io::Error {

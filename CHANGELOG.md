@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Argon2 并发数可配置**：静态配置新增 `[auth] password_hash_max_concurrency`，默认 `2`（取自 `aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY`）。每个 Argon2 任务约占用 64 MiB 工作内存，默认最坏并发工作内存约 128 MiB。修改后需要重启。
+- **audit 关机恢复**：进程关闭时审计写入器完成最终 drain；仍有未确认记录时，Forge 将其写入私有恢复目录 `data/audit-recovery/audit-{uuid}.json`（0600 文件、0700 目录），关机以错误收尾并报告路径，等待运维手工核对入库。系统不会自动 replay 这些记录。
 
 ### Changed
 
 - **Argon2 默认并发从 8 降到 2**：现有配置未显式设置 `password_hash_max_concurrency` 时，升级后每个进程的最坏并发 Argon2 工作内存从约 512 MiB 降到约 128 MiB。需要更高并发的部署请显式配置。
+- **Forge #90 批次升级**：全部 `aster_forge_*` 依赖升级到已发布的 crates.io 批次（audit/auth/cache/config/crypto/db/db_migration/external_auth/http/logging/mail/metrics/middleware/observability/panic/runtime/tasks/test/utils）。panic hook 的 crash-log 祖先目录改由 bootstrap 显式创建（`data/`）；Linux 保持私有 crash log 行为，macOS 等平台 Forge 私有文件机制尚未支持，启动时降级为不可用并打印警告（fail closed），不影响正常服务。
 
 ### Security
 

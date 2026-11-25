@@ -777,22 +777,26 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_audit"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc729d300e51b79876b47ff65fdce3db1dbf4f61e5a0e3a1bdc7461b001161b6"
+checksum = "780cf335316935d2b6d58ec4dbd1fc6296b64d7b28a1e9b09c1edae8d200f196"
 dependencies = [
  "aster_forge_db",
  "aster_forge_mail",
  "aster_forge_runtime",
+ "rustix",
  "sea-orm",
+ "serde",
+ "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
 name = "aster_forge_auth"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "628c5665598cf8d9bc4967fb5061c72f13c3d4d43c310672e0acb82efae84c08"
+checksum = "bf48b11942fedc1154ae9087c6acb5e45e21faf758c0d15623ca29215c56dae7"
 dependencies = [
  "aster_forge_crypto",
  "async-trait",
@@ -806,10 +810,11 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_cache"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d69ae3430a5ede6f229fdb15659f11ee285aa654ba1c6074470f33b3c0824ed"
+checksum = "0fee20cc02ce3a70c75f32cc581abdae0ff980c912b3b04bf33e2cb64695b7bf"
 dependencies = [
+ "aster_forge_config",
  "aster_forge_runtime",
  "aster_forge_utils",
  "async-trait",
@@ -824,10 +829,11 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_config"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb5b0483fe7339b1477ee7009729f8d9f383a64bba7e9b8d644301e8ddd23b76"
+checksum = "0b58189b0bff9b94544995603036c90ca18b8af24f5cb9c11600088cb38534ea"
 dependencies = [
+ "aster_forge_config_macros",
  "aster_forge_events",
  "aster_forge_utils",
  "async-trait",
@@ -844,10 +850,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "aster_forge_crypto"
-version = "0.1.0-alpha.3"
+name = "aster_forge_config_macros"
+version = "0.1.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a77dcdfae27d2e926b9908eac881c4fc6932c76bfe119b17b7835668333cdb2"
+checksum = "930688fb8f9f666ad3127fbc33e30b671c1a481e2b336a3b3ce4b62efd3f2681"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "aster_forge_crypto"
+version = "0.1.0-alpha.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61d8fb78be6e2894e2bf2f5d9ed346e962ca2f7bfc7ef24ee3d316b14e9a0531"
 dependencies = [
  "argon2 0.6.0",
  "sha2 0.11.1",
@@ -856,9 +874,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_db"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5adf2938f24523fd4998185efeaa7b4f3bf416776eaf83a53c7384f0a3fbd110"
+checksum = "a283a29dc9d2a6ffd96e64a81e75b4f16b5eb42b995044d4253d73e823c9d796"
 dependencies = [
  "aster_forge_api",
  "aster_forge_config",
@@ -879,9 +897,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_db_migration"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2db13dce2505fa99071ef84c5a116c7239f49fcbfd4b9da57dace5bdd5bd844d"
+checksum = "f93a2a5a3f488f7ef48ce64245ad509ae8eb34a483865f8213fb252984de9183"
 dependencies = [
  "sea-orm-migration",
  "tokio",
@@ -890,9 +908,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_events"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad7d58ffe92e41ddee26c6df4cce3db0f6c757529cd26821825f346c1fffc3c"
+checksum = "42db15a1b9c4a712bc92a11f06ceb11f01c0e7fc65de06f05e3142e498108615"
 dependencies = [
  "aster_forge_utils",
  "async-trait",
@@ -906,9 +924,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_external_auth"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48eb81de008aae338e80d2f21780050abf47d4ea91f7881bc766b1049f2b3191"
+checksum = "c93d28f3b7389bf1992c7e651e84261898745dbffbcd77e6d57d006c477cf6be"
 dependencies = [
  "aster_forge_crypto",
  "aster_forge_http",
@@ -931,9 +949,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_http"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c639a947a36ef84d656e185a4789b61e6d842fbc649836dcfc7ee44396750daa"
+checksum = "8a90ba9a8c5c3bb2de804e893ca93ad8693ace327319d2133f55524f8e142d1b"
 dependencies = [
  "http 1.5.0",
  "reqwest",
@@ -943,10 +961,11 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_logging"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8ee2945f51e54463ee0a000ea2aa12543433ba36385dec203a1684bf6dc9b01"
+checksum = "2fbbb93eaa2570f4d7726f7fcf343a6111c7c267c85c3b17e3880808249c8071"
 dependencies = [
+ "aster_forge_config",
  "serde",
  "tracing-appender",
  "tracing-subscriber",
@@ -954,9 +973,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_mail"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a54c64f43e87566f07760a82fa60c722f5437c3e7df499d2d5b5e2cbcee6751"
+checksum = "083039b6d086daffa663ced26cfbf1fc2b86bafb76f5e3fe1ac713169d028ca6"
 dependencies = [
  "aster_forge_runtime",
  "aster_forge_tasks",
@@ -973,11 +992,12 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_metrics"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d79f879cbb3808a1432cd52716e9608608dc826c4c4c98270c28ba8d85430bc"
+checksum = "43222f500554fd0fe45493e0add97af684ba663f474608faefe5ee6cab5beb47"
 dependencies = [
  "aster_forge_alloc",
+ "aster_forge_config",
  "aster_forge_http",
  "aster_forge_runtime",
  "hashbrown 0.17.1",
@@ -989,6 +1009,7 @@ dependencies = [
  "prometheus",
  "prost",
  "reqwest",
+ "serde",
  "sysinfo 0.40.4",
  "thiserror 2.0.21",
  "tokio",
@@ -998,9 +1019,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_middleware"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ea9c81db9408d363721258916bb9ddb497cc1090fb9d5297e2f6c64892c487"
+checksum = "c531c514efbf9b77047a96e6c29272f7f02ea30e5f7b6e2519fa811671869ee7"
 dependencies = [
  "actix-governor",
  "actix-web",
@@ -1020,9 +1041,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_observability"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0619471b24ad03d440747321379b279ae330c889dabbc2565377f15f371019d4"
+checksum = "ddb525ee6a8afb469f2580f603cd784c294839d1e5e5b68ac801e72c643bcefc"
 dependencies = [
  "actix-web",
  "aster_forge_metrics",
@@ -1030,9 +1051,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_panic"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2ca3f8c4cf0cc871db7bc8d2a19f1b869d4a91698490195f4d154f680aade6e"
+checksum = "001e1a2c38d0de537e2ddd6bc9be831736125a86b8bb2f050824cd9a5369fd21"
 dependencies = [
  "rustix",
  "time",
@@ -1040,9 +1061,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_runtime"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a894d33bd6533fb760196993665afcfa400852b40e145f4544ccd89f916b6ae0"
+checksum = "507b4c80daf2e2f9be3efb919124a10711f03f9ad35a450c21a5bd4b698bedc1"
 dependencies = [
  "aster_forge_utils",
  "async-trait",
@@ -1068,10 +1089,11 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_tasks"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec961284c6bdc54c087bf75eae8b643fc8456048b239705bd4a1522cd05fc286"
+checksum = "2318bba7a1d2c43590b68ea4706ce6b0efef045b52f0d5c90b3f2954e351b939"
 dependencies = [
+ "aster_forge_config",
  "aster_forge_runtime",
  "aster_forge_utils",
  "async-trait",
@@ -1090,9 +1112,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_test"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78722a5b41ecd6bfc284ed698c966034cf68a862dea775dacb610d59626e97bd"
+checksum = "c6849d53de2b3d04c04dd8dee7682f9ad578e781b704bad9899c56ea3039b900"
 dependencies = [
  "aster_forge_utils",
  "fs2",
@@ -1108,9 +1130,9 @@ dependencies = [
 
 [[package]]
 name = "aster_forge_utils"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5367c87156777ca08ab86ef35e3ecc17b7e3eb4c9edae71552c3d7efe50ced4"
+checksum = "d78d22eee6bfca4333bfd858c045f09d819182e4dc7cc8bb1c2e72e532b8d1e2"
 dependencies = [
  "headers",
  "http 1.5.0",
@@ -6252,7 +6274,6 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "itoa",
- "num-bigint 0.5.1",
  "percent-encoding",
  "pin-project-lite",
  "rustls",
