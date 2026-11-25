@@ -57,11 +57,16 @@ fn load_from_dir(
 
     let raw = builder.build().map_aster_err(AsterError::config_error)?;
 
-    let mut cfg = raw
-        .try_deserialize::<Config>()
-        .map_aster_err(AsterError::config_error)?;
-
-    resolve_loaded_paths(base_dir, &config_path, &mut cfg)?;
+    // Forge runs generated section validation and then the root
+    // cross-section validation; keep that sequence out of this file.
+    let cfg = aster_forge_config::load_config(|| {
+        let mut cfg = raw
+            .try_deserialize::<Config>()
+            .map_aster_err(AsterError::config_error)?;
+        resolve_loaded_paths(base_dir, &config_path, &mut cfg)?;
+        Ok::<_, AsterError>(cfg)
+    })
+    .map_aster_err(AsterError::config_error)?;
 
     eprintln!(
         "[INFO] Configuration loaded from: {}",

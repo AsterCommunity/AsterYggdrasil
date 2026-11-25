@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::num::{NonZeroU32, NonZeroU64};
 
 use aster_forge_cache::CacheConfig;
-use aster_forge_config::ConfigSyncConfig;
+use aster_forge_config::{ConfigCoreError, ConfigSyncConfig, ValidatableConfig};
 use aster_forge_logging::LoggingConfig;
+use aster_forge_metrics::ObservabilityConfig;
 use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
 use secrecy::SecretString;
 
@@ -22,7 +23,8 @@ pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 pub const DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY: usize =
     aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY;
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default, aster_forge_config::ValidateConfig)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
     pub deployment: crate::config::deployment::DeploymentConfig,
@@ -43,12 +45,31 @@ pub struct Config {
     pub texture_storage: TextureStorageConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
-    #[serde(default)]
-    pub observability: crate::config::metrics::ObservabilityConfig,
+    #[serde(
+        default,
+        deserialize_with = "crate::config::metrics::deserialize_observability"
+    )]
+    pub observability: ObservabilityConfig,
     #[serde(default)]
     pub network_trust: NetworkTrustConfig,
     #[serde(default)]
     pub rate_limit: RateLimitConfig,
+}
+
+impl ValidatableConfig for Config {
+    /// Cross-section rules only: section invariants run through the generated
+    /// `ValidateConfig` pass before this.
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        let issues = crate::config::deployment::static_issues(self);
+        if issues.is_empty() {
+            return Ok(());
+        }
+        Err(ConfigCoreError::invalid_value(format!(
+            "invalid deployment profile '{}': {}",
+            self.deployment.profile.as_str(),
+            issues.join("; ")
+        )))
+    }
 }
 
 fn default_config_sync() -> ConfigSyncConfig {
@@ -94,6 +115,12 @@ impl ServerConfig {
     }
 }
 
+impl ValidatableConfig for ServerConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatabaseConfig {
     #[serde(default = "DatabaseConfig::default_url")]
@@ -123,6 +150,12 @@ impl DatabaseConfig {
     }
     fn default_retry_count() -> u32 {
         3
+    }
+}
+
+impl ValidatableConfig for DatabaseConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
     }
 }
 
@@ -212,6 +245,17 @@ impl AuthConfig {
     }
 }
 
+impl ValidatableConfig for AuthConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        if self.password_hash_max_concurrency == 0 {
+            return Err(ConfigCoreError::invalid_value(
+                "auth.password_hash_max_concurrency must be positive",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TextureStorageConfig {
     #[serde(default = "TextureStorageConfig::default_backend")]
@@ -243,6 +287,12 @@ impl TextureStorageConfig {
 
     pub fn normalized_backend(&self) -> String {
         self.backend.trim().to_ascii_lowercase()
+    }
+}
+
+impl ValidatableConfig for TextureStorageConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
     }
 }
 
@@ -293,6 +343,12 @@ pub struct NetworkTrustConfig {
     /// Trusted upstream proxy IP ranges, in CIDR or single-IP form.
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
+}
+
+impl ValidatableConfig for NetworkTrustConfig {
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
+    }
 }
 
 /// Rate limiting configuration.
@@ -358,6 +414,13 @@ impl RateLimitConfig {
     }
 }
 
+impl ValidatableConfig for RateLimitConfig {
+    /// Tier bounds are enforced by the `NonZero` field types.
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RateLimitTier {
     #[serde(default = "RateLimitTier::default_seconds")]
@@ -400,6 +463,21 @@ mod tests {
         assert_eq!(
             config.auth.password_hash_max_concurrency,
             aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY
+        );
+    }
+
+    /// A zero Argon2 budget is a startup-blocking section failure: the loader
+    /// pipeline must refuse to hand back the configuration.
+    #[test]
+    fn auth_section_rejects_zero_password_hash_concurrency() {
+        let config: Config = toml::from_str("[auth]\npassword_hash_max_concurrency = 0\n").unwrap();
+        let error = aster_forge_config::load_config(|| Ok::<_, std::convert::Infallible>(config))
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("password_hash_max_concurrency must be positive"),
+            "{error}"
         );
     }
 }

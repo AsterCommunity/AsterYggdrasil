@@ -99,9 +99,9 @@ mod tests {
     #[tokio::test]
     async fn configured_prometheus_provider_shuts_down_after_success() {
         let writer = test_writer().await;
-        let mut config = crate::config::metrics::ObservabilityConfig::default();
+        let mut config = aster_forge_metrics::ObservabilityConfig::default();
         config.prometheus.enabled = true;
-        let recorder = crate::runtime::metrics::create_metrics_recorder(&config)
+        let recorder = crate::runtime::metrics::create_metrics_recorder(&config, "test-instance")
             .expect("Prometheus recorder should initialize");
 
         finish_runtime(Ok(()), &writer, &recorder)
@@ -143,9 +143,9 @@ mod tests {
     }
 
     fn prometheus_recorder() -> aster_forge_metrics::SharedMetricsRecorder {
-        let mut config = crate::config::metrics::ObservabilityConfig::default();
+        let mut config = aster_forge_metrics::ObservabilityConfig::default();
         config.prometheus.enabled = true;
-        crate::runtime::metrics::create_metrics_recorder(&config)
+        crate::runtime::metrics::create_metrics_recorder(&config, "test-instance")
             .expect("Prometheus recorder should initialize")
     }
 
@@ -235,11 +235,11 @@ mod tests {
         let handle = server.handle();
         let task = actix_web::rt::spawn(server);
 
-        let mut config = crate::config::metrics::ObservabilityConfig::default();
+        let mut config = aster_forge_metrics::ObservabilityConfig::default();
         config.otlp_metrics.enabled = true;
         config.otlp_metrics.endpoint = endpoint;
         config.otlp_metrics.interval_seconds = 300;
-        let recorder = crate::runtime::metrics::create_metrics_recorder(&config)
+        let recorder = crate::runtime::metrics::create_metrics_recorder(&config, "test-instance")
             .expect("OTLP recorder should initialize before the collector responds");
         recorder.record_http_request("GET", "http", "/health", 200, 0.01);
 

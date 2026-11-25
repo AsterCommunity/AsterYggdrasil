@@ -48,7 +48,7 @@ pub fn http_component(
 
 fn configure_product_api(
     cfg: &mut web::ServiceConfig,
-    observability: &crate::config::metrics::ObservabilityConfig,
+    observability: &aster_forge_metrics::ObservabilityConfig,
 ) {
     crate::api::configure(cfg, observability);
 }
@@ -86,8 +86,7 @@ fn build_http_service_component(
         // The Prometheus export resource reads the instance-owned Forge provider
         // from app data. Only inject it when the pull exporter is configured.
         #[cfg(feature = "metrics")]
-        let app = match prometheus_provider_data(&metrics_data, observability.prometheus_enabled())
-        {
+        let app = match prometheus_provider_data(&metrics_data, observability.prometheus.enabled) {
             Some(provider) => App::new().app_data(provider),
             None => App::new(),
         };

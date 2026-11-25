@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::Config;
-use crate::errors::{AsterError, Result};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -96,19 +95,12 @@ pub fn static_issues(config: &Config) -> Vec<String> {
     issues
 }
 
-pub fn validate_static(config: &Config) -> Result<()> {
-    config.worker.validate()?;
-
-    let issues = static_issues(config);
-    if issues.is_empty() {
-        return Ok(());
+impl aster_forge_config::ValidatableConfig for DeploymentConfig {
+    /// Profile rules are cross-section (database/cache/config_sync coherence)
+    /// and live in the root `ValidatableConfig` implementation.
+    fn validate(&self) -> aster_forge_config::Result<()> {
+        Ok(())
     }
-
-    Err(AsterError::config_error(format!(
-        "invalid deployment profile '{}': {}",
-        config.deployment.profile.as_str(),
-        issues.join("; ")
-    )))
 }
 
 fn database_base_url(url: &aster_forge_db::DatabaseUrl) -> &str {
@@ -138,8 +130,9 @@ fn config_sync_endpoint_is_blank(endpoint: &aster_forge_config::ConfigSyncEndpoi
 
 #[cfg(test)]
 mod tests {
-    use super::{DeploymentProfile, static_issues, validate_static};
+    use super::{DeploymentProfile, static_issues};
     use crate::config::Config;
+    use aster_forge_config::ValidatableConfig as _;
 
     #[test]
     fn profile_capabilities_are_mapped_in_one_place() {
@@ -153,7 +146,9 @@ mod tests {
     fn single_profile_keeps_default_dependencies() {
         let config = Config::default();
         assert!(static_issues(&config).is_empty());
-        validate_static(&config).expect("single profile should accept defaults");
+        config
+            .validate()
+            .expect("single profile should accept defaults");
     }
 
     #[test]
@@ -188,16 +183,37 @@ mod tests {
         config.config_sync.endpoint = "redis://cache:6379/0".into();
         config.texture_storage.backend = "s3".to_string();
 
-        validate_static(&config).expect("cluster profile should accept shared dependencies");
+        config
+            .validate()
+            .expect("cluster profile should accept shared dependencies");
     }
 
+    /// The cross-section pass runs at the root: a cluster profile with local
+    /// dependencies must fail validation even when every section is fine.
     #[test]
-    fn static_validation_rejects_invalid_worker_budget() {
+    fn root_validation_rejects_cluster_profile_with_local_dependencies() {
         let mut config = Config::default();
-        config.worker.drain_timeout_secs = 86_400;
-        config.worker.cancellation_timeout_secs = 1;
+        config.deployment.profile = DeploymentProfile::Cluster;
+        let error = config.validate().unwrap_err();
+        assert!(
+            error.to_string().contains("invalid deployment profile"),
+            "{error}"
+        );
+    }
 
-        let error = validate_static(&config).expect_err("invalid worker budget should be rejected");
+    /// A section-level failure blocks the loaded configuration before the
+    /// root cross-section pass runs (Forge pipeline order).
+    #[test]
+    fn section_validation_failure_blocks_the_loaded_config() {
+        let config = Config {
+            worker: crate::config::worker::WorkerConfig {
+                drain_timeout_secs: 86_400,
+                cancellation_timeout_secs: 1,
+            },
+            ..Config::default()
+        };
+        let error = aster_forge_config::load_config(|| Ok::<_, std::convert::Infallible>(config))
+            .unwrap_err();
         assert!(error.to_string().contains("24 hours"), "{error}");
     }
 

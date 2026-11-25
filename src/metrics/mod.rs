@@ -19,13 +19,10 @@ pub fn record_health_report(
 
 /// Adds the scrape route only when Prometheus is compiled and configured,
 /// mirroring AsterDrive's `attach_optional_routes(scope, config)`.
-pub fn configure_route(
-    scope: Scope,
-    config: &crate::config::metrics::ObservabilityConfig,
-) -> Scope {
+pub fn configure_route(scope: Scope, config: &aster_forge_metrics::ObservabilityConfig) -> Scope {
     // OTLP pushes metrics to a collector and must not expose a scrape endpoint.
     #[cfg(feature = "metrics")]
-    if config.prometheus_enabled() {
+    if config.prometheus.enabled {
         // The checker itself is registered once per process as
         // `Data<MetricsAuth>` by the HTTP component (api/http.rs). Mounting
         // the middleware even when Basic auth is disabled keeps a single

@@ -1,196 +1,58 @@
-//! Startup configuration for metrics exporters.
+//! Product metrics configuration and exporter identity.
 
-use std::{collections::BTreeMap, fmt};
+use crate::errors::{AsterError, Result};
+use aster_forge_metrics::ObservabilityConfig;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-/// Startup-only exporter settings; omitted sections keep metrics disabled.
-pub struct ObservabilityConfig {
-    pub environment: String,
-    pub prometheus: PrometheusConfig,
-    pub otlp_metrics: OtlpMetricsConfig,
+pub(super) fn deserialize_observability<'de, D>(
+    deserializer: D,
+) -> std::result::Result<ObservabilityConfig, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    ObservabilityConfig::deserialize(deserializer).map(effective_config)
 }
 
-impl Default for ObservabilityConfig {
-    fn default() -> Self {
-        Self {
-            environment: "production".into(),
-            prometheus: PrometheusConfig::default(),
-            otlp_metrics: OtlpMetricsConfig::default(),
-        }
+/// Runtime opt-in never enables an exporter omitted from the binary. The
+/// deserializer zeroes uncompiled sections, so a config file written for a
+/// full build cannot fail startup of one that lacks the exporter.
+fn effective_config(config: ObservabilityConfig) -> ObservabilityConfig {
+    ObservabilityConfig {
+        #[cfg(not(feature = "metrics"))]
+        prometheus: Default::default(),
+        #[cfg(not(feature = "otlp-metrics"))]
+        otlp_metrics: Default::default(),
+        ..config
     }
 }
 
-impl ObservabilityConfig {
-    // Runtime opt-in never enables an exporter omitted from the binary.
-    pub(crate) fn prometheus_enabled(&self) -> bool {
-        cfg!(feature = "metrics") && self.prometheus.enabled
-    }
-
-    pub(crate) fn otlp_enabled(&self) -> bool {
-        cfg!(feature = "otlp-metrics") && self.otlp_metrics.enabled
-    }
-
-    /// Startup-time validation, mirroring AsterDrive's `ObservabilityConfig`:
-    /// enabled exporters require a sane deployment identity, and enabled OTLP
-    /// settings must satisfy Forge's push configuration rules. Inactive
-    /// sections stay unvalidated — they must not block startup.
-    pub fn validate(&self) -> crate::errors::Result<()> {
-        if (self.prometheus_enabled() || self.otlp_enabled())
-            && (self.environment.trim().is_empty()
-                || self.environment.len() > 128
-                || self.environment.chars().any(char::is_control))
-        {
-            return Err(crate::errors::AsterError::config_error(
-                "invalid observability deployment identity",
-            ));
-        }
-        #[cfg(feature = "metrics")]
-        if self
-            .prometheus
-            .basic_auth
-            .as_ref()
-            .is_some_and(|auth| auth.enabled)
-        {
-            // Forge owns the field rules (username shape, PHC verifier, Debug
-            // redaction). Validating the real exporter state through a Forge
-            // `ObservabilityConfig` reuses them wholesale, including the
-            // "basic_auth requires the Prometheus endpoint" check.
-            let forge = aster_forge_metrics::ObservabilityConfig {
-                environment: self.environment.clone(),
-                prometheus: aster_forge_metrics::PrometheusSettings {
-                    enabled: self.prometheus.enabled,
-                    basic_auth: self.prometheus.basic_auth.clone(),
-                },
-                otlp_metrics: Default::default(),
-            };
-            aster_forge_config::ValidatableConfig::validate(&forge)
-                .map_err(|error| crate::errors::AsterError::config_error(error.to_string()))?;
-        }
-
-        #[cfg(feature = "otlp-metrics")]
-        if self.otlp_metrics.enabled {
-            self.otlp_metrics
-                .forge_config()
-                .validate()
-                .map_err(|error| crate::errors::AsterError::config_error(error.to_string()))?;
-        }
-        Ok(())
-    }
-
-    /// Builds the Forge provider for this configuration, mirroring
-    /// AsterDrive's `ObservabilityConfig::create_provider`: an empty builder
-    /// for all-disabled sections, then resource identity, the enabled
-    /// exporters, and the push profile before build.
-    pub fn create_provider(&self) -> crate::errors::Result<aster_forge_metrics::MetricsProvider> {
-        self.validate()?;
-        let builder = aster_forge_metrics::MetricsProvider::builder();
-        if !self.prometheus_enabled() && !self.otlp_enabled() {
-            // Inactive OTLP settings need not be valid and must not start a worker.
-            return builder.build().map_err(metrics_error);
-        }
-
-        let builder = builder
-            .with_resource(aster_forge_metrics::MetricsResource {
-                service_name: "asteryggdrasil".into(),
-                service_version: env!("CARGO_PKG_VERSION").into(),
-                environment: self.environment.clone(),
-                role: "server".into(),
-                ..aster_forge_metrics::MetricsResource::default()
-            })
-            .map_err(metrics_error)?;
-
-        #[cfg(feature = "metrics")]
-        let builder = if self.prometheus_enabled() {
-            builder.with_prometheus().map_err(metrics_error)?
-        } else {
-            builder
-        };
-
-        #[cfg(feature = "otlp-metrics")]
-        let builder = if self.otlp_enabled() {
-            builder
-                .with_otlp(self.otlp_metrics.forge_config())
-                .map_err(metrics_error)?
-                .0
-        } else {
-            builder
-        };
-
-        builder
-            .with_profile("com.astercosm.yggdrasil", "astercosm-metrics/v1")
-            .map_err(metrics_error)?
-            .build()
-            .map_err(metrics_error)
-    }
-}
-
-fn metrics_error(error: aster_forge_metrics::MetricError) -> crate::errors::AsterError {
-    crate::errors::AsterError::config_error(error.to_string())
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct PrometheusConfig {
-    pub enabled: bool,
-    pub basic_auth: Option<aster_forge_metrics::MetricsBasicAuthConfig>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct OtlpMetricsConfig {
-    pub enabled: bool,
-    pub endpoint: String,
-    pub interval_seconds: u64,
-    pub timeout_seconds: u64,
-    pub headers: BTreeMap<String, String>,
-}
-
-impl Default for OtlpMetricsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            endpoint: "http://127.0.0.1:4318/v1/metrics".into(),
-            interval_seconds: 60,
-            timeout_seconds: 5,
-            headers: BTreeMap::new(),
-        }
-    }
-}
-
-impl fmt::Debug for OtlpMetricsConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Both endpoint URLs and headers may contain collector credentials.
-        f.debug_struct("OtlpMetricsConfig")
-            .field("enabled", &self.enabled)
-            .field("interval_seconds", &self.interval_seconds)
-            .field("timeout_seconds", &self.timeout_seconds)
-            .finish_non_exhaustive()
-    }
-}
-
-#[cfg(feature = "otlp-metrics")]
-impl OtlpMetricsConfig {
-    pub(crate) fn forge_config(&self) -> aster_forge_metrics::OtlpMetricsConfig {
-        use std::time::Duration;
-
-        aster_forge_metrics::OtlpMetricsConfig {
-            endpoint: self.endpoint.clone(),
-            interval: Duration::from_secs(self.interval_seconds),
-            timeout: Duration::from_secs(self.timeout_seconds),
-            headers: self.headers.clone(),
-            max_request_bytes: 16 * 1024 * 1024,
-            max_response_bytes: 64 * 1024,
-        }
-    }
+/// Builds the Forge provider under Yggdrasil's product identity.
+///
+/// The Forge pipeline validates the effective configuration, attaches
+/// [`aster_forge_metrics::METRICS_PROFILE_VERSION`] under
+/// `com.astercosm.yggdrasil`, and starts the enabled exporters; sections left
+/// disabled stay Noop.
+pub fn create_provider(
+    config: &ObservabilityConfig,
+    instance_id: &str,
+) -> Result<aster_forge_metrics::MetricsProvider> {
+    effective_config(config.clone())
+        .create_provider(aster_forge_metrics::MetricsIdentity {
+            service_name: "asteryggdrasil".into(),
+            service_version: env!("CARGO_PKG_VERSION").into(),
+            profile_namespace: "com.astercosm.yggdrasil".into(),
+            role: "server".into(),
+            node_mode: None,
+            instance_id: instance_id.to_owned(),
+        })
+        .map_err(|error| AsterError::config_error(error.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
     use crate::config::Config;
-    use crate::config::metrics::ObservabilityConfig;
+    use aster_forge_config::ValidatableConfig as _;
+    use aster_forge_metrics::ObservabilityConfig;
 
     #[test]
     fn absent_observability_disables_both_exporters() {
@@ -215,21 +77,29 @@ mod tests {
         let observability = config.observability;
         assert_eq!(observability.environment, "staging");
         assert!(!observability.prometheus.enabled);
-        assert!(observability.otlp_metrics.enabled);
-        assert_eq!(observability.otlp_metrics.interval_seconds, 60);
-        assert_eq!(observability.otlp_metrics.timeout_seconds, 5);
-        assert_eq!(
-            observability.otlp_metrics.headers["Authorization"],
-            "Bearer test-secret"
-        );
-        let debug = format!("{observability:?}");
-        assert!(!debug.contains("test-secret"));
-        assert!(!debug.contains("127.0.0.1"));
+        // A compiled exporter keeps its configured values…
+        #[cfg(feature = "otlp-metrics")]
+        {
+            assert!(observability.otlp_metrics.enabled);
+            assert_eq!(observability.otlp_metrics.interval_seconds, 60);
+            assert_eq!(observability.otlp_metrics.timeout_seconds, 5);
+            assert_eq!(
+                observability.otlp_metrics.headers["Authorization"],
+                "Bearer test-secret"
+            );
+            let debug = format!("{observability:?}");
+            assert!(!debug.contains("test-secret"));
+            assert!(!debug.contains("127.0.0.1"));
+        }
+        // …while `effective_config` zeroes an exporter this build lacks.
+        #[cfg(not(feature = "otlp-metrics"))]
+        assert!(!observability.otlp_metrics.enabled);
     }
 
     /// The staged auth section lands in config even while disabled, mirroring
     /// AsterDrive's deserialize round-trip; values are only validated when the
-    /// section is switched on.
+    /// section is switched on. A build without the metrics feature zeroes the
+    /// whole Prometheus section instead of keeping staged values.
     #[test]
     fn basic_auth_section_parses_from_toml_while_disabled() {
         let config: Config = toml::from_str(
@@ -243,26 +113,43 @@ mod tests {
             "#,
         )
         .unwrap();
-        let auth = config
-            .observability
-            .prometheus
-            .basic_auth
-            .expect("auth section must deserialize");
-        assert!(!auth.enabled);
-        assert_eq!(auth.username, "file-user");
-        assert_eq!(auth.password_hash, "file-hash");
+        #[cfg(feature = "metrics")]
+        {
+            let auth = config
+                .observability
+                .prometheus
+                .basic_auth
+                .expect("auth section must deserialize");
+            assert!(!auth.enabled);
+            assert_eq!(auth.username, "file-user");
+            assert_eq!(auth.password_hash, "file-hash");
+        }
+        #[cfg(not(feature = "metrics"))]
+        assert!(config.observability.prometheus.basic_auth.is_none());
+    }
+
+    #[test]
+    fn default_config_passes_the_forge_validation_pipeline() {
+        let config = Config::default();
+        aster_forge_config::load_config(|| Ok::<_, std::convert::Infallible>(config.clone()))
+            .expect("default configuration must pass section and cross-section validation");
     }
 
     #[cfg(feature = "metrics")]
     #[test]
     fn validate_rejects_invalid_deployment_identity_only_when_exporters_enabled() {
         for environment in ["", "   ", "x".repeat(129).as_str(), "bad\u{0007}identity"] {
-            let mut config = ObservabilityConfig::default();
-            config.prometheus.enabled = true;
-            config.environment = environment.to_string();
+            let config = ObservabilityConfig {
+                environment: environment.to_owned(),
+                prometheus: aster_forge_metrics::PrometheusSettings {
+                    enabled: true,
+                    basic_auth: None,
+                },
+                ..ObservabilityConfig::default()
+            };
             let error = config.validate().unwrap_err();
             assert!(
-                error.message().contains("deployment identity"),
+                error.to_string().contains("environment is invalid"),
                 "{environment:?} should be rejected: {error}"
             );
         }
@@ -280,18 +167,29 @@ mod tests {
     #[cfg(feature = "otlp-metrics")]
     #[test]
     fn validate_rejects_invalid_active_otlp_push_settings() {
-        let mut config = ObservabilityConfig::default();
-        config.otlp_metrics.enabled = true;
-        config.otlp_metrics.timeout_seconds = config.otlp_metrics.interval_seconds + 1;
+        // timeout must be positive, at most 60 seconds, and not exceed interval.
+        let config = ObservabilityConfig {
+            otlp_metrics: aster_forge_metrics::OtlpMetricsSettings {
+                enabled: true,
+                interval_seconds: 5,
+                timeout_seconds: 6,
+                ..aster_forge_metrics::OtlpMetricsSettings::default()
+            },
+            ..ObservabilityConfig::default()
+        };
         let error = config.validate().unwrap_err();
-        assert!(
-            error.message().contains("invalid metrics configuration"),
-            "{error}"
-        );
+        assert!(error.to_string().contains("timeout must be"), "{error}");
 
         // Inactive OTLP settings stay unvalidated.
-        let mut config = ObservabilityConfig::default();
-        config.otlp_metrics.timeout_seconds = config.otlp_metrics.interval_seconds + 1;
+        let config = ObservabilityConfig {
+            otlp_metrics: aster_forge_metrics::OtlpMetricsSettings {
+                enabled: false,
+                interval_seconds: 5,
+                timeout_seconds: 6,
+                ..aster_forge_metrics::OtlpMetricsSettings::default()
+            },
+            ..ObservabilityConfig::default()
+        };
         config
             .validate()
             .expect("inactive sections must not block startup");
@@ -299,7 +197,8 @@ mod tests {
 
     #[cfg(feature = "metrics")]
     mod basic_auth_tests {
-        use crate::config::metrics::{ObservabilityConfig, PrometheusConfig};
+        use aster_forge_config::ValidatableConfig as _;
+        use aster_forge_metrics::ObservabilityConfig;
 
         fn config_with_auth(
             prometheus_enabled: bool,
@@ -308,7 +207,7 @@ mod tests {
             password_hash: &str,
         ) -> ObservabilityConfig {
             ObservabilityConfig {
-                prometheus: PrometheusConfig {
+                prometheus: aster_forge_metrics::PrometheusSettings {
                     enabled: prometheus_enabled,
                     basic_auth: Some(aster_forge_metrics::MetricsBasicAuthConfig {
                         enabled,
@@ -331,7 +230,7 @@ mod tests {
                 &aster_forge_crypto::hash_password("secret").unwrap(),
             );
             let error = config.validate().unwrap_err();
-            assert!(error.message().contains("basic_auth requires"), "{error}");
+            assert!(error.to_string().contains("basic_auth requires"), "{error}");
         }
 
         /// Username rules: non-empty, no ':' (it would split the Basic payload
@@ -342,7 +241,7 @@ mod tests {
             for username in ["", " ", "scrape\n", "us:er", "bad\nuser"] {
                 let config = config_with_auth(true, true, username, &valid_hash);
                 let error = config.validate().unwrap_err();
-                assert!(!error.message().contains(&valid_hash), "{error}");
+                assert!(!error.to_string().contains(&valid_hash), "{error}");
             }
         }
 
@@ -352,7 +251,20 @@ mod tests {
             let marker = "not-a-phc-verifier";
             let config = config_with_auth(true, true, "scrape", marker);
             let error = config.validate().unwrap_err();
-            assert!(!error.message().contains(marker), "{error}");
+            assert!(!error.to_string().contains(marker), "{error}");
+        }
+
+        /// A verifier beyond Forge's 1024-byte cap is rejected offline and
+        /// never echoed back.
+        #[test]
+        fn basic_auth_rejects_oversized_verifier() {
+            let oversized = "a".repeat(1025);
+            let config = config_with_auth(true, true, "scrape", &oversized);
+            let error = config.validate().unwrap_err();
+            assert!(
+                !error.to_string().contains(&"a".repeat(64)),
+                "oversized verifier must not be echoed: {error}"
+            );
         }
 
         #[test]
