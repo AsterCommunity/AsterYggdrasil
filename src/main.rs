@@ -1,5 +1,4 @@
 //! AsterYggdrasil service entrypoint.
-#![deny(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 #![cfg_attr(
     not(test),
     deny(
@@ -19,8 +18,15 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[cfg(all(feature = "jemalloc", not(target_env = "msvc"), target_os = "linux"))]
 #[expect(
     non_upper_case_globals,
-    reason = "jemalloc reads this exact symbol name; renaming breaks allocator configuration."
+    unsafe_code,
+    reason = "jemalloc reads this exact symbol name, so `unsafe(export_name)` is required by the \
+              allocator's ABI contract; the union only reads a static byte-string literal that is \
+              initialized for the whole program lifetime."
 )]
+/// jemalloc tuning knobs read by name from the allocator's C shim at startup.
+///
+/// `narenas:1` lowers idle memory for the self-hosted default profile, but can
+/// become allocator contention under high concurrency.
 #[unsafe(export_name = "_rjem_malloc_conf")]
 pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
     // SAFETY: the union only reads a static byte-string literal, which is always
@@ -30,8 +36,6 @@ pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
         ptr: &'static std::ffi::c_char,
     }
 
-    // `narenas:1` lowers idle memory for the self-hosted default profile, but
-    // can become allocator contention under high concurrency.
     Conf {
         bytes: &b"narenas:1,dirty_decay_ms:1000,muzzy_decay_ms:1000,background_thread:true\0"[0],
     }
@@ -50,8 +54,15 @@ pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
 ))]
 #[expect(
     non_upper_case_globals,
-    reason = "jemalloc reads this exact symbol name; renaming breaks allocator configuration."
+    unsafe_code,
+    reason = "jemalloc reads this exact symbol name, so `unsafe(export_name)` is required by the \
+              allocator's ABI contract; the union only reads a static byte-string literal that is \
+              initialized for the whole program lifetime."
 )]
+/// jemalloc tuning knobs read by name from the allocator's C shim at startup.
+///
+/// `narenas:1` lowers idle memory for the self-hosted default profile, but can
+/// become allocator contention under high concurrency.
 #[unsafe(export_name = "_rjem_malloc_conf")]
 pub static malloc_conf: Option<&'static std::ffi::c_char> = Some(unsafe {
     // SAFETY: the union only reads a static byte-string literal, which is always

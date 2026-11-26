@@ -156,6 +156,11 @@ panic = "abort"
 strip = true
 
 [workspace.lints.rust]
+# Workspace-wide floor only. Library crates upgrade this to `forbid(unsafe_code)`
+# in their own `lib.rs`; the bin (`src/main.rs`) cannot because its jemalloc
+# `malloc_conf` symbols require a scoped, reasoned suppression.
+unsafe_code = "deny"
+missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.clippy]

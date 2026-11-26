@@ -18,6 +18,19 @@
 //! token lifecycle persistence, and signature key management remain product
 //! infrastructure and are deliberately out of scope here.
 
+#![forbid(unsafe_code)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::unreachable,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unimplemented,
+        clippy::todo
+    )
+)]
+
 pub mod error;
 pub mod profile;
 pub mod request;

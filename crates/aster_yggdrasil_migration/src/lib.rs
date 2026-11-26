@@ -1,5 +1,5 @@
 //! AsterYggdrasil database migrations.
-#![deny(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![forbid(unsafe_code)]
 #![cfg_attr(
     not(test),
     deny(
