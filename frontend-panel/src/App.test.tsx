@@ -61,6 +61,7 @@ const yggdrasilServiceMock = vi.hoisted(() => ({
 const toastMock = vi.hoisted(() => ({
 	error: vi.fn(),
 	success: vi.fn(),
+	warning: vi.fn(),
 }));
 
 const DESKTOP_SIDEBAR_STORAGE_KEY = "asteryggdrasil-desktop-sidebar-expanded";
@@ -1425,6 +1426,59 @@ describe("frontend entry routes", () => {
 		});
 		expect(toastMock.success).toHaveBeenCalledWith("Logged out");
 		expect(await screen.findByText("home-route")).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/");
+	});
+
+	it("warns but still leaves the shell when logout revocation fails", async () => {
+		const user = {
+			id: 7,
+			username: "alex",
+			email: "alex@example.com",
+			role: "user",
+			status: "active",
+		} as const;
+		useAuthStore.setState({
+			user,
+			checking: false,
+			error: null,
+			expiresAt: Date.now() + 60_000,
+			isAuthStale: false,
+			isAuthenticated: true,
+			isAdmin: false,
+		});
+		authServiceMock.logout.mockRejectedValueOnce(new Error("network gone"));
+
+		const router = createMemoryRouter(
+			[
+				{
+					path: "/",
+					element: <div>home-route</div>,
+				},
+				{
+					element: <AppLayout />,
+					children: [
+						{
+							path: "/account",
+							element: <div>account-route</div>,
+						},
+					],
+				},
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("account-route")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "alex" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "Logout" }));
+
+		await waitFor(() => {
+			expect(toastMock.warning).toHaveBeenCalledWith(
+				"Signed out locally, but the server session may not have been revoked and could still be active",
+			);
+		});
+		expect(toastMock.success).not.toHaveBeenCalled();
 		expect(router.state.location.pathname).toBe("/");
 	});
 
