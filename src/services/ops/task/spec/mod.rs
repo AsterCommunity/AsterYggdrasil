@@ -54,6 +54,20 @@ impl<T> BackgroundTaskSpec for T where
 {
 }
 
+pub(super) fn decode_payload_as<S: BackgroundTaskSpec>(
+    task: &background_task::Model,
+) -> crate::errors::Result<S::Payload> {
+    aster_forge_tasks::decode_payload_as::<
+        S,
+        AppState,
+        background_task::Model,
+        RuntimeConfig,
+        TaskExecutionContext,
+        AsterError,
+    >(task)
+    .map_err(AsterError::from)
+}
+
 pub(super) fn serialize_payload<S>(
     payload: &S::Payload,
 ) -> crate::errors::Result<aster_yggdrasil_model::types::task::StoredTaskPayload>
@@ -111,8 +125,10 @@ where
 }
 
 pub(crate) mod runtime;
+pub(crate) mod texture_preview;
 
 pub(crate) use runtime::SystemRuntimeTask;
+pub(crate) use texture_preview::TexturePreviewGenerateTask;
 
 #[cfg(test)]
 mod tests {

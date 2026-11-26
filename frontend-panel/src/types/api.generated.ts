@@ -2474,7 +2474,7 @@ export interface components {
         /** @enum {string} */
         AvatarSource: "none" | "gravatar" | "upload";
         /** @enum {string} */
-        BackgroundTaskKind: "system_runtime";
+        BackgroundTaskKind: "system_runtime" | "texture_preview_generate";
         BackgroundTaskModel: {
             /** Format: int32 */
             attempt_count: number;
@@ -4250,26 +4250,32 @@ export interface components {
             steps: components["schemas"]["TaskStepInfo"][];
             updated_at: string;
         };
-        TaskPayload: components["schemas"]["RuntimeTaskPayload"] & {
+        TaskPayload: (components["schemas"]["RuntimeTaskPayload"] & {
             /** @enum {string} */
             kind: "system_runtime";
-        };
+        }) | (components["schemas"]["TexturePreviewGenerateTaskPayload"] & {
+            /** @enum {string} */
+            kind: "texture_preview_generate";
+        });
         TaskPresentation: {
             status?: components["schemas"]["TaskPresentationMessage"] | null;
             title?: components["schemas"]["TaskPresentationMessage"] | null;
         };
         /** @enum {string} */
-        TaskPresentationCode: "runtime_system_health_issue_detail" | "runtime_task_audit_cleanup" | "runtime_task_auth_session_cleanup" | "runtime_task_background_task_dispatch" | "runtime_task_external_auth_flow_cleanup" | "runtime_task_mail_outbox_dispatch" | "runtime_task_system_health_check" | "runtime_task_task_cleanup" | "runtime_task_yggdrasil_storage_consistency_check" | "runtime_task_yggdrasil_token_cleanup" | "runtime_task_yggdrasil_texture_cleanup" | "status_text_failed" | "status_text_quiet" | "status_text_succeeded" | "status_text_system_healthy";
+        TaskPresentationCode: "runtime_system_health_issue_detail" | "runtime_task_audit_cleanup" | "runtime_task_auth_session_cleanup" | "runtime_task_background_task_dispatch" | "runtime_task_external_auth_flow_cleanup" | "runtime_task_mail_outbox_dispatch" | "runtime_task_system_health_check" | "runtime_task_task_cleanup" | "runtime_task_yggdrasil_storage_consistency_check" | "runtime_task_yggdrasil_token_cleanup" | "runtime_task_yggdrasil_texture_cleanup" | "status_text_failed" | "status_text_quiet" | "status_text_succeeded" | "status_text_system_healthy" | "texture_preview_generate_hash";
         TaskPresentationMessage: {
             code: components["schemas"]["TaskPresentationCode"];
             params?: {
                 [key: string]: unknown;
             };
         };
-        TaskResult: components["schemas"]["RuntimeTaskResult"] & {
+        TaskResult: (components["schemas"]["RuntimeTaskResult"] & {
             /** @enum {string} */
             kind: "system_runtime";
-        };
+        }) | (components["schemas"]["TexturePreviewGenerateTaskResult"] & {
+            /** @enum {string} */
+            kind: "texture_preview_generate";
+        });
         /** @description Serialized task step shown in task APIs. */
         TaskStepInfo: {
             /** @description Optional detail text. */
@@ -4319,6 +4325,26 @@ export interface components {
             label_i18n_key: string;
             /** @description Placeholder token displayed in UI, such as `{{username}}`. */
             token: string;
+        };
+        /**
+         * @description Generation target for the `texture_preview_generate` task: the texture hash
+         *     plus the skin model it binds to. The preview spec (engine, size, quality)
+         *     is intentionally absent — the worker always renders with the runtime
+         *     config's current spec, so spec changes are picked up by the next task
+         *     without re-enqueueing by hand.
+         */
+        TexturePreviewGenerateTaskPayload: {
+            texture_hash: string;
+            texture_model: components["schemas"]["MinecraftTextureModel"];
+        };
+        TexturePreviewGenerateTaskResult: {
+            /**
+             * @description Preview file name the task ensured in object storage; a task that found
+             *     the preview already cached reports the existing name with
+             *     `reused_existing = true`.
+             */
+            file_name: string;
+            reused_existing: boolean;
         };
         TextureReportInfo: {
             admin_note?: string | null;
@@ -11428,7 +11454,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Generated texture preview PNG bytes */
+            /** @description Cached texture preview PNG bytes */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11437,7 +11463,14 @@ export interface operations {
                     "image/png": unknown;
                 };
             };
-            /** @description Texture or preview variant not found */
+            /** @description Preview generation is queued or running; retry after the indicated delay */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Texture or preview variant not found, or generation previously failed */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12717,6 +12750,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description Role is initializing or a local task worker stopped */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
+            };
         };
     };
     ready: {
@@ -12744,7 +12788,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Database is unavailable */
+            /** @description Database is unavailable or the process role is not ready */
             503: {
                 headers: {
                     [name: string]: unknown;

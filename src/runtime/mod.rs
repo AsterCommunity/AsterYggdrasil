@@ -5,6 +5,7 @@ pub(crate) mod audit_recovery;
 pub mod bootstrap;
 pub mod entrypoint;
 pub mod metrics;
+pub mod role;
 pub mod shutdown;
 pub mod startup;
 pub mod state;

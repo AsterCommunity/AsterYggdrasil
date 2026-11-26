@@ -116,6 +116,15 @@ async fn setup_yggdrasil() -> aster_yggdrasil::runtime::AppState {
     state
 }
 
+async fn setup_yggdrasil_with_isolated_storage() -> (
+    aster_yggdrasil::runtime::AppState,
+    aster_forge_utils::raii::TempDirGuard,
+) {
+    let (state, guard) = common::setup_with_isolated_storage().await;
+    configure_yggdrasil_public_site_url(&state).await;
+    (state, guard)
+}
+
 async fn setup_yggdrasil_with_memory_cache() -> aster_yggdrasil::runtime::AppState {
     let state = common::setup_with_memory_cache().await;
     configure_yggdrasil_public_site_url(&state).await;
@@ -3497,8 +3506,11 @@ async fn yggdrasil_profile_property_cache_refreshes_after_bound_wardrobe_model_u
 
 #[actix_web::test]
 async fn texture_preview_responses_support_etag_revalidation() {
-    let state = setup_yggdrasil().await;
-    let app = create_test_app!(state);
+    // Isolated storage: concurrent test processes share nothing, so a 202
+    // cold-cache start is deterministic without touching shared preview
+    // objects that other processes may be reading.
+    let (state, _storage_guard) = setup_yggdrasil_with_isolated_storage().await;
+    let app = create_test_app!(state.clone());
     let access = setup_admin!(app);
     let profile_id = create_profile!(&app, &access, "PreviewCache");
     let login = ygg_login!(&app, "admin@example.com", "preview-cache-client");
@@ -3526,6 +3538,22 @@ async fn texture_preview_responses_support_etag_revalidation() {
         .expect("skin metadata should include preview url")
         .to_string();
     assert!(preview_url.starts_with("/api/v1/texture-previews/"));
+
+    // Cold cache: the preview generation is enqueued and the endpoint answers
+    // 202 with Retry-After; the worker-side dispatch renders it.
+    let req = test::TestRequest::get().uri(&preview_url).to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 202);
+    assert_eq!(
+        resp.headers()
+            .get("Retry-After")
+            .and_then(|value| value.to_str().ok()),
+        Some("2")
+    );
+
+    aster_yggdrasil::services::ops::task::dispatch_due(&state)
+        .await
+        .expect("preview dispatch should run");
 
     let req = test::TestRequest::get().uri(&preview_url).to_request();
     let resp = test::call_service(&app, req).await;

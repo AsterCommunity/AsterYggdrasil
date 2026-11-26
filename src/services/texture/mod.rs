@@ -28,9 +28,10 @@ pub use maintenance::{
     OrphanTextureCleanupResult, TextureStoreConsistencyIssue, TextureStoreConsistencyIssueKind,
     TextureStoreConsistencyReport, check_texture_storage_consistency, cleanup_orphan_texture_blobs,
 };
+pub(crate) use preview::generate_preview_object;
 pub use preview::{
-    TEXTURE_PREVIEW_CACHE_CONTROL, TexturePreviewBytes, current_texture_preview_url,
-    texture_preview_by_hash,
+    TEXTURE_PREVIEW_CACHE_CONTROL, TexturePreviewBytes, TexturePreviewLookup,
+    current_texture_preview_url, texture_preview_by_hash,
 };
 pub use processing::{TextureProcessingResult, process_texture_file, sanitize_png_texture};
 pub use query::{

@@ -8,6 +8,7 @@ AsterYggdrasil 是自建 Minecraft 皮肤站和 Yggdrasil 认证服务器，不�
 ## 架构
 
 - [架构总览](./architecture/index.md) —— workspace crate、运行时模型、配置三轨、响应信封
+- [日志规范](./architecture/logging.md) —— 日志/审计分工、级别语义、字段纪律、禁记清单、脱敏回归
 - [服务模块所有权](./architecture/service-ownership.md) —— 子域布局、state trait、Forge 委托
 - [配置模型](./architecture/config-model.md) —— 三轨及其归属
 - [认证模型](./architecture/auth-model.md) —— 身份链、角色、operator 区域授权、玩家能力封禁

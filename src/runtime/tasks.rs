@@ -19,6 +19,13 @@ const BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL: Duration = Duration::from_se
 const BACKGROUND_TASK_RUNTIME_LEASE_STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULED_TASK_CLAIM_TTL: Duration = Duration::from_secs(120);
 
+/// Independent component identity for the leased task-consumer group.
+///
+/// Process-owned maintenance (metrics updates, config reload) keeps the default
+/// [`aster_forge_tasks::BACKGROUND_TASKS_COMPONENT`] name, so shutdown graphs can
+/// order the consumer group against it explicitly.
+pub const TASK_CONSUMERS_COMPONENT: &str = "task_consumers";
+
 type BackgroundTasksComponent<F> =
     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponentFromShutdown<
         SystemRuntimeTaskKind,
@@ -26,32 +33,35 @@ type BackgroundTasksComponent<F> =
         F,
     >;
 
-/// Creates the background task component used by the product entrypoint.
-pub fn background_tasks_component(
+/// Creates the process-owned maintenance component (metrics updates, runtime
+/// config reload). Every serve role runs it because both API and worker
+/// processes depend on fresh runtime configuration and system metrics.
+pub fn maintenance_component(
     state: web::Data<AppState>,
+) -> aster_forge_tasks::BackgroundTaskRuntimeComponentFromShutdown<
+    impl FnOnce(CancellationToken) -> BackgroundTasks,
+> {
+    aster_forge_tasks::background_task_component_from_shutdown(move |shutdown_token| {
+        spawn_maintenance_tasks(state, shutdown_token)
+    })
+}
+
+/// Creates the leased task-consumer component. Only registered by roles that
+/// consume tasks (`all`, `worker`); API-only processes leave tasks queued.
+pub fn task_consumers_component(
+    state: web::Data<AppState>,
+    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
 ) -> BackgroundTasksComponent<impl FnOnce(CancellationToken) -> BackgroundTasks> {
     aster_forge_tasks::background_task_component_with_definitions_from_shutdown(
         crate::services::ops::task::registered_system_runtime_tasks(),
-        move |shutdown_token| spawn_runtime_background_tasks(state, shutdown_token),
+        move |shutdown_token| {
+            spawn_runtime_background_tasks(state, consumer_status, shutdown_token)
+        },
     )
+    .named(TASK_CONSUMERS_COMPONENT)
 }
 
-/// Creates the background task runtime component used by the product entrypoint.
-pub fn task_component(
-    background_tasks: BackgroundTasks,
-) -> aster_forge_runtime::RuntimeComponentBundleRegistration<
-    aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent<
-        SystemRuntimeTaskKind,
-        crate::services::ops::task::types::TaskPresentationCode,
-    >,
-> {
-    aster_forge_tasks::background_task_component_with_definitions(
-        background_tasks,
-        crate::services::ops::task::registered_system_runtime_tasks(),
-    )
-}
-
-pub fn spawn_runtime_background_tasks(
+fn spawn_maintenance_tasks(
     state: web::Data<AppState>,
     shutdown_token: CancellationToken,
 ) -> BackgroundTasks {
@@ -60,7 +70,7 @@ pub fn spawn_runtime_background_tasks(
         budget.drain_timeout + budget.cancellation_timeout + Duration::from_secs(5);
     tracing::info!(
         shutdown_grace_secs = shutdown_grace.as_secs(),
-        "starting runtime background tasks"
+        "starting process maintenance tasks"
     );
     let mut tasks = build_background_tasks_base(state.metrics(), shutdown_token, shutdown_grace);
     let shutdown_token = tasks.shutdown_token();
@@ -72,14 +82,34 @@ pub fn spawn_runtime_background_tasks(
         ));
     }
 
-    tasks.push(run_background_runtime_group(shutdown_token.clone(), state));
+    tasks
+}
 
+fn spawn_runtime_background_tasks(
+    state: web::Data<AppState>,
+    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
+    shutdown_token: CancellationToken,
+) -> BackgroundTasks {
+    let budget = state.get_ref().config.worker.consumer_config();
+    let shutdown_grace =
+        budget.drain_timeout + budget.cancellation_timeout + Duration::from_secs(5);
+    tracing::info!(
+        shutdown_grace_secs = shutdown_grace.as_secs(),
+        "starting runtime background tasks"
+    );
+    let mut tasks = BackgroundTasks::with_shutdown_token_and_grace(shutdown_token, shutdown_grace);
+    tasks.push(run_background_runtime_group(
+        tasks.shutdown_token(),
+        state,
+        consumer_status,
+    ));
     tasks
 }
 
 async fn run_background_runtime_group(
     shutdown_token: CancellationToken,
     state: web::Data<AppState>,
+    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
 ) {
     let config = aster_forge_tasks::LeasedScheduledRuntimeConfig::new(
         "aster_yggdrasil",
@@ -92,6 +122,7 @@ async fn run_background_runtime_group(
         },
         record_scheduled_task_outcome,
     )
+    .status(consumer_status)
     .claim_ttl(SCHEDULED_TASK_CLAIM_TTL)
     .lease_ttl(BACKGROUND_TASK_RUNTIME_LEASE_TTL)
     .lease_renew_interval(BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL)
@@ -668,13 +699,20 @@ mod tests {
     use aster_forge_runtime::{HealthComponentReport, RuntimeComponentBundle, SystemHealthReport};
 
     #[test]
-    fn task_component_registers_background_task_shutdown() {
+    fn task_consumers_component_registers_background_task_shutdown() {
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            task_component(BackgroundTasks::new()).register(registry);
+            aster_forge_runtime::runtime_component(
+                aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent::new(
+                    BackgroundTasks::new(),
+                    crate::services::ops::task::registered_system_runtime_tasks(),
+                )
+                .named(TASK_CONSUMERS_COMPONENT),
+            )
+            .register(registry);
         });
 
         let descriptor = registry
-            .descriptor(aster_forge_tasks::BACKGROUND_TASKS_COMPONENT)
+            .descriptor(TASK_CONSUMERS_COMPONENT)
             .expect("background task component should be registered");
         assert_eq!(
             descriptor.kind,

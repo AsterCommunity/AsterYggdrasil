@@ -81,6 +81,7 @@
 				"runtime_task_yggdrasil_storage_consistency_check": "Yggdrasil 存储一致性检查",
 				"runtime_task_yggdrasil_token_cleanup": "Yggdrasil token 清理",
 				"runtime_task_yggdrasil_texture_cleanup": "Yggdrasil 材质清理",
+				"texture_preview_generate_hash": "材质预览生成",
 				"status_text_failed": "失败：{{error}}",
 				"status_text_quiet": "无变化",
 				"status_text_succeeded": "已完成",

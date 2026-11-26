@@ -24,8 +24,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         ("file_name" = String, Path, description = "Generated preview variant filename"),
     ),
     responses(
-        (status = 200, description = "Generated texture preview PNG bytes", content_type = "image/png"),
-        (status = 404, description = "Texture or preview variant not found"),
+        (status = 200, description = "Cached texture preview PNG bytes", content_type = "image/png"),
+        (status = 202, description = "Preview generation is queued or running; retry after the indicated delay"),
+        (status = 404, description = "Texture or preview variant not found, or generation previously failed"),
     ),
 )]
 pub async fn texture_preview_by_hash(
@@ -34,11 +35,17 @@ pub async fn texture_preview_by_hash(
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse> {
     let (hash, file_name) = path.into_inner();
-    let preview = texture::texture_preview_by_hash(state.get_ref(), &hash, &file_name).await?;
-    Ok(conditional_bytes_response(
-        &req,
-        preview.bytes,
-        "image/png",
-        texture::TEXTURE_PREVIEW_CACHE_CONTROL,
-    ))
+    match texture::texture_preview_by_hash(state.get_ref(), &hash, &file_name).await? {
+        texture::TexturePreviewLookup::Ready(preview) => Ok(conditional_bytes_response(
+            &req,
+            preview.bytes,
+            "image/png",
+            texture::TEXTURE_PREVIEW_CACHE_CONTROL,
+        )),
+        // AsterDrive thumbnail parity: the render runs in the worker process's
+        // background task lane, so a cache miss asks the client to come back.
+        texture::TexturePreviewLookup::Accepted => Ok(HttpResponse::Accepted()
+            .insert_header(("Retry-After", "2"))
+            .finish()),
+    }
 }

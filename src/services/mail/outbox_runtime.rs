@@ -49,24 +49,57 @@ impl MailOutboxRuntimeResources {
 }
 
 /// Creates the mail outbox runtime component used by the product entrypoint.
+///
+/// The outbox drain waits for background task dispatch to stop so no new rows
+/// are enqueued after draining. Roles that consume tasks additionally wait for
+/// the dedicated task-consumer group before draining.
 pub fn mail_outbox_component(
     resources: MailOutboxRuntimeResources,
+    role: crate::runtime::role::ServeRole,
 ) -> RuntimeComponentBundleRegistration<
     aster_forge_runtime::ShutdownResourceComponent<MailOutboxRuntimeResources>,
 > {
-    aster_forge_mail::mail_outbox_component(resources, drain_mail_outbox_on_shutdown)
+    let dependencies: &'static [&'static str] = if role.consumes_tasks() {
+        &[
+            aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
+            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+        ]
+    } else {
+        &[aster_forge_tasks::BACKGROUND_TASKS_COMPONENT]
+    };
+    // The outbox rows are shared cluster state; only roles that consume tasks
+    // may drain them on shutdown. An api-only process must not claim and send
+    // mail as a side effect of stopping, so its drain is a no-op that keeps
+    // the component (and the shutdown dependency anchor) registered.
+    type MailDrainFuture = std::pin::Pin<
+        Box<dyn std::future::Future<Output = std::result::Result<(), String>> + Send>,
+    >;
+    let drain: fn(MailOutboxRuntimeResources) -> MailDrainFuture = if role.consumes_tasks() {
+        |resources| Box::pin(drain_mail_outbox_on_shutdown(resources))
+    } else {
+        |_resources| Box::pin(async { Ok(()) })
+    };
+    aster_forge_runtime::shutdown_resource_component_after(
+        aster_forge_mail::MAIL_OUTBOX_COMPONENT,
+        aster_forge_runtime::RuntimeComponentKind::Mail,
+        aster_forge_mail::MAIL_OUTBOX_DRAIN_SHUTDOWN_PHASE,
+        dependencies,
+        resources,
+        drain,
+    )
 }
 
 /// Creates the mail runtime component from product state.
 pub fn mail_runtime_component<S>(
     state: &S,
+    role: crate::runtime::role::ServeRole,
 ) -> RuntimeComponentBundleRegistration<
     aster_forge_runtime::ShutdownResourceComponent<MailOutboxRuntimeResources>,
 >
 where
     S: MailRuntimeState,
 {
-    mail_outbox_component(MailOutboxRuntimeResources::from_state(state))
+    mail_outbox_component(MailOutboxRuntimeResources::from_state(state), role)
 }
 
 async fn drain_mail_outbox_on_shutdown(
@@ -87,6 +120,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::{MailOutboxRuntimeResources, mail_outbox_component};
+    use crate::runtime::role::ServeRole;
     use aster_forge_runtime::RuntimeComponentBundle;
     use sea_orm::EntityTrait;
 
@@ -105,7 +139,7 @@ mod tests {
     async fn mail_outbox_component_registers_shutdown_dependency() {
         let resources = test_resources().await;
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            mail_outbox_component(resources).register(registry);
+            mail_outbox_component(resources, ServeRole::All).register(registry);
         });
 
         let descriptor = registry
@@ -117,12 +151,32 @@ mod tests {
         );
         assert_eq!(
             descriptor.dependencies,
-            vec![aster_forge_tasks::BACKGROUND_TASKS_COMPONENT]
+            vec![
+                aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
+                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT
+            ]
         );
         assert_eq!(descriptor.shutdown.len(), 1);
         assert_eq!(
             descriptor.shutdown[0].phase_name,
             aster_forge_mail::MAIL_OUTBOX_DRAIN_SHUTDOWN_PHASE
+        );
+    }
+
+    #[tokio::test]
+    async fn api_role_mail_drain_does_not_wait_for_absent_consumers() {
+        let resources = test_resources().await;
+        let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
+            mail_outbox_component(resources, ServeRole::Api).register(registry);
+        });
+
+        let descriptor = registry
+            .descriptor(aster_forge_mail::MAIL_OUTBOX_COMPONENT)
+            .expect("mail outbox component should be registered");
+        assert_eq!(
+            descriptor.dependencies,
+            vec![aster_forge_tasks::BACKGROUND_TASKS_COMPONENT],
+            "api role never registers task consumers, so the drain must not depend on them"
         );
     }
 
@@ -159,11 +213,10 @@ mod tests {
         .expect("mail outbox drain test row should enqueue");
 
         let mut registry = aster_forge_runtime::RuntimeComponentRegistry::new();
-        registry.register_bundle(mail_outbox_component(MailOutboxRuntimeResources::new(
-            db.clone(),
-            runtime_config,
-            mail_sender.clone(),
-        )));
+        registry.register_bundle(mail_outbox_component(
+            MailOutboxRuntimeResources::new(db.clone(), runtime_config, mail_sender.clone()),
+            ServeRole::All,
+        ));
         let report = registry.shutdown().await;
 
         assert!(!report.has_failures());

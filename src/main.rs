@@ -73,5 +73,11 @@ static GLOBAL: aster_forge_alloc::TrackingAlloc = aster_forge_alloc::TrackingAll
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    aster_yggdrasil::runtime::entrypoint::run().await
+    match aster_yggdrasil::cli::run().await? {
+        aster_yggdrasil::cli::CommandOutcome::Serve { role, location } => {
+            aster_yggdrasil::runtime::entrypoint::run(role, &location).await
+        }
+        aster_yggdrasil::cli::CommandOutcome::Exit(0) => Ok(()),
+        aster_yggdrasil::cli::CommandOutcome::Exit(code) => std::process::exit(code),
+    }
 }

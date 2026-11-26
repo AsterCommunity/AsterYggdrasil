@@ -95,12 +95,15 @@ impl From<StoredTaskSteps> for String {
 pub enum BackgroundTaskKind {
     #[sea_orm(string_value = "system_runtime")]
     SystemRuntime,
+    #[sea_orm(string_value = "texture_preview_generate")]
+    TexturePreviewGenerate,
 }
 
 impl BackgroundTaskKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SystemRuntime => "system_runtime",
+            Self::TexturePreviewGenerate => "texture_preview_generate",
         }
     }
 }
