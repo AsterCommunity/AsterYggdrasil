@@ -211,4 +211,4 @@ jobs:
 
       # 只跑集成测试（tests/ 下的），单元测试已在 coverage job 中覆盖
       - name: Run integration tests against ${{ matrix.backend }}
-        run: cargo test --tests --no-fail-fast --verbose
+        run: cargo test --tests --no-fail-fast

@@ -96,12 +96,18 @@ async fn run_task_cleanup_body(state: web::Data<AppState>) -> RuntimeTaskRunOutc
 
 async fn lease_owner(state: &AppState) -> Option<String> {
     // Forge keeps the lease model private; a raw query is the honest way to
-    // observe the current owner from the shared table.
+    // observe the current owner from the shared table. Placeholder style
+    // follows the backend: MySQL takes `?`, everything else takes `$N`.
+    let backend = state.writer_db().get_database_backend();
+    let placeholder = match backend {
+        sea_orm::DatabaseBackend::MySql => "?",
+        _ => "$1",
+    };
     let row = state
         .writer_db()
         .query_one_raw(sea_orm::Statement::from_sql_and_values(
-            state.writer_db().get_database_backend(),
-            "SELECT owner_id FROM runtime_leases WHERE lease_id = $1",
+            backend,
+            format!("SELECT owner_id FROM runtime_leases WHERE lease_id = {placeholder}"),
             [LEASE_ID.into()],
         ))
         .await
@@ -117,11 +123,19 @@ async fn lease_owner(state: &AppState) -> Option<String> {
 /// executing it. Quiet runs do not create task-history records, so the
 /// catalog — not the background_task table — is the observable here.
 async fn cleanup_task_last_finished_at(state: &AppState) -> Option<chrono::DateTime<Utc>> {
+    let backend = state.writer_db().get_database_backend();
+    let (namespace_ph, name_ph) = match backend {
+        sea_orm::DatabaseBackend::MySql => ("?", "?"),
+        _ => ("$1", "$2"),
+    };
     let row = state
         .writer_db()
         .query_one_raw(sea_orm::Statement::from_sql_and_values(
-            state.writer_db().get_database_backend(),
-            "SELECT last_finished_at FROM scheduled_tasks WHERE namespace = $1 AND task_name = $2",
+            backend,
+            format!(
+                "SELECT last_finished_at FROM scheduled_tasks \
+                 WHERE namespace = {namespace_ph} AND task_name = {name_ph}"
+            ),
             [
                 "aster_yggdrasil".into(),
                 SystemRuntimeTaskKind::TaskCleanup.as_str().into(),
