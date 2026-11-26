@@ -327,6 +327,46 @@ describe("authStore persistence", () => {
 		expect(useAuthStore.getState().isAuthenticated).toBe(false);
 	});
 
+	it("clears the local session even when logout fails with a CSRF rejection", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+
+		await useAuthStore.getState().login("steve", "password");
+		authServiceMock.logout.mockRejectedValueOnce(
+			new ApiError("auth.csrf_missing", "missing CSRF header"),
+		);
+
+		await expect(useAuthStore.getState().logout()).rejects.toMatchObject({
+			code: "auth.csrf_missing",
+		});
+
+		expect(useAuthStore.getState()).toMatchObject({
+			isAuthenticated: false,
+			user: null,
+		});
+		expect(localStorage.getItem("asteryggdrasil-cached-user")).toBeNull();
+	});
+
+	it("clears the local session even when logout fails with a network error", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+
+		await useAuthStore.getState().login("steve", "password");
+		authServiceMock.logout.mockRejectedValueOnce(
+			new ApiError("network_error", "Network error"),
+		);
+
+		await expect(useAuthStore.getState().logout()).rejects.toMatchObject({
+			code: "network_error",
+		});
+
+		expect(useAuthStore.getState()).toMatchObject({
+			isAuthenticated: false,
+			user: null,
+		});
+		expect(localStorage.getItem("asteryggdrasil-cached-user")).toBeNull();
+	});
+
 	it("persists the authenticated user after passkey login", async () => {
 		const { useAuthStore } = await loadStore();
 		const credential = { id: "credential-1" };

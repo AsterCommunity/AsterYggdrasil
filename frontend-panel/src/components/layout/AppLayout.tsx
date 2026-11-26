@@ -98,8 +98,14 @@ export function AppLayout({ scope }: { scope?: ShellScope }) {
 	}, []);
 
 	const handleLogout = useCallback(async () => {
-		await logout();
-		toast.success(t("shell.logoutSuccess"));
+		try {
+			await logout();
+			toast.success(t("shell.logoutSuccess"));
+		} catch {
+			// 本地会话已被 store 清理；服务端撤销未确认时如实提示，
+			// 但不把用户困在已登录界面上，仍离开受保护路由。
+			toast.warning(t("shell.logoutIncomplete"));
+		}
 		navigate(publicPaths.home, { replace: true });
 	}, [logout, navigate, t]);
 

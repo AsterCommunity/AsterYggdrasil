@@ -58,6 +58,7 @@
 		"openNavigation": "Open navigation",
 		"expandNavigation": "Expand navigation",
 		"collapseNavigation": "Collapse navigation",
+		"logoutIncomplete": "Logged out locally, but the server session could not be confirmed as revoked; reloading may show you as signed in again",
 		"logoutSuccess": "Logged out",
 		"navigationTitle": "App navigation",
 		"sections": {
