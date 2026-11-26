@@ -9,6 +9,8 @@ license.workspace = true
 edition = "2024"
 rust-version = "1.95.0"
 publish = true
+keywords = ["minecraft", "skin", "cape", "rendering", "image"]
+categories = ["game-development", "multimedia", "rendering"]
 
 [lints]
 workspace = true
