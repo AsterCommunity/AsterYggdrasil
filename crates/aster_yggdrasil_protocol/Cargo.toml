@@ -9,6 +9,8 @@ license.workspace = true
 edition = "2024"
 rust-version = "1.95.0"
 publish = true
+keywords = ["yggdrasil", "authlib-injector", "minecraft", "protocol", "authentication"]
+categories = ["authentication", "network-programming", "game-development"]
 
 [lints]
 workspace = true
