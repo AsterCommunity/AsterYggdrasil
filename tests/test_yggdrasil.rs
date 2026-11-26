@@ -116,6 +116,15 @@ async fn setup_yggdrasil() -> aster_yggdrasil::runtime::AppState {
     state
 }
 
+async fn setup_yggdrasil_with_isolated_storage() -> (
+    aster_yggdrasil::runtime::AppState,
+    aster_forge_utils::raii::TempDirGuard,
+) {
+    let (state, guard) = common::setup_with_isolated_storage().await;
+    configure_yggdrasil_public_site_url(&state).await;
+    (state, guard)
+}
+
 async fn setup_yggdrasil_with_memory_cache() -> aster_yggdrasil::runtime::AppState {
     let state = common::setup_with_memory_cache().await;
     configure_yggdrasil_public_site_url(&state).await;
@@ -3497,7 +3506,10 @@ async fn yggdrasil_profile_property_cache_refreshes_after_bound_wardrobe_model_u
 
 #[actix_web::test]
 async fn texture_preview_responses_support_etag_revalidation() {
-    let state = setup_yggdrasil().await;
+    // Isolated storage: concurrent test processes share nothing, so a 202
+    // cold-cache start is deterministic without touching shared preview
+    // objects that other processes may be reading.
+    let (state, _storage_guard) = setup_yggdrasil_with_isolated_storage().await;
     let app = create_test_app!(state.clone());
     let access = setup_admin!(app);
     let profile_id = create_profile!(&app, &access, "PreviewCache");
@@ -3526,17 +3538,6 @@ async fn texture_preview_responses_support_etag_revalidation() {
         .expect("skin metadata should include preview url")
         .to_string();
     assert!(preview_url.starts_with("/api/v1/texture-previews/"));
-
-    // Deterministic cold cache: drop any preview object left behind by an
-    // earlier run (the storage root is shared across test processes).
-    let suffix = preview_url
-        .strip_prefix("/api/v1/texture-previews/")
-        .expect("preview url should carry hash and file name");
-    state
-        .texture_storage()
-        .delete(&format!("texture-previews/{suffix}"))
-        .await
-        .expect("stale preview cleanup should succeed");
 
     // Cold cache: the preview generation is enqueued and the endpoint answers
     // 202 with Retry-After; the worker-side dispatch renders it.
