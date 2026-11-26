@@ -11,6 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the current user's audit log entries with cursor pagination and optional
+         *     filters; the user boundary is pinned server-side so callers only see their own entries.
+         */
         get: operations["list_account_audit_logs"];
         put?: never;
         post?: never;
@@ -27,6 +31,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists capability bans recorded against the current user, optionally filtered by
+         *     scope, status, and effective-only, so the panel can explain restricted features.
+         */
         get: operations["list_account_user_bans"];
         put?: never;
         post?: never;
@@ -43,6 +51,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the current user's account overview: number of owned profiles and
+         *     the most recent audit entries recorded against their account.
+         */
         get: operations["get_account_overview"];
         put?: never;
         post?: never;
@@ -59,6 +71,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists audit log entries with optional filters (actor, action, entity type)
+         *     and datetime-id cursor pagination.
+         */
         get: operations["list_audit_logs"];
         put?: never;
         post?: never;
@@ -75,6 +91,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Serves a user's avatar image (WebP) at the requested size with
+         *     conditional-request caching, for administrative inspection.
+         */
         get: operations["admin_get_user_avatar"];
         put?: never;
         post?: never;
@@ -91,6 +111,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Lists all runtime config entries with limit and ID-cursor pagination. */
         get: operations["list_config"];
         put?: never;
         post?: never;
@@ -107,6 +128,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the schema of all runtime config keys, including their types,
+         *     defaults, and visibility metadata for the admin settings UI.
+         */
         get: operations["config_schema"];
         put?: never;
         post?: never;
@@ -123,6 +148,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the template variable groups available in config-backed templates
+         *     such as mail templates.
+         */
         get: operations["config_template_variables"];
         put?: never;
         post?: never;
@@ -139,9 +168,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Returns a single runtime config entry by its key. */
         get: operations["get_config"];
+        /**
+         * Sets the value (and optionally the visibility) of a runtime config key,
+         *     validating the new value and recording the change in the audit log.
+         */
         put: operations["set_config"];
         post?: never;
+        /**
+         * Deletes a runtime config entry by key, restoring its default, with an
+         *     audit record of the deletion.
+         */
         delete: operations["delete_config"];
         options?: never;
         head?: never;
@@ -157,6 +195,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Executes a key-specific config action (e.g. sending a test mail), with the
+         *     result message and optional value returned to the caller.
+         */
         post: operations["execute_config_action"];
         delete?: never;
         options?: never;
@@ -171,6 +213,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the external auth provider kinds supported by this deployment,
+         *     for building the provider creation form.
+         */
         get: operations["admin_list_external_auth_provider_kinds"];
         put?: never;
         post?: never;
@@ -187,8 +233,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists configured external auth providers with limit and display-name/ID
+         *     cursor pagination.
+         */
         get: operations["admin_list_external_auth_providers"];
         put?: never;
+        /**
+         * Creates an external auth provider configuration (issuer, enabled flags,
+         *     auto-provision/auto-link behavior) and records it in the audit log.
+         */
         post: operations["admin_create_external_auth_provider"];
         delete?: never;
         options?: never;
@@ -205,6 +259,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Tests a draft external auth provider configuration (before it is saved)
+         *     by probing its endpoints, auditing the attempt without persisting it.
+         */
         post: operations["admin_test_external_auth_provider_params"];
         delete?: never;
         options?: never;
@@ -219,12 +277,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Returns a single external auth provider configuration by ID. */
         get: operations["admin_get_external_auth_provider"];
         put?: never;
         post?: never;
+        /**
+         * Deletes an external auth provider configuration and records the removed
+         *     provider details in the audit log.
+         */
         delete: operations["admin_delete_external_auth_provider"];
         options?: never;
         head?: never;
+        /**
+         * Updates an external auth provider's configuration and records the change
+         *     in the audit log.
+         */
         patch: operations["admin_update_external_auth_provider"];
         trace?: never;
     };
@@ -237,6 +304,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Tests a saved external auth provider by probing its endpoints and
+         *     auditing the result.
+         */
         post: operations["admin_test_external_auth_provider"];
         delete?: never;
         options?: never;
@@ -251,6 +322,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists Minecraft profiles platform-wide with user/name/uuid/keyword
+         *     filters and ID-cursor pagination.
+         */
         get: operations["admin_list_minecraft_profiles"];
         put?: never;
         post?: never;
@@ -267,9 +342,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns a single Minecraft profile by its unsigned UUID, including owner
+         *     and texture metadata.
+         */
         get: operations["admin_get_minecraft_profile"];
         put?: never;
         post?: never;
+        /**
+         * Deletes a Minecraft profile together with its textures and revoked
+         *     Yggdrasil tokens, recording the deletion in the audit log.
+         */
         delete: operations["admin_delete_minecraft_profile"];
         options?: never;
         head?: never;
@@ -284,6 +367,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Renames a Minecraft profile, temporarily invalidating Yggdrasil tokens
+         *     bound to it so launchers pick up the new name via refresh, and records the
+         *     rename in the audit log.
+         */
         put: operations["admin_rename_minecraft_profile"];
         post?: never;
         delete?: never;
@@ -299,6 +387,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the texture bindings attached to a Minecraft profile, with texture
+         *     metadata per entry.
+         */
         get: operations["admin_list_minecraft_profile_textures"];
         put?: never;
         post?: never;
@@ -318,6 +410,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Removes one texture type (skin or cape) from a Minecraft profile;
+         *     succeeds with 204 even when the profile has no such texture.
+         */
         delete: operations["admin_delete_minecraft_profile_texture"];
         options?: never;
         head?: never;
@@ -334,6 +430,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Deletes every profile texture binding that references the given content
+         *     hash, writing one audit entry per removed binding.
+         */
         delete: operations["admin_delete_minecraft_textures_by_hash"];
         options?: never;
         head?: never;
@@ -347,6 +447,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the administrator overview dashboard: platform-wide summary
+         *     counters for users, Minecraft profiles, and textures.
+         */
         get: operations["get_admin_overview"];
         put?: never;
         post?: never;
@@ -363,6 +467,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns runtime system information (build info, components) reusing the
+         *     public health probe payload, exposed to administrators.
+         */
         get: operations["get_admin_system_info"];
         put?: never;
         post?: never;
@@ -379,6 +487,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists background tasks with optional kind/status filters and cursor
+         *     pagination, for administrator inspection of task records.
+         */
         get: operations["admin_list_tasks"];
         put?: never;
         post?: never;
@@ -397,6 +509,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Deletes finished background tasks matching the given cutoff and filters,
+         *     returning the removed count and writing an audit entry for the cleanup.
+         */
         post: operations["admin_cleanup_tasks"];
         delete?: never;
         options?: never;
@@ -413,6 +529,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Resets a failed background task so it can be dispatched again, and records
+         *     the administrative retry in the audit log.
+         */
         post: operations["admin_retry_task"];
         delete?: never;
         options?: never;
@@ -427,6 +547,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists texture library reports with status/reason/texture filters and
+         *     datetime-id cursor pagination, for moderation triage.
+         */
         get: operations["admin_list_texture_library_reports"];
         put?: never;
         post?: never;
@@ -443,6 +567,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns a single texture library report, including the reported texture
+         *     metadata.
+         */
         get: operations["admin_get_texture_library_report"];
         put?: never;
         post?: never;
@@ -461,6 +589,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Accepts a texture report as valid (the reported content is upheld),
+         *     recording the moderator decision in the audit log.
+         */
         post: operations["admin_accept_texture_library_report"];
         delete?: never;
         options?: never;
@@ -477,6 +609,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Dismisses a texture report as invalid, recording the moderator decision
+         *     in the audit log.
+         */
         post: operations["admin_reject_texture_library_report"];
         delete?: never;
         options?: never;
@@ -491,8 +627,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists texture library tags ordered by sort order then name, using a
+         *     composite cursor pagination.
+         */
         get: operations["admin_list_texture_library_tags"];
         put?: never;
+        /**
+         * Creates a texture library tag with name, color, and sort order; duplicate
+         *     names are rejected.
+         */
         post: operations["admin_create_texture_library_tag"];
         delete?: never;
         options?: never;
@@ -510,9 +654,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Deletes a texture library tag, detaching it from the textures that
+         *     reference it.
+         */
         delete: operations["admin_delete_texture_library_tag"];
         options?: never;
         head?: never;
+        /**
+         * Updates a texture library tag's name, color, or sort order; fields left
+         *     absent keep their current value.
+         */
         patch: operations["admin_update_texture_library_tag"];
         trace?: never;
     };
@@ -523,6 +675,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists library textures for moderation with type/visibility/status/published
+         *     tag, and keyword filters, using datetime-id cursor pagination.
+         */
         get: operations["admin_list_texture_library_textures"];
         put?: never;
         post?: never;
@@ -539,9 +695,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Returns a single library texture's metadata for the moderation view. */
         get: operations["admin_get_texture_library_texture"];
         put?: never;
         post?: never;
+        /**
+         * Permanently removes a library texture and its profile bindings, recording
+         *     the removed binding count in the audit log.
+         */
         delete: operations["admin_delete_texture_library_texture"];
         options?: never;
         head?: never;
@@ -557,6 +718,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Approves a library texture with an optional review note and tag
+         *     assignments, recording the reviewer decision in the audit log.
+         */
         post: operations["admin_approve_texture_library_texture"];
         delete?: never;
         options?: never;
@@ -573,6 +738,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Rejects a library texture with a required review note, recording the
+         *     reviewer decision in the audit log.
+         */
         post: operations["admin_reject_texture_library_texture"];
         delete?: never;
         options?: never;
@@ -589,6 +758,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Withdraws an already published library texture from public availability
+         *     with a review note, recording the action in the audit log.
+         */
         post: operations["admin_unpublish_texture_library_texture"];
         delete?: never;
         options?: never;
@@ -603,6 +776,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists user capability bans with optional user, scope, and status filters,
+         *     including an effective-only view of bans currently in force.
+         */
         get: operations["admin_list_user_bans"];
         put?: never;
         post?: never;
@@ -619,12 +796,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns a single user capability ban by ID, including its scope, status,
+         *     and effective status.
+         */
         get: operations["admin_get_user_ban"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Updates a user capability ban's scopes, reasons, or schedule, and records
+         *     the change in the audit log.
+         */
         patch: operations["admin_update_user_ban"];
         trace?: never;
     };
@@ -635,6 +820,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the event history of a user capability ban (creation, updates,
+         *     and revocation) in chronological order.
+         */
         get: operations["admin_list_user_ban_events"];
         put?: never;
         post?: never;
@@ -653,6 +842,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Lifts a user capability ban early (before its natural expiry) with a
+         *     revoke note, recording the revocation in the audit log.
+         */
         post: operations["admin_revoke_user_ban"];
         delete?: never;
         options?: never;
@@ -667,8 +860,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists platform users with keyword search and role/status filters, using
+         *     cursor pagination.
+         */
         get: operations["admin_list_users"];
         put?: never;
+        /**
+         * Creates a user account directly as an administrator, optionally generating
+         *     a temporary password, and records the creation in the audit log.
+         */
         post: operations["admin_create_user"];
         delete?: never;
         options?: never;
@@ -683,8 +884,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists registration invitations with limit and datetime-id cursor
+         *     pagination.
+         */
         get: operations["admin_list_user_invitations"];
         put?: never;
+        /**
+         * Creates a registration invitation for the given email, queues an
+         *     invitation mail, and records the action in the audit log.
+         */
         post: operations["admin_create_user_invitation"];
         delete?: never;
         options?: never;
@@ -701,6 +910,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revokes a pending registration invitation so it can no longer be accepted,
+         *     and records the revocation in the audit log.
+         */
         post: operations["admin_revoke_user_invitation"];
         delete?: never;
         options?: never;
@@ -715,12 +928,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns a single user's administrative profile, including role, status,
+         *     operator scopes, profile count, and active session count.
+         */
         get: operations["admin_get_user"];
         put?: never;
         post?: never;
+        /**
+         * Deletes a user along with their Minecraft profiles, textures, sessions,
+         *     and Yggdrasil tokens, reporting per-category removal counts.
+         */
         delete: operations["admin_delete_user"];
         options?: never;
         head?: never;
+        /**
+         * Updates a user's account fields (username, email, password, role, operator
+         *     scopes, status); disabling the user is audited as a dedicated action.
+         */
         patch: operations["admin_update_user"];
         trace?: never;
     };
@@ -733,6 +958,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revokes all active sessions of a user, forcing re-login everywhere, and
+         *     records the revocation in the audit log.
+         */
         post: operations["admin_revoke_user_sessions"];
         delete?: never;
         options?: never;
@@ -749,6 +978,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Creates a capability ban for a user (optionally time-bounded), records an
+         *     audit entry, and takes effect on the banned scopes.
+         */
         post: operations["admin_create_user_ban"];
         delete?: never;
         options?: never;
@@ -763,6 +996,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the Minecraft profiles owned by a specific user in Yggdrasil profile
+         *     summary form, with cursor pagination.
+         */
         get: operations["admin_list_user_minecraft_profiles"];
         put?: never;
         post?: never;
@@ -779,8 +1016,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists Yggdrasil session forwarding servers, sortable by ID or by call
+         *     order (enabled/priority), with cursor pagination matching the sort mode.
+         */
         get: operations["admin_list_yggdrasil_session_forward_servers"];
         put?: never;
+        /**
+         * Registers a new Yggdrasil session forwarding server and records the
+         *     creation in the audit log.
+         */
         post: operations["admin_create_yggdrasil_session_forward_server"];
         delete?: never;
         options?: never;
@@ -795,12 +1040,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Returns a single Yggdrasil session forwarding server configuration by ID. */
         get: operations["admin_get_yggdrasil_session_forward_server"];
         put?: never;
         post?: never;
+        /**
+         * Removes a Yggdrasil session forwarding server; the local (built-in) server
+         *     cannot be deleted. Records the deletion in the audit log.
+         */
         delete: operations["admin_delete_yggdrasil_session_forward_server"];
         options?: never;
         head?: never;
+        /**
+         * Updates a Yggdrasil session forwarding server's configuration and records
+         *     the change in the audit log.
+         */
         patch: operations["admin_update_yggdrasil_session_forward_server"];
         trace?: never;
     };
@@ -813,6 +1067,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Issues a captcha challenge to be answered by a subsequent
+         *     captcha-protected request.
+         */
         post: operations["issue_captcha"];
         delete?: never;
         options?: never;
@@ -827,6 +1085,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns which flows currently require a captcha challenge, letting clients
+         *     render the captcha UI before login, registration, or invitation acceptance.
+         */
         get: operations["get_captcha_policy"];
         put?: never;
         post?: never;
@@ -843,6 +1105,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Reports the auth bootstrap state: whether any user exists, so the frontend
+         *     can choose between first-time setup and the normal login flow.
+         */
         get: operations["check_auth_state"];
         put?: never;
         post?: never;
@@ -859,6 +1125,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Consumes a contact verification token (registration activation, email
+         *     change, or password reset) and redirects the browser to a frontend page that
+         *     reflects the verification outcome.
+         */
         get: operations["confirm_contact_verification"];
         put?: never;
         post?: never;
@@ -877,6 +1148,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Starts an email change for the current user by sending a confirmation
+         *     email to the new address.
+         */
         post: operations["request_email_change"];
         delete?: never;
         options?: never;
@@ -893,6 +1168,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Re-sends the confirmation email for a pending email change; the response
+         *     does not reveal whether a change is actually pending.
+         */
         post: operations["resend_email_change"];
         delete?: never;
         options?: never;
@@ -907,6 +1186,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Consumes an external-login email verification token, completing the login
+         *     with session cookies or redirecting to a status-bearing login URL.
+         */
         get: operations["auth_external_auth_confirm_email_verification"];
         put?: never;
         post?: never;
@@ -925,6 +1208,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Queues the verification email for a pending external login so the address
+         *     can be confirmed before the session is issued.
+         */
         post: operations["auth_external_auth_start_email_verification"];
         delete?: never;
         options?: never;
@@ -939,6 +1226,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the external identities linked to the current user's account with
+         *     cursor pagination.
+         */
         get: operations["auth_external_auth_list_links"];
         put?: never;
         post?: never;
@@ -958,6 +1249,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Unlinks one external identity from the current user's account. */
         delete: operations["auth_external_auth_delete_link"];
         options?: never;
         head?: never;
@@ -973,6 +1265,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Links an external identity from a pending login flow to an existing account
+         *     by password confirmation, issuing session cookies on success.
+         */
         post: operations["auth_external_auth_link_with_password"];
         delete?: never;
         options?: never;
@@ -987,6 +1283,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists enabled external auth providers so unauthenticated clients can
+         *     discover the available login options.
+         */
         get: operations["auth_external_auth_list_providers"];
         put?: never;
         post?: never;
@@ -1003,6 +1303,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Lists enabled external auth providers filtered to one provider kind. */
         get: operations["auth_external_auth_list_providers_by_kind"];
         put?: never;
         post?: never;
@@ -1019,6 +1320,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Completes an external login from the provider callback: issues session
+         *     cookies on success or redirects into email verification / a status-bearing
+         *     login URL when the flow requires it.
+         */
         get: operations["auth_external_auth_finish_login"];
         put?: never;
         post?: never;
@@ -1037,6 +1343,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Starts an external login for the given provider, returning the provider's
+         *     authorization target with the flow state carried through the callback.
+         */
         post: operations["auth_external_auth_start_login"];
         delete?: never;
         options?: never;
@@ -1051,6 +1361,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Validates an invitation token and returns its public info for the
+         *     invitation acceptance page.
+         */
         get: operations["verify_user_invitation"];
         put?: never;
         post?: never;
@@ -1069,6 +1383,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Consumes an invitation token to create the invited account with the
+         *     supplied username and password, returning the new user's info.
+         */
         post: operations["accept_user_invitation"];
         delete?: never;
         options?: never;
@@ -1085,6 +1403,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Authenticates a user by username/email and password, issuing access and
+         *     refresh session cookies on success.
+         */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -1101,6 +1423,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revokes the presented refresh token when one is present and clears the auth
+         *     cookies regardless of revocation outcome.
+         */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -1115,6 +1441,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the authenticated user's account info, resolving the caller from
+         *     the access cookie or bearer token.
+         */
         get: operations["get_current_user"];
         put?: never;
         post?: never;
@@ -1131,6 +1461,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Lists the current user's registered passkeys with cursor pagination. */
         get: operations["list_passkeys"];
         put?: never;
         post?: never;
@@ -1149,6 +1480,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Verifies a passkey assertion, issues the session cookies, and writes a
+         *     login audit record.
+         */
         post: operations["finish_passkey_login"];
         delete?: never;
         options?: never;
@@ -1165,6 +1500,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Begins a passkey login, returning a WebAuthn assertion challenge scoped to
+         *     the optional identifier and conditional-mediation mode.
+         */
         post: operations["start_passkey_login"];
         delete?: never;
         options?: never;
@@ -1181,6 +1520,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Verifies the authenticator response for a registration flow, stores the new
+         *     passkey, and writes a registration audit record.
+         */
         post: operations["finish_passkey_registration"];
         delete?: never;
         options?: never;
@@ -1197,6 +1540,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Begins passkey registration for the current user, returning a WebAuthn
+         *     creation challenge bound to a flow ID.
+         */
         post: operations["start_passkey_registration"];
         delete?: never;
         options?: never;
@@ -1214,9 +1561,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Removes one of the current user's passkeys and writes a deletion audit
+         *     record.
+         */
         delete: operations["delete_passkey"];
         options?: never;
         head?: never;
+        /**
+         * Renames one of the current user's passkeys and audits the previous and new
+         *     names.
+         */
         patch: operations["rename_passkey"];
         trace?: never;
     };
@@ -1228,6 +1583,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Changes the current user's password after verifying the existing one and
+         *     issues a fresh session with new auth cookies.
+         */
         put: operations["change_password"];
         post?: never;
         delete?: never;
@@ -1245,6 +1604,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Completes a password reset with the emailed token, setting the new password
+         *     and writing a password-reset audit record.
+         */
         post: operations["confirm_password_reset"];
         delete?: never;
         options?: never;
@@ -1261,6 +1624,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Accepts a password reset request and emails a reset link when the address
+         *     belongs to an eligible account; the response does not reveal whether it does.
+         */
         post: operations["request_password_reset"];
         delete?: never;
         options?: never;
@@ -1281,6 +1648,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** Updates the current user's profile fields, currently the display name. */
         patch: operations["update_profile"];
         trace?: never;
     };
@@ -1292,6 +1660,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Sets the current user's avatar source preference and returns the updated
+         *     profile.
+         */
         put: operations["set_avatar_source"];
         post?: never;
         delete?: never;
@@ -1309,6 +1681,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Replaces the current user's avatar with the image in a multipart upload. */
         post: operations["upload_avatar"];
         delete?: never;
         options?: never;
@@ -1323,6 +1696,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Serves the current user's own avatar image at the requested size with
+         *     conditional-request caching headers.
+         */
         get: operations["get_self_avatar"];
         put?: never;
         post?: never;
@@ -1341,6 +1718,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Exchanges a valid refresh token (from cookie or body) for a fresh session
+         *     and re-issues the auth cookies.
+         */
         post: operations["refresh_token"];
         delete?: never;
         options?: never;
@@ -1357,6 +1738,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Registers a new account, issuing session cookies immediately when activation
+         *     is not required and otherwise leaving the account pending email activation.
+         */
         post: operations["register"];
         delete?: never;
         options?: never;
@@ -1373,6 +1758,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Re-sends the registration activation email for a pending account; the
+         *     response does not reveal whether the identifier matches a real account.
+         */
         post: operations["resend_register_activation"];
         delete?: never;
         options?: never;
@@ -1387,6 +1776,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the current user's login sessions with cursor pagination, flagging
+         *     the session that matches the presented refresh cookie.
+         */
         get: operations["list_auth_sessions"];
         put?: never;
         post?: never;
@@ -1406,6 +1799,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Revokes every session of the current user except the one presenting the
+         *     refresh cookie, returning the number of sessions removed.
+         */
         delete: operations["revoke_other_auth_sessions"];
         options?: never;
         head?: never;
@@ -1422,6 +1819,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Revokes one of the current user's sessions by ID; when it is the caller's
+         *     own session the auth cookies are cleared in the response.
+         */
         delete: operations["revoke_auth_session"];
         options?: never;
         head?: never;
@@ -1437,6 +1838,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Creates the first admin account on an uninitialized instance and issues
+         *     session cookies; rejected once any user account already exists.
+         */
         post: operations["setup_first_admin"];
         delete?: never;
         options?: never;
@@ -1451,8 +1856,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the current user's Minecraft profiles with ID cursor pagination and an
+         *     optional name query filter, returned as Yggdrasil profile summaries.
+         */
         get: operations["list_current_user_minecraft_profiles"];
         put?: never;
+        /**
+         * Creates a Minecraft profile with the requested name for the current user and
+         *     records a create audit event.
+         */
         post: operations["create_current_user_minecraft_profile"];
         delete?: never;
         options?: never;
@@ -1470,6 +1883,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Deletes the given profile along with its bound textures and revoked Yggdrasil
+         *     tokens, and records a delete audit event; responds 204 on success.
+         */
         delete: operations["delete_current_user_minecraft_profile"];
         options?: never;
         head?: never;
@@ -1484,6 +1901,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Renames the given profile, keeping UUID, texture bindings, and audit history intact
+         *     while temporarily invalidating Yggdrasil tokens bound to it, and records a rename audit event.
+         */
         put: operations["rename_current_user_minecraft_profile"];
         post?: never;
         delete?: never;
@@ -1499,6 +1920,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Lists the skin and cape textures currently bound to the given profile. */
         get: operations["list_current_user_minecraft_profile_textures"];
         put?: never;
         post?: never;
@@ -1516,8 +1938,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Binds one wardrobe texture (by ID) to the given profile's skin or cape slot and
+         *     records a bind audit event.
+         */
         put: operations["bind_current_user_minecraft_profile_texture"];
         post?: never;
+        /**
+         * Removes the skin or cape binding from the given profile and records an audit
+         *     event; responds 204 whether or not a texture was bound.
+         */
         delete: operations["unbind_current_user_minecraft_profile_texture"];
         options?: never;
         head?: never;
@@ -1531,6 +1961,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Serves the public bootstrap config (branding, captcha, Yggdrasil, texture library)
+         *     that the web panel fetches before login; responses are cacheable for 60s and vary on credentials.
+         */
         get: operations["get_public_frontend_config"];
         put?: never;
         post?: never;
@@ -1547,6 +1981,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the administrator-managed texture library tags for public visitors,
+         *     with keyword search and sort-order cursor pagination.
+         */
         get: operations["list_public_texture_library_tags"];
         put?: never;
         post?: never;
@@ -1563,6 +2001,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists textures published to the public texture library with cursor pagination
+         *     and optional texture type, tag, and keyword filters; no authentication required.
+         */
         get: operations["list_public_texture_library_textures"];
         put?: never;
         post?: never;
@@ -1579,6 +2021,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the detail of one texture published to the public library, or 404
+         *     for IDs that are not published.
+         */
         get: operations["get_public_texture_library_texture"];
         put?: never;
         post?: never;
@@ -1597,6 +2043,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Copies a published library texture into the current user's wardrobe, optionally
+         *     renaming it; the request body may be empty to accept the defaults.
+         */
         post: operations["copy_public_texture_library_texture_to_wardrobe"];
         delete?: never;
         options?: never;
@@ -1613,6 +2063,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Files a report against a published library texture on behalf of the current user
+         *     (reason plus optional message) and records a report audit event.
+         */
         post: operations["create_public_texture_library_texture_report"];
         delete?: never;
         options?: never;
@@ -1627,6 +2081,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns the cached PNG preview for the given texture hash and variant, with conditional
+         *     request support; responds 202 with `Retry-After` while the preview render is still queued or running.
+         */
         get: operations["texture_preview_by_hash"];
         put?: never;
         post?: never;
@@ -1643,6 +2101,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the administrator-managed texture library tags so users can discover
+         *     available labels before tagging their wardrobe textures.
+         */
         get: operations["list_current_user_texture_library_tags"];
         put?: never;
         post?: never;
@@ -1659,6 +2121,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Lists the current user's wardrobe textures with cursor pagination and optional
+         *     texture type, tag, and keyword filters.
+         */
         get: operations["list_current_user_wardrobe_textures"];
         put?: never;
         post?: never;
@@ -1678,9 +2144,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Deletes one of the current user's wardrobe textures (detaching it from profiles
+         *     that use it) and records a delete audit event; responds 204 on success.
+         */
         delete: operations["delete_current_user_wardrobe_texture"];
         options?: never;
         head?: never;
+        /**
+         * Updates metadata (display name, skin model, visibility) of one wardrobe texture
+         *     owned by the current user.
+         */
         patch: operations["update_current_user_wardrobe_texture"];
         trace?: never;
     };
@@ -1693,7 +2167,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Submits one of the user's wardrobe textures for texture library review, moving it
+         *     into the pending state (or publishing directly when review is not required), and
+         *     records a submit audit event.
+         */
         post: operations["submit_current_user_texture_library_review"];
+        /**
+         * Withdraws one of the user's pending texture library submissions, returning the
+         *     texture to private, and records a withdraw audit event.
+         */
         delete: operations["withdraw_current_user_texture_library_submission"];
         options?: never;
         head?: never;
@@ -1708,6 +2191,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /** Replaces the full tag set on one of the current user's wardrobe textures. */
         put: operations["replace_current_user_wardrobe_texture_tags"];
         post?: never;
         delete?: never;
@@ -1725,6 +2209,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Uploads a PNG skin or cape into the current user's wardrobe from a multipart form.
+         *     Enforces the texture-upload ban scope and runtime upload policy, stores the texture
+         *     by content hash, and records an upload audit event.
+         */
         post: operations["upload_current_user_wardrobe_texture"];
         delete?: never;
         options?: never;
@@ -1739,6 +2228,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Serves the authlib-injector service metadata document describing this
+         *     server's endpoint URLs and capabilities, marked must-revalidate.
+         */
         get: operations["yggdrasil_metadata"];
         put?: never;
         post?: never;
@@ -1757,6 +2250,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Resolves a batch of Minecraft profile names to their Yggdrasil profiles
+         *     (`api/profiles/minecraft`), rejecting invalid or oversized batches.
+         */
         post: operations["yggdrasil_profiles_by_names"];
         delete?: never;
         options?: never;
@@ -1772,8 +2269,17 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * Stores an uploaded skin or cape for the profile named by the bearer token
+         *     (`api/user/profile/{uuid}/{texture_type}`), answering 401 for a missing
+         *     token as authlib-injector requires.
+         */
         put: operations["yggdrasil_upload_texture"];
         post?: never;
+        /**
+         * Removes the skin or cape bound to the token-authenticated profile,
+         *     succeeding idempotently when no texture is present.
+         */
         delete: operations["yggdrasil_delete_texture"];
         options?: never;
         head?: never;
@@ -1789,6 +2295,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Authenticates a player by name and password (`authserver/authenticate`),
+         *     returning a Yggdrasil access token and the account's available profiles;
+         *     per-username rate limited.
+         */
         post: operations["yggdrasil_authenticate"];
         delete?: never;
         options?: never;
@@ -1805,6 +2316,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revokes one Yggdrasil access token (`authserver/invalidate`), succeeding
+         *     even when the token is already unusable.
+         */
         post: operations["yggdrasil_invalidate"];
         delete?: never;
         options?: never;
@@ -1821,6 +2336,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Renews a Yggdrasil access token with its client token
+         *     (`authserver/refresh`), optionally switching the selected profile.
+         */
         post: operations["yggdrasil_refresh"];
         delete?: never;
         options?: never;
@@ -1837,6 +2356,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revokes all Yggdrasil tokens for an account using name and password instead
+         *     of a token (`authserver/signout`); per-username rate limited.
+         */
         post: operations["yggdrasil_signout"];
         delete?: never;
         options?: never;
@@ -1853,6 +2376,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Checks whether a Yggdrasil access token is still usable
+         *     (`authserver/validate`), answering 204 when it is.
+         */
         post: operations["yggdrasil_validate"];
         delete?: never;
         options?: never;
@@ -1947,6 +2474,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Validates a signed forwarded-texture ticket and proxies the PNG bytes from
+         *     the upstream server, mapping failures to 404 or 502.
+         */
         get: operations["yggdrasil_forwarded_texture_by_hash"];
         put?: never;
         post?: never;
@@ -1963,6 +2494,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Verifies a client's join for a game server (`sessionserver/hasJoined`),
+         *     returning the profile when a matching join record exists or 204 otherwise.
+         */
         get: operations["yggdrasil_has_joined"];
         put?: never;
         post?: never;
@@ -1981,6 +2516,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Records a server join attempt for an access token and selected profile
+         *     (`sessionserver/join`) so a later `hasJoined` check can verify it.
+         */
         post: operations["yggdrasil_join"];
         delete?: never;
         options?: never;
@@ -1995,6 +2534,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Returns a Minecraft profile with its texture properties by UUID
+         *     (`sessionserver/profile/{uuid}`), omitting signatures when `unsigned=true`
+         *     and answering 204 when the profile is unknown.
+         */
         get: operations["yggdrasil_profile_by_uuid"];
         put?: never;
         post?: never;
@@ -2011,6 +2555,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Serves a stored texture PNG by its SHA-256 hash with ETag-based conditional
+         *     requests, falling back to the embedded default skin when the hash matches it.
+         */
         get: operations["yggdrasil_texture_by_hash"];
         put?: never;
         post?: never;
@@ -2027,6 +2575,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Liveness probe: 200 while the process role is live, 503 during initialization,
+         *     draining, or when a local task worker has stopped.
+         */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -2043,6 +2595,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Readiness probe: 200 only when the process role is ready and the database and runtime
+         *     checks pass; otherwise 503 with a stable error code so orchestrators can gate traffic.
+         */
         get: operations["ready"];
         put?: never;
         post?: never;
@@ -2056,279 +2612,647 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Request body for accepting a user invitation, claiming the invited email
+         *     address with a new account.
+         */
         AcceptUserInvitationReq: {
+            /** @description Answer for the captcha challenge paired with `captcha_challenge_id`. */
             captcha_answer?: string | null;
+            /**
+             * @description Captcha challenge id issued by the captcha endpoint; required when the
+             *     invitation flow enforces captcha.
+             */
             captcha_challenge_id?: string | null;
+            /** @description Initial password; validated by the auth password policy. */
             password: string;
+            /**
+             * @description Username for the new account; 4-16 ASCII letters, digits, underscores
+             *     or hyphens.
+             */
             username: string;
         };
+        /**
+         * @description Filter query for the current user's audit log list, ordered by creation
+         *     time with id as tie breaker.
+         */
         AccountAuditLogFilterQuery: {
+            /** @description Optional audit action filter. */
             action?: string | null;
+            /** @description Optional inclusive lower time bound; RFC 3339 string. */
             after?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor: creation timestamp of the last entry on the previous page.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last entry, used as a stable tie breaker.
+             */
             after_id?: number | null;
+            /** @description Optional inclusive upper time bound; RFC 3339 string. */
             before?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Optional entity id filter.
+             */
             entity_id?: number | null;
             entity_type?: components["schemas"]["AuditEntityType"] | null;
         };
+        /** @description Account overview shown on the current user's home page. */
         AccountOverviewResp: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Number of Minecraft profiles owned by the current user.
+             */
             profile_count: number;
+            /** @description Recent audit log entries covering the user's own activity. */
             recent_activity: components["schemas"]["AuditLogEntry"][];
         };
+        /** @description Ban record as visible to the banned user. */
         AccountUserBanInfo: {
+            /** @description When the ban record was created. */
             created_at: string;
+            /** @description Whether the ban is currently in force. */
             effective: boolean;
+            /**
+             * @description Status after applying the time window; e.g. an active ban is expired
+             *     once `expires_at` has passed.
+             */
             effective_status: components["schemas"]["UserBanStatus"];
+            /** @description Ban expiry time; absent for a ban that lasts until revoked. */
             expires_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Ban record id.
+             */
             id: number;
+            /** @description Optional reason shown to the banned user. */
             public_reason?: string | null;
+            /** @description Internal reason recorded by the moderator. */
             reason: string;
+            /** @description When the ban was revoked; absent while the ban is not revoked. */
             revoked_at?: string | null;
+            /** @description Capability scopes the user loses while this ban is effective. */
             scopes: components["schemas"]["UserBanScope"][];
+            /** @description Ban start time. */
             starts_at: string;
+            /** @description Stored status of the ban record. */
             status: components["schemas"]["UserBanStatus"];
+            /** @description When the ban record was last updated. */
             updated_at: string;
         };
+        /**
+         * @description Filter query for the current user's ban list, ordered by creation time with
+         *     id as tie breaker.
+         */
         AccountUserBanListQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor: creation timestamp of the last ban on the previous page.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last ban, used as a stable tie breaker.
+             */
             after_id?: number | null;
+            /**
+             * @description When true, only bans whose effective status is currently active are
+             *     returned.
+             */
             effective_only?: boolean | null;
             scope?: components["schemas"]["UserBanScope"] | null;
             status?: components["schemas"]["UserBanStatus"] | null;
         };
+        /** @description Generic response carrying a single human-readable message. */
         ActionMessageResp: {
+            /** @description Message describing the completed action. */
             message: string;
         };
+        /**
+         * @description Admin view of a configured external auth provider. The client secret is
+         *     always redacted to [`REDACTED_SECRET`]; use `client_secret_configured` to
+         *     know whether a real secret is stored.
+         */
         AdminExternalAuthProviderInfo: {
+            /** @description Restrict logins to these email domains; empty means all domains allowed. */
             allowed_domains: string[];
+            /**
+             * @description Manually configured authorization endpoint; only for kinds that
+             *     support manual endpoint configuration.
+             */
             authorization_url?: string | null;
+            /**
+             * @description Whether a verified provider email may auto-link to an existing local
+             *     account with the same email.
+             */
             auto_link_verified_email_enabled: boolean;
+            /** @description Whether unknown identities create a new local user automatically. */
             auto_provision_enabled: boolean;
+            /** @description Claim name override for the avatar URL. */
             avatar_url_claim?: string | null;
+            /** @description OAuth client id registered at the provider. */
             client_id: string;
+            /** @description Redacted placeholder; the real secret is never returned to clients. */
             client_secret?: string | null;
+            /** @description Whether a non-empty client secret is stored. */
             client_secret_configured: boolean;
+            /** @description When the provider was created. */
             created_at: string;
+            /** @description Human-readable name shown on the login page. */
             display_name: string;
+            /** @description Claim name override for the display name. */
             display_name_claim?: string | null;
+            /** @description Claim name override for the email. */
             email_claim?: string | null;
+            /** @description Claim name override for the email-verified flag. */
             email_verified_claim?: string | null;
+            /** @description Whether logins through this provider are accepted. */
             enabled: boolean;
+            /** @description Claim name override for group memberships. */
             groups_claim?: string | null;
+            /** @description Optional logo URL shown next to the provider button. */
             icon_url?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Provider row id used in admin update/delete/test routes.
+             */
             id: number;
+            /**
+             * @description Issuer/discovery base URL; `None` for kinds with fixed endpoints or
+             *     when Microsoft options carry the tenant instead.
+             */
             issuer_url?: string | null;
+            /** @description Stable public identifier used in login and callback routes. */
             key: string;
+            /** @description Kind-specific options; for Microsoft providers this carries the tenant. */
             options: components["schemas"]["ExternalAuthProviderOptions"];
+            /** @description Protocol family the kind implements. */
             protocol: components["schemas"]["ExternalAuthProtocol"];
+            /** @description Provider kind (OIDC, GitHub, Google, Microsoft, QQ). */
             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+            /** @description Whether logins are rejected unless the provider asserts a verified email. */
             require_email_verified: boolean;
+            /** @description Space-separated OAuth scopes requested during login. */
             scopes: string;
+            /** @description Claim name override for the subject; `None` uses the driver default. */
             subject_claim?: string | null;
+            /**
+             * @description Manually configured token endpoint; only for kinds that support
+             *     manual endpoint configuration.
+             */
             token_url?: string | null;
+            /** @description When the provider was last updated (config change or successful test). */
             updated_at: string;
+            /**
+             * @description Manually configured userinfo endpoint; only for kinds that support
+             *     manual endpoint configuration.
+             */
             userinfo_url?: string | null;
+            /** @description Claim name override for the preferred username. */
             username_claim?: string | null;
         };
+        /** @description Cursor query for the admin Minecraft profile list, ordered by id. */
         AdminMinecraftProfileListQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last item on the previous page.
+             */
             after_id?: number | null;
+            /** @description Optional exact profile name filter; must be a valid profile name. */
             name?: string | null;
+            /**
+             * @description Optional search term matched case-insensitively against profile name
+             *     and UUID; up to 64 characters.
+             */
             query?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Optional filter restricting results to profiles owned by this user.
+             */
             user_id?: number | null;
+            /** @description Optional exact profile UUID filter; 32-character unsigned hexadecimal. */
             uuid?: string | null;
         };
+        /**
+         * @description Aggregate admin dashboard response: counters, service statuses, system
+         *     health, activity trend, and the latest audit entries.
+         */
         AdminOverviewResp: {
+            /** @description Daily activity counts for the trend chart. */
             activity_trend: components["schemas"]["AdminOverviewTrendPoint"][];
+            /** @description Most recent audit entries for the activity feed. */
             recent_activity: components["schemas"]["AuditLogEntry"][];
+            /** @description Per-service status lines for the service grid. */
             services: components["schemas"]["AdminOverviewServiceStatus"][];
+            /** @description Platform-wide counts. */
             summary: components["schemas"]["AdminOverviewSummary"];
+            /** @description Latest known system health. */
             system_health: components["schemas"]["AdminOverviewSystemHealthSummary"];
+            /** @description Process/system metadata (version, uptime, backend choices). */
             system_info: components["schemas"]["SystemInfoResponse"];
         };
+        /** @description One platform service's status line for the admin overview service grid. */
         AdminOverviewServiceStatus: {
+            /** @description Secondary explanatory text, when the service has more to say. */
             detail?: string | null;
+            /** @description Stable service identifier (e.g. `database`, `background_tasks`). */
             key: string;
+            /** @description Primary measurement shown for the service, preformatted. */
             metric?: string | null;
+            /** @description Verdict for this service. */
             status: components["schemas"]["AdminOverviewServiceStatusKind"];
         };
-        /** @enum {string} */
+        /**
+         * @description Verdict for one platform service shown in the overview service grid.
+         * @enum {string}
+         */
         AdminOverviewServiceStatusKind: "ok" | "warning";
+        /** @description Platform-wide counts for the admin overview cards. */
         AdminOverviewSummary: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Currently unrevoked auth sessions.
+             */
             active_session_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Currently valid Yggdrasil access tokens.
+             */
             active_yggdrasil_token_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description All live Minecraft profiles.
+             */
             minecraft_profile_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Background tasks waiting to run, including retry-scheduled ones.
+             */
             pending_task_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Background tasks currently being executed.
+             */
             processing_task_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description All stored texture records.
+             */
             texture_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description All registered user accounts.
+             */
             total_users: number;
         };
+        /** @description One runtime component's health verdict for the overview health panel. */
         AdminOverviewSystemHealthComponent: {
+            /** @description Structured key/value details for diagnostics; omitted when empty. */
             details?: components["schemas"]["HealthComponentDetail"][];
+            /** @description Human-readable explanation of the verdict. */
             message: string;
+            /** @description Stable component identifier (e.g. `database`, `cache`). */
             name: string;
+            /** @description Verdict for this component. */
             status: components["schemas"]["AdminOverviewSystemHealthStatus"];
         };
-        /** @enum {string} */
+        /**
+         * @description System health verdict shown in the overview; `Unknown` when no health
+         *     check has run yet or the report is missing.
+         * @enum {string}
+         */
         AdminOverviewSystemHealthStatus: "unknown" | "healthy" | "degraded" | "unhealthy";
+        /**
+         * @description Latest known system health for the overview panel, sourced from the most
+         *     recent health-check and storage-consistency tasks rather than a live
+         *     probe.
+         */
         AdminOverviewSystemHealthSummary: {
+            /**
+             * @description When the sourced report was produced (UTC); absent when no check has
+             *     run yet.
+             */
             checked_at?: string | null;
+            /** @description Per-component verdicts. */
             components: components["schemas"]["AdminOverviewSystemHealthComponent"][];
+            /** @description Worst verdict across all reported components. */
             status: components["schemas"]["AdminOverviewSystemHealthStatus"];
+            /** @description Report summary line, falling back to the task's status text. */
             summary?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Background task record the report came from, when one exists.
+             */
             task_id?: number | null;
         };
+        /** @description One day of platform activity counts for the overview trend chart. */
         AdminOverviewTrendPoint: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Distinct profiles with a Yggdrasil audit action that day.
+             */
             active_players: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Distinct users with a user-scope audit action that day.
+             */
             active_users: number;
+            /** @description UTC calendar day this point covers, formatted `YYYY-MM-DD`. */
             date: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Texture uploads recorded that day.
+             */
             new_textures: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Yggdrasil protocol audit records created that day.
+             */
             yggdrasil_api_calls: number;
         };
+        /** @description Admin request body for bulk-deleting finished background tasks. */
         AdminTaskCleanupReq: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Deletes only tasks that finished before this timestamp.
+             */
             finished_before: string;
             kind?: components["schemas"]["BackgroundTaskKind"] | null;
             status?: components["schemas"]["BackgroundTaskStatus"] | null;
         };
+        /**
+         * @description Cursor query for the admin background task list, ordered by update time
+         *     with id as tie breaker.
+         */
         AdminTaskListQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last item, used as a stable tie breaker.
+             */
             after_id?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor: update timestamp of the last item on the previous page.
+             */
             after_updated_at?: string | null;
             kind?: components["schemas"]["BackgroundTaskKind"] | null;
             status?: components["schemas"]["BackgroundTaskStatus"] | null;
         };
+        /** @description Filter and cursor query for the admin texture library listing. */
         AdminTextureLibraryTextureQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Datetime-id cursor: ID of the last item on the previous page.
+             */
             after_id?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Datetime-id cursor: last updated timestamp of the previous page.
+             */
             after_updated_at?: string | null;
+            /** @description Free-text search keyword (max 96 characters). */
             keyword?: string | null;
             library_status?: components["schemas"]["MinecraftTextureLibraryStatus"] | null;
+            /** @description Restrict results to published or unpublished textures. */
             published?: boolean | null;
+            /** @description Comma-separated texture tag IDs (max 16) to filter by. */
             tag_ids?: number[];
+            /** @description How the tag filters combine (any or all). */
             tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
             texture_type?: components["schemas"]["MinecraftTextureType"] | null;
             visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
         };
+        /** @description Filter and cursor query for the admin texture report listing. */
         AdminTextureReportQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Datetime-id cursor: created timestamp of the previous page.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Datetime-id cursor: ID of the last item on the previous page.
+             */
             after_id?: number | null;
             reason?: components["schemas"]["MinecraftTextureReportReason"] | null;
             status?: components["schemas"]["MinecraftTextureReportStatus"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Restrict results to reports of a single texture.
+             */
             texture_id?: number | null;
         };
+        /**
+         * @description Cursor query for the admin ban list, ordered by creation time with id as
+         *     tie breaker.
+         */
         AdminUserBanListQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor: creation timestamp of the last item on the previous page.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last item, used as a stable tie breaker.
+             */
             after_id?: number | null;
+            /**
+             * @description When true, only bans whose effective status is currently active are
+             *     returned.
+             */
             effective_only?: boolean;
             scope?: components["schemas"]["UserBanScope"] | null;
             status?: components["schemas"]["UserBanStatus"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Optional filter restricting results to bans of this user.
+             */
             user_id?: number | null;
         };
+        /**
+         * @description Administrator-facing view of a user account with hydrated activity
+         *     summaries.
+         */
         AdminUserInfo: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Number of currently active auth sessions.
+             */
             active_session_count: number;
+            /** @description Account creation time. */
             created_at: string;
+            /** @description Normalized account email. */
             email: string;
+            /** @description Time the email address was verified, if it has been. */
             email_verified_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description User identifier.
+             */
             id: number;
+            /** @description Whether the next login must set a new password. */
             must_change_password: boolean;
+            /** @description Scoped permissions; populated only for operators. */
             operator_scopes: components["schemas"]["OperatorScope"][];
+            /** @description Email awaiting verification before replacing the current one. */
             pending_email?: string | null;
+            /** @description Display profile summary including the avatar for admin viewing. */
             profile: components["schemas"]["UserProfileInfo"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Number of Minecraft profiles owned by the user.
+             */
             profile_count: number;
+            /** @description Account role (`user`, `operator` or `admin`). */
             role: components["schemas"]["UserRole"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Monotonic counter bumped to invalidate previously issued sessions.
+             */
             session_version: number;
+            /** @description Account status (`active` or `disabled`). */
             status: components["schemas"]["UserStatus"];
+            /** @description Account last-update time. */
             updated_at: string;
+            /** @description Account username. */
             username: string;
         };
+        /** @description Administrator-facing view of an invitation. */
         AdminUserInvitationInfo: {
+            /** @description Time the invitation was accepted, if accepted. */
             accepted_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Account created by accepting the invitation, once accepted.
+             */
             accepted_user_id?: number | null;
+            /** @description Invitation creation time. */
             created_at: string;
+            /** @description Invited email address. */
             email: string;
+            /** @description Time the invitation stops being usable. */
             expires_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Invitation record identifier.
+             */
             id: number;
+            /**
+             * @description Registration URL embedding the plaintext token; returned only by the
+             *     create call, never from listings.
+             */
             invitation_url?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Administrator who issued the invitation.
+             */
             invited_by: number;
+            /** @description Whether the invitation mail was enqueued for delivery. */
             mail_queued: boolean;
+            /** @description Time the invitation was revoked, if revoked. */
             revoked_at?: string | null;
+            /** @description Lifecycle status (`pending`, `accepted`, `expired` or `revoked`). */
             status: components["schemas"]["UserInvitationStatus"];
+            /** @description Invitation last-update time. */
             updated_at: string;
         };
+        /**
+         * @description Cursor query for the admin user list, ordered by creation time with id as
+         *     tie breaker.
+         */
         AdminUserListQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor: creation timestamp of the last item on the previous page.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last item, used as a stable tie breaker.
+             */
             after_id?: number | null;
+            /**
+             * @description Optional search term matched case-insensitively against username and
+             *     email; up to 96 characters.
+             */
             keyword?: string | null;
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
         };
+        /** @description Admin view of one configured session forward server. */
         AdminYggdrasilSessionForwardServerInfo: {
+            /** @description Upstream API root; `None` for the local provider. */
             base_url?: string | null;
+            /** @description Built-in entries (local and Mojang) cannot be deleted or retargeted. */
             builtin: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the server entry was created (UTC).
+             */
             created_at: string;
+            /** @description Whether this server can be deleted (`false` for built-ins). */
             deletable: boolean;
+            /** @description Human-readable name shown in the admin UI. */
             display_name: string;
+            /** @description Whether the server takes part in session forwarding. */
             enabled: boolean;
+            /**
+             * @description Which session protocol the upstream speaks (authlib-injector or
+             *     Mojang session server).
+             */
             endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Server row id.
+             */
             id: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Last health check time (UTC), if one has run.
+             */
             last_checked_at?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Last time a forwarded request to this server failed (UTC).
+             */
             last_failure_at?: string | null;
+            /** @description Error message from the most recent failure. */
             last_failure_message?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Last time a forwarded request to this server succeeded (UTC).
+             */
             last_success_at?: string | null;
+            /** @description `true` only for the local AsterYggdrasil provider. */
             local: boolean;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Call-order rank; servers are tried in ascending priority groups
+             *     (range -10000..=10000).
+             */
             priority: number;
+            /** @description Whether the entry is the built-in local server or a remote upstream. */
             provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+            /** @description Whether textures from this upstream are proxied to clients. */
             texture_forward_enabled: boolean;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Per-request upstream timeout in milliseconds (range 100..=10000).
+             */
             timeout_ms: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the server entry was last updated (UTC).
+             */
             updated_at: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Weighted-random position within its priority group (range 1..=1000).
+             */
             weight: number;
         };
         ApiErrorInfo: {
@@ -2341,212 +3265,474 @@ export interface components {
         };
         /** @enum {string} */
         AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.captcha_required" | "auth.captcha_invalid" | "auth.captcha_expired" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "user_ban.not_found" | "user_ban.already_active" | "user_ban.not_active" | "user_ban.duration_invalid" | "user_ban.reason_invalid" | "user_ban.forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "wardrobe.texture_name_invalid" | "wardrobe.texture_name_taken" | "texture_library.tag_not_found" | "texture_library.tag_name_invalid" | "texture_library.tag_color_invalid" | "texture_library.tag_name_taken" | "texture_library.texture_not_found" | "texture_library.disabled" | "texture_library.texture_not_public" | "texture_library.texture_not_pending" | "texture_library.texture_not_published" | "texture_library.review_note_invalid" | "texture_report.texture_not_reportable" | "texture_report.self_report_not_allowed" | "texture_report.pending_exists" | "texture_report.message_invalid" | "texture_report.not_found" | "texture_report.not_pending" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
-        /** @enum {string} */
+        /**
+         * @description One auditable operation, persisted with its stable snake_case name.
+         *
+         *     The name doubles as the database value and the wire value served to
+         *     the admin audit view; never rename an existing entry.
+         * @enum {string}
+         */
         AuditAction: "system_setup" | "server_start" | "server_shutdown" | "config_update" | "config_delete" | "config_action_execute" | "user_register" | "user_login" | "user_logout" | "user_refresh_token" | "user_revoke_session" | "user_revoke_other_sessions" | "user_change_password" | "user_confirm_registration" | "user_request_email_change" | "user_resend_email_change" | "user_confirm_email_change" | "user_request_password_reset" | "user_confirm_password_reset" | "user_update_profile" | "user_passkey_register" | "user_passkey_rename" | "user_passkey_delete" | "user_passkey_login" | "admin_create_user" | "admin_update_user" | "admin_disable_user" | "admin_delete_user" | "admin_create_invitation" | "admin_revoke_invitation" | "admin_revoke_user_sessions" | "admin_create_user_ban" | "admin_update_user_ban" | "admin_revoke_user_ban" | "admin_delete_config" | "admin_cleanup_tasks" | "task_retry" | "admin_create_external_auth_provider" | "admin_update_external_auth_provider" | "admin_delete_external_auth_provider" | "admin_test_external_auth_provider" | "admin_create_yggdrasil_session_forward_server" | "admin_update_yggdrasil_session_forward_server" | "admin_delete_yggdrasil_session_forward_server" | "mail_send" | "mail_delivery_failed" | "external_auth_provider_create" | "external_auth_provider_update" | "external_auth_provider_delete" | "user_external_auth_login" | "user_external_auth_link" | "user_external_auth_unlink" | "minecraft_profile_create" | "minecraft_profile_rename" | "minecraft_profile_delete" | "minecraft_texture_upload" | "minecraft_texture_bind" | "minecraft_texture_delete" | "minecraft_texture_library_submit" | "minecraft_texture_library_withdraw" | "minecraft_texture_library_approve" | "minecraft_texture_library_reject" | "minecraft_texture_library_unpublish" | "minecraft_texture_report_create" | "minecraft_texture_report_accept" | "minecraft_texture_report_reject" | "yggdrasil_authenticate" | "yggdrasil_refresh_token" | "yggdrasil_invalidate_token" | "yggdrasil_signout" | "yggdrasil_join_server" | "yggdrasil_session_forward_check";
-        /** @enum {string} */
+        /**
+         * @description Kind of the entity an audit entry points at, paired with the entry's
+         *     entity id.
+         * @enum {string}
+         */
         AuditEntityType: "system" | "system_config" | "user" | "invitation" | "auth_session" | "passkey" | "external_auth_provider" | "external_auth_identity" | "api_token" | "mail" | "task" | "user_ban" | "minecraft_profile" | "minecraft_texture" | "yggdrasil_token" | "yggdrasil_session";
+        /** @description One audit log record as served to the admin audit query API. */
         AuditLogEntry: {
+            /** @description Audited action kind. */
             action: components["schemas"]["AuditAction"];
+            /** @description Record creation timestamp (UTC). */
             created_at: string;
+            /** @description Raw JSON action payload serialized at write time. */
             details?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description ID of the targeted entity row, when the action addresses one.
+             */
             entity_id?: number | null;
+            /**
+             * @description Human-readable entity name captured at write time; survives entity
+             *     deletion.
+             */
             entity_name?: string | null;
+            /** @description Entity class the action targeted. */
             entity_type: components["schemas"]["AuditEntityType"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Audit log row ID.
+             */
             id: number;
+            /** @description Client IP captured from the request, truncated to the audit limit. */
             ip_address?: string | null;
             presentation?: components["schemas"]["AuditPresentation"] | null;
             user?: components["schemas"]["AuditUserSummary"] | null;
+            /** @description User-Agent captured from the request, truncated to the audit limit. */
             user_agent?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Acting user ID; 0 marks the reserved system actor.
+             */
             user_id: number;
         };
+        /** @description Query-string filters for the admin audit log listing endpoint. */
         AuditLogFilterQuery: {
+            /** @description Only records of this audit action (wire string). */
             action?: string | null;
+            /** @description Inclusive lower time bound, RFC 3339. */
             after?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Cursor pagination anchor: creation timestamp of the last seen record.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor pagination anchor: ID of the last seen record, breaking
+             *     creation-timestamp ties.
+             */
             after_id?: number | null;
+            /** @description Inclusive upper time bound, RFC 3339. */
             before?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Only records targeting this entity row ID.
+             */
             entity_id?: number | null;
             entity_type?: components["schemas"]["AuditEntityType"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Only records authored by this user ID.
+             */
             user_id?: number | null;
         };
+        /** @description Persisted audit trail entry for security-relevant actions. */
         AuditLogModel: {
+            /** @description What happened, from the fixed product audit action set. */
             action: components["schemas"]["AuditAction"];
+            /** @description When the action was recorded. */
             created_at: string;
+            /** @description Action-specific detail payload stored as serialized text. */
             details?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Numeric id of the targeted object, when it has one.
+             */
             entity_id?: number | null;
+            /** @description Human-readable name of the targeted object captured at action time. */
             entity_name?: string | null;
+            /** @description Kind of object the action targeted (for example `user` or `minecraft_texture`). */
             entity_type: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /** @description Client IP (truncated to 45 bytes) when one could be resolved. */
             ip_address?: string | null;
+            /** @description Client User-Agent header (truncated to 512 bytes) when present. */
             user_agent?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Acting user id; `0` is the reserved system actor for background and startup events.
+             */
             user_id: number;
         };
+        /**
+         * @description Precomputed display metadata for one audit entry, letting clients render
+         *     localized lines without re-parsing the raw `details` JSON.
+         */
         AuditPresentation: {
             detail?: components["schemas"]["AuditPresentationMessage"] | null;
             summary?: components["schemas"]["AuditPresentationMessage"] | null;
             target?: components["schemas"]["AuditPresentationMessage"] | null;
         };
+        /**
+         * @description Localizable display message: a presentation code plus the parameters the
+         *     client substitutes into the translated template.
+         */
         AuditPresentationMessage: {
+            /** @description Presentation code the client maps to a translation key. */
             code: string;
+            /** @description Template parameters keyed by placeholder name; omitted when empty. */
             params?: {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @description Acting user summary joined into audit entries; `None` on the wire when the
+         *     actor is the reserved system user or has been deleted.
+         */
         AuditUserSummary: {
+            /** @description Account email at query time. */
             email: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description User ID; 0 marks the reserved system actor.
+             */
             id: number;
+            /** @description Account role at query time. */
             role: components["schemas"]["UserRole"];
+            /** @description Account status at query time. */
             status: components["schemas"]["UserStatus"];
+            /** @description Display name at query time. */
             username: string;
         };
+        /** @description Cursor query for paginating the current user's passkeys. */
         AuthCreatedAtCursorQuery: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Resume listing after passkeys created at or before this timestamp.
+             */
             after_created_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Tiebreaker passkey ID for entries sharing the same `after_created_at`.
+             */
             after_id?: number | null;
         };
+        /** @description Cursor query for paginating the current user's auth sessions. */
         AuthSessionCursorQuery: {
+            /** @description Tiebreaker session ID for entries sharing the same `last_seen_at`. */
             after_id?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Resume listing after sessions last seen at or before this timestamp.
+             */
             after_last_seen_at?: string | null;
         };
+        /** @description One user session as shown in the account "active sessions" list. */
         AuthSessionInfo: {
+            /** @description When the session was created. */
             created_at: string;
+            /** @description Session id (UUID) used when revoking this session. */
             id: string;
+            /** @description Peer IP captured at session creation/refresh. */
             ip_address?: string | null;
+            /** @description Whether this session matches the refresh token the request presented. */
             is_current: boolean;
+            /** @description Last time this session refreshed its tokens or was seen. */
             last_seen_at: string;
+            /** @description When the session's current refresh token expires. */
             refresh_expires_at: string;
+            /** @description Whether the session has been revoked (explicitly or by revoking others). */
             revoked: boolean;
+            /** @description Client user agent captured at session creation/refresh. */
             user_agent?: string | null;
         };
+        /** @description Web login session tracking refresh-token rotation for one user. */
         AuthSessionModel: {
+            /** @description When the session was opened. */
             created_at: string;
+            /** @description JWT id of the refresh token currently valid for this session; unique. */
             current_refresh_jti: string;
+            /** @description Random session identifier serving as the primary key (not auto-incremented). */
             id: string;
+            /** @description Client IP captured at login. */
             ip_address?: string | null;
+            /** @description When this session was last observed active (login or refresh). */
             last_seen_at: string;
+            /**
+             * @description JWT id of the refresh token rotated out during the most recent refresh, kept so a
+             *     replay of the old token can be detected until it expires.
+             */
             previous_refresh_jti?: string | null;
+            /** @description Absolute expiry of the current refresh token. */
             refresh_expires_at: string;
+            /** @description When the session was explicitly revoked (for example on logout); `None` while live. */
             revoked_at?: string | null;
+            /** @description Client User-Agent header captured at login. */
             user_agent?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Owning user account.
+             */
             user_id: number;
         };
+        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
         AuthTokenResponse: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Access token lifetime in seconds.
+             */
             expires_in: number;
+            /** @description Whether this is a full session or restricted to password change. */
             status: components["schemas"]["AuthTokenStatus"];
         };
-        /** @enum {string} */
+        /**
+         * @description Session state carried by a token pair: normal authentication or a
+         *     restricted session that may only change the password.
+         * @enum {string}
+         */
         AuthTokenStatus: "authenticated" | "password_change_required";
+        /**
+         * @description Authenticated-user view returned by login, registration, and `/me`
+         *     endpoints. Never includes credential material.
+         */
         AuthUserInfo: {
+            /** @description Normalized account email. */
             email: string;
+            /** @description Whether the account email has been verified. */
             email_verified: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Local user id.
+             */
             id: number;
+            /** @description Whether the account must change its password before normal use. */
             must_change_password: boolean;
+            /**
+             * @description Operator-only scope grants; empty for non-operator accounts unless
+             *     explicitly loaded.
+             */
             operator_scopes: components["schemas"]["OperatorScope"][];
+            /**
+             * @description New email awaiting verification during an email change; `None` when no
+             *     change is in flight.
+             */
             pending_email?: string | null;
+            /**
+             * @description Display name and avatar for the self audience; left at defaults by
+             *     constructors that skip the profile lookup.
+             */
             profile: components["schemas"]["UserProfileInfo"];
+            /** @description Account role (User, Operator, Admin). */
             role: components["schemas"]["UserRole"];
+            /** @description Account status (active, disabled, pending activation). */
             status: components["schemas"]["UserStatus"];
+            /** @description Unique login username (4-16 ASCII letters/digits/`_`/`-`). */
             username: string;
         };
+        /** @description Avatar presentation resolved from the stored profile avatar. */
         AvatarInfo: {
+            /** @description Avatar source (`none`, `gravatar` or `upload`). */
             source: components["schemas"]["AvatarSource"];
+            /** @description Large avatar URL; `None` when no avatar is available. */
             url_1024?: string | null;
+            /** @description Small avatar URL; `None` when no avatar is available. */
             url_512?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Avatar version used for cache busting; 0 when unset.
+             */
             version: number;
         };
-        /** @enum {string} */
+        /**
+         * @description Where the account's avatar image comes from.
+         * @enum {string}
+         */
         AvatarSource: "none" | "gravatar" | "upload";
-        /** @enum {string} */
+        /**
+         * @description Identifies which background job a task record runs.
+         * @enum {string}
+         */
         BackgroundTaskKind: "system_runtime" | "texture_preview_generate";
+        /** @description Tracked background task record, from enqueueing through retries to a terminal state. */
         BackgroundTaskModel: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Number of execution attempts made so far.
+             */
             attempt_count: number;
+            /** @description When the task was enqueued. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description User who triggered the task; `None` for system-initiated work, cleared when that user is deleted.
+             */
             creator_user_id?: number | null;
+            /**
+             * @description Optional idempotency key; unique across tasks when present so repeated enqueues
+             *     collapse onto one record.
+             */
             dedupe_key?: string | null;
+            /** @description Human-readable title shown in admin task listings. */
             display_name: string;
+            /** @description When the record becomes eligible for retention cleanup. */
             expires_at: string;
+            /** @description Whether the most recent failure may be retried; `None` until a failure occurs. */
             failure_can_retry?: boolean | null;
+            /** @description When the task reached a terminal state. */
             finished_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /** @description Task type; selects which registered handler executes the payload. */
             kind: components["schemas"]["BackgroundTaskKind"];
+            /** @description Message from the most recent failure. */
             last_error?: string | null;
+            /** @description Last heartbeat received from the worker holding the lease. */
             last_heartbeat_at?: string | null;
+            /** @description When the current processing lease lapses and the task becomes reclaimable. */
             lease_expires_at?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Attempt budget; the task fails permanently once exhausted.
+             */
             max_attempts: number;
+            /** @description When the task is next eligible to run. */
             next_run_at: string;
+            /** @description Task input consumed by the handler, stored as JSON text. */
             payload_json: string;
+            /** @description When the current (or most recent) processing lease began. */
             processing_started_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Lease ownership token; changes on each claim so a stale worker cannot
+             *     overwrite the state written by the current owner.
+             */
             processing_token: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Progress units completed so far, as reported by the handler.
+             */
             progress_current: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total progress units for the whole task; `0` when progress is not tracked.
+             */
             progress_total: number;
+            /** @description Handler-produced output stored as JSON text once the task succeeds. */
             result_json?: string | null;
+            /** @description Runtime scratch state persisted between attempts, stored as JSON text. */
             runtime_json?: string | null;
+            /** @description When the first execution attempt started. */
             started_at?: string | null;
+            /** @description Task lifecycle state (`pending`, `processing`, `retry`, `succeeded`, `failed`, `canceled`). */
             status: components["schemas"]["BackgroundTaskStatus"];
+            /** @description Short human-readable progress message for display. */
             status_text?: string | null;
+            /** @description Step list describing the task's progress plan, stored as JSON text. */
             steps_json?: string | null;
+            /** @description When the task record was last modified. */
             updated_at: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Dispatch lifecycle state of a background task record.
+         * @enum {string}
+         */
         BackgroundTaskStatus: "pending" | "processing" | "retry" | "succeeded" | "failed" | "canceled";
+        /**
+         * @description Request body binding an existing wardrobe texture to a profile texture
+         *     slot.
+         */
         BindMinecraftTextureReq: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Id of the wardrobe texture to bind; must be a positive id owned by the
+             *     current user.
+             */
             texture_id: number;
         };
+        /** @description Visual captcha challenge handed to the client. */
         CaptchaChallengeResponse: {
+            /**
+             * @description Opaque id the client must echo back with its answer; answers are only
+             *     stored as SHA-256 hashes server-side.
+             */
             challenge_id: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Challenge validity in seconds; verification after that fails as expired.
+             */
             expires_in: number;
+            /** @description Rendered challenge image as a base64 data payload. */
             image_base64: string;
+            /** @description MIME type of `image_base64` (currently `image/jpeg`). */
             mime: string;
         };
+        /** @description Request body for changing the current user's password. */
         ChangePasswordReq: {
+            /** @description Current password for confirmation. */
             current_password: string;
+            /** @description Replacement password; validated by the auth password policy. */
             new_password: string;
         };
+        /** @description Response of the bootstrap check reporting whether the site is initialized. */
         CheckResp: {
+            /** @description True once initial setup has created the first administrator. */
             initialized: boolean;
         };
-        /** @enum {string} */
+        /**
+         * @description Side-effecting admin operations executable against a config group,
+         *     beyond plain value edits.
+         * @enum {string}
+         */
         ConfigActionType: "send_test_email" | "preview_captcha" | "rotate_yggdrasil_signature_key";
+        /**
+         * @description Schema descriptor for one runtime config key, letting the admin UI render
+         *     forms without hardcoding the registry.
+         */
         ConfigSchemaItem: {
+            /** @description Admin UI grouping category. */
             category: string;
+            /** @description Human-readable English description. */
             description: string;
+            /** @description I18n key for the field description. */
             description_i18n_key: string;
+            /** @description Whether the value must be redacted in listings and audit records. */
             is_sensitive: boolean;
+            /** @description Stable config key this descriptor describes. */
             key: string;
+            /** @description I18n key for the field label. */
             label_i18n_key: string;
+            /** @description Enumerated value choices for enum-typed keys; empty otherwise. */
             options?: components["schemas"]["ConfigSchemaOption"][];
+            /** @description Whether changes only apply after a process restart. */
             requires_restart: boolean;
+            /** @description Value type that governs parsing and validation. */
             value_type: components["schemas"]["ConfigValueType"];
         };
+        /** @description One selectable choice for an enum-typed config key. */
         ConfigSchemaOption: {
+            /** @description Sub-group the option renders under in the admin UI. */
             group: string;
+            /** @description I18n key for the option label. */
             label_i18n_key: string;
+            /** @description Wire value to store when this option is chosen. */
             value: string;
         };
         /**
@@ -2566,85 +3752,219 @@ export interface components {
          * @enum {string}
          */
         ConfigVisibility: "private" | "public" | "authenticated";
+        /**
+         * @description Request body for copying a published texture-library texture into the
+         *     current user's wardrobe.
+         */
         CopyPublicTextureReq: {
+            /**
+             * @description Wardrobe display name for the copy; `null` clears it, omit to reuse
+             *     the source name.
+             */
             display_name?: string | null;
         };
+        /**
+         * @description Result of creating a user; carries the one-time temporary password when
+         *     the server generated one, omitted from serialization otherwise.
+         */
         CreateAdminUserOutput: {
+            /**
+             * @description Plaintext temporary password shown exactly once, only when no
+             *     password was supplied in the request.
+             */
             generated_password?: string | null;
+            /** @description The newly created account view. */
             user: components["schemas"]["AdminUserInfo"];
         };
+        /** @description Admin request body for creating a user account. */
         CreateAdminUserReq: {
+            /** @description Account email address; must be valid and not already registered. */
             email: string;
+            /**
+             * @description Force a password change at next login; forced on when the server
+             *     generated the password.
+             */
             must_change_password?: boolean | null;
+            /** @description Operator scopes for limited staff accounts. */
             operator_scopes?: components["schemas"]["OperatorScope"][] | null;
+            /**
+             * @description Initial password; when omitted the server generates a temporary
+             *     password, returns it once, and forces a change at next login.
+             */
             password?: string | null;
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
+            /** @description Account username; 4-16 ASCII letters, digits, underscores or hyphens. */
             username: string;
         };
+        /**
+         * @description Admin request body for creating an external auth provider. Absent optional
+         *     flags fall back to per-kind defaults.
+         */
         CreateExternalAuthProviderReq: {
+            /** @description Restrict logins to these email domains; absent or empty allows all. */
             allowed_domains?: string[] | null;
+            /**
+             * @description Manual authorization endpoint; only honored by kinds supporting manual
+             *     endpoint configuration.
+             */
             authorization_url?: string | null;
+            /** @description Legacy alias for `authorization_url`; ignored when both are provided. */
             authorize_url?: string | null;
+            /**
+             * @description Whether a verified provider email may auto-link an existing local
+             *     account with the same email.
+             */
             auto_link_verified_email_enabled?: boolean | null;
+            /** @description Whether unknown external identities create local users automatically. */
             auto_provision_enabled?: boolean | null;
+            /** @description Claim name override for the avatar URL; driver default when omitted. */
             avatar_url_claim?: string | null;
+            /** @description OAuth client id registered at the provider; non-blank, up to 255 bytes. */
             client_id: string;
+            /** @description OAuth client secret stored server-side; never echoed back in full. */
             client_secret?: string | null;
+            /**
+             * @description Human-readable name shown on the login page; non-blank, up to 128
+             *     bytes.
+             */
             display_name: string;
+            /** @description Claim name override for the display name; driver default when omitted. */
             display_name_claim?: string | null;
+            /** @description Claim name override for the email; driver default when omitted. */
             email_claim?: string | null;
+            /**
+             * @description Claim name override for the email-verified flag; driver default when
+             *     omitted.
+             */
             email_verified_claim?: string | null;
+            /** @description Whether logins through this provider are accepted; defaults to enabled. */
             enabled?: boolean | null;
+            /** @description Claim name override for group memberships; driver default when omitted. */
             groups_claim?: string | null;
+            /** @description Optional logo URL shown next to the provider button. */
             icon_url?: string | null;
+            /** @description Issuer/discovery base URL; required by kinds that discover endpoints. */
             issuer_url?: string | null;
             options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
+            /** @description Provider kind selecting the protocol and endpoint defaults. */
             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+            /**
+             * @description Whether logins are rejected unless the provider asserts a verified
+             *     email; defaults per kind.
+             */
             require_email_verified?: boolean | null;
+            /**
+             * @description Space-separated OAuth scopes; falls back to the kind default when
+             *     omitted.
+             */
             scopes?: string | null;
+            /** @description Claim name override for the subject; driver default when omitted. */
             subject_claim?: string | null;
+            /**
+             * @description Manual token endpoint; only honored by kinds supporting manual endpoint
+             *     configuration.
+             */
             token_url?: string | null;
+            /**
+             * @description Manual userinfo endpoint; only honored by kinds supporting manual
+             *     endpoint configuration.
+             */
             userinfo_url?: string | null;
+            /**
+             * @description Claim name override for the preferred username; driver default when
+             *     omitted.
+             */
             username_claim?: string | null;
         };
+        /** @description Request body for creating a Minecraft profile for the current user. */
         CreateMinecraftProfileReq: {
+            /**
+             * @description Desired profile name; 3-16 ASCII letters, digits or underscores, unique
+             *     among live profiles.
+             */
             name: string;
         };
+        /** @description Request body for creating a texture-library tag. */
         CreateMinecraftTextureTagReq: {
+            /** @description Tag color as a `#RRGGBB` hex value. */
             color: string;
+            /** @description Tag name; 1-64 characters. */
             name: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Optional sort position; omit to append after existing tags.
+             */
             sort_order?: number | null;
         };
+        /**
+         * @description Request body for reporting a published texture-library texture to the
+         *     moderators.
+         */
         CreateTextureReportReq: {
+            /** @description Optional free-text detail; up to 1000 characters. */
             message?: string | null;
+            /** @description Report reason category (e.g. inappropriate, broken, copyright). */
             reason: components["schemas"]["MinecraftTextureReportReason"];
         };
+        /** @description Admin request body for creating a new capability ban on a user. */
         CreateUserBanReq: {
+            /** @description Optional moderator-only note; up to 1000 characters. */
             admin_note?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Optional expiry time; omit for a ban that lasts until revoked.
+             */
             expires_at?: string | null;
+            /** @description Optional reason shown to the banned user; up to 1000 characters. */
             public_reason?: string | null;
+            /** @description Internal reason recorded for moderators; 1-128 characters. */
             reason: string;
+            /**
+             * @description Capability scopes the user loses while the ban is effective; must be
+             *     non-empty.
+             */
             scopes: components["schemas"]["UserBanScope"][];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Optional ban start time; defaults to now when omitted.
+             */
             starts_at?: string | null;
         };
+        /** @description Admin request body for inviting a new user by email. */
         CreateUserInvitationReq: {
+            /** @description Recipient email address; must be valid and not already registered. */
             email: string;
         };
+        /** @description Admin request body for registering an upstream session-forward server. */
         CreateYggdrasilSessionForwardServerReq: {
+            /**
+             * @description Base URL of the upstream Yggdrasil API; non-blank and unique across
+             *     servers.
+             */
             base_url: string;
+            /** @description Human-readable name; non-blank, up to 128 bytes. */
             display_name: string;
+            /** @description Whether the server participates in forwarding; defaults to enabled. */
             enabled?: boolean | null;
             endpoint_kind?: components["schemas"]["YggdrasilSessionForwardEndpointKind"] | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Call-order position; enabled servers with lower values are tried
+             *     first. Defaults to 100.
+             */
             priority?: number | null;
+            /** @description Whether texture requests are also forwarded; defaults to false. */
             texture_forward_enabled?: boolean | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Upstream request timeout in milliseconds; defaults to 1500.
+             */
             timeout_ms?: number | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Weight among servers sharing the same priority; defaults to 1.
+             */
             weight?: number | null;
         };
         /** @description Cursor query for resources ordered by creation time and numeric id. */
@@ -2660,27 +3980,52 @@ export interface components {
              */
             after_id?: number | null;
         };
+        /** @description Filter query for the current user's Minecraft profile list, ordered by id. */
         CurrentMinecraftProfileListQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Cursor: id of the last profile on the previous page.
+             */
             after_id?: number | null;
+            /**
+             * @description Optional search term matched case-insensitively against profile name;
+             *     up to 64 characters.
+             */
             query?: string | null;
         };
         /** @description Serialized cursor page response. */
         CursorPage_AccountUserBanInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the ban record was created. */
                 created_at: string;
+                /** @description Whether the ban is currently in force. */
                 effective: boolean;
+                /**
+                 * @description Status after applying the time window; e.g. an active ban is expired
+                 *     once `expires_at` has passed.
+                 */
                 effective_status: components["schemas"]["UserBanStatus"];
+                /** @description Ban expiry time; absent for a ban that lasts until revoked. */
                 expires_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Ban record id.
+                 */
                 id: number;
+                /** @description Optional reason shown to the banned user. */
                 public_reason?: string | null;
+                /** @description Internal reason recorded by the moderator. */
                 reason: string;
+                /** @description When the ban was revoked; absent while the ban is not revoked. */
                 revoked_at?: string | null;
+                /** @description Capability scopes the user loses while this ban is effective. */
                 scopes: components["schemas"]["UserBanScope"][];
+                /** @description Ban start time. */
                 starts_at: string;
+                /** @description Stored status of the ban record. */
                 status: components["schemas"]["UserBanStatus"];
+                /** @description When the ban record was last updated. */
                 updated_at: string;
             }[];
             /**
@@ -2708,35 +4053,81 @@ export interface components {
         CursorPage_AdminExternalAuthProviderInfo_StringIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Restrict logins to these email domains; empty means all domains allowed. */
                 allowed_domains: string[];
+                /**
+                 * @description Manually configured authorization endpoint; only for kinds that
+                 *     support manual endpoint configuration.
+                 */
                 authorization_url?: string | null;
+                /**
+                 * @description Whether a verified provider email may auto-link to an existing local
+                 *     account with the same email.
+                 */
                 auto_link_verified_email_enabled: boolean;
+                /** @description Whether unknown identities create a new local user automatically. */
                 auto_provision_enabled: boolean;
+                /** @description Claim name override for the avatar URL. */
                 avatar_url_claim?: string | null;
+                /** @description OAuth client id registered at the provider. */
                 client_id: string;
+                /** @description Redacted placeholder; the real secret is never returned to clients. */
                 client_secret?: string | null;
+                /** @description Whether a non-empty client secret is stored. */
                 client_secret_configured: boolean;
+                /** @description When the provider was created. */
                 created_at: string;
+                /** @description Human-readable name shown on the login page. */
                 display_name: string;
+                /** @description Claim name override for the display name. */
                 display_name_claim?: string | null;
+                /** @description Claim name override for the email. */
                 email_claim?: string | null;
+                /** @description Claim name override for the email-verified flag. */
                 email_verified_claim?: string | null;
+                /** @description Whether logins through this provider are accepted. */
                 enabled: boolean;
+                /** @description Claim name override for group memberships. */
                 groups_claim?: string | null;
+                /** @description Optional logo URL shown next to the provider button. */
                 icon_url?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Provider row id used in admin update/delete/test routes.
+                 */
                 id: number;
+                /**
+                 * @description Issuer/discovery base URL; `None` for kinds with fixed endpoints or
+                 *     when Microsoft options carry the tenant instead.
+                 */
                 issuer_url?: string | null;
+                /** @description Stable public identifier used in login and callback routes. */
                 key: string;
+                /** @description Kind-specific options; for Microsoft providers this carries the tenant. */
                 options: components["schemas"]["ExternalAuthProviderOptions"];
+                /** @description Protocol family the kind implements. */
                 protocol: components["schemas"]["ExternalAuthProtocol"];
+                /** @description Provider kind (OIDC, GitHub, Google, Microsoft, QQ). */
                 provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+                /** @description Whether logins are rejected unless the provider asserts a verified email. */
                 require_email_verified: boolean;
+                /** @description Space-separated OAuth scopes requested during login. */
                 scopes: string;
+                /** @description Claim name override for the subject; `None` uses the driver default. */
                 subject_claim?: string | null;
+                /**
+                 * @description Manually configured token endpoint; only for kinds that support
+                 *     manual endpoint configuration.
+                 */
                 token_url?: string | null;
+                /** @description When the provider was last updated (config change or successful test). */
                 updated_at: string;
+                /**
+                 * @description Manually configured userinfo endpoint; only for kinds that support
+                 *     manual endpoint configuration.
+                 */
                 userinfo_url?: string | null;
+                /** @description Claim name override for the preferred username. */
                 username_claim?: string | null;
             }[];
             /**
@@ -2764,24 +4155,47 @@ export interface components {
         CursorPage_AdminUserInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Number of currently active auth sessions.
+                 */
                 active_session_count: number;
+                /** @description Account creation time. */
                 created_at: string;
+                /** @description Normalized account email. */
                 email: string;
+                /** @description Time the email address was verified, if it has been. */
                 email_verified_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description User identifier.
+                 */
                 id: number;
+                /** @description Whether the next login must set a new password. */
                 must_change_password: boolean;
+                /** @description Scoped permissions; populated only for operators. */
                 operator_scopes: components["schemas"]["OperatorScope"][];
+                /** @description Email awaiting verification before replacing the current one. */
                 pending_email?: string | null;
+                /** @description Display profile summary including the avatar for admin viewing. */
                 profile: components["schemas"]["UserProfileInfo"];
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Number of Minecraft profiles owned by the user.
+                 */
                 profile_count: number;
+                /** @description Account role (`user`, `operator` or `admin`). */
                 role: components["schemas"]["UserRole"];
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Monotonic counter bumped to invalidate previously issued sessions.
+                 */
                 session_version: number;
+                /** @description Account status (`active` or `disabled`). */
                 status: components["schemas"]["UserStatus"];
+                /** @description Account last-update time. */
                 updated_at: string;
+                /** @description Account username. */
                 username: string;
             }[];
             /**
@@ -2809,20 +4223,41 @@ export interface components {
         CursorPage_AdminUserInvitationInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Time the invitation was accepted, if accepted. */
                 accepted_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Account created by accepting the invitation, once accepted.
+                 */
                 accepted_user_id?: number | null;
+                /** @description Invitation creation time. */
                 created_at: string;
+                /** @description Invited email address. */
                 email: string;
+                /** @description Time the invitation stops being usable. */
                 expires_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Invitation record identifier.
+                 */
                 id: number;
+                /**
+                 * @description Registration URL embedding the plaintext token; returned only by the
+                 *     create call, never from listings.
+                 */
                 invitation_url?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Administrator who issued the invitation.
+                 */
                 invited_by: number;
+                /** @description Whether the invitation mail was enqueued for delivery. */
                 mail_queued: boolean;
+                /** @description Time the invitation was revoked, if revoked. */
                 revoked_at?: string | null;
+                /** @description Lifecycle status (`pending`, `accepted`, `expired` or `revoked`). */
                 status: components["schemas"]["UserInvitationStatus"];
+                /** @description Invitation last-update time. */
                 updated_at: string;
             }[];
             /**
@@ -2850,33 +4285,74 @@ export interface components {
         CursorPage_AdminYggdrasilSessionForwardServerInfo_SessionForwardServerCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Upstream API root; `None` for the local provider. */
                 base_url?: string | null;
+                /** @description Built-in entries (local and Mojang) cannot be deleted or retargeted. */
                 builtin: boolean;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description When the server entry was created (UTC).
+                 */
                 created_at: string;
+                /** @description Whether this server can be deleted (`false` for built-ins). */
                 deletable: boolean;
+                /** @description Human-readable name shown in the admin UI. */
                 display_name: string;
+                /** @description Whether the server takes part in session forwarding. */
                 enabled: boolean;
+                /**
+                 * @description Which session protocol the upstream speaks (authlib-injector or
+                 *     Mojang session server).
+                 */
                 endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Server row id.
+                 */
                 id: number;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description Last health check time (UTC), if one has run.
+                 */
                 last_checked_at?: string | null;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description Last time a forwarded request to this server failed (UTC).
+                 */
                 last_failure_at?: string | null;
+                /** @description Error message from the most recent failure. */
                 last_failure_message?: string | null;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description Last time a forwarded request to this server succeeded (UTC).
+                 */
                 last_success_at?: string | null;
+                /** @description `true` only for the local AsterYggdrasil provider. */
                 local: boolean;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Call-order rank; servers are tried in ascending priority groups
+                 *     (range -10000..=10000).
+                 */
                 priority: number;
+                /** @description Whether the entry is the built-in local server or a remote upstream. */
                 provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                /** @description Whether textures from this upstream are proxied to clients. */
                 texture_forward_enabled: boolean;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Per-request upstream timeout in milliseconds (range 100..=10000).
+                 */
                 timeout_ms: number;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description When the server entry was last updated (UTC).
+                 */
                 updated_at: string;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Weighted-random position within its priority group (range 1..=1000).
+                 */
                 weight: number;
             }[];
             /**
@@ -2884,9 +4360,12 @@ export interface components {
              * @description Effective page size.
              */
             limit: number;
+            /** @description Opaque pagination cursor matching the sort order of a server listing. */
             next_cursor?: {
+                /** @description Cursor for call-order listings (enabled, priority, id). */
                 call_order: components["schemas"]["EnabledPriorityIdCursor"];
             } | {
+                /** @description Cursor for id-ordered listings. */
                 id: components["schemas"]["IdCursor"];
             };
             /**
@@ -2899,13 +4378,21 @@ export interface components {
         CursorPage_AuthSessionInfo_DateTimeStringCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the session was created. */
                 created_at: string;
+                /** @description Session id (UUID) used when revoking this session. */
                 id: string;
+                /** @description Peer IP captured at session creation/refresh. */
                 ip_address?: string | null;
+                /** @description Whether this session matches the refresh token the request presented. */
                 is_current: boolean;
+                /** @description Last time this session refreshed its tokens or was seen. */
                 last_seen_at: string;
+                /** @description When the session's current refresh token expires. */
                 refresh_expires_at: string;
+                /** @description Whether the session has been revoked (explicitly or by revoking others). */
                 revoked: boolean;
+                /** @description Client user agent captured at session creation/refresh. */
                 user_agent?: string | null;
             }[];
             /**
@@ -2930,20 +4417,37 @@ export interface components {
         CursorPage_ExternalAuthLinkInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the link was created. */
                 created_at: string;
+                /** @description Display name captured from the most recent login claims, if any. */
                 display_name_snapshot?: string | null;
+                /** @description Email captured from the most recent login claims, if any. */
                 email_snapshot?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Identity row id, used when deleting the link.
+                 */
                 id: number;
+                /** @description Issuer namespace that scoped the subject (identity_namespace column). */
                 issuer: string;
+                /** @description Last successful login through this identity; null until first use. */
                 last_login_at?: string | null;
+                /** @description Provider display name at link time. */
                 provider_display_name: string;
+                /** @description Provider logo URL at link time. */
                 provider_icon_url?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Provider row the identity belongs to.
+                 */
                 provider_id: number;
+                /** @description Public key of the provider at link time. */
                 provider_key: string;
+                /** @description Protocol family of the provider at link time. */
                 provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+                /** @description Stable subject identifier the provider assigned to the account. */
                 subject: string;
+                /** @description When the link row was last updated (snapshot refresh or rename). */
                 updated_at: string;
             }[];
             /**
@@ -2971,9 +4475,16 @@ export interface components {
         CursorPage_ExternalAuthPublicProvider_StringIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Human-readable name shown on the login page. */
                 display_name: string;
+                /** @description Optional logo URL rendered next to the provider button. */
                 icon_url?: string | null;
+                /**
+                 * @description Stable public identifier of the provider; part of the login and callback
+                 *     route paths and matched case-insensitively against the stored key.
+                 */
                 key: string;
+                /** @description Protocol family the provider speaks (OIDC, GitHub, Google, Microsoft, QQ). */
                 kind: components["schemas"]["ExternalAuthProviderKind"];
             }[];
             /**
@@ -3001,15 +4512,27 @@ export interface components {
         CursorPage_MinecraftProfileInfo_IdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the profile was created (UTC). */
                 created_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Profile row id.
+                 */
                 id: number;
+                /** @description Current player name. */
                 name: string;
+                /** @description Default skin arm model used when no skin texture overrides it. */
                 texture_model: components["schemas"]["MinecraftTextureModel"];
+                /** @description When the profile was last updated (UTC). */
                 updated_at: string;
+                /** @description Comma-separated texture types the profile may upload (skin/cape). */
                 uploadable_textures: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Owning user's row id.
+                 */
                 user_id: number;
+                /** @description Profile UUID (unhyphenated 32-char hex) used as the Yggdrasil player id. */
                 uuid: string;
             }[];
             /**
@@ -3035,13 +4558,23 @@ export interface components {
         CursorPage_MinecraftTextureTagInfo_SortOrderNameIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description CSS color used when rendering the tag. */
                 color: string;
+                /** @description When the tag was created (UTC). */
                 created_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Tag row id.
+                 */
                 id: number;
+                /** @description Tag label shown to users. */
                 name: string;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Position of the tag in ordering; lower values sort first.
+                 */
                 sort_order: number;
+                /** @description When the tag was last updated (UTC). */
                 updated_at: string;
             }[];
             /**
@@ -3074,29 +4607,60 @@ export interface components {
         CursorPage_MinecraftWardrobeTextureMetadata_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the asset was uploaded (UTC). */
                 created_at: string;
+                /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                 display_name?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Encoded PNG size in bytes.
+                 */
                 file_size: number;
+                /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                 hash: string;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Image height in pixels.
+                 */
                 height: number;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Wardrobe texture asset row id.
+                 */
                 id: number;
+                /**
+                 * @description Reviewer note attached when the library submission was approved or
+                 *     rejected; `None` while unreviewed.
+                 */
                 library_review_note?: string | null;
+                /** @description When a moderator decided on the library submission, if one has. */
                 library_reviewed_at: string;
+                /** @description Lifecycle state of the asset's submission to the public texture library. */
                 library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                /** @description When the asset was submitted to the library, if it was. */
                 library_submitted_at: string;
+                /** @description MIME type; always `image/png` for accepted uploads. */
                 mime_type: string;
+                /** @description Internal asset name assigned at upload time. */
                 name: string;
+                /** @description Rendered preview image URL, if a preview has been generated. */
                 preview_url?: string | null;
+                /** @description Library tags attached to this texture. */
                 tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                 texture_model: components["schemas"]["MinecraftTextureModel"];
+                /** @description Which body slot this texture fills (skin or cape). */
                 texture_type: components["schemas"]["MinecraftTextureType"];
+                /** @description When the asset was last updated (UTC). */
                 updated_at: string;
+                /** @description Public URL the texture bytes can be fetched from. */
                 url: string;
+                /** @description Whether the asset is private to the owner or publicly visible. */
                 visibility: components["schemas"]["MinecraftTextureVisibility"];
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Image width in pixels.
+                 */
                 width: number;
             }[];
             /**
@@ -3124,16 +4688,29 @@ export interface components {
         CursorPage_PasskeyInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Whether the credential is currently synced to backup storage. */
                 backed_up: boolean;
+                /** @description Whether the authenticator allowed the credential to be backed up. */
                 backup_eligible: boolean;
+                /** @description When the passkey was registered. */
                 created_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Passkey row id used in rename/delete routes.
+                 */
                 id: number;
+                /** @description Last successful authentication with this passkey; null until first use. */
                 last_used_at?: string | null;
+                /** @description User-chosen label (up to 128 chars, control chars rejected). */
                 name: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description WebAuthn signature counter from the most recent authentication.
+                 */
                 sign_count: number;
+                /** @description Transports reported at registration (e.g. `internal`, `hybrid`). */
                 transports?: string[] | null;
+                /** @description When the stored credential record was last updated (e.g. after login). */
                 updated_at: string;
             }[];
             /**
@@ -3161,30 +4738,61 @@ export interface components {
         CursorPage_PublicTextureLibraryTextureMetadata_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description When the asset was uploaded (UTC). */
                 created_at: string;
+                /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                 display_name?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Encoded PNG size in bytes.
+                 */
                 file_size: number;
+                /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                 hash: string;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Image height in pixels.
+                 */
                 height: number;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Wardrobe texture asset row id.
+                 */
                 id: number;
+                /**
+                 * @description Reviewer note attached when the library submission was approved or
+                 *     rejected; `None` while unreviewed.
+                 */
                 library_review_note?: string | null;
+                /** @description When a moderator decided on the library submission, if one has. */
                 library_reviewed_at: string;
+                /** @description Lifecycle state of the asset's submission to the public texture library. */
                 library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                /** @description When the asset was submitted to the library, if it was. */
                 library_submitted_at: string;
+                /** @description MIME type; always `image/png` for accepted uploads. */
                 mime_type: string;
+                /** @description Internal asset name assigned at upload time. */
                 name: string;
+                /** @description Rendered preview image URL, if a preview has been generated. */
                 preview_url?: string | null;
+                /** @description Library tags attached to this texture. */
                 tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                 texture_model: components["schemas"]["MinecraftTextureModel"];
+                /** @description Which body slot this texture fills (skin or cape). */
                 texture_type: components["schemas"]["MinecraftTextureType"];
+                /** @description When the asset was last updated (UTC). */
                 updated_at: string;
                 uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                /** @description Public URL the texture bytes can be fetched from. */
                 url: string;
+                /** @description Whether the asset is private to the owner or publicly visible. */
                 visibility: components["schemas"]["MinecraftTextureVisibility"];
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Image width in pixels.
+                 */
                 width: number;
             }[];
             /**
@@ -3212,20 +4820,37 @@ export interface components {
         CursorPage_SystemConfig_IdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Admin UI grouping category. */
                 category: string;
+                /** @description Human-readable description shown in the admin UI. */
                 description: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Config row ID.
+                 */
                 id: number;
+                /** @description Whether the value must be redacted in listings and audit records. */
                 is_sensitive: boolean;
+                /** @description Stable config key used by readers. */
                 key: string;
+                /** @description Config sync namespace the entry belongs to. */
                 namespace: string;
+                /** @description Whether changes only apply after a process restart. */
                 requires_restart: boolean;
+                /** @description Where the effective value came from (default, file, database). */
                 source: components["schemas"]["ConfigSource"];
+                /** @description Last modification time (UTC). */
                 updated_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Admin user who last modified the entry, when tracked.
+                 */
                 updated_by?: number | null;
+                /** @description Current stored value, typed by `value_type`. */
                 value: components["schemas"]["ConfigValue"];
+                /** @description Value type that governs parsing and validation. */
                 value_type: components["schemas"]["ConfigValueType"];
+                /** @description Who may read this entry via the admin API. */
                 visibility: components["schemas"]["ConfigVisibility"];
             }[];
             /**
@@ -3251,36 +4876,77 @@ export interface components {
         CursorPage_TaskInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Attempts made so far, including the current one.
+                 */
                 attempt_count: number;
+                /** @description Whether an admin may retry this task from its current state. */
                 can_retry: boolean;
+                /** @description When the task record was created (UTC). */
                 created_at: string;
                 creator?: components["schemas"]["TaskCreatorSummary"] | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description ID of the user who enqueued the task; `None` for system-created tasks.
+                 */
                 creator_user_id?: number | null;
+                /** @description Human-readable task name for listings. */
                 display_name: string;
+                /** @description When the task record becomes eligible for cleanup (UTC). */
                 expires_at: string;
+                /** @description When the task reached a terminal state (UTC), if it has. */
                 finished_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Task record ID.
+                 */
                 id: number;
+                /** @description Broad task class (system runtime vs. typed product tasks). */
                 kind: components["schemas"]["BackgroundTaskKind"];
+                /** @description Error message from the most recent failed attempt. */
                 last_error?: string | null;
+                /**
+                 * @description When the current dispatch lease lapses; a worker holding an expired
+                 *     lease must stop writing terminal state. Absent while not leased.
+                 */
                 lease_expires_at?: string | null;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Attempts allowed before the task gives up and stays failed.
+                 */
                 max_attempts: number;
+                /** @description Typed payload describing the work. */
                 payload: components["schemas"]["TaskPayload"];
                 presentation?: components["schemas"]["TaskPresentation"] | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Units of work completed so far.
+                 */
                 progress_current: number;
-                /** Format: int32 */
+                /**
+                 * Format: int32
+                 * @description Progress as 0-100 percent, derived from current/total.
+                 */
                 progress_percent: number;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Total units of work the task expects to process.
+                 */
                 progress_total: number;
                 result?: components["schemas"]["TaskResult"] | null;
+                /** @description When the first attempt began (UTC), if the task has started. */
                 started_at?: string | null;
+                /**
+                 * @description Current lifecycle status (pending, processing, retry, succeeded,
+                 *     failed, canceled).
+                 */
                 status: components["schemas"]["BackgroundTaskStatus"];
+                /** @description Plain-text status line, when the task reported one. */
                 status_text?: string | null;
+                /** @description Per-step execution trace recorded while the task ran. */
                 steps: components["schemas"]["TaskStepInfo"][];
+                /** @description When the task record was last touched (UTC). */
                 updated_at: string;
             }[];
             /**
@@ -3308,19 +4974,35 @@ export interface components {
         CursorPage_TextureReportInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /**
+                 * @description Note left by the handling admin; hidden from the reporter unless the
+                 *     API chooses to expose it.
+                 */
                 admin_note?: string | null;
+                /** @description When the report was filed (UTC). */
                 created_at: string;
+                /** @description When the report was handled (UTC), if handled. */
                 handled_at: string;
                 handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Report row id.
+                 */
                 id: number;
+                /** @description Free-form explanation supplied by the reporter, if any. */
                 message?: string | null;
+                /** @description Categorized reason the reporter selected. */
                 reason: components["schemas"]["MinecraftTextureReportReason"];
                 reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+                /** @description Moderation lifecycle state (pending/handled). */
                 status: components["schemas"]["MinecraftTextureReportStatus"];
                 texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Reported wardrobe texture asset id.
+                 */
                 texture_id: number;
+                /** @description When the report was last updated (UTC). */
                 updated_at: string;
             }[];
             /**
@@ -3348,26 +5030,54 @@ export interface components {
         CursorPage_UserBanInfo_DateTimeIdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Administrator-only note, if any. */
                 admin_note?: string | null;
+                /** @description Record creation time. */
                 created_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Administrator who created the ban, when known.
+                 */
                 created_by_user_id?: number | null;
+                /** @description Whether the ban currently blocks the user's scopes. */
                 effective: boolean;
+                /**
+                 * @description Stored status folded with the time window, so an unrevoked ban past
+                 *     its expiry reads as `expired`.
+                 */
                 effective_status: components["schemas"]["UserBanStatus"];
+                /** @description Expiry time; `None` marks a permanent ban. */
                 expires_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Ban record identifier.
+                 */
                 id: number;
+                /** @description Reason surfaced to the affected user, if any. */
                 public_reason?: string | null;
+                /** @description Internal justification recorded when the ban was created or updated. */
                 reason: string;
+                /** @description Note recorded when the ban was revoked. */
                 revoke_note?: string | null;
+                /** @description Time the ban was lifted early, when revoked. */
                 revoked_at?: string | null;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Administrator who revoked the ban, when revoked by a user account.
+                 */
                 revoked_by_user_id?: number | null;
+                /** @description Capability scopes the ban covers. */
                 scopes: components["schemas"]["UserBanScope"][];
+                /** @description Time the ban takes effect. */
                 starts_at: string;
+                /** @description Status stored on the record (`active` or `revoked`). */
                 status: components["schemas"]["UserBanStatus"];
+                /** @description Record last-update time. */
                 updated_at: string;
-                /** Format: int64 */
+                /**
+                 * Format: int64
+                 * @description Banned user identifier.
+                 */
                 user_id: number;
             }[];
             /**
@@ -3395,8 +5105,11 @@ export interface components {
         CursorPage_YggdrasilProfile_IdCursor: {
             /** @description Items in the current page. */
             items: {
+                /** @description Unsigned (dash-less) lowercase profile UUID, 32 hex characters. */
                 id: string;
+                /** @description Player name, 3-16 ASCII letters, numbers, or underscores. */
                 name: string;
+                /** @description Signed profile properties; omitted when the lookup was made unsigned. */
                 properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
             }[];
             /**
@@ -3435,14 +5148,25 @@ export interface components {
             /** @description Cursor timestamp. */
             value: string;
         };
+        /** @description Summary of everything removed alongside a deleted user account. */
         DeleteAdminUserOutput: {
+            /** @description Number of Minecraft profiles removed. */
             deleted_profile_count: number;
+            /** @description Number of profile-bound texture records and blobs removed. */
             deleted_profile_texture_count: number;
+            /** @description Number of wardrobe texture records and blobs removed. */
             deleted_wardrobe_texture_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Number of auth sessions revoked.
+             */
             revoked_session_count: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Number of Yggdrasil access tokens revoked.
+             */
             revoked_yggdrasil_token_count: number;
+            /** @description Snapshot of the account just before deletion. */
             user: components["schemas"]["AdminUserInfo"];
         };
         /** @description Enabled flag, priority, and numeric id cursor for prioritized toggle-like resources. */
@@ -3460,114 +5184,274 @@ export interface components {
              */
             priority: number;
         };
+        /**
+         * @description Admin request body for running a config action, such as a test email or a
+         *     Yggdrasil signature key rotation.
+         */
         ExecuteConfigActionReq: {
+            /**
+             * @description Action to execute; accepted actions depend on the targeted config
+             *     action key.
+             */
             action: components["schemas"]["ConfigActionType"];
+            /**
+             * @description Optional action parameters keyed by config key (e.g. the test-email
+             *     recipient or captcha preview overrides).
+             */
             values?: {
                 [key: string]: components["schemas"]["ConfigValue"];
             } | null;
         };
+        /** @description Admin response describing the outcome of a config action. */
         ExecuteConfigActionResp: {
+            /** @description Human-readable result message suitable for display in the admin UI. */
             message: string;
+            /**
+             * @description Optional output produced by the action; absent when the action has no
+             *     return value.
+             */
             value?: string | null;
         };
+        /** @description Query parameters the provider sends to the external auth callback URL. */
         ExternalAuthCallbackQuery: {
+            /** @description Authorization code issued by the provider. */
             code?: string | null;
+            /** @description Error code reported by the provider instead of a code. */
             error?: string | null;
+            /** @description Human-readable provider error detail accompanying `error`. */
             error_description?: string | null;
+            /** @description Opaque flow state that ties the callback to the started login flow. */
             state?: string | null;
         };
+        /**
+         * @description Body for submitting the email address to verify inside a pending
+         *     external auth email verification flow.
+         */
         ExternalAuthEmailVerificationStartRequest: {
+            /**
+             * @description Email address to verify; must be allowed by the provider's domain
+             *     allowlist when one is configured.
+             */
             email: string;
+            /**
+             * @description Opaque `oev_` flow token issued with the
+             *     [`ExternalAuthCallbackOutcome::EmailVerificationRequired`] outcome.
+             */
             flow_token: string;
         };
+        /**
+         * @description Response body describing the session state after an external-auth flow
+         *     completes without a browser redirect.
+         */
         ExternalAuthFinishLoginResponse: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Access token lifetime in seconds, when a session was established.
+             */
             expires_in?: number | null;
+            /** @description Pending email-verification flow token, when verification is required. */
             flow_token?: string | null;
+            /** @description Frontend path to return the user to once login completes. */
             return_path?: string | null;
+            /** @description Login outcome, e.g. `authenticated` or `password_change_required`. */
             status: string;
         };
+        /**
+         * @description One external identity linked to a user, as returned by the account
+         *     "connected accounts" listing endpoints.
+         */
         ExternalAuthLinkInfo: {
+            /** @description When the link was created. */
             created_at: string;
+            /** @description Display name captured from the most recent login claims, if any. */
             display_name_snapshot?: string | null;
+            /** @description Email captured from the most recent login claims, if any. */
             email_snapshot?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Identity row id, used when deleting the link.
+             */
             id: number;
+            /** @description Issuer namespace that scoped the subject (identity_namespace column). */
             issuer: string;
+            /** @description Last successful login through this identity; null until first use. */
             last_login_at?: string | null;
+            /** @description Provider display name at link time. */
             provider_display_name: string;
+            /** @description Provider logo URL at link time. */
             provider_icon_url?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Provider row the identity belongs to.
+             */
             provider_id: number;
+            /** @description Public key of the provider at link time. */
             provider_key: string;
+            /** @description Protocol family of the provider at link time. */
             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+            /** @description Stable subject identifier the provider assigned to the account. */
             subject: string;
+            /** @description When the link row was last updated (snapshot refresh or rename). */
             updated_at: string;
         };
+        /**
+         * @description Body for linking a pending external identity to an existing local account
+         *     by proving the account password instead of going through email verification.
+         */
         ExternalAuthPasswordLinkRequest: {
+            /**
+             * @description Opaque `oev_` flow token issued with the
+             *     [`ExternalAuthCallbackOutcome::EmailVerificationRequired`] outcome.
+             */
             flow_token: string;
+            /** @description Local username or email of the account to link the identity to. */
             identifier: string;
+            /**
+             * @description Plaintext account password; verified against the stored Argon2 hash and
+             *     never persisted.
+             */
             password: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Sign-in flow dialect used to talk to an external provider.
+         * @enum {string}
+         */
         ExternalAuthProtocol: "oidc" | "oauth2";
-        /** @enum {string} */
+        /**
+         * @description Vendor or protocol family an external login provider belongs to.
+         * @enum {string}
+         */
         ExternalAuthProviderKind: "oidc" | "generic_oauth2" | "github" | "google" | "microsoft" | "qq";
+        /**
+         * @description Capability metadata for one provider kind, built from its registry
+         *     descriptor. Drives which fields the admin provider form must show.
+         */
         ExternalAuthProviderKindInfo: {
+            /** @description Whether `authorization_url` must be configured for this kind. */
             authorization_url_required: boolean;
+            /** @description Space-separated OAuth scopes applied when the admin leaves scopes empty. */
             default_scopes: string;
+            /** @description Short explanation of the kind shown in admin UI. */
             description: string;
+            /** @description Human-readable kind name for admin UI. */
             display_name: string;
+            /** @description Whether `issuer_url` must be configured for this kind. */
             issuer_url_required: boolean;
+            /** @description Provider kind this descriptor describes. */
             kind: components["schemas"]["ExternalAuthProviderKind"];
+            /**
+             * @description Whether authorization/token/userinfo endpoints can be set manually
+             *     instead of being derived from discovery or fixed per kind.
+             */
             manual_endpoint_configuration_supported: boolean;
+            /** @description Underlying protocol (OIDC or generic OAuth 2.0). */
             protocol: components["schemas"]["ExternalAuthProtocol"];
+            /** @description Whether the driver performs OIDC discovery against `issuer_url`. */
             supports_discovery: boolean;
+            /**
+             * @description Whether the provider exposes an email-verified claim that can be
+             *     honored by `require_email_verified`.
+             */
             supports_email_verified_claim: boolean;
+            /** @description Whether the driver uses PKCE for the authorization code flow. */
             supports_pkce: boolean;
+            /** @description Whether `token_url` must be configured for this kind. */
             token_url_required: boolean;
+            /** @description Whether `userinfo_url` must be configured for this kind. */
             userinfo_url_required: boolean;
         };
+        /** @description Per-provider option payload stored alongside a provider configuration. */
         ExternalAuthProviderOptions: {
             microsoft?: components["schemas"]["MicrosoftExternalAuthProviderOptions"] | null;
         };
+        /** @description One step of the provider connectivity test result. */
         ExternalAuthProviderTestCheck: {
+            /** @description Human-readable outcome detail, including failure cause. */
             message: string;
+            /** @description Stable check name (e.g. discovery, token endpoint, JWKS fetch). */
             name: string;
+            /** @description Whether this individual check passed. */
             success: boolean;
         };
+        /**
+         * @description Admin request body for testing external auth provider parameters against
+         *     the live provider without persisting them.
+         */
         ExternalAuthProviderTestParamsReq: {
+            /** @description Manual authorization endpoint for kinds that support it. */
             authorization_url?: string | null;
+            /** @description Legacy alias for `authorization_url`; ignored when both are provided. */
             authorize_url?: string | null;
+            /** @description OAuth client id registered at the provider; non-blank, up to 255 bytes. */
             client_id: string;
+            /** @description OAuth client secret used for this test call only. */
             client_secret?: string | null;
+            /** @description Issuer/discovery base URL for discovery-capable kinds. */
             issuer_url?: string | null;
             kind?: components["schemas"]["ExternalAuthProviderKind"] | null;
             options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
             provider_kind?: components["schemas"]["ExternalAuthProviderKind"] | null;
+            /**
+             * @description Space-separated OAuth scopes; falls back to the kind default when
+             *     omitted.
+             */
             scopes?: string | null;
+            /** @description Manual token endpoint for kinds that support it. */
             token_url?: string | null;
+            /** @description Manual userinfo endpoint for kinds that support it. */
             userinfo_url?: string | null;
         };
+        /** @description Aggregated result of running the provider connectivity test. */
         ExternalAuthProviderTestResult: {
+            /** @description Discovered authorization endpoint, if any. */
             authorization_endpoint?: string | null;
+            /** @description Individual probe outcomes; inspect `success` per check. */
             checks: components["schemas"]["ExternalAuthProviderTestCheck"][];
+            /** @description Issuer discovered from the configuration, if discovery succeeded. */
             issuer?: string | null;
+            /** @description Number of keys in the fetched JWKS, if it was fetched. */
             jwks_key_count?: number | null;
+            /** @description Provider label the driver reported (stored key or "draft"). */
             provider: string;
+            /** @description Discovered token endpoint, if any. */
             token_endpoint?: string | null;
+            /** @description Discovered userinfo endpoint, if any. */
             userinfo_endpoint?: string | null;
         };
+        /**
+         * @description Non-sensitive view of an enabled external auth provider, safe for the public
+         *     login page. Secrets and endpoint configuration are never included here.
+         */
         ExternalAuthPublicProvider: {
+            /** @description Human-readable name shown on the login page. */
             display_name: string;
+            /** @description Optional logo URL rendered next to the provider button. */
             icon_url?: string | null;
+            /**
+             * @description Stable public identifier of the provider; part of the login and callback
+             *     route paths and matched case-insensitively against the stored key.
+             */
             key: string;
+            /** @description Protocol family the provider speaks (OIDC, GitHub, Google, Microsoft, QQ). */
             kind: components["schemas"]["ExternalAuthProviderKind"];
         };
+        /** @description Response carrying the provider URL the browser must be redirected to. */
         ExternalAuthStartLoginResponse: {
+            /**
+             * @description Absolute authorization endpoint URL including client id, state, and
+             *     (when supported) PKCE challenge and nonce.
+             */
             authorization_url: string;
         };
+        /**
+         * @description Request body for handling a texture report; shared by the resolve and
+         *     reject endpoints.
+         */
         HandleTextureReportReq: {
+            /**
+             * @description Optional moderator note recorded on the handled report; up to 512
+             *     characters.
+             */
             admin_note?: string | null;
         };
         /** @description Structured diagnostic detail attached to a component report. */
@@ -3613,7 +5497,9 @@ export interface components {
              */
             value: number;
         };
+        /** @description Liveness probe response. */
         HealthResponse: {
+            /** @description Static liveness marker reported by the process. */
             status: string;
         };
         /** @description Numeric id cursor for resources sorted by id. */
@@ -3632,16 +5518,28 @@ export interface components {
              */
             limit?: number | null;
         };
+        /** @description Request body for password login with username or email. */
         LoginReq: {
+            /** @description Answer for the captcha challenge paired with `captcha_challenge_id`. */
             captcha_answer?: string | null;
+            /**
+             * @description Captcha challenge id issued by the captcha endpoint; required when the
+             *     login flow enforces captcha.
+             */
             captcha_challenge_id?: string | null;
+            /** @description Username or email address of the account. */
             identifier: string;
+            /** @description Account password. */
             password: string;
         };
+        /** @description Request body for revoking a session by its refresh token. */
         LogoutReq: {
+            /** @description Refresh token of the session to revoke. */
             refresh_token: string;
         };
+        /** @description Response reporting whether a logout revoked the session. */
         LogoutResp: {
+            /** @description True when the refresh token matched a live session and it was revoked. */
             revoked: boolean;
         };
         /**
@@ -3659,48 +5557,100 @@ export interface components {
          * @enum {string}
          */
         MailTemplateCode: "register_activation" | "contact_change_confirmation" | "password_reset" | "password_reset_notice" | "contact_change_notice" | "external_auth_email_verification" | "login_email_code" | "user_invitation";
+        /** @description Microsoft-specific settings for a Microsoft provider. */
         MicrosoftExternalAuthProviderOptions: {
+            /** @description Microsoft authority tenant: `common`, an organization id, or a domain. */
             tenant: string;
         };
+        /** @description Administrative/user-facing info about a Minecraft profile. */
         MinecraftProfileInfo: {
+            /** @description When the profile was created (UTC). */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Profile row id.
+             */
             id: number;
+            /** @description Current player name. */
             name: string;
+            /** @description Default skin arm model used when no skin texture overrides it. */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description When the profile was last updated (UTC). */
             updated_at: string;
+            /** @description Comma-separated texture types the profile may upload (skin/cape). */
             uploadable_textures: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Owning user's row id.
+             */
             user_id: number;
+            /** @description Profile UUID (unhyphenated 32-char hex) used as the Yggdrasil player id. */
             uuid: string;
         };
+        /**
+         * @description Minecraft player profile owned by a user account; the identity exposed
+         *     through the Yggdrasil API.
+         */
         MinecraftProfileModel: {
+            /** @description When the profile was created. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /**
+             * @description Player-visible profile name (at most 16 characters); unique across profiles and
+             *     changeable only through the controlled rename flow.
+             */
             name: string;
+            /** @description Arm model skins are rendered with (`default` wide or `slim`). */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description When the profile was last modified. */
             updated_at: string;
+            /** @description Comma-separated texture types this profile accepts (default `skin,cape`). */
             uploadable_textures: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Owning user account.
+             */
             user_id: number;
+            /** @description Profile UUID as a 32-character undashed hex string; unique and stable across renames. */
             uuid: string;
         };
+        /**
+         * @description Texture currently equipped in one slot of a profile; a profile holds at most
+         *     one binding per texture type.
+         */
         MinecraftProfileTextureModelEntity: {
+            /** @description When the binding was created. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Profile the texture is equipped on.
+             */
             profile_id: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Texture asset occupying the slot.
+             */
             texture_id: number;
+            /** @description Slot kind (`skin` or `cape`); unique together with the profile. */
             texture_type: components["schemas"]["MinecraftTextureType"];
+            /** @description When the binding was last changed. */
             updated_at: string;
         };
+        /** @description Ban status body served through the Mojang compatibility endpoints. */
         MinecraftServicesBanStatus: {
             /** @description Map of banned service scopes. Empty means no active Minecraft services ban. */
             bannedScopes: components["schemas"]["MinecraftServicesBannedScopes"];
         };
+        /** @description Banned service scopes; an empty object means no active ban. */
         MinecraftServicesBannedScopes: {
             /** @description Multiplayer/server-join access is banned. */
             MULTIPLAYER?: boolean;
@@ -3718,16 +5668,19 @@ export interface components {
             /** @description RFC3339 timestamp after which the client should refresh the certificate. */
             refreshedAfter: string;
         };
+        /** @description Chat feature preferences served through player attributes. */
         MinecraftServicesChatPreferences: {
             /** @description Text chat feature state, for example `ENABLED` or `DISABLED`. */
             textCommunication: components["schemas"]["MinecraftServicesPreferenceState"];
         };
+        /** @description Social (friends) feature preferences served through player attributes. */
         MinecraftServicesFriendsPreferences: {
             /** @description Friend invitation feature state, for example `ENABLED` or `DISABLED`. */
             acceptInvites: components["schemas"]["MinecraftServicesPreferenceState"];
             /** @description Friend-list feature state, for example `ENABLED` or `DISABLED`. */
             friends: components["schemas"]["MinecraftServicesPreferenceState"];
         };
+        /** @description Key-pair payload body for the Mojang Minecraft-services certificate flow. */
         MinecraftServicesKeyPair: {
             /** @description PKCS#1 PEM private key returned to the authenticated client. */
             privateKey: string;
@@ -3739,6 +5692,7 @@ export interface components {
             /** @description Minecraft services path that rejected the request, matching Mojang's 401 body shape. */
             path: string;
         };
+        /** @description Player attributes body combining privileges and client feature preferences. */
         MinecraftServicesPlayerAttributesResp: {
             /** @description Ban scopes currently active for this account/profile. */
             banStatus: components["schemas"]["MinecraftServicesBanStatus"];
@@ -3751,16 +5705,22 @@ export interface components {
             /** @description Client-side profanity filter preference. */
             profanityFilterPreferences: components["schemas"]["MinecraftServicesProfanityFilterPreferences"];
         };
-        /** @enum {string} */
+        /**
+         * @description Wire state string for a client-side feature preference.
+         * @enum {string}
+         */
         MinecraftServicesPreferenceState: "ENABLED" | "DISABLED";
+        /** @description Privacy blocklist body for the Mojang blocklist compatibility endpoint. */
         MinecraftServicesPrivacyBlocklistResp: {
             /** @description UUID list of profiles blocked by the authenticated user. */
             blockedProfiles: string[];
         };
+        /** @description Single Mojang Minecraft-services privilege flag. */
         MinecraftServicesPrivilege: {
             /** @description Boolean state for a single Minecraft services privilege. */
             enabled: boolean;
         };
+        /** @description Per-service privilege flags for the authenticated account/profile. */
         MinecraftServicesPrivileges: {
             /** @description Whether Realms multiplayer is allowed. */
             multiplayerRealms: components["schemas"]["MinecraftServicesPrivilege"];
@@ -3773,377 +5733,856 @@ export interface components {
             /** @description Whether required telemetry is allowed/enabled from the service policy perspective. */
             telemetry: components["schemas"]["MinecraftServicesPrivilege"];
         };
+        /** @description Privileges body for the Mojang Minecraft-services privilege check. */
         MinecraftServicesPrivilegesResp: {
             /** @description Effective service privileges for the authenticated account/profile. */
             privileges: components["schemas"]["MinecraftServicesPrivileges"];
         };
+        /** @description Profanity filter preference served through the player-attributes endpoint. */
         MinecraftServicesProfanityFilterPreferences: {
             /** @description Whether the client should enable the profanity filter. */
             profanityFilterOn: boolean;
         };
-        /** @enum {string} */
+        /**
+         * @description Review lifecycle of a texture submitted to the shared library.
+         * @enum {string}
+         */
         MinecraftTextureLibraryStatus: "private" | "pending_review" | "published" | "rejected";
+        /** @description Serialized metadata for the texture currently bound to a profile slot. */
         MinecraftTextureMetadata: {
+            /** @description When the binding was created (UTC). */
             created_at: string;
+            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
             display_name?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Encoded PNG size in bytes.
+             */
             file_size: number;
+            /**
+             * @description SHA-256 hash of the texture PNG, lowercase hex (64 chars); doubles as
+             *     the content address used in texture URLs and de-duplication.
+             */
             hash: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image height in pixels.
+             */
             height: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Texture binding row id.
+             */
             id: number;
+            /** @description MIME type; always `image/png` for accepted uploads. */
             mime_type: string;
+            /** @description Internal asset name assigned at upload time. */
             name: string;
+            /** @description Rendered preview image URL, if a preview has been generated. */
             preview_url?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Owning Minecraft profile row id.
+             */
             profile_id: number;
+            /** @description Profile name at the time this metadata was built. */
             profile_name: string;
+            /**
+             * @description Owning profile's UUID in the unhyphenated 32-char form Yggdrasil uses
+             *     as the player identifier.
+             */
             profile_uuid: string;
+            /**
+             * @description Whether this metadata describes a real binding or a default-skin
+             *     stand-in.
+             */
             source: components["schemas"]["MinecraftTextureMetadataSource"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Wardrobe texture asset id the binding points at.
+             */
             texture_id: number;
+            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description Which body slot this texture fills (skin or cape). */
             texture_type: components["schemas"]["MinecraftTextureType"];
+            /** @description When the binding was last updated (UTC). */
             updated_at: string;
+            /** @description Public URL the texture bytes can be fetched from. */
             url: string;
+            /** @description Whether the asset is private to the owner or shared in the wardrobe. */
             visibility: components["schemas"]["MinecraftTextureVisibility"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image width in pixels.
+             */
             width: number;
         };
-        /** @enum {string} */
+        /**
+         * @description Where a profile's texture metadata came from: a texture actually bound to
+         *     the profile, or the built-in default skin substituted for a missing one.
+         * @enum {string}
+         */
         MinecraftTextureMetadataSource: "bound" | "default";
-        /** @enum {string} */
+        /**
+         * @description Player skin model variants the protocol distinguishes.
+         * @enum {string}
+         */
         MinecraftTextureModel: "default" | "slim";
+        /**
+         * @description User-uploaded texture asset (skin or cape), stored by content hash, with the
+         *     metadata used by the owner's wardrobe and the public texture library.
+         */
         MinecraftTextureModelEntity: {
+            /** @description When the texture was uploaded. */
             created_at: string;
+            /** @description Owner-chosen label shown in their texture list. */
             display_name?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
             file_size: number;
+            /** @description Content hash of the stored file; indexed so identical uploads can be found. */
             hash: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image height in pixels.
+             */
             height: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /**
+             * @description Marks the asset as a wardrobe entry that can be browsed and re-equipped,
+             *     distinct from textures currently bound to profiles.
+             */
             is_wardrobe_item: boolean;
+            /** @description Note the reviewer recorded alongside the decision. */
             library_review_note?: string | null;
+            /** @description When the library review was completed. */
             library_reviewed_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Admin who performed the library review.
+             */
             library_reviewer_user_id?: number | null;
+            /**
+             * @description Moderation state in the public texture library (`private`, `pending_review`,
+             *     `published`, or `rejected`).
+             */
             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+            /** @description When the texture was submitted for library review. */
             library_submitted_at: string;
+            /** @description MIME type of the stored file (PNG for accepted uploads). */
             mime_type: string;
+            /** @description Storage object key the texture bytes live under. */
             storage_key: string;
+            /** @description Arm model this skin is drawn with (`default` wide or `slim`). */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description Asset kind (`skin` or `cape`). */
             texture_type: components["schemas"]["MinecraftTextureType"];
+            /** @description When the texture record was last modified. */
             updated_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Owning user account.
+             */
             user_id: number;
+            /** @description Owner-selected listing mode (`private` or `public`). */
             visibility: components["schemas"]["MinecraftTextureVisibility"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image width in pixels.
+             */
             width: number;
         };
-        /** @enum {string} */
+        /**
+         * @description Reason a player gave when reporting a library texture.
+         * @enum {string}
+         */
         MinecraftTextureReportReason: "inappropriate" | "offensive" | "copyright" | "misleading" | "broken" | "spam" | "other";
-        /** @enum {string} */
+        /**
+         * @description Moderator outcome for a submitted library texture report.
+         * @enum {string}
+         */
         MinecraftTextureReportStatus: "pending" | "accepted" | "rejected";
+        /** @description Join row attaching one administrator-managed tag to one texture. */
         MinecraftTextureTagBindingEntity: {
+            /** @description When the tag was attached. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Tag attached to the texture.
+             */
             tag_id: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Tagged texture.
+             */
             texture_id: number;
         };
+        /** @description Administrator-managed tag used to categorize public texture-library entries. */
         MinecraftTextureTagEntity: {
+            /** @description Display color for the tag chip (hex, default `#64748b`). */
             color: string;
+            /** @description When the tag was created. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /** @description Tag name as entered by the admin. */
             name: string;
+            /** @description Lowercase comparison form of the name; unique, so duplicate tags cannot be created. */
             normalized_name: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Sort position among tags in the admin panel (lower comes first).
+             */
             sort_order: number;
+            /** @description When the tag was last modified. */
             updated_at: string;
         };
+        /** @description A library tag that can be attached to public texture library entries. */
         MinecraftTextureTagInfo: {
+            /** @description CSS color used when rendering the tag. */
             color: string;
+            /** @description When the tag was created (UTC). */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Tag row id.
+             */
             id: number;
+            /** @description Tag label shown to users. */
             name: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Position of the tag in ordering; lower values sort first.
+             */
             sort_order: number;
+            /** @description When the tag was last updated (UTC). */
             updated_at: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Texture slot type a player profile can bind.
+         * @enum {string}
+         */
         MinecraftTextureType: "skin" | "cape";
+        /**
+         * @description Publicly displayable information about the user who uploaded a library
+         *     texture; omits internal identifiers.
+         */
         MinecraftTextureUploaderInfo: {
+            /** @description Avatar image metadata for the uploader. */
             avatar: components["schemas"]["AvatarInfo"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Uploader's user row id.
+             */
             id: number;
+            /** @description Display name shown on the site. */
             name: string;
+            /**
+             * @description Random public UUID (unhyphenated 32-char hex) identifying the user in
+             *     external contexts instead of the internal row id.
+             */
             public_uuid: string;
+            /** @description Uploader's account username. */
             username: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Whether a bound texture is served to other players or kept owner-only.
+         * @enum {string}
+         */
         MinecraftTextureVisibility: "private" | "public";
+        /**
+         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+         *     library submission state and tags.
+         */
         MinecraftWardrobeTextureMetadata: {
+            /** @description When the asset was uploaded (UTC). */
             created_at: string;
+            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
             display_name?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Encoded PNG size in bytes.
+             */
             file_size: number;
+            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
             hash: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image height in pixels.
+             */
             height: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Wardrobe texture asset row id.
+             */
             id: number;
+            /**
+             * @description Reviewer note attached when the library submission was approved or
+             *     rejected; `None` while unreviewed.
+             */
             library_review_note?: string | null;
+            /** @description When a moderator decided on the library submission, if one has. */
             library_reviewed_at: string;
+            /** @description Lifecycle state of the asset's submission to the public texture library. */
             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+            /** @description When the asset was submitted to the library, if it was. */
             library_submitted_at: string;
+            /** @description MIME type; always `image/png` for accepted uploads. */
             mime_type: string;
+            /** @description Internal asset name assigned at upload time. */
             name: string;
+            /** @description Rendered preview image URL, if a preview has been generated. */
             preview_url?: string | null;
+            /** @description Library tags attached to this texture. */
             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description Which body slot this texture fills (skin or cape). */
             texture_type: components["schemas"]["MinecraftTextureType"];
+            /** @description When the asset was last updated (UTC). */
             updated_at: string;
+            /** @description Public URL the texture bytes can be fetched from. */
             url: string;
+            /** @description Whether the asset is private to the owner or publicly visible. */
             visibility: components["schemas"]["MinecraftTextureVisibility"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image width in pixels.
+             */
             width: number;
         };
+        /** @description Outgoing email queued for delivery by the mail sender loop. */
         Model: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Delivery attempts made so far.
+             */
             attempt_count: number;
+            /** @description When the email was queued. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing primary key.
+             */
             id: number;
+            /** @description Message from the most recent delivery failure. */
             last_error?: string | null;
+            /** @description When the next delivery attempt is due. */
             next_attempt_at: string;
+            /** @description Template variables and email metadata stored as JSON text. */
             payload_json: string;
+            /** @description When the current delivery attempt was claimed by a sender. */
             processing_started_at?: string | null;
+            /** @description When the email was delivered successfully. */
             sent_at?: string | null;
+            /** @description Delivery state (`pending`, `processing`, `retry`, `sent`, `failed`). */
             status: components["schemas"]["MailOutboxStatus"];
+            /** @description Forge mail template the email is rendered from. */
             template_code: components["schemas"]["MailTemplateCode"];
+            /** @description Recipient email address. */
             to_address: string;
+            /** @description Recipient display name used in the email header. */
             to_name?: string | null;
+            /** @description When the record was last modified. */
             updated_at: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Admin-panel permission scope granted to an operator account; full admins
+         *     pass every scope gate without holding any of these.
+         * @enum {string}
+         */
         OperatorScope: "overview" | "users" | "profiles" | "texture_library" | "audit" | "tasks" | "settings" | "external_auth";
+        /** @description Registered passkey as shown in the account security settings. */
         PasskeyInfo: {
+            /** @description Whether the credential is currently synced to backup storage. */
             backed_up: boolean;
+            /** @description Whether the authenticator allowed the credential to be backed up. */
             backup_eligible: boolean;
+            /** @description When the passkey was registered. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Passkey row id used in rename/delete routes.
+             */
             id: number;
+            /** @description Last successful authentication with this passkey; null until first use. */
             last_used_at?: string | null;
+            /** @description User-chosen label (up to 128 chars, control chars rejected). */
             name: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description WebAuthn signature counter from the most recent authentication.
+             */
             sign_count: number;
+            /** @description Transports reported at registration (e.g. `internal`, `hybrid`). */
             transports?: string[] | null;
+            /** @description When the stored credential record was last updated (e.g. after login). */
             updated_at: string;
         };
+        /** @description Request body for completing a passkey login ceremony. */
         PasskeyLoginFinishReq: {
+            /**
+             * @description WebAuthn client response asserting the credential, as produced by
+             *     `navigator.credentials.get()`.
+             */
             credential: unknown;
+            /** @description Flow id returned by the login start response. */
             flow_id: string;
         };
+        /** @description Request body for starting a passkey login ceremony. */
         PasskeyLoginStartReq: {
+            /**
+             * @description When true the challenge is issued for browser conditional mediation
+             *     (autofill) instead of an explicit modal.
+             */
             conditional?: boolean | null;
+            /**
+             * @description Optional username or email hint; discovery of the credential stays
+             *     resident-key based.
+             */
             identifier?: string | null;
         };
+        /** @description Start of a WebAuthn (discoverable credential) login ceremony. */
         PasskeyLoginStartResp: {
+            /**
+             * @description Flow id correlating the finish call with the cached challenge; the
+             *     challenge expires after 300 seconds and is consumed on first finish.
+             */
             flow_id: string;
+            /**
+             * @description `PublicKeyCredentialRequestOptions` JSON for the browser's
+             *     `navigator.credentials.get()` call.
+             */
             public_key: unknown;
         };
+        /** @description Request body for completing a passkey registration ceremony. */
         PasskeyRegisterFinishReq: {
+            /**
+             * @description WebAuthn client response for the new credential, as produced by
+             *     `navigator.credentials.create()`.
+             */
             credential: unknown;
+            /** @description Flow id returned by the registration start response. */
             flow_id: string;
+            /** @description Optional friendly name for the new passkey. */
             name?: string | null;
         };
+        /** @description Request body for starting a passkey registration ceremony. */
         PasskeyRegisterStartReq: {
+            /** @description Optional friendly name for the new passkey, shown in the passkey list. */
             name?: string | null;
         };
+        /** @description Start of a WebAuthn registration ceremony. */
         PasskeyRegisterStartResp: {
+            /**
+             * @description Flow id correlating the finish call with the cached challenge; the
+             *     challenge expires after 300 seconds and is consumed on first finish.
+             */
             flow_id: string;
+            /**
+             * @description `PublicKeyCredentialCreationOptions` JSON for the browser's
+             *     `navigator.credentials.create()` call.
+             */
             public_key: unknown;
         };
+        /** @description Request body for completing a password reset with the emailed token. */
         PasswordResetConfirmReq: {
+            /** @description Replacement password; validated by the auth password policy. */
             new_password: string;
+            /** @description One-time reset token from the password reset email. */
             token: string;
         };
+        /** @description Request body for requesting a password reset email. */
         PasswordResetRequestReq: {
+            /**
+             * @description Email address of the account to reset; unknown addresses are handled
+             *     without revealing whether the account exists.
+             */
             email: string;
         };
+        /** @description Request body for renaming an existing passkey. */
         PatchPasskeyReq: {
+            /** @description New friendly name for the passkey. */
             name: string;
         };
+        /**
+         * @description Site branding and registration entry points exposed to unauthenticated
+         *     visitors; every value falls back to its default when unset.
+         */
         PublicBranding: {
+            /** @description Whether open registration is currently allowed. */
             allow_user_registration: boolean;
+            /** @description Site description text. */
             description: string;
+            /** @description URL of the favicon image. */
             favicon_url: string;
+            /** @description Whether passkey login is offered on sign-in surfaces. */
             passkey_login_enabled: boolean;
+            /** @description Public site URLs advertised to visitors. */
             site_urls: string[];
+            /** @description Site title shown in the UI. */
             title: string;
+            /** @description URL of the dark-theme wordmark image. */
             wordmark_dark_url: string;
+            /** @description URL of the light-theme wordmark image. */
             wordmark_light_url: string;
         };
+        /** @description Captcha policy as applied to each unauthenticated flow. */
         PublicCaptchaConfig: {
+            /** @description Whether any captcha backend is configured at all. */
             enabled: boolean;
+            /** @description Whether accepting an invitation requires a captcha token. */
             invitation_accept_required: boolean;
+            /** @description Whether the login flow requires a captcha token. */
             login_required: boolean;
+            /** @description Whether resending a registration activation email requires a captcha. */
             register_activation_resend_required: boolean;
+            /** @description Whether the registration flow requires a captcha token. */
             register_required: boolean;
         };
+        /**
+         * @description Public captcha policy telling clients which flows currently require a
+         *     captcha challenge.
+         */
         PublicCaptchaPolicyResp: {
+            /** @description Whether the captcha feature is enabled at all. */
             enabled: boolean;
+            /** @description Whether accepting an invitation requires a captcha. */
             invitation_accept_required: boolean;
+            /** @description Whether the login flow requires a captcha. */
             login_required: boolean;
+            /** @description Whether resending the registration activation email requires a captcha. */
             register_activation_resend_required: boolean;
+            /** @description Whether the registration flow requires a captcha. */
             register_required: boolean;
         };
+        /**
+         * @description The full public runtime configuration payload served to the frontend;
+         *     `version` lets clients detect schema changes.
+         */
         PublicFrontendConfig: {
+            /** @description Site branding and registration policy. */
             branding: components["schemas"]["PublicBranding"];
+            /** @description Captcha requirements per flow. */
             captcha: components["schemas"]["PublicCaptchaConfig"];
+            /** @description Texture library visibility policy. */
             texture_library: components["schemas"]["PublicTextureLibraryConfig"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Payload schema version; bumped on breaking shape changes.
+             */
             version: number;
+            /** @description Yggdrasil server metadata and upload limits. */
             yggdrasil: components["schemas"]["PublicYggdrasilConfig"];
         };
+        /** @description Texture library visibility policy as seen by visitors. */
         PublicTextureLibraryConfig: {
+            /** @description Whether the public texture library exists at all. */
             enabled: boolean;
+            /** @description Whether submissions appear only after moderator approval. */
             review_required: boolean;
         };
+        /** @description Query parameters for browsing published textures in the public texture library. */
         PublicTextureLibraryQuery: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description ID of the last item on the previous page, paired with `after_updated_at` as the cursor.
+             */
             after_id?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Updated-at timestamp of the last item on the previous page.
+             */
             after_updated_at?: string | null;
+            /** @description Substring matched against the texture's display name, hash, or MIME type. */
             keyword?: string | null;
+            /** @description Comma-separated texture tag IDs to filter by; at most 16 positive IDs. */
             tag_ids?: number[];
+            /** @description Whether a texture must carry all of the given tags or any of them; defaults to all. */
             tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
             texture_type?: components["schemas"]["MinecraftTextureType"] | null;
         };
+        /** @description Metadata for a texture listed in the public texture library. */
         PublicTextureLibraryTextureMetadata: {
+            /** @description When the asset was uploaded (UTC). */
             created_at: string;
+            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
             display_name?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Encoded PNG size in bytes.
+             */
             file_size: number;
+            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
             hash: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image height in pixels.
+             */
             height: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Wardrobe texture asset row id.
+             */
             id: number;
+            /**
+             * @description Reviewer note attached when the library submission was approved or
+             *     rejected; `None` while unreviewed.
+             */
             library_review_note?: string | null;
+            /** @description When a moderator decided on the library submission, if one has. */
             library_reviewed_at: string;
+            /** @description Lifecycle state of the asset's submission to the public texture library. */
             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+            /** @description When the asset was submitted to the library, if it was. */
             library_submitted_at: string;
+            /** @description MIME type; always `image/png` for accepted uploads. */
             mime_type: string;
+            /** @description Internal asset name assigned at upload time. */
             name: string;
+            /** @description Rendered preview image URL, if a preview has been generated. */
             preview_url?: string | null;
+            /** @description Library tags attached to this texture. */
             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
             texture_model: components["schemas"]["MinecraftTextureModel"];
+            /** @description Which body slot this texture fills (skin or cape). */
             texture_type: components["schemas"]["MinecraftTextureType"];
+            /** @description When the asset was last updated (UTC). */
             updated_at: string;
             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+            /** @description Public URL the texture bytes can be fetched from. */
             url: string;
+            /** @description Whether the asset is private to the owner or publicly visible. */
             visibility: components["schemas"]["MinecraftTextureVisibility"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Image width in pixels.
+             */
             width: number;
         };
+        /** @description Minimal invitation details shown to the token holder before registering. */
         PublicUserInvitationInfo: {
+            /** @description Email address the invitation was issued for; fixed at registration. */
             email: string;
+            /** @description Time the invitation stops being usable. */
             expires_at: string;
         };
+        /**
+         * @description Yggdrasil server metadata that is safe to expose publicly; drives
+         *     launcher-facing defaults and upload form limits.
+         */
         PublicYggdrasilConfig: {
+            /** @description Whether users may upload capes through the service. */
             allow_cape_upload: boolean;
+            /** @description Whether profile-name login is allowed alongside account login. */
             allow_profile_name_login: boolean;
+            /** @description Whether users may upload skins through the service. */
             allow_skin_upload: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Maximum accepted texture image area in pixels.
+             */
             max_texture_pixels: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Maximum accepted texture upload size in bytes.
+             */
             max_texture_upload_bytes: number;
+            /** @description Public API root URLs advertised by the server. */
             public_base_urls: string[];
+            /** @description Display name of the authentication server. */
             server_name: string;
+            /** @description Domains whose owners may use the skin host, per Yggdrasil metadata. */
             skin_domains: string[];
         };
+        /** @description Request body for rotating an access token with a refresh token. */
         RefreshReq: {
+            /** @description Refresh token from login; consumed and replaced by a new token pair. */
             refresh_token: string;
         };
+        /** @description Request body for creating a new account via email registration. */
         RegisterReq: {
+            /** @description Answer for the captcha challenge paired with `captcha_challenge_id`. */
             captcha_answer?: string | null;
+            /**
+             * @description Captcha challenge id issued by the captcha endpoint; required when the
+             *     register flow enforces captcha.
+             */
             captcha_challenge_id?: string | null;
+            /** @description Email address for the new account; validated by the auth email policy. */
             email: string;
+            /** @description Initial password; validated by the auth password policy. */
             password: string;
+            /** @description Desired username; 4-16 ASCII letters, digits, underscores or hyphens. */
             username: string;
         };
+        /** @description Client-safe registration response; tokens travel in cookies. */
         RegisterResponse: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Access token lifetime in seconds; `0` when activation is pending.
+             */
             expires_in: number;
+            /**
+             * @description Whether the account must confirm the emailed activation link before
+             *     logging in.
+             */
             requires_activation: boolean;
         };
+        /** @description Response carrying the number of records removed by a bulk operation. */
         RemovedCountResponse: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Count of records the operation deleted.
+             */
             removed: number;
         };
+        /**
+         * @description Request body for renaming a Minecraft profile; the UUID, texture bindings
+         *     and launcher sessions are preserved while bound tokens are invalidated.
+         */
         RenameMinecraftProfileReq: {
+            /**
+             * @description New profile name; 3-16 ASCII letters, digits or underscores, unique
+             *     among live profiles.
+             */
             name: string;
         };
+        /** @description Request body replacing the tag set of a texture-library texture. */
         ReplaceWardrobeTextureTagsReq: {
+            /** @description Complete replacement tag id list; at most 16 tags. */
             tag_ids: number[];
         };
+        /** @description Request body for requesting a change of the current user's email address. */
         RequestEmailChangeReq: {
+            /** @description New email address; validated by the auth email policy. */
             new_email: string;
         };
+        /** @description Request body for resending the registration activation email. */
         ResendRegisterActivationReq: {
+            /** @description Answer for the captcha challenge paired with `captcha_challenge_id`. */
             captcha_answer?: string | null;
+            /**
+             * @description Captcha challenge id issued by the captcha endpoint; required when the
+             *     resend flow enforces captcha.
+             */
             captcha_challenge_id?: string | null;
+            /** @description Username or email address of the pending registration. */
             identifier: string;
         };
+        /**
+         * @description Request body for reviewing a pending texture-library submission; shared by
+         *     the approve and reject endpoints.
+         */
         ReviewTextureLibraryTextureReq: {
+            /**
+             * @description Reviewer note; up to 512 characters. Optional on approval, required on
+             *     rejection.
+             */
             review_note?: string | null;
+            /** @description Replacement tag set applied on approval; at most 16 tags. */
             tag_ids?: number[] | null;
         };
+        /** @description Admin request body for revoking an active ban. */
         RevokeUserBanReq: {
+            /** @description Optional note recorded with the revocation; up to 1000 characters. */
             revoke_note?: string | null;
         };
+        /** @description One runtime component's health verdict inside a system health report. */
         RuntimeSystemHealthComponent: {
+            /** @description Structured key/value details for diagnostics; omitted when empty. */
             details?: components["schemas"]["HealthComponentDetail"][];
+            /** @description Human-readable explanation of the verdict. */
             message: string;
+            /** @description Stable component identifier (e.g. `database`, `cache`). */
             name: string;
+            /** @description Verdict for this component. */
             status: components["schemas"]["RuntimeSystemHealthStatus"];
         };
+        /**
+         * @description System health report captured by a runtime health-check task, consumed by
+         *     the admin overview and the task status line.
+         */
         RuntimeSystemHealthResult: {
+            /** @description Per-component verdicts. */
             components: components["schemas"]["RuntimeSystemHealthComponent"][];
+            /** @description Worst verdict across all checked components. */
             status: components["schemas"]["RuntimeSystemHealthStatus"];
         };
-        /** @enum {string} */
+        /**
+         * @description Aggregate or per-component system health verdict reported by runtime
+         *     health-check tasks.
+         * @enum {string}
+         */
         RuntimeSystemHealthStatus: "healthy" | "degraded" | "unhealthy";
+        /**
+         * @description Stored payload identifying which system runtime task a background record
+         *     drives.
+         */
         RuntimeTaskPayload: {
+            /** @description Wire name of the runtime task this record represents. */
             task_name: string;
         };
+        /** @description Stored result of one system runtime task run. */
         RuntimeTaskResult: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Wall-clock run duration in milliseconds; clamped to zero when the
+             *     finished timestamp precedes the started one.
+             */
             duration_ms: number;
+            /** @description Short human-readable outcome line, when the task produced one. */
             summary?: string | null;
             system_health?: components["schemas"]["RuntimeSystemHealthResult"] | null;
         };
+        /** @description Opaque pagination cursor matching the sort order of a server listing. */
         SessionForwardServerCursor: {
+            /** @description Cursor for call-order listings (enabled, priority, id). */
             call_order: components["schemas"]["EnabledPriorityIdCursor"];
         } | {
+            /** @description Cursor for id-ordered listings. */
             id: components["schemas"]["IdCursor"];
         };
+        /** @description Admin request body for setting a runtime config value. */
         SetConfigReq: {
+            /**
+             * @description New value to store for the config key; validated against the key's
+             *     configured value type.
+             */
             value: components["schemas"]["ConfigValue"];
             visibility?: components["schemas"]["ConfigVisibility"] | null;
         };
+        /** @description Request body for first-time site setup, creating the initial admin account. */
         SetupReq: {
+            /** @description Administrator email address; validated by the auth email policy. */
             email: string;
+            /** @description Administrator password; validated by the auth password policy. */
             password: string;
+            /**
+             * @description Optional public site URL recorded during setup; the site default is
+             *     used when omitted.
+             */
             public_site_url?: string | null;
+            /**
+             * @description Username of the initial administrator; 4-16 ASCII letters, digits,
+             *     underscores or hyphens.
+             */
             username: string;
         };
         /**
@@ -4166,8 +6605,17 @@ export interface components {
              */
             sort_order: number;
         };
+        /** @description Request body for starting an external auth login flow in the browser. */
         StartExternalAuthReq: {
+            /**
+             * @description Accepted for compatibility but unused; the callback redirect target is
+             *     derived server-side from the public site URL. Up to 2048 bytes.
+             */
             redirect_uri?: string | null;
+            /**
+             * @description In-app path to redirect to after the login completes; up to 2048
+             *     bytes.
+             */
             return_path?: string | null;
         };
         /** @description String value plus numeric id cursor for resources sorted by text and then id. */
@@ -4180,76 +6628,167 @@ export interface components {
             /** @description Cursor string value. */
             value: string;
         };
+        /**
+         * @description One runtime config entry as served to the admin config API, with its
+         *     stored value and metadata driving editability and display.
+         */
         SystemConfig: {
+            /** @description Admin UI grouping category. */
             category: string;
+            /** @description Human-readable description shown in the admin UI. */
             description: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Config row ID.
+             */
             id: number;
+            /** @description Whether the value must be redacted in listings and audit records. */
             is_sensitive: boolean;
+            /** @description Stable config key used by readers. */
             key: string;
+            /** @description Config sync namespace the entry belongs to. */
             namespace: string;
+            /** @description Whether changes only apply after a process restart. */
             requires_restart: boolean;
+            /** @description Where the effective value came from (default, file, database). */
             source: components["schemas"]["ConfigSource"];
+            /** @description Last modification time (UTC). */
             updated_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Admin user who last modified the entry, when tracked.
+             */
             updated_by?: number | null;
+            /** @description Current stored value, typed by `value_type`. */
             value: components["schemas"]["ConfigValue"];
+            /** @description Value type that governs parsing and validation. */
             value_type: components["schemas"]["ConfigValueType"];
+            /** @description Who may read this entry via the admin API. */
             visibility: components["schemas"]["ConfigVisibility"];
         };
+        /**
+         * @description Outcome of one runtime config update: the stored entry plus non-fatal
+         *     warnings the admin should see.
+         */
         SystemConfigUpdateResult: {
+            /** @description The entry as stored after the update. */
             config: components["schemas"]["SystemConfig"];
+            /** @description Non-fatal observations about the update (e.g. restart required). */
             warnings: components["schemas"]["SystemConfigWarning"][];
         };
+        /** @description A non-fatal consequence of a config update, identified by a stable code. */
         SystemConfigWarning: {
+            /** @description Stable warning identifier clients can match on. */
             code: string;
+            /** @description Human-readable explanation of the warning. */
             message: string;
         };
+        /** @description System information shown to authenticated admin clients. */
         SystemInfoResponse: {
+            /** @description Build timestamp of the running binary. */
             build_time: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Seconds the current process has been serving.
+             */
             uptime_seconds: number;
+            /** @description Crate version of the running build. */
             version: string;
         };
+        /** @description The user who created a task, joined into admin task listings. */
         TaskCreatorSummary: {
+            /** @description Creator's email at query time. */
             email: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Creator's user ID; absent from the listing when the account is gone.
+             */
             id: number;
+            /** @description Creator's username at query time. */
             username: string;
         };
+        /**
+         * @description One background task as served to the admin task management API: the task
+         *     record plus its lifecycle, progress, and localized presentation.
+         */
         TaskInfo: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Attempts made so far, including the current one.
+             */
             attempt_count: number;
+            /** @description Whether an admin may retry this task from its current state. */
             can_retry: boolean;
+            /** @description When the task record was created (UTC). */
             created_at: string;
             creator?: components["schemas"]["TaskCreatorSummary"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description ID of the user who enqueued the task; `None` for system-created tasks.
+             */
             creator_user_id?: number | null;
+            /** @description Human-readable task name for listings. */
             display_name: string;
+            /** @description When the task record becomes eligible for cleanup (UTC). */
             expires_at: string;
+            /** @description When the task reached a terminal state (UTC), if it has. */
             finished_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Task record ID.
+             */
             id: number;
+            /** @description Broad task class (system runtime vs. typed product tasks). */
             kind: components["schemas"]["BackgroundTaskKind"];
+            /** @description Error message from the most recent failed attempt. */
             last_error?: string | null;
+            /**
+             * @description When the current dispatch lease lapses; a worker holding an expired
+             *     lease must stop writing terminal state. Absent while not leased.
+             */
             lease_expires_at?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Attempts allowed before the task gives up and stays failed.
+             */
             max_attempts: number;
+            /** @description Typed payload describing the work. */
             payload: components["schemas"]["TaskPayload"];
             presentation?: components["schemas"]["TaskPresentation"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Units of work completed so far.
+             */
             progress_current: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Progress as 0-100 percent, derived from current/total.
+             */
             progress_percent: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total units of work the task expects to process.
+             */
             progress_total: number;
             result?: components["schemas"]["TaskResult"] | null;
+            /** @description When the first attempt began (UTC), if the task has started. */
             started_at?: string | null;
+            /**
+             * @description Current lifecycle status (pending, processing, retry, succeeded,
+             *     failed, canceled).
+             */
             status: components["schemas"]["BackgroundTaskStatus"];
+            /** @description Plain-text status line, when the task reported one. */
             status_text?: string | null;
+            /** @description Per-step execution trace recorded while the task ran. */
             steps: components["schemas"]["TaskStepInfo"][];
+            /** @description When the task record was last touched (UTC). */
             updated_at: string;
         };
+        /**
+         * @description Typed stored payload for a background task; the tag drives deserialization
+         *     of the record's payload JSON.
+         */
         TaskPayload: (components["schemas"]["RuntimeTaskPayload"] & {
             /** @enum {string} */
             kind: "system_runtime";
@@ -4257,18 +6796,36 @@ export interface components {
             /** @enum {string} */
             kind: "texture_preview_generate";
         });
+        /**
+         * @description Localized title/status lines for a task, so the admin UI can render
+         *     human-readable task entries without knowing task internals.
+         */
         TaskPresentation: {
             status?: components["schemas"]["TaskPresentationMessage"] | null;
             title?: components["schemas"]["TaskPresentationMessage"] | null;
         };
-        /** @enum {string} */
-        TaskPresentationCode: "runtime_system_health_issue_detail" | "runtime_task_audit_cleanup" | "runtime_task_auth_session_cleanup" | "runtime_task_background_task_dispatch" | "runtime_task_external_auth_flow_cleanup" | "runtime_task_mail_outbox_dispatch" | "runtime_task_system_health_check" | "runtime_task_task_cleanup" | "runtime_task_yggdrasil_storage_consistency_check" | "runtime_task_yggdrasil_token_cleanup" | "runtime_task_yggdrasil_texture_cleanup" | "status_text_failed" | "status_text_quiet" | "status_text_succeeded" | "status_text_system_healthy" | "texture_preview_generate_hash";
+        /**
+         * @description Stable presentation codes the admin UI maps to localized strings; the
+         *     wire values must not drift once a frontend ships against them.
+         * @enum {string}
+         */
+        TaskPresentationCode: "runtime_system_health_issue_detail" | "runtime_task_audit_cleanup" | "runtime_task_auth_session_cleanup" | "runtime_task_background_task_dispatch" | "runtime_task_external_auth_flow_cleanup" | "runtime_task_mail_outbox_dispatch" | "runtime_task_system_health_check" | "runtime_task_task_cleanup" | "runtime_task_yggdrasil_storage_consistency_check" | "runtime_task_yggdrasil_texture_cleanup" | "runtime_task_yggdrasil_token_cleanup" | "status_text_failed" | "status_text_quiet" | "status_text_succeeded" | "status_text_system_healthy" | "texture_preview_generate_hash";
+        /**
+         * @description Localizable display message for one task line: a presentation code plus
+         *     the parameters the client substitutes into the translated template.
+         */
         TaskPresentationMessage: {
+            /** @description Presentation code the client maps to a translation key. */
             code: components["schemas"]["TaskPresentationCode"];
+            /** @description Template parameters keyed by placeholder name; omitted when empty. */
             params?: {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @description Typed stored result for a finished background task; variants mirror
+         *     [`TaskPayload`].
+         */
         TaskResult: (components["schemas"]["RuntimeTaskResult"] & {
             /** @enum {string} */
             kind: "system_runtime";
@@ -4334,9 +6891,12 @@ export interface components {
          *     without re-enqueueing by hand.
          */
         TexturePreviewGenerateTaskPayload: {
+            /** @description Hash of the texture the preview renders. */
             texture_hash: string;
+            /** @description Skin model the texture is bound to, which decides the render shape. */
             texture_model: components["schemas"]["MinecraftTextureModel"];
         };
+        /** @description Result stored by a finished texture preview generation task. */
         TexturePreviewGenerateTaskResult: {
             /**
              * @description Preview file name the task ensured in object storage; a task that found
@@ -4344,101 +6904,238 @@ export interface components {
              *     `reused_existing = true`.
              */
             file_name: string;
+            /**
+             * @description True when an up-to-date preview was already in storage and no render
+             *     work was done.
+             */
             reused_existing: boolean;
         };
+        /** @description A public-library texture report with its moderation state and participants. */
         TextureReportInfo: {
+            /**
+             * @description Note left by the handling admin; hidden from the reporter unless the
+             *     API chooses to expose it.
+             */
             admin_note?: string | null;
+            /** @description When the report was filed (UTC). */
             created_at: string;
+            /** @description When the report was handled (UTC), if handled. */
             handled_at: string;
             handler?: components["schemas"]["TextureReportUserInfo"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Report row id.
+             */
             id: number;
+            /** @description Free-form explanation supplied by the reporter, if any. */
             message?: string | null;
+            /** @description Categorized reason the reporter selected. */
             reason: components["schemas"]["MinecraftTextureReportReason"];
             reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+            /** @description Moderation lifecycle state (pending/handled). */
             status: components["schemas"]["MinecraftTextureReportStatus"];
             texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Reported wardrobe texture asset id.
+             */
             texture_id: number;
+            /** @description When the report was last updated (UTC). */
             updated_at: string;
         };
+        /**
+         * @description Minimal public identity of a user involved in a texture report (reporter
+         *     or handling admin).
+         */
         TextureReportUserInfo: {
+            /** @description Display name shown on the site. */
             name: string;
+            /** @description Random public UUID (unhyphenated 32-char hex) identifying the user. */
             public_uuid: string;
         };
-        /** @enum {string} */
+        /**
+         * @description How tag filters combine in library searches.
+         * @enum {string}
+         */
         TextureTagSearchMethod: "all" | "any";
+        /**
+         * @description Admin request body for partially updating a user account. Omitted fields
+         *     keep their current value.
+         */
         UpdateAdminUserReq: {
+            /** @description New email address when provided. */
             email?: string | null;
+            /** @description Force a password change at next login when provided. */
             must_change_password?: boolean | null;
+            /** @description Replacement operator scopes when provided. */
             operator_scopes?: components["schemas"]["OperatorScope"][] | null;
+            /**
+             * @description Replacement password; changing it invalidates the user's existing
+             *     sessions.
+             */
             password?: string | null;
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
+            /** @description New username when provided; validated like registration. */
             username?: string | null;
         };
+        /** @description Request body for switching the current user's avatar source. */
         UpdateAvatarSourceReq: {
+            /** @description Avatar source to use (upload, Gravatar, or none). */
             source: components["schemas"]["AvatarSource"];
         };
+        /**
+         * @description Admin request body for partially updating an external auth provider.
+         *     Omitted fields keep their stored value; nullable fields accept explicit
+         *     `null` to clear.
+         */
         UpdateExternalAuthProviderReq: {
+            /** @description New domain allowlist, `null` to allow all domains, or omit to keep. */
             allowed_domains?: string[] | null;
+            /** @description New manual authorization endpoint, `null` to clear, or omit to keep. */
             authorization_url?: string | null;
+            /** @description Legacy alias for `authorization_url`; ignored when both are provided. */
             authorize_url?: string | null;
+            /** @description New verified-email auto-link flag when provided. */
             auto_link_verified_email_enabled?: boolean | null;
+            /** @description New auto-provision flag when provided. */
             auto_provision_enabled?: boolean | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             avatar_url_claim?: string | null;
+            /** @description New OAuth client id; up to 255 bytes when provided. */
             client_id?: string | null;
+            /** @description New client secret, `null` to remove, or omit to keep. */
             client_secret?: string | null;
+            /** @description New display name; up to 128 bytes when provided. */
             display_name?: string | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             display_name_claim?: string | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             email_claim?: string | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             email_verified_claim?: string | null;
+            /** @description New login acceptance flag when provided. */
             enabled?: boolean | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             groups_claim?: string | null;
+            /** @description New logo URL, `null` to clear, or omit to keep. */
             icon_url?: string | null;
+            /** @description New issuer/discovery base URL, `null` to clear, or omit to keep. */
             issuer_url?: string | null;
             options?: components["schemas"]["ExternalAuthProviderOptions"] | null;
+            /** @description New verified-email requirement when provided. */
             require_email_verified?: boolean | null;
+            /** @description New space-separated OAuth scopes when provided. */
             scopes?: string | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             subject_claim?: string | null;
+            /** @description New manual token endpoint, `null` to clear, or omit to keep. */
             token_url?: string | null;
+            /** @description New manual userinfo endpoint, `null` to clear, or omit to keep. */
             userinfo_url?: string | null;
+            /**
+             * @description New claim name override, `null` to fall back to the driver default, or
+             *     omit to keep.
+             */
             username_claim?: string | null;
         };
+        /**
+         * @description Request body for partially updating a texture-library tag. Omitted fields
+         *     keep their current value.
+         */
         UpdateMinecraftTextureTagReq: {
+            /** @description New tag color as a `#RRGGBB` hex value when provided. */
             color?: string | null;
+            /** @description New tag name; 1-64 characters when provided. */
             name?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description New sort position when provided.
+             */
             sort_order?: number | null;
         };
+        /** @description Request body for updating the current user's profile details. */
         UpdateProfileReq: {
+            /**
+             * @description New display name, up to 64 characters; an empty value clears the
+             *     display name and omitting the field keeps the current one.
+             */
             display_name?: string | null;
         };
+        /**
+         * @description Admin request body for partially updating an existing ban. Omitted fields
+         *     keep their stored value; nullable fields accept explicit `null` to clear.
+         */
         UpdateUserBanReq: {
+            /** @description New moderator-only note, `null` to clear, or omit to keep. */
             admin_note?: string | null;
+            /** @description New expiry time, `null` to make the ban permanent, or omit to keep. */
             expires_at?: string | null;
+            /** @description New reason shown to the banned user, `null` to clear, or omit to keep. */
             public_reason?: string | null;
+            /** @description Replacement internal reason; 1-128 characters when provided. */
             reason?: string | null;
+            /** @description Replacement scope set; omitted leaves the scopes unchanged. */
             scopes?: components["schemas"]["UserBanScope"][] | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Replacement start time; omit to keep.
+             */
             starts_at?: string | null;
         };
+        /** @description Request body for updating one texture in the current user's wardrobe. */
         UpdateWardrobeTextureReq: {
+            /** @description New display name, `null` to clear, or omit to keep. */
             display_name?: string | null;
             texture_model?: components["schemas"]["MinecraftTextureModel"] | null;
             visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
         };
+        /**
+         * @description Admin request body for partially updating a session-forward server.
+         *     Omitted fields keep their stored value.
+         */
         UpdateYggdrasilSessionForwardServerReq: {
+            /** @description New upstream base URL; must stay unique when provided. */
             base_url?: string | null;
+            /** @description New display name; up to 128 bytes when provided. */
             display_name?: string | null;
+            /** @description New forwarding participation flag when provided. */
             enabled?: boolean | null;
             endpoint_kind?: components["schemas"]["YggdrasilSessionForwardEndpointKind"] | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description New call-order position when provided.
+             */
             priority?: number | null;
+            /** @description New texture-forwarding flag when provided. */
             texture_forward_enabled?: boolean | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description New upstream request timeout in milliseconds when provided.
+             */
             timeout_ms?: number | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description New same-priority weight when provided.
+             */
             weight?: number | null;
         };
         /** @description Cursor query for resources ordered by update time and numeric id. */
@@ -4454,136 +7151,263 @@ export interface components {
              */
             after_updated_at?: string | null;
         };
+        /** @description Serializable audit entry describing one lifecycle transition of a ban. */
         UserBanEventInfo: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Administrator who performed the transition, when known.
+             */
             actor_user_id?: number | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Ban the event belongs to.
+             */
             ban_id: number;
+            /** @description Time the transition was recorded. */
             created_at: string;
+            /** @description Transition kind (`created`, `updated` or `revoked`). */
             event_type: components["schemas"]["UserBanEventType"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Event record identifier.
+             */
             id: number;
+            /** @description Expiry time after the transition. */
             next_expires_at?: string | null;
+            /** @description Scope set after the transition. */
             next_scopes?: components["schemas"]["UserBanScope"][] | null;
             next_status?: components["schemas"]["UserBanStatus"] | null;
+            /** @description Free-form note recorded with the transition. */
             note?: string | null;
+            /** @description Expiry time before the transition. */
             previous_expires_at?: string | null;
+            /** @description Scope set before the transition; `None` on creation. */
             previous_scopes?: components["schemas"]["UserBanScope"][] | null;
             previous_status?: components["schemas"]["UserBanStatus"] | null;
         };
-        /** @enum {string} */
+        /**
+         * @description Kind of audit event recorded for a user ban.
+         * @enum {string}
+         */
         UserBanEventType: "created" | "updated" | "revoked";
+        /** @description Serializable view of a ban record for API responses. */
         UserBanInfo: {
+            /** @description Administrator-only note, if any. */
             admin_note?: string | null;
+            /** @description Record creation time. */
             created_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Administrator who created the ban, when known.
+             */
             created_by_user_id?: number | null;
+            /** @description Whether the ban currently blocks the user's scopes. */
             effective: boolean;
+            /**
+             * @description Stored status folded with the time window, so an unrevoked ban past
+             *     its expiry reads as `expired`.
+             */
             effective_status: components["schemas"]["UserBanStatus"];
+            /** @description Expiry time; `None` marks a permanent ban. */
             expires_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Ban record identifier.
+             */
             id: number;
+            /** @description Reason surfaced to the affected user, if any. */
             public_reason?: string | null;
+            /** @description Internal justification recorded when the ban was created or updated. */
             reason: string;
+            /** @description Note recorded when the ban was revoked. */
             revoke_note?: string | null;
+            /** @description Time the ban was lifted early, when revoked. */
             revoked_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Administrator who revoked the ban, when revoked by a user account.
+             */
             revoked_by_user_id?: number | null;
+            /** @description Capability scopes the ban covers. */
             scopes: components["schemas"]["UserBanScope"][];
+            /** @description Time the ban takes effect. */
             starts_at: string;
+            /** @description Status stored on the record (`active` or `revoked`). */
             status: components["schemas"]["UserBanStatus"];
+            /** @description Record last-update time. */
             updated_at: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Banned user identifier.
+             */
             user_id: number;
         };
-        /** @enum {string} */
+        /**
+         * @description One independently enforceable punishment scope of a user ban.
+         * @enum {string}
+         */
         UserBanScope: "yggdrasil_access" | "yggdrasil_join" | "minecraft_profile_manage" | "texture_upload" | "texture_library_interact";
-        /** @enum {string} */
+        /**
+         * @description Lifecycle state of a single user ban record.
+         * @enum {string}
+         */
         UserBanStatus: "active" | "revoked" | "expired";
-        /** @enum {string} */
+        /**
+         * @description Lifecycle state of a registration invitation.
+         * @enum {string}
+         */
         UserInvitationStatus: "pending" | "accepted" | "expired" | "revoked";
+        /** @description A local user account of the skin station. */
         UserModel: {
+            /** @description When the account was created. */
             created_at: string;
+            /** @description Account email address used for verification and password reset; unique across accounts. */
             email: string;
+            /** @description When the account email was verified; `None` until a verification token is consumed. */
             email_verified_at?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Auto-incrementing surrogate primary key.
+             */
             id: number;
+            /** @description Forces a password change before the account can continue after login. */
             must_change_password: boolean;
+            /** @description Email awaiting confirmation after a change request; replaces the primary email once verified. */
             pending_email?: string | null;
+            /** @description Stable identifier exposed outside the database instead of the numeric id; unique. */
             public_uuid: string;
+            /** @description Account privilege level (`admin`, `operator`, or `user`). */
             role: components["schemas"]["UserRole"];
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Counter embedded in issued session tokens; incrementing it invalidates previously issued sessions.
+             */
             session_version: number;
+            /** @description Account lifecycle state (`active` or `disabled`). */
             status: components["schemas"]["UserStatus"];
+            /** @description When the account was last modified. */
             updated_at: string;
+            /** @description Login name; unique across accounts. */
             username: string;
         };
+        /** @description Display profile attached to user views. */
         UserProfileInfo: {
+            /** @description Resolved avatar presentation. */
             avatar: components["schemas"]["AvatarInfo"];
+            /** @description Optional user-chosen display name. */
             display_name?: string | null;
         };
-        /** @enum {string} */
+        /**
+         * @description Platform role of an account, stored on the user record.
+         * @enum {string}
+         */
         UserRole: "admin" | "operator" | "user";
-        /** @enum {string} */
+        /**
+         * @description Account lifecycle state stored on the user record.
+         * @enum {string}
+         */
         UserStatus: "active" | "disabled";
         /** @description The `agent` object identifying the client product in auth requests. */
         YggdrasilAgentReq: {
+            /** @description Client product name; the protocol only accepts `"Minecraft"`. */
             name: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Client product version; the current protocol generation is fixed at 1.
+             */
             version: number;
         };
         /** @description `POST /authserver/authenticate` request body. */
         YggdrasilAuthenticateReq: {
             agent?: components["schemas"]["YggdrasilAgentReq"] | null;
+            /**
+             * @description Client token from a previous login; echoed back when provided,
+             *     otherwise the host generates a fresh one.
+             */
             clientToken?: string | null;
+            /** @description Account password used to prove the credentials. */
             password: string;
+            /** @description When true, the response also carries the authenticated `user` object. */
             requestUser?: boolean;
+            /**
+             * @description Account login identifier supplied by the player; hosts decide whether it
+             *     carries an email address or a profile/account name.
+             */
             username: string;
         };
         /** @description `POST /authserver/authenticate` response body. */
         YggdrasilAuthenticateResp: {
+            /** @description Session access token; launchers send it back on refresh/validate/join. */
             accessToken: string;
+            /** @description All game profiles owned by the account. */
             availableProfiles: components["schemas"]["YggdrasilProfile"][];
+            /** @description Client token echoed from the request, or newly generated when absent. */
             clientToken: string;
             selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
             user?: components["schemas"]["YggdrasilUser"] | null;
         };
         /** @description Protocol error body used by authserver and sessionserver error responses. */
         YggdrasilErrorBody: {
+            /** @description Optional machine-readable cause string (legacy Mojang extension). */
             cause?: string | null;
+            /** @description Stable protocol error name, for example `ForbiddenOperationException`. */
             error: string;
+            /** @description Human-readable protocol message for the error. */
             errorMessage: string;
         };
         /** @description Query parameters for `GET /sessionserver/session/minecraft/hasJoined`. */
         YggdrasilHasJoinedQuery: {
+            /** @description Optional player IP; hosts that bind joins to IPs enforce it here. */
             ip?: string | null;
+            /** @description Server identifier the player reported during the join handshake. */
             serverId: string;
+            /** @description Player name whose join is being verified by the game server. */
             username: string;
         };
         /** @description `POST /sessionserver/session/minecraft/join` request body. */
         YggdrasilJoinReq: {
+            /** @description Access token authenticating the joining player. */
             accessToken: string;
+            /** @description Profile UUID in unsigned (dash-less) form that is joining the server. */
             selectedProfile: string;
+            /** @description Server identifier derived from the server's encryption handshake. */
             serverId: string;
         };
+        /** @description Authlib-injector metadata block served under `meta`. */
         YggdrasilMeta: {
+            /**
+             * @description `feature.enable_mojang_anti_features`: Mojang-services compatibility
+             *     endpoints (privileges, profanity filter, blocklist, bans) are served.
+             */
             "feature.enable_mojang_anti_features": boolean;
+            /** @description `feature.enable_profile_key`: profile key signing is supported. */
             "feature.enable_profile_key": boolean;
+            /** @description `feature.non_email_login`: accounts can log in with a non-email name. */
             "feature.non_email_login": boolean;
+            /** @description `feature.username_check`: the server enforces the profile name charset. */
             "feature.username_check": boolean;
+            /** @description Server implementation identifier, for example `AsterYggdrasil`. */
             implementationName: string;
+            /** @description Server implementation version string. */
             implementationVersion: string;
             links?: components["schemas"]["YggdrasilMetaLinks"] | null;
+            /** @description Display name of this server shown by launchers. */
             serverName: string;
         };
+        /** @description Server links advertised inside the metadata `links` object. */
         YggdrasilMetaLinks: {
+            /** @description Public homepage URL of this server. */
             homepage: string;
+            /** @description Registration page URL; omitted when self-registration is closed. */
             register?: string | null;
         };
         /** @description `GET /api/profiles/metadata` (authlib-injector) response body. */
         YggdrasilMetaResp: {
+            /** @description Metadata block describing this server and its feature flags. */
             meta: components["schemas"]["YggdrasilMeta"];
+            /** @description PEM public key used to verify signed `textures` properties. */
             signaturePublickey: string;
+            /** @description Domain suffixes the client may accept texture URLs from. */
             skinDomains: string[];
         };
         /**
@@ -4593,53 +7417,95 @@ export interface components {
          *     protocol.
          */
         YggdrasilProfile: {
+            /** @description Unsigned (dash-less) lowercase profile UUID, 32 hex characters. */
             id: string;
+            /** @description Player name, 3-16 ASCII letters, numbers, or underscores. */
             name: string;
+            /** @description Signed profile properties; omitted when the lookup was made unsigned. */
             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
         };
         /** @description A single profile property, for example the `textures` property. */
         YggdrasilProfileProperty: {
+            /** @description Property name, for example `textures`. */
             name: string;
+            /**
+             * @description Yggdrasil signature over `name` and `value` (base64); omitted when the
+             *     property is served unsigned.
+             */
             signature?: string | null;
+            /**
+             * @description Property payload interpreted by the client per `name` (base64 JSON for
+             *     `textures`).
+             */
             value: string;
         };
         /** @description Query parameters for profile lookup (`unsigned` toggle). */
         YggdrasilProfileQuery: {
+            /**
+             * @description When true, the profile is returned without signatures; false requests
+             *     the signed `textures` property.
+             */
             unsigned?: boolean | null;
         };
         /** @description `POST /authserver/refresh` request body. */
         YggdrasilRefreshReq: {
+            /** @description Access token issued by an earlier authenticate/refresh call. */
             accessToken: string;
+            /**
+             * @description Client token paired with the access token; the request is rejected as
+             *     `InvalidToken` when it does not match the stored pairing.
+             */
             clientToken?: string | null;
+            /** @description When true, the response also carries the authenticated `user` object. */
             requestUser?: boolean;
             selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
         };
         /** @description `POST /authserver/refresh` response body. */
         YggdrasilRefreshResp: {
+            /** @description Replacement access token; the old token no longer validates. */
             accessToken: string;
+            /** @description Client token carried over from the token being refreshed. */
             clientToken: string;
             selectedProfile?: components["schemas"]["YggdrasilProfile"] | null;
             user?: components["schemas"]["YggdrasilUser"] | null;
         };
-        /** @enum {string} */
+        /**
+         * @description Wire dialect a remote forward target speaks on its session endpoints.
+         * @enum {string}
+         */
         YggdrasilSessionForwardEndpointKind: "authlib_injector" | "mojang_session";
-        /** @enum {string} */
+        /**
+         * @description Where a session-forward server entry resolves its checks from.
+         * @enum {string}
+         */
         YggdrasilSessionForwardProviderKind: "local" | "remote";
-        /** @enum {string} */
+        /**
+         * @description Sort key for admin listings of session-forward servers.
+         * @enum {string}
+         */
         YggdrasilSessionForwardServerSortBy: "call_order" | "id";
         /** @description `POST /authserver/signout` request body. */
         YggdrasilSignoutReq: {
+            /** @description Account password; invalidates all access tokens issued to the account. */
             password: string;
+            /** @description Account login identifier; must match the account that holds the tokens. */
             username: string;
         };
         /** @description Shared access-token request body for `/validate` and `/invalidate`. */
         YggdrasilTokenReq: {
+            /** @description Access token being checked or revoked. */
             accessToken: string;
+            /**
+             * @description Client token paired with the access token; a mismatch invalidates the
+             *     token instead of serving it.
+             */
             clientToken?: string | null;
         };
         /** @description The authenticated user entry returned when a request sets `requestUser`. */
         YggdrasilUser: {
+            /** @description Account identifier in unhyphenated UUID form, distinct from profile ids. */
             id: string;
+            /** @description Account-level properties; hosts that keep none serialize an empty list. */
             properties: components["schemas"]["YggdrasilProfileProperty"][];
         };
     };
@@ -4656,12 +7522,19 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional audit action filter. */
                 action?: string | null;
+                /** @description Optional entity type filter. */
                 entity_type?: components["schemas"]["AuditEntityType"] | null;
+                /** @description Optional entity id filter. */
                 entity_id?: number | null;
+                /** @description Optional inclusive lower time bound; RFC 3339 string. */
                 after?: string | null;
+                /** @description Optional inclusive upper time bound; RFC 3339 string. */
                 before?: string | null;
+                /** @description Cursor: creation timestamp of the last entry on the previous page. */
                 after_created_at?: string | null;
+                /** @description Cursor: id of the last entry, used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -4713,10 +7586,18 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional ban scope filter. */
                 scope?: components["schemas"]["UserBanScope"] | null;
+                /** @description Optional stored ban status filter. */
                 status?: components["schemas"]["UserBanStatus"] | null;
+                /**
+                 * @description When true, only bans whose effective status is currently active are
+                 *     returned.
+                 */
                 effective_only?: boolean | null;
+                /** @description Cursor: creation timestamp of the last ban on the previous page. */
                 after_created_at?: string | null;
+                /** @description Cursor: id of the last ban, used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -4780,9 +7661,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Account overview shown on the current user's home page. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of Minecraft profiles owned by the current user.
+                             */
                             profile_count: number;
+                            /** @description Recent audit log entries covering the user's own activity. */
                             recent_activity: components["schemas"]["AuditLogEntry"][];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -4804,13 +7690,24 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Only records authored by this user ID. */
                 user_id?: number | null;
+                /** @description Only records of this audit action (wire string). */
                 action?: string | null;
+                /** @description Only records targeting this entity class. */
                 entity_type?: components["schemas"]["AuditEntityType"] | null;
+                /** @description Only records targeting this entity row ID. */
                 entity_id?: number | null;
+                /** @description Inclusive lower time bound, RFC 3339. */
                 after?: string | null;
+                /** @description Inclusive upper time bound, RFC 3339. */
                 before?: string | null;
+                /** @description Cursor pagination anchor: creation timestamp of the last seen record. */
                 after_created_at?: string | null;
+                /**
+                 * @description Cursor pagination anchor: ID of the last seen record, breaking
+                 *     creation-timestamp ties.
+                 */
                 after_id?: number | null;
             };
             header?: never;
@@ -4913,6 +7810,7 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Config ID to start after for the next page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -4984,14 +7882,23 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
+                            /** @description Admin UI grouping category. */
                             category: string;
+                            /** @description Human-readable English description. */
                             description: string;
+                            /** @description I18n key for the field description. */
                             description_i18n_key: string;
+                            /** @description Whether the value must be redacted in listings and audit records. */
                             is_sensitive: boolean;
+                            /** @description Stable config key this descriptor describes. */
                             key: string;
+                            /** @description I18n key for the field label. */
                             label_i18n_key: string;
+                            /** @description Enumerated value choices for enum-typed keys; empty otherwise. */
                             options?: components["schemas"]["ConfigSchemaOption"][];
+                            /** @description Whether changes only apply after a process restart. */
                             requires_restart: boolean;
+                            /** @description Value type that governs parsing and validation. */
                             value_type: components["schemas"]["ConfigValueType"];
                         }[];
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5083,21 +7990,42 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description One runtime config entry as served to the admin config API, with its
+                         *     stored value and metadata driving editability and display.
+                         */
                         data?: {
+                            /** @description Admin UI grouping category. */
                             category: string;
+                            /** @description Human-readable description shown in the admin UI. */
                             description: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Config row ID.
+                             */
                             id: number;
+                            /** @description Whether the value must be redacted in listings and audit records. */
                             is_sensitive: boolean;
+                            /** @description Stable config key used by readers. */
                             key: string;
+                            /** @description Config sync namespace the entry belongs to. */
                             namespace: string;
+                            /** @description Whether changes only apply after a process restart. */
                             requires_restart: boolean;
+                            /** @description Where the effective value came from (default, file, database). */
                             source: components["schemas"]["ConfigSource"];
+                            /** @description Last modification time (UTC). */
                             updated_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Admin user who last modified the entry, when tracked.
+                             */
                             updated_by?: number | null;
+                            /** @description Current stored value, typed by `value_type`. */
                             value: components["schemas"]["ConfigValue"];
+                            /** @description Value type that governs parsing and validation. */
                             value_type: components["schemas"]["ConfigValueType"];
+                            /** @description Who may read this entry via the admin API. */
                             visibility: components["schemas"]["ConfigVisibility"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5152,8 +8080,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Outcome of one runtime config update: the stored entry plus non-fatal
+                         *     warnings the admin should see.
+                         */
                         data?: {
+                            /** @description The entry as stored after the update. */
                             config: components["schemas"]["SystemConfig"];
+                            /** @description Non-fatal observations about the update (e.g. restart required). */
                             warnings: components["schemas"]["SystemConfigWarning"][];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5250,8 +8184,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Admin response describing the outcome of a config action. */
                         data?: {
+                            /** @description Human-readable result message suitable for display in the admin UI. */
                             message: string;
+                            /**
+                             * @description Optional output produced by the action; absent when the action has no
+                             *     return value.
+                             */
                             value?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5314,18 +8254,37 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
+                            /** @description Whether `authorization_url` must be configured for this kind. */
                             authorization_url_required: boolean;
+                            /** @description Space-separated OAuth scopes applied when the admin leaves scopes empty. */
                             default_scopes: string;
+                            /** @description Short explanation of the kind shown in admin UI. */
                             description: string;
+                            /** @description Human-readable kind name for admin UI. */
                             display_name: string;
+                            /** @description Whether `issuer_url` must be configured for this kind. */
                             issuer_url_required: boolean;
+                            /** @description Provider kind this descriptor describes. */
                             kind: components["schemas"]["ExternalAuthProviderKind"];
+                            /**
+                             * @description Whether authorization/token/userinfo endpoints can be set manually
+                             *     instead of being derived from discovery or fixed per kind.
+                             */
                             manual_endpoint_configuration_supported: boolean;
+                            /** @description Underlying protocol (OIDC or generic OAuth 2.0). */
                             protocol: components["schemas"]["ExternalAuthProtocol"];
+                            /** @description Whether the driver performs OIDC discovery against `issuer_url`. */
                             supports_discovery: boolean;
+                            /**
+                             * @description Whether the provider exposes an email-verified claim that can be
+                             *     honored by `require_email_verified`.
+                             */
                             supports_email_verified_claim: boolean;
+                            /** @description Whether the driver uses PKCE for the authorization code flow. */
                             supports_pkce: boolean;
+                            /** @description Whether `token_url` must be configured for this kind. */
                             token_url_required: boolean;
+                            /** @description Whether `userinfo_url` must be configured for this kind. */
                             userinfo_url_required: boolean;
                         }[];
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5354,7 +8313,9 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Display name to start after for the next page. */
                 after_display_name?: string | null;
+                /** @description Provider ID to start after for the next page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -5429,36 +8390,87 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Admin view of a configured external auth provider. The client secret is
+                         *     always redacted to [`REDACTED_SECRET`]; use `client_secret_configured` to
+                         *     know whether a real secret is stored.
+                         */
                         data?: {
+                            /** @description Restrict logins to these email domains; empty means all domains allowed. */
                             allowed_domains: string[];
+                            /**
+                             * @description Manually configured authorization endpoint; only for kinds that
+                             *     support manual endpoint configuration.
+                             */
                             authorization_url?: string | null;
+                            /**
+                             * @description Whether a verified provider email may auto-link to an existing local
+                             *     account with the same email.
+                             */
                             auto_link_verified_email_enabled: boolean;
+                            /** @description Whether unknown identities create a new local user automatically. */
                             auto_provision_enabled: boolean;
+                            /** @description Claim name override for the avatar URL. */
                             avatar_url_claim?: string | null;
+                            /** @description OAuth client id registered at the provider. */
                             client_id: string;
+                            /** @description Redacted placeholder; the real secret is never returned to clients. */
                             client_secret?: string | null;
+                            /** @description Whether a non-empty client secret is stored. */
                             client_secret_configured: boolean;
+                            /** @description When the provider was created. */
                             created_at: string;
+                            /** @description Human-readable name shown on the login page. */
                             display_name: string;
+                            /** @description Claim name override for the display name. */
                             display_name_claim?: string | null;
+                            /** @description Claim name override for the email. */
                             email_claim?: string | null;
+                            /** @description Claim name override for the email-verified flag. */
                             email_verified_claim?: string | null;
+                            /** @description Whether logins through this provider are accepted. */
                             enabled: boolean;
+                            /** @description Claim name override for group memberships. */
                             groups_claim?: string | null;
+                            /** @description Optional logo URL shown next to the provider button. */
                             icon_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Provider row id used in admin update/delete/test routes.
+                             */
                             id: number;
+                            /**
+                             * @description Issuer/discovery base URL; `None` for kinds with fixed endpoints or
+                             *     when Microsoft options carry the tenant instead.
+                             */
                             issuer_url?: string | null;
+                            /** @description Stable public identifier used in login and callback routes. */
                             key: string;
+                            /** @description Kind-specific options; for Microsoft providers this carries the tenant. */
                             options: components["schemas"]["ExternalAuthProviderOptions"];
+                            /** @description Protocol family the kind implements. */
                             protocol: components["schemas"]["ExternalAuthProtocol"];
+                            /** @description Provider kind (OIDC, GitHub, Google, Microsoft, QQ). */
                             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+                            /** @description Whether logins are rejected unless the provider asserts a verified email. */
                             require_email_verified: boolean;
+                            /** @description Space-separated OAuth scopes requested during login. */
                             scopes: string;
+                            /** @description Claim name override for the subject; `None` uses the driver default. */
                             subject_claim?: string | null;
+                            /**
+                             * @description Manually configured token endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             token_url?: string | null;
+                            /** @description When the provider was last updated (config change or successful test). */
                             updated_at: string;
+                            /**
+                             * @description Manually configured userinfo endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             userinfo_url?: string | null;
+                            /** @description Claim name override for the preferred username. */
                             username_claim?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5510,13 +8522,21 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Aggregated result of running the provider connectivity test. */
                         data?: {
+                            /** @description Discovered authorization endpoint, if any. */
                             authorization_endpoint?: string | null;
+                            /** @description Individual probe outcomes; inspect `success` per check. */
                             checks: components["schemas"]["ExternalAuthProviderTestCheck"][];
+                            /** @description Issuer discovered from the configuration, if discovery succeeded. */
                             issuer?: string | null;
+                            /** @description Number of keys in the fetched JWKS, if it was fetched. */
                             jwks_key_count?: number | null;
+                            /** @description Provider label the driver reported (stored key or "draft"). */
                             provider: string;
+                            /** @description Discovered token endpoint, if any. */
                             token_endpoint?: string | null;
+                            /** @description Discovered userinfo endpoint, if any. */
                             userinfo_endpoint?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5567,36 +8587,87 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Admin view of a configured external auth provider. The client secret is
+                         *     always redacted to [`REDACTED_SECRET`]; use `client_secret_configured` to
+                         *     know whether a real secret is stored.
+                         */
                         data?: {
+                            /** @description Restrict logins to these email domains; empty means all domains allowed. */
                             allowed_domains: string[];
+                            /**
+                             * @description Manually configured authorization endpoint; only for kinds that
+                             *     support manual endpoint configuration.
+                             */
                             authorization_url?: string | null;
+                            /**
+                             * @description Whether a verified provider email may auto-link to an existing local
+                             *     account with the same email.
+                             */
                             auto_link_verified_email_enabled: boolean;
+                            /** @description Whether unknown identities create a new local user automatically. */
                             auto_provision_enabled: boolean;
+                            /** @description Claim name override for the avatar URL. */
                             avatar_url_claim?: string | null;
+                            /** @description OAuth client id registered at the provider. */
                             client_id: string;
+                            /** @description Redacted placeholder; the real secret is never returned to clients. */
                             client_secret?: string | null;
+                            /** @description Whether a non-empty client secret is stored. */
                             client_secret_configured: boolean;
+                            /** @description When the provider was created. */
                             created_at: string;
+                            /** @description Human-readable name shown on the login page. */
                             display_name: string;
+                            /** @description Claim name override for the display name. */
                             display_name_claim?: string | null;
+                            /** @description Claim name override for the email. */
                             email_claim?: string | null;
+                            /** @description Claim name override for the email-verified flag. */
                             email_verified_claim?: string | null;
+                            /** @description Whether logins through this provider are accepted. */
                             enabled: boolean;
+                            /** @description Claim name override for group memberships. */
                             groups_claim?: string | null;
+                            /** @description Optional logo URL shown next to the provider button. */
                             icon_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Provider row id used in admin update/delete/test routes.
+                             */
                             id: number;
+                            /**
+                             * @description Issuer/discovery base URL; `None` for kinds with fixed endpoints or
+                             *     when Microsoft options carry the tenant instead.
+                             */
                             issuer_url?: string | null;
+                            /** @description Stable public identifier used in login and callback routes. */
                             key: string;
+                            /** @description Kind-specific options; for Microsoft providers this carries the tenant. */
                             options: components["schemas"]["ExternalAuthProviderOptions"];
+                            /** @description Protocol family the kind implements. */
                             protocol: components["schemas"]["ExternalAuthProtocol"];
+                            /** @description Provider kind (OIDC, GitHub, Google, Microsoft, QQ). */
                             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+                            /** @description Whether logins are rejected unless the provider asserts a verified email. */
                             require_email_verified: boolean;
+                            /** @description Space-separated OAuth scopes requested during login. */
                             scopes: string;
+                            /** @description Claim name override for the subject; `None` uses the driver default. */
                             subject_claim?: string | null;
+                            /**
+                             * @description Manually configured token endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             token_url?: string | null;
+                            /** @description When the provider was last updated (config change or successful test). */
                             updated_at: string;
+                            /**
+                             * @description Manually configured userinfo endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             userinfo_url?: string | null;
+                            /** @description Claim name override for the preferred username. */
                             username_claim?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5693,36 +8764,87 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Admin view of a configured external auth provider. The client secret is
+                         *     always redacted to [`REDACTED_SECRET`]; use `client_secret_configured` to
+                         *     know whether a real secret is stored.
+                         */
                         data?: {
+                            /** @description Restrict logins to these email domains; empty means all domains allowed. */
                             allowed_domains: string[];
+                            /**
+                             * @description Manually configured authorization endpoint; only for kinds that
+                             *     support manual endpoint configuration.
+                             */
                             authorization_url?: string | null;
+                            /**
+                             * @description Whether a verified provider email may auto-link to an existing local
+                             *     account with the same email.
+                             */
                             auto_link_verified_email_enabled: boolean;
+                            /** @description Whether unknown identities create a new local user automatically. */
                             auto_provision_enabled: boolean;
+                            /** @description Claim name override for the avatar URL. */
                             avatar_url_claim?: string | null;
+                            /** @description OAuth client id registered at the provider. */
                             client_id: string;
+                            /** @description Redacted placeholder; the real secret is never returned to clients. */
                             client_secret?: string | null;
+                            /** @description Whether a non-empty client secret is stored. */
                             client_secret_configured: boolean;
+                            /** @description When the provider was created. */
                             created_at: string;
+                            /** @description Human-readable name shown on the login page. */
                             display_name: string;
+                            /** @description Claim name override for the display name. */
                             display_name_claim?: string | null;
+                            /** @description Claim name override for the email. */
                             email_claim?: string | null;
+                            /** @description Claim name override for the email-verified flag. */
                             email_verified_claim?: string | null;
+                            /** @description Whether logins through this provider are accepted. */
                             enabled: boolean;
+                            /** @description Claim name override for group memberships. */
                             groups_claim?: string | null;
+                            /** @description Optional logo URL shown next to the provider button. */
                             icon_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Provider row id used in admin update/delete/test routes.
+                             */
                             id: number;
+                            /**
+                             * @description Issuer/discovery base URL; `None` for kinds with fixed endpoints or
+                             *     when Microsoft options carry the tenant instead.
+                             */
                             issuer_url?: string | null;
+                            /** @description Stable public identifier used in login and callback routes. */
                             key: string;
+                            /** @description Kind-specific options; for Microsoft providers this carries the tenant. */
                             options: components["schemas"]["ExternalAuthProviderOptions"];
+                            /** @description Protocol family the kind implements. */
                             protocol: components["schemas"]["ExternalAuthProtocol"];
+                            /** @description Provider kind (OIDC, GitHub, Google, Microsoft, QQ). */
                             provider_kind: components["schemas"]["ExternalAuthProviderKind"];
+                            /** @description Whether logins are rejected unless the provider asserts a verified email. */
                             require_email_verified: boolean;
+                            /** @description Space-separated OAuth scopes requested during login. */
                             scopes: string;
+                            /** @description Claim name override for the subject; `None` uses the driver default. */
                             subject_claim?: string | null;
+                            /**
+                             * @description Manually configured token endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             token_url?: string | null;
+                            /** @description When the provider was last updated (config change or successful test). */
                             updated_at: string;
+                            /**
+                             * @description Manually configured userinfo endpoint; only for kinds that support
+                             *     manual endpoint configuration.
+                             */
                             userinfo_url?: string | null;
+                            /** @description Claim name override for the preferred username. */
                             username_claim?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5780,13 +8902,21 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Aggregated result of running the provider connectivity test. */
                         data?: {
+                            /** @description Discovered authorization endpoint, if any. */
                             authorization_endpoint?: string | null;
+                            /** @description Individual probe outcomes; inspect `success` per check. */
                             checks: components["schemas"]["ExternalAuthProviderTestCheck"][];
+                            /** @description Issuer discovered from the configuration, if discovery succeeded. */
                             issuer?: string | null;
+                            /** @description Number of keys in the fetched JWKS, if it was fetched. */
                             jwks_key_count?: number | null;
+                            /** @description Provider label the driver reported (stored key or "draft"). */
                             provider: string;
+                            /** @description Discovered token endpoint, if any. */
                             token_endpoint?: string | null;
+                            /** @description Discovered userinfo endpoint, if any. */
                             userinfo_endpoint?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -5829,10 +8959,18 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional filter restricting results to profiles owned by this user. */
                 user_id?: number | null;
+                /** @description Optional exact profile name filter; must be a valid profile name. */
                 name?: string | null;
+                /** @description Optional exact profile UUID filter; 32-character unsigned hexadecimal. */
                 uuid?: string | null;
+                /**
+                 * @description Optional search term matched case-insensitively against profile name
+                 *     and UUID; up to 64 characters.
+                 */
                 query?: string | null;
+                /** @description Cursor: id of the last item on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -5906,16 +9044,29 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Administrative/user-facing info about a Minecraft profile. */
                         data?: {
+                            /** @description When the profile was created (UTC). */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Profile row id.
+                             */
                             id: number;
+                            /** @description Current player name. */
                             name: string;
+                            /** @description Default skin arm model used when no skin texture overrides it. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description When the profile was last updated (UTC). */
                             updated_at: string;
+                            /** @description Comma-separated texture types the profile may upload (skin/cape). */
                             uploadable_textures: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Owning user's row id.
+                             */
                             user_id: number;
+                            /** @description Profile UUID (unhyphenated 32-char hex) used as the Yggdrasil player id. */
                             uuid: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6026,16 +9177,29 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Administrative/user-facing info about a Minecraft profile. */
                         data?: {
+                            /** @description When the profile was created (UTC). */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Profile row id.
+                             */
                             id: number;
+                            /** @description Current player name. */
                             name: string;
+                            /** @description Default skin arm model used when no skin texture overrides it. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description When the profile was last updated (UTC). */
                             updated_at: string;
+                            /** @description Comma-separated texture types the profile may upload (skin/cape). */
                             uploadable_textures: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Owning user's row id.
+                             */
                             user_id: number;
+                            /** @description Profile UUID (unhyphenated 32-char hex) used as the Yggdrasil player id. */
                             uuid: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6094,31 +9258,72 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
+                            /** @description When the binding was created (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /**
+                             * @description SHA-256 hash of the texture PNG, lowercase hex (64 chars); doubles as
+                             *     the content address used in texture URLs and de-duplication.
+                             */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Texture binding row id.
+                             */
                             id: number;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Owning Minecraft profile row id.
+                             */
                             profile_id: number;
+                            /** @description Profile name at the time this metadata was built. */
                             profile_name: string;
+                            /**
+                             * @description Owning profile's UUID in the unhyphenated 32-char form Yggdrasil uses
+                             *     as the player identifier.
+                             */
                             profile_uuid: string;
+                            /**
+                             * @description Whether this metadata describes a real binding or a default-skin
+                             *     stand-in.
+                             */
                             source: components["schemas"]["MinecraftTextureMetadataSource"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset id the binding points at.
+                             */
                             texture_id: number;
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the binding was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or shared in the wardrobe. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         }[];
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6259,12 +9464,22 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Aggregate admin dashboard response: counters, service statuses, system
+                         *     health, activity trend, and the latest audit entries.
+                         */
                         data?: {
+                            /** @description Daily activity counts for the trend chart. */
                             activity_trend: components["schemas"]["AdminOverviewTrendPoint"][];
+                            /** @description Most recent audit entries for the activity feed. */
                             recent_activity: components["schemas"]["AuditLogEntry"][];
+                            /** @description Per-service status lines for the service grid. */
                             services: components["schemas"]["AdminOverviewServiceStatus"][];
+                            /** @description Platform-wide counts. */
                             summary: components["schemas"]["AdminOverviewSummary"];
+                            /** @description Latest known system health. */
                             system_health: components["schemas"]["AdminOverviewSystemHealthSummary"];
+                            /** @description Process/system metadata (version, uptime, backend choices). */
                             system_info: components["schemas"]["SystemInfoResponse"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6305,10 +9520,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description System information shown to authenticated admin clients. */
                         data?: {
+                            /** @description Build timestamp of the running binary. */
                             build_time: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Seconds the current process has been serving.
+                             */
                             uptime_seconds: number;
+                            /** @description Crate version of the running build. */
                             version: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6337,9 +9558,13 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional task kind filter. */
                 kind?: components["schemas"]["BackgroundTaskKind"] | null;
+                /** @description Optional task status filter. */
                 status?: components["schemas"]["BackgroundTaskStatus"] | null;
+                /** @description Cursor: update timestamp of the last item on the previous page. */
                 after_updated_at?: string | null;
+                /** @description Cursor: id of the last item, used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -6414,8 +9639,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response carrying the number of records removed by a bulk operation. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Count of records the operation deleted.
+                             */
                             removed: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6466,37 +9695,82 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description One background task as served to the admin task management API: the task
+                         *     record plus its lifecycle, progress, and localized presentation.
+                         */
                         data?: {
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Attempts made so far, including the current one.
+                             */
                             attempt_count: number;
+                            /** @description Whether an admin may retry this task from its current state. */
                             can_retry: boolean;
+                            /** @description When the task record was created (UTC). */
                             created_at: string;
                             creator?: components["schemas"]["TaskCreatorSummary"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description ID of the user who enqueued the task; `None` for system-created tasks.
+                             */
                             creator_user_id?: number | null;
+                            /** @description Human-readable task name for listings. */
                             display_name: string;
+                            /** @description When the task record becomes eligible for cleanup (UTC). */
                             expires_at: string;
+                            /** @description When the task reached a terminal state (UTC), if it has. */
                             finished_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Task record ID.
+                             */
                             id: number;
+                            /** @description Broad task class (system runtime vs. typed product tasks). */
                             kind: components["schemas"]["BackgroundTaskKind"];
+                            /** @description Error message from the most recent failed attempt. */
                             last_error?: string | null;
+                            /**
+                             * @description When the current dispatch lease lapses; a worker holding an expired
+                             *     lease must stop writing terminal state. Absent while not leased.
+                             */
                             lease_expires_at?: string | null;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Attempts allowed before the task gives up and stays failed.
+                             */
                             max_attempts: number;
+                            /** @description Typed payload describing the work. */
                             payload: components["schemas"]["TaskPayload"];
                             presentation?: components["schemas"]["TaskPresentation"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Units of work completed so far.
+                             */
                             progress_current: number;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Progress as 0-100 percent, derived from current/total.
+                             */
                             progress_percent: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Total units of work the task expects to process.
+                             */
                             progress_total: number;
                             result?: components["schemas"]["TaskResult"] | null;
+                            /** @description When the first attempt began (UTC), if the task has started. */
                             started_at?: string | null;
+                            /**
+                             * @description Current lifecycle status (pending, processing, retry, succeeded,
+                             *     failed, canceled).
+                             */
                             status: components["schemas"]["BackgroundTaskStatus"];
+                            /** @description Plain-text status line, when the task reported one. */
                             status_text?: string | null;
+                            /** @description Per-step execution trace recorded while the task ran. */
                             steps: components["schemas"]["TaskStepInfo"][];
+                            /** @description When the task record was last touched (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6539,10 +9813,15 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Restrict results to one report handling status. */
                 status?: components["schemas"]["MinecraftTextureReportStatus"] | null;
+                /** @description Restrict results to one report reason. */
                 reason?: components["schemas"]["MinecraftTextureReportReason"] | null;
+                /** @description Restrict results to reports of a single texture. */
                 texture_id?: number | null;
+                /** @description Datetime-id cursor: created timestamp of the previous page. */
                 after_created_at?: string | null;
+                /** @description Datetime-id cursor: ID of the last item on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -6616,20 +9895,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A public-library texture report with its moderation state and participants. */
                         data?: {
+                            /**
+                             * @description Note left by the handling admin; hidden from the reporter unless the
+                             *     API chooses to expose it.
+                             */
                             admin_note?: string | null;
+                            /** @description When the report was filed (UTC). */
                             created_at: string;
+                            /** @description When the report was handled (UTC), if handled. */
                             handled_at: string;
                             handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Report row id.
+                             */
                             id: number;
+                            /** @description Free-form explanation supplied by the reporter, if any. */
                             message?: string | null;
+                            /** @description Categorized reason the reporter selected. */
                             reason: components["schemas"]["MinecraftTextureReportReason"];
                             reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+                            /** @description Moderation lifecycle state (pending/handled). */
                             status: components["schemas"]["MinecraftTextureReportStatus"];
                             texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Reported wardrobe texture asset id.
+                             */
                             texture_id: number;
+                            /** @description When the report was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6684,20 +9980,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A public-library texture report with its moderation state and participants. */
                         data?: {
+                            /**
+                             * @description Note left by the handling admin; hidden from the reporter unless the
+                             *     API chooses to expose it.
+                             */
                             admin_note?: string | null;
+                            /** @description When the report was filed (UTC). */
                             created_at: string;
+                            /** @description When the report was handled (UTC), if handled. */
                             handled_at: string;
                             handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Report row id.
+                             */
                             id: number;
+                            /** @description Free-form explanation supplied by the reporter, if any. */
                             message?: string | null;
+                            /** @description Categorized reason the reporter selected. */
                             reason: components["schemas"]["MinecraftTextureReportReason"];
                             reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+                            /** @description Moderation lifecycle state (pending/handled). */
                             status: components["schemas"]["MinecraftTextureReportStatus"];
                             texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Reported wardrobe texture asset id.
+                             */
                             texture_id: number;
+                            /** @description When the report was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6759,20 +10072,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A public-library texture report with its moderation state and participants. */
                         data?: {
+                            /**
+                             * @description Note left by the handling admin; hidden from the reporter unless the
+                             *     API chooses to expose it.
+                             */
                             admin_note?: string | null;
+                            /** @description When the report was filed (UTC). */
                             created_at: string;
+                            /** @description When the report was handled (UTC), if handled. */
                             handled_at: string;
                             handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Report row id.
+                             */
                             id: number;
+                            /** @description Free-form explanation supplied by the reporter, if any. */
                             message?: string | null;
+                            /** @description Categorized reason the reporter selected. */
                             reason: components["schemas"]["MinecraftTextureReportReason"];
                             reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+                            /** @description Moderation lifecycle state (pending/handled). */
                             status: components["schemas"]["MinecraftTextureReportStatus"];
                             texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Reported wardrobe texture asset id.
+                             */
                             texture_id: number;
+                            /** @description When the report was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6815,8 +10145,11 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Sort-order value of the last item on the previous page. */
                 after_sort_order?: number | null;
+                /** @description Name of the last item on the previous page. */
                 after_name?: string | null;
+                /** @description ID of the last item on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -6891,14 +10224,25 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A library tag that can be attached to public texture library entries. */
                         data?: {
+                            /** @description CSS color used when rendering the tag. */
                             color: string;
+                            /** @description When the tag was created (UTC). */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Tag row id.
+                             */
                             id: number;
+                            /** @description Tag label shown to users. */
                             name: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Position of the tag in ordering; lower values sort first.
+                             */
                             sort_order: number;
+                            /** @description When the tag was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -6995,14 +10339,25 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A library tag that can be attached to public texture library entries. */
                         data?: {
+                            /** @description CSS color used when rendering the tag. */
                             color: string;
+                            /** @description When the tag was created (UTC). */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Tag row id.
+                             */
                             id: number;
+                            /** @description Tag label shown to users. */
                             name: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Position of the tag in ordering; lower values sort first.
+                             */
                             sort_order: number;
+                            /** @description When the tag was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7045,14 +10400,23 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Free-text search keyword (max 96 characters). */
                 keyword?: string | null;
+                /** @description Restrict results to one texture type (e.g. skin, cape). */
                 texture_type?: components["schemas"]["MinecraftTextureType"] | null;
+                /** @description Restrict results to one texture visibility. */
                 visibility?: components["schemas"]["MinecraftTextureVisibility"] | null;
+                /** @description Restrict results to one library review status. */
                 library_status?: components["schemas"]["MinecraftTextureLibraryStatus"] | null;
+                /** @description Restrict results to published or unpublished textures. */
                 published?: boolean | null;
+                /** @description Comma-separated texture tag IDs (max 16) to filter by. */
                 tag_ids?: number[];
+                /** @description How the tag filters combine (any or all). */
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
+                /** @description Datetime-id cursor: last updated timestamp of the previous page. */
                 after_updated_at?: string | null;
+                /** @description Datetime-id cursor: ID of the last item on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -7126,31 +10490,63 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Metadata for a texture listed in the public texture library. */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
                             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7247,31 +10643,63 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Metadata for a texture listed in the public texture library. */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
                             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7333,31 +10761,63 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Metadata for a texture listed in the public texture library. */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
                             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7419,31 +10879,63 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Metadata for a texture listed in the public texture library. */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
                             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7486,11 +10978,20 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional filter restricting results to bans of this user. */
                 user_id?: number | null;
+                /** @description Optional ban scope filter. */
                 scope?: components["schemas"]["UserBanScope"] | null;
+                /** @description Optional stored ban status filter. */
                 status?: components["schemas"]["UserBanStatus"] | null;
+                /**
+                 * @description When true, only bans whose effective status is currently active are
+                 *     returned.
+                 */
                 effective_only?: boolean;
+                /** @description Cursor: creation timestamp of the last item on the previous page. */
                 after_created_at?: string | null;
+                /** @description Cursor: id of the last item, used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -7564,27 +11065,56 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serializable view of a ban record for API responses. */
                         data?: {
+                            /** @description Administrator-only note, if any. */
                             admin_note?: string | null;
+                            /** @description Record creation time. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who created the ban, when known.
+                             */
                             created_by_user_id?: number | null;
+                            /** @description Whether the ban currently blocks the user's scopes. */
                             effective: boolean;
+                            /**
+                             * @description Stored status folded with the time window, so an unrevoked ban past
+                             *     its expiry reads as `expired`.
+                             */
                             effective_status: components["schemas"]["UserBanStatus"];
+                            /** @description Expiry time; `None` marks a permanent ban. */
                             expires_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Ban record identifier.
+                             */
                             id: number;
+                            /** @description Reason surfaced to the affected user, if any. */
                             public_reason?: string | null;
+                            /** @description Internal justification recorded when the ban was created or updated. */
                             reason: string;
+                            /** @description Note recorded when the ban was revoked. */
                             revoke_note?: string | null;
+                            /** @description Time the ban was lifted early, when revoked. */
                             revoked_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who revoked the ban, when revoked by a user account.
+                             */
                             revoked_by_user_id?: number | null;
+                            /** @description Capability scopes the ban covers. */
                             scopes: components["schemas"]["UserBanScope"][];
+                            /** @description Time the ban takes effect. */
                             starts_at: string;
+                            /** @description Status stored on the record (`active` or `revoked`). */
                             status: components["schemas"]["UserBanStatus"];
+                            /** @description Record last-update time. */
                             updated_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Banned user identifier.
+                             */
                             user_id: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7639,27 +11169,56 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serializable view of a ban record for API responses. */
                         data?: {
+                            /** @description Administrator-only note, if any. */
                             admin_note?: string | null;
+                            /** @description Record creation time. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who created the ban, when known.
+                             */
                             created_by_user_id?: number | null;
+                            /** @description Whether the ban currently blocks the user's scopes. */
                             effective: boolean;
+                            /**
+                             * @description Stored status folded with the time window, so an unrevoked ban past
+                             *     its expiry reads as `expired`.
+                             */
                             effective_status: components["schemas"]["UserBanStatus"];
+                            /** @description Expiry time; `None` marks a permanent ban. */
                             expires_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Ban record identifier.
+                             */
                             id: number;
+                            /** @description Reason surfaced to the affected user, if any. */
                             public_reason?: string | null;
+                            /** @description Internal justification recorded when the ban was created or updated. */
                             reason: string;
+                            /** @description Note recorded when the ban was revoked. */
                             revoke_note?: string | null;
+                            /** @description Time the ban was lifted early, when revoked. */
                             revoked_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who revoked the ban, when revoked by a user account.
+                             */
                             revoked_by_user_id?: number | null;
+                            /** @description Capability scopes the ban covers. */
                             scopes: components["schemas"]["UserBanScope"][];
+                            /** @description Time the ban takes effect. */
                             starts_at: string;
+                            /** @description Status stored on the record (`active` or `revoked`). */
                             status: components["schemas"]["UserBanStatus"];
+                            /** @description Record last-update time. */
                             updated_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Banned user identifier.
+                             */
                             user_id: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7718,19 +11277,35 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who performed the transition, when known.
+                             */
                             actor_user_id?: number | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Ban the event belongs to.
+                             */
                             ban_id: number;
+                            /** @description Time the transition was recorded. */
                             created_at: string;
+                            /** @description Transition kind (`created`, `updated` or `revoked`). */
                             event_type: components["schemas"]["UserBanEventType"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Event record identifier.
+                             */
                             id: number;
+                            /** @description Expiry time after the transition. */
                             next_expires_at?: string | null;
+                            /** @description Scope set after the transition. */
                             next_scopes?: components["schemas"]["UserBanScope"][] | null;
                             next_status?: components["schemas"]["UserBanStatus"] | null;
+                            /** @description Free-form note recorded with the transition. */
                             note?: string | null;
+                            /** @description Expiry time before the transition. */
                             previous_expires_at?: string | null;
+                            /** @description Scope set before the transition; `None` on creation. */
                             previous_scopes?: components["schemas"]["UserBanScope"][] | null;
                             previous_status?: components["schemas"]["UserBanStatus"] | null;
                         }[];
@@ -7786,27 +11361,56 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serializable view of a ban record for API responses. */
                         data?: {
+                            /** @description Administrator-only note, if any. */
                             admin_note?: string | null;
+                            /** @description Record creation time. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who created the ban, when known.
+                             */
                             created_by_user_id?: number | null;
+                            /** @description Whether the ban currently blocks the user's scopes. */
                             effective: boolean;
+                            /**
+                             * @description Stored status folded with the time window, so an unrevoked ban past
+                             *     its expiry reads as `expired`.
+                             */
                             effective_status: components["schemas"]["UserBanStatus"];
+                            /** @description Expiry time; `None` marks a permanent ban. */
                             expires_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Ban record identifier.
+                             */
                             id: number;
+                            /** @description Reason surfaced to the affected user, if any. */
                             public_reason?: string | null;
+                            /** @description Internal justification recorded when the ban was created or updated. */
                             reason: string;
+                            /** @description Note recorded when the ban was revoked. */
                             revoke_note?: string | null;
+                            /** @description Time the ban was lifted early, when revoked. */
                             revoked_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who revoked the ban, when revoked by a user account.
+                             */
                             revoked_by_user_id?: number | null;
+                            /** @description Capability scopes the ban covers. */
                             scopes: components["schemas"]["UserBanScope"][];
+                            /** @description Time the ban takes effect. */
                             starts_at: string;
+                            /** @description Status stored on the record (`active` or `revoked`). */
                             status: components["schemas"]["UserBanStatus"];
+                            /** @description Record last-update time. */
                             updated_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Banned user identifier.
+                             */
                             user_id: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -7849,10 +11453,18 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /**
+                 * @description Optional search term matched case-insensitively against username and
+                 *     email; up to 96 characters.
+                 */
                 keyword?: string | null;
+                /** @description Optional role filter. */
                 role?: components["schemas"]["UserRole"] | null;
+                /** @description Optional account status filter. */
                 status?: components["schemas"]["UserStatus"] | null;
+                /** @description Cursor: creation timestamp of the last item on the previous page. */
                 after_created_at?: string | null;
+                /** @description Cursor: id of the last item, used as a stable tie breaker. */
                 after_id?: number | null;
             };
             header?: never;
@@ -7927,8 +11539,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Result of creating a user; carries the one-time temporary password when
+                         *     the server generated one, omitted from serialization otherwise.
+                         */
                         data?: {
+                            /**
+                             * @description Plaintext temporary password shown exactly once, only when no
+                             *     password was supplied in the request.
+                             */
                             generated_password?: string | null;
+                            /** @description The newly created account view. */
                             user: components["schemas"]["AdminUserInfo"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8041,21 +11662,43 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Administrator-facing view of an invitation. */
                         data?: {
+                            /** @description Time the invitation was accepted, if accepted. */
                             accepted_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Account created by accepting the invitation, once accepted.
+                             */
                             accepted_user_id?: number | null;
+                            /** @description Invitation creation time. */
                             created_at: string;
+                            /** @description Invited email address. */
                             email: string;
+                            /** @description Time the invitation stops being usable. */
                             expires_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Invitation record identifier.
+                             */
                             id: number;
+                            /**
+                             * @description Registration URL embedding the plaintext token; returned only by the
+                             *     create call, never from listings.
+                             */
                             invitation_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who issued the invitation.
+                             */
                             invited_by: number;
+                            /** @description Whether the invitation mail was enqueued for delivery. */
                             mail_queued: boolean;
+                            /** @description Time the invitation was revoked, if revoked. */
                             revoked_at?: string | null;
+                            /** @description Lifecycle status (`pending`, `accepted`, `expired` or `revoked`). */
                             status: components["schemas"]["UserInvitationStatus"];
+                            /** @description Invitation last-update time. */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8106,21 +11749,43 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Administrator-facing view of an invitation. */
                         data?: {
+                            /** @description Time the invitation was accepted, if accepted. */
                             accepted_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Account created by accepting the invitation, once accepted.
+                             */
                             accepted_user_id?: number | null;
+                            /** @description Invitation creation time. */
                             created_at: string;
+                            /** @description Invited email address. */
                             email: string;
+                            /** @description Time the invitation stops being usable. */
                             expires_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Invitation record identifier.
+                             */
                             id: number;
+                            /**
+                             * @description Registration URL embedding the plaintext token; returned only by the
+                             *     create call, never from listings.
+                             */
                             invitation_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who issued the invitation.
+                             */
                             invited_by: number;
+                            /** @description Whether the invitation mail was enqueued for delivery. */
                             mail_queued: boolean;
+                            /** @description Time the invitation was revoked, if revoked. */
                             revoked_at?: string | null;
+                            /** @description Lifecycle status (`pending`, `accepted`, `expired` or `revoked`). */
                             status: components["schemas"]["UserInvitationStatus"];
+                            /** @description Invitation last-update time. */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8178,25 +11843,52 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Administrator-facing view of a user account with hydrated activity
+                         *     summaries.
+                         */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of currently active auth sessions.
+                             */
                             active_session_count: number;
+                            /** @description Account creation time. */
                             created_at: string;
+                            /** @description Normalized account email. */
                             email: string;
+                            /** @description Time the email address was verified, if it has been. */
                             email_verified_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description User identifier.
+                             */
                             id: number;
+                            /** @description Whether the next login must set a new password. */
                             must_change_password: boolean;
+                            /** @description Scoped permissions; populated only for operators. */
                             operator_scopes: components["schemas"]["OperatorScope"][];
+                            /** @description Email awaiting verification before replacing the current one. */
                             pending_email?: string | null;
+                            /** @description Display profile summary including the avatar for admin viewing. */
                             profile: components["schemas"]["UserProfileInfo"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of Minecraft profiles owned by the user.
+                             */
                             profile_count: number;
+                            /** @description Account role (`user`, `operator` or `admin`). */
                             role: components["schemas"]["UserRole"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Monotonic counter bumped to invalidate previously issued sessions.
+                             */
                             session_version: number;
+                            /** @description Account status (`active` or `disabled`). */
                             status: components["schemas"]["UserStatus"];
+                            /** @description Account last-update time. */
                             updated_at: string;
+                            /** @description Account username. */
                             username: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8247,14 +11939,25 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Summary of everything removed alongside a deleted user account. */
                         data?: {
+                            /** @description Number of Minecraft profiles removed. */
                             deleted_profile_count: number;
+                            /** @description Number of profile-bound texture records and blobs removed. */
                             deleted_profile_texture_count: number;
+                            /** @description Number of wardrobe texture records and blobs removed. */
                             deleted_wardrobe_texture_count: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of auth sessions revoked.
+                             */
                             revoked_session_count: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of Yggdrasil access tokens revoked.
+                             */
                             revoked_yggdrasil_token_count: number;
+                            /** @description Snapshot of the account just before deletion. */
                             user: components["schemas"]["AdminUserInfo"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8309,25 +12012,52 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Administrator-facing view of a user account with hydrated activity
+                         *     summaries.
+                         */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of currently active auth sessions.
+                             */
                             active_session_count: number;
+                            /** @description Account creation time. */
                             created_at: string;
+                            /** @description Normalized account email. */
                             email: string;
+                            /** @description Time the email address was verified, if it has been. */
                             email_verified_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description User identifier.
+                             */
                             id: number;
+                            /** @description Whether the next login must set a new password. */
                             must_change_password: boolean;
+                            /** @description Scoped permissions; populated only for operators. */
                             operator_scopes: components["schemas"]["OperatorScope"][];
+                            /** @description Email awaiting verification before replacing the current one. */
                             pending_email?: string | null;
+                            /** @description Display profile summary including the avatar for admin viewing. */
                             profile: components["schemas"]["UserProfileInfo"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Number of Minecraft profiles owned by the user.
+                             */
                             profile_count: number;
+                            /** @description Account role (`user`, `operator` or `admin`). */
                             role: components["schemas"]["UserRole"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Monotonic counter bumped to invalidate previously issued sessions.
+                             */
                             session_version: number;
+                            /** @description Account status (`active` or `disabled`). */
                             status: components["schemas"]["UserStatus"];
+                            /** @description Account last-update time. */
                             updated_at: string;
+                            /** @description Account username. */
                             username: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8385,8 +12115,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response carrying the number of records removed by a bulk operation. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Count of records the operation deleted.
+                             */
                             removed: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8441,27 +12175,56 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serializable view of a ban record for API responses. */
                         data?: {
+                            /** @description Administrator-only note, if any. */
                             admin_note?: string | null;
+                            /** @description Record creation time. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who created the ban, when known.
+                             */
                             created_by_user_id?: number | null;
+                            /** @description Whether the ban currently blocks the user's scopes. */
                             effective: boolean;
+                            /**
+                             * @description Stored status folded with the time window, so an unrevoked ban past
+                             *     its expiry reads as `expired`.
+                             */
                             effective_status: components["schemas"]["UserBanStatus"];
+                            /** @description Expiry time; `None` marks a permanent ban. */
                             expires_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Ban record identifier.
+                             */
                             id: number;
+                            /** @description Reason surfaced to the affected user, if any. */
                             public_reason?: string | null;
+                            /** @description Internal justification recorded when the ban was created or updated. */
                             reason: string;
+                            /** @description Note recorded when the ban was revoked. */
                             revoke_note?: string | null;
+                            /** @description Time the ban was lifted early, when revoked. */
                             revoked_at?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Administrator who revoked the ban, when revoked by a user account.
+                             */
                             revoked_by_user_id?: number | null;
+                            /** @description Capability scopes the ban covers. */
                             scopes: components["schemas"]["UserBanScope"][];
+                            /** @description Time the ban takes effect. */
                             starts_at: string;
+                            /** @description Status stored on the record (`active` or `revoked`). */
                             status: components["schemas"]["UserBanStatus"];
+                            /** @description Record last-update time. */
                             updated_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Banned user identifier.
+                             */
                             user_id: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8504,10 +12267,18 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Optional filter restricting results to profiles owned by this user. */
                 user_id?: number | null;
+                /** @description Optional exact profile name filter; must be a valid profile name. */
                 name?: string | null;
+                /** @description Optional exact profile UUID filter; 32-character unsigned hexadecimal. */
                 uuid?: string | null;
+                /**
+                 * @description Optional search term matched case-insensitively against profile name
+                 *     and UUID; up to 64 characters.
+                 */
                 query?: string | null;
+                /** @description Cursor: id of the last item on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -8657,34 +12428,76 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Admin view of one configured session forward server. */
                         data?: {
+                            /** @description Upstream API root; `None` for the local provider. */
                             base_url?: string | null;
+                            /** @description Built-in entries (local and Mojang) cannot be deleted or retargeted. */
                             builtin: boolean;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was created (UTC).
+                             */
                             created_at: string;
+                            /** @description Whether this server can be deleted (`false` for built-ins). */
                             deletable: boolean;
+                            /** @description Human-readable name shown in the admin UI. */
                             display_name: string;
+                            /** @description Whether the server takes part in session forwarding. */
                             enabled: boolean;
+                            /**
+                             * @description Which session protocol the upstream speaks (authlib-injector or
+                             *     Mojang session server).
+                             */
                             endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Server row id.
+                             */
                             id: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last health check time (UTC), if one has run.
+                             */
                             last_checked_at?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server failed (UTC).
+                             */
                             last_failure_at?: string | null;
+                            /** @description Error message from the most recent failure. */
                             last_failure_message?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server succeeded (UTC).
+                             */
                             last_success_at?: string | null;
+                            /** @description `true` only for the local AsterYggdrasil provider. */
                             local: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Call-order rank; servers are tried in ascending priority groups
+                             *     (range -10000..=10000).
+                             */
                             priority: number;
+                            /** @description Whether the entry is the built-in local server or a remote upstream. */
                             provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            /** @description Whether textures from this upstream are proxied to clients. */
                             texture_forward_enabled: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Per-request upstream timeout in milliseconds (range 100..=10000).
+                             */
                             timeout_ms: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was last updated (UTC).
+                             */
                             updated_at: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Weighted-random position within its priority group (range 1..=1000).
+                             */
                             weight: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8735,34 +12548,76 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Admin view of one configured session forward server. */
                         data?: {
+                            /** @description Upstream API root; `None` for the local provider. */
                             base_url?: string | null;
+                            /** @description Built-in entries (local and Mojang) cannot be deleted or retargeted. */
                             builtin: boolean;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was created (UTC).
+                             */
                             created_at: string;
+                            /** @description Whether this server can be deleted (`false` for built-ins). */
                             deletable: boolean;
+                            /** @description Human-readable name shown in the admin UI. */
                             display_name: string;
+                            /** @description Whether the server takes part in session forwarding. */
                             enabled: boolean;
+                            /**
+                             * @description Which session protocol the upstream speaks (authlib-injector or
+                             *     Mojang session server).
+                             */
                             endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Server row id.
+                             */
                             id: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last health check time (UTC), if one has run.
+                             */
                             last_checked_at?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server failed (UTC).
+                             */
                             last_failure_at?: string | null;
+                            /** @description Error message from the most recent failure. */
                             last_failure_message?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server succeeded (UTC).
+                             */
                             last_success_at?: string | null;
+                            /** @description `true` only for the local AsterYggdrasil provider. */
                             local: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Call-order rank; servers are tried in ascending priority groups
+                             *     (range -10000..=10000).
+                             */
                             priority: number;
+                            /** @description Whether the entry is the built-in local server or a remote upstream. */
                             provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            /** @description Whether textures from this upstream are proxied to clients. */
                             texture_forward_enabled: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Per-request upstream timeout in milliseconds (range 100..=10000).
+                             */
                             timeout_ms: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was last updated (UTC).
+                             */
                             updated_at: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Weighted-random position within its priority group (range 1..=1000).
+                             */
                             weight: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8866,34 +12721,76 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Admin view of one configured session forward server. */
                         data?: {
+                            /** @description Upstream API root; `None` for the local provider. */
                             base_url?: string | null;
+                            /** @description Built-in entries (local and Mojang) cannot be deleted or retargeted. */
                             builtin: boolean;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was created (UTC).
+                             */
                             created_at: string;
+                            /** @description Whether this server can be deleted (`false` for built-ins). */
                             deletable: boolean;
+                            /** @description Human-readable name shown in the admin UI. */
                             display_name: string;
+                            /** @description Whether the server takes part in session forwarding. */
                             enabled: boolean;
+                            /**
+                             * @description Which session protocol the upstream speaks (authlib-injector or
+                             *     Mojang session server).
+                             */
                             endpoint_kind: components["schemas"]["YggdrasilSessionForwardEndpointKind"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Server row id.
+                             */
                             id: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last health check time (UTC), if one has run.
+                             */
                             last_checked_at?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server failed (UTC).
+                             */
                             last_failure_at?: string | null;
+                            /** @description Error message from the most recent failure. */
                             last_failure_message?: string | null;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description Last time a forwarded request to this server succeeded (UTC).
+                             */
                             last_success_at?: string | null;
+                            /** @description `true` only for the local AsterYggdrasil provider. */
                             local: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Call-order rank; servers are tried in ascending priority groups
+                             *     (range -10000..=10000).
+                             */
                             priority: number;
+                            /** @description Whether the entry is the built-in local server or a remote upstream. */
                             provider_kind: components["schemas"]["YggdrasilSessionForwardProviderKind"];
+                            /** @description Whether textures from this upstream are proxied to clients. */
                             texture_forward_enabled: boolean;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Per-request upstream timeout in milliseconds (range 100..=10000).
+                             */
                             timeout_ms: number;
-                            /** Format: date-time */
+                            /**
+                             * Format: date-time
+                             * @description When the server entry was last updated (UTC).
+                             */
                             updated_at: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Weighted-random position within its priority group (range 1..=1000).
+                             */
                             weight: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8948,11 +12845,21 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Visual captcha challenge handed to the client. */
                         data?: {
+                            /**
+                             * @description Opaque id the client must echo back with its answer; answers are only
+                             *     stored as SHA-256 hashes server-side.
+                             */
                             challenge_id: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Challenge validity in seconds; verification after that fails as expired.
+                             */
                             expires_in: number;
+                            /** @description Rendered challenge image as a base64 data payload. */
                             image_base64: string;
+                            /** @description MIME type of `image_base64` (currently `image/jpeg`). */
                             mime: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -8979,11 +12886,20 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Public captcha policy telling clients which flows currently require a
+                         *     captcha challenge.
+                         */
                         data?: {
+                            /** @description Whether the captcha feature is enabled at all. */
                             enabled: boolean;
+                            /** @description Whether accepting an invitation requires a captcha. */
                             invitation_accept_required: boolean;
+                            /** @description Whether the login flow requires a captcha. */
                             login_required: boolean;
+                            /** @description Whether resending the registration activation email requires a captcha. */
                             register_activation_resend_required: boolean;
+                            /** @description Whether the registration flow requires a captcha. */
                             register_required: boolean;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9010,7 +12926,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response of the bootstrap check reporting whether the site is initialized. */
                         data?: {
+                            /** @description True once initial setup has created the first administrator. */
                             initialized: boolean;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9023,6 +12941,7 @@ export interface operations {
     confirm_contact_verification: {
         parameters: {
             query?: {
+                /** @description One-time verification token from the confirmation email. */
                 token?: string | null;
             };
             header?: never;
@@ -9061,17 +12980,42 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Authenticated-user view returned by login, registration, and `/me`
+                         *     endpoints. Never includes credential material.
+                         */
                         data?: {
+                            /** @description Normalized account email. */
                             email: string;
+                            /** @description Whether the account email has been verified. */
                             email_verified: boolean;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Local user id.
+                             */
                             id: number;
+                            /** @description Whether the account must change its password before normal use. */
                             must_change_password: boolean;
+                            /**
+                             * @description Operator-only scope grants; empty for non-operator accounts unless
+                             *     explicitly loaded.
+                             */
                             operator_scopes: components["schemas"]["OperatorScope"][];
+                            /**
+                             * @description New email awaiting verification during an email change; `None` when no
+                             *     change is in flight.
+                             */
                             pending_email?: string | null;
+                            /**
+                             * @description Display name and avatar for the self audience; left at defaults by
+                             *     constructors that skip the profile lookup.
+                             */
                             profile: components["schemas"]["UserProfileInfo"];
+                            /** @description Account role (User, Operator, Admin). */
                             role: components["schemas"]["UserRole"];
+                            /** @description Account status (active, disabled, pending activation). */
                             status: components["schemas"]["UserStatus"];
+                            /** @description Unique login username (4-16 ASCII letters/digits/`_`/`-`). */
                             username: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9119,7 +13063,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Generic response carrying a single human-readable message. */
                         data?: {
+                            /** @description Message describing the completed action. */
                             message: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9146,6 +13092,10 @@ export interface operations {
     auth_external_auth_confirm_email_verification: {
         parameters: {
             query?: {
+                /**
+                 * @description Single-use verification token from the email link; consumed on first
+                 *     successful confirm.
+                 */
                 token?: string | null;
             };
             header?: never;
@@ -9184,7 +13134,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response confirming the verification email was queued. */
                         data?: {
+                            /** @description Human-readable status message for the client. */
                             message: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9318,11 +13270,21 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Response body describing the session state after an external-auth flow
+                         *     completes without a browser redirect.
+                         */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds, when a session was established.
+                             */
                             expires_in?: number | null;
+                            /** @description Pending email-verification flow token, when verification is required. */
                             flow_token?: string | null;
+                            /** @description Frontend path to return the user to once login completes. */
                             return_path?: string | null;
+                            /** @description Login outcome, e.g. `authenticated` or `password_change_required`. */
                             status: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9351,7 +13313,9 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Resume listing after providers ordered at or after this display name. */
                 after_display_name?: string | null;
+                /** @description Tiebreaker provider ID for entries sharing the same display name. */
                 after_id?: number | null;
             };
             header?: never;
@@ -9396,7 +13360,9 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Resume listing after providers ordered at or after this display name. */
                 after_display_name?: string | null;
+                /** @description Tiebreaker provider ID for entries sharing the same display name. */
                 after_id?: number | null;
             };
             header?: never;
@@ -9449,9 +13415,13 @@ export interface operations {
     auth_external_auth_finish_login: {
         parameters: {
             query?: {
+                /** @description Opaque flow state that ties the callback to the started login flow. */
                 state?: string | null;
+                /** @description Authorization code issued by the provider. */
                 code?: string | null;
+                /** @description Error code reported by the provider instead of a code. */
                 error?: string | null;
+                /** @description Human-readable provider error detail accompanying `error`. */
                 error_description?: string | null;
             };
             header?: never;
@@ -9500,7 +13470,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response carrying the provider URL the browser must be redirected to. */
                         data?: {
+                            /**
+                             * @description Absolute authorization endpoint URL including client id, state, and
+                             *     (when supported) PKCE challenge and nonce.
+                             */
                             authorization_url: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9544,8 +13519,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Minimal invitation details shown to the token holder before registering. */
                         data?: {
+                            /** @description Email address the invitation was issued for; fixed at registration. */
                             email: string;
+                            /** @description Time the invitation stops being usable. */
                             expires_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9586,17 +13564,42 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Authenticated-user view returned by login, registration, and `/me`
+                         *     endpoints. Never includes credential material.
+                         */
                         data?: {
+                            /** @description Normalized account email. */
                             email: string;
+                            /** @description Whether the account email has been verified. */
                             email_verified: boolean;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Local user id.
+                             */
                             id: number;
+                            /** @description Whether the account must change its password before normal use. */
                             must_change_password: boolean;
+                            /**
+                             * @description Operator-only scope grants; empty for non-operator accounts unless
+                             *     explicitly loaded.
+                             */
                             operator_scopes: components["schemas"]["OperatorScope"][];
+                            /**
+                             * @description New email awaiting verification during an email change; `None` when no
+                             *     change is in flight.
+                             */
                             pending_email?: string | null;
+                            /**
+                             * @description Display name and avatar for the self audience; left at defaults by
+                             *     constructors that skip the profile lookup.
+                             */
                             profile: components["schemas"]["UserProfileInfo"];
+                            /** @description Account role (User, Operator, Admin). */
                             role: components["schemas"]["UserRole"];
+                            /** @description Account status (active, disabled, pending activation). */
                             status: components["schemas"]["UserStatus"];
+                            /** @description Unique login username (4-16 ASCII letters/digits/`_`/`-`). */
                             username: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9634,9 +13637,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds.
+                             */
                             expires_in: number;
+                            /** @description Whether this is a full session or restricted to password change. */
                             status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9681,7 +13689,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response reporting whether a logout revoked the session. */
                         data?: {
+                            /** @description True when the refresh token matched a live session and it was revoked. */
                             revoked: boolean;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9708,17 +13718,42 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Authenticated-user view returned by login, registration, and `/me`
+                         *     endpoints. Never includes credential material.
+                         */
                         data?: {
+                            /** @description Normalized account email. */
                             email: string;
+                            /** @description Whether the account email has been verified. */
                             email_verified: boolean;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Local user id.
+                             */
                             id: number;
+                            /** @description Whether the account must change its password before normal use. */
                             must_change_password: boolean;
+                            /**
+                             * @description Operator-only scope grants; empty for non-operator accounts unless
+                             *     explicitly loaded.
+                             */
                             operator_scopes: components["schemas"]["OperatorScope"][];
+                            /**
+                             * @description New email awaiting verification during an email change; `None` when no
+                             *     change is in flight.
+                             */
                             pending_email?: string | null;
+                            /**
+                             * @description Display name and avatar for the self audience; left at defaults by
+                             *     constructors that skip the profile lookup.
+                             */
                             profile: components["schemas"]["UserProfileInfo"];
+                            /** @description Account role (User, Operator, Admin). */
                             role: components["schemas"]["UserRole"];
+                            /** @description Account status (active, disabled, pending activation). */
                             status: components["schemas"]["UserStatus"];
+                            /** @description Unique login username (4-16 ASCII letters/digits/`_`/`-`). */
                             username: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9747,7 +13782,9 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Resume listing after passkeys created at or before this timestamp. */
                 after_created_at?: string | null;
+                /** @description Tiebreaker passkey ID for entries sharing the same `after_created_at`. */
                 after_id?: number | null;
             };
             header?: never;
@@ -9815,9 +13852,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds.
+                             */
                             expires_in: number;
+                            /** @description Whether this is a full session or restricted to password change. */
                             status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9855,8 +13897,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Start of a WebAuthn (discoverable credential) login ceremony. */
                         data?: {
+                            /**
+                             * @description Flow id correlating the finish call with the cached challenge; the
+                             *     challenge expires after 300 seconds and is consumed on first finish.
+                             */
                             flow_id: string;
+                            /**
+                             * @description `PublicKeyCredentialRequestOptions` JSON for the browser's
+                             *     `navigator.credentials.get()` call.
+                             */
                             public_key: unknown;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9894,17 +13945,31 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Registered passkey as shown in the account security settings. */
                         data?: {
+                            /** @description Whether the credential is currently synced to backup storage. */
                             backed_up: boolean;
+                            /** @description Whether the authenticator allowed the credential to be backed up. */
                             backup_eligible: boolean;
+                            /** @description When the passkey was registered. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Passkey row id used in rename/delete routes.
+                             */
                             id: number;
+                            /** @description Last successful authentication with this passkey; null until first use. */
                             last_used_at?: string | null;
+                            /** @description User-chosen label (up to 128 chars, control chars rejected). */
                             name: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description WebAuthn signature counter from the most recent authentication.
+                             */
                             sign_count: number;
+                            /** @description Transports reported at registration (e.g. `internal`, `hybrid`). */
                             transports?: string[] | null;
+                            /** @description When the stored credential record was last updated (e.g. after login). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -9949,8 +14014,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Start of a WebAuthn registration ceremony. */
                         data?: {
+                            /**
+                             * @description Flow id correlating the finish call with the cached challenge; the
+                             *     challenge expires after 300 seconds and is consumed on first finish.
+                             */
                             flow_id: string;
+                            /**
+                             * @description `PublicKeyCredentialCreationOptions` JSON for the browser's
+                             *     `navigator.credentials.create()` call.
+                             */
                             public_key: unknown;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10026,17 +14100,31 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Registered passkey as shown in the account security settings. */
                         data?: {
+                            /** @description Whether the credential is currently synced to backup storage. */
                             backed_up: boolean;
+                            /** @description Whether the authenticator allowed the credential to be backed up. */
                             backup_eligible: boolean;
+                            /** @description When the passkey was registered. */
                             created_at: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Passkey row id used in rename/delete routes.
+                             */
                             id: number;
+                            /** @description Last successful authentication with this passkey; null until first use. */
                             last_used_at?: string | null;
+                            /** @description User-chosen label (up to 128 chars, control chars rejected). */
                             name: string;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description WebAuthn signature counter from the most recent authentication.
+                             */
                             sign_count: number;
+                            /** @description Transports reported at registration (e.g. `internal`, `hybrid`). */
                             transports?: string[] | null;
+                            /** @description When the stored credential record was last updated (e.g. after login). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10088,9 +14176,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds.
+                             */
                             expires_in: number;
+                            /** @description Whether this is a full session or restricted to password change. */
                             status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10135,7 +14228,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Generic response carrying a single human-readable message. */
                         data?: {
+                            /** @description Message describing the completed action. */
                             message: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10180,7 +14275,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Generic response carrying a single human-readable message. */
                         data?: {
+                            /** @description Message describing the completed action. */
                             message: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10218,8 +14315,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Display profile attached to user views. */
                         data?: {
+                            /** @description Resolved avatar presentation. */
                             avatar: components["schemas"]["AvatarInfo"];
+                            /** @description Optional user-chosen display name. */
                             display_name?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10264,8 +14364,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Display profile attached to user views. */
                         data?: {
+                            /** @description Resolved avatar presentation. */
                             avatar: components["schemas"]["AvatarInfo"];
+                            /** @description Optional user-chosen display name. */
                             display_name?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10311,8 +14414,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Display profile attached to user views. */
                         data?: {
+                            /** @description Resolved avatar presentation. */
                             avatar: components["schemas"]["AvatarInfo"];
+                            /** @description Optional user-chosen display name. */
                             display_name?: string | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10392,9 +14498,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds.
+                             */
                             expires_in: number;
+                            /** @description Whether this is a full session or restricted to password change. */
                             status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10432,9 +14543,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe registration response; tokens travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds; `0` when activation is pending.
+                             */
                             expires_in: number;
+                            /**
+                             * @description Whether the account must confirm the emailed activation link before
+                             *     logging in.
+                             */
                             requires_activation: boolean;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10479,7 +14598,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Generic response carrying a single human-readable message. */
                         data?: {
+                            /** @description Message describing the completed action. */
                             message: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10494,7 +14615,9 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Resume listing after sessions last seen at or before this timestamp. */
                 after_last_seen_at?: string | null;
+                /** @description Tiebreaker session ID for entries sharing the same `last_seen_at`. */
                 after_id?: string | null;
             };
             header?: never;
@@ -10565,8 +14688,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Response carrying the number of records removed by a bulk operation. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Count of records the operation deleted.
+                             */
                             removed: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10653,9 +14780,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Client-safe subset of a token bundle; tokens themselves travel in cookies. */
                         data?: {
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Access token lifetime in seconds.
+                             */
                             expires_in: number;
+                            /** @description Whether this is a full session or restricted to password change. */
                             status: components["schemas"]["AuthTokenStatus"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10677,7 +14809,12 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /**
+                 * @description Optional search term matched case-insensitively against profile name;
+                 *     up to 64 characters.
+                 */
                 query?: string | null;
+                /** @description Cursor: id of the last profile on the previous page. */
                 after_id?: number | null;
             };
             header?: never;
@@ -10752,8 +14889,11 @@ export interface operations {
                          *     protocol.
                          */
                         data?: {
+                            /** @description Unsigned (dash-less) lowercase profile UUID, 32 hex characters. */
                             id: string;
+                            /** @description Player name, 3-16 ASCII letters, numbers, or underscores. */
                             name: string;
+                            /** @description Signed profile properties; omitted when the lookup was made unsigned. */
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10850,8 +14990,11 @@ export interface operations {
                          *     protocol.
                          */
                         data?: {
+                            /** @description Unsigned (dash-less) lowercase profile UUID, 32 hex characters. */
                             id: string;
+                            /** @description Player name, 3-16 ASCII letters, numbers, or underscores. */
                             name: string;
+                            /** @description Signed profile properties; omitted when the lookup was made unsigned. */
                             properties?: components["schemas"]["YggdrasilProfileProperty"][] | null;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10903,31 +15046,72 @@ export interface operations {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
                         data?: {
+                            /** @description When the binding was created (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /**
+                             * @description SHA-256 hash of the texture PNG, lowercase hex (64 chars); doubles as
+                             *     the content address used in texture URLs and de-duplication.
+                             */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Texture binding row id.
+                             */
                             id: number;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Owning Minecraft profile row id.
+                             */
                             profile_id: number;
+                            /** @description Profile name at the time this metadata was built. */
                             profile_name: string;
+                            /**
+                             * @description Owning profile's UUID in the unhyphenated 32-char form Yggdrasil uses
+                             *     as the player identifier.
+                             */
                             profile_uuid: string;
+                            /**
+                             * @description Whether this metadata describes a real binding or a default-skin
+                             *     stand-in.
+                             */
                             source: components["schemas"]["MinecraftTextureMetadataSource"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset id the binding points at.
+                             */
                             texture_id: number;
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the binding was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or shared in the wardrobe. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         }[];
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -10984,32 +15168,74 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Serialized metadata for the texture currently bound to a profile slot. */
                         data?: {
+                            /** @description When the binding was created (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /**
+                             * @description SHA-256 hash of the texture PNG, lowercase hex (64 chars); doubles as
+                             *     the content address used in texture URLs and de-duplication.
+                             */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Texture binding row id.
+                             */
                             id: number;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Owning Minecraft profile row id.
+                             */
                             profile_id: number;
+                            /** @description Profile name at the time this metadata was built. */
                             profile_name: string;
+                            /**
+                             * @description Owning profile's UUID in the unhyphenated 32-char form Yggdrasil uses
+                             *     as the player identifier.
+                             */
                             profile_uuid: string;
+                            /**
+                             * @description Whether this metadata describes a real binding or a default-skin
+                             *     stand-in.
+                             */
                             source: components["schemas"]["MinecraftTextureMetadataSource"];
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset id the binding points at.
+                             */
                             texture_id: number;
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the binding was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or shared in the wardrobe. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11115,12 +15341,23 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description The full public runtime configuration payload served to the frontend;
+                         *     `version` lets clients detect schema changes.
+                         */
                         data?: {
+                            /** @description Site branding and registration policy. */
                             branding: components["schemas"]["PublicBranding"];
+                            /** @description Captcha requirements per flow. */
                             captcha: components["schemas"]["PublicCaptchaConfig"];
+                            /** @description Texture library visibility policy. */
                             texture_library: components["schemas"]["PublicTextureLibraryConfig"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Payload schema version; bumped on breaking shape changes.
+                             */
                             version: number;
+                            /** @description Yggdrasil server metadata and upload limits. */
                             yggdrasil: components["schemas"]["PublicYggdrasilConfig"];
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11135,9 +15372,13 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Case-insensitive substring matched against tag names. */
                 keyword?: string | null;
+                /** @description Sort order value of the last tag on the previous page, for cursor pagination. */
                 after_sort_order?: number | null;
+                /** @description Name of the last tag on the previous page, paired with `after_sort_order`. */
                 after_name?: string | null;
+                /** @description ID of the last tag on the previous page, completing the sort-order cursor. */
                 after_id?: number | null;
             };
             header?: never;
@@ -11182,11 +15423,17 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Substring matched against the texture's display name, hash, or MIME type. */
                 keyword?: string | null;
+                /** @description Restricts results to one texture type (skin or cape). */
                 texture_type?: components["schemas"]["MinecraftTextureType"] | null;
+                /** @description Comma-separated texture tag IDs to filter by; at most 16 positive IDs. */
                 tag_ids?: number[];
+                /** @description Whether a texture must carry all of the given tags or any of them; defaults to all. */
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
+                /** @description Updated-at timestamp of the last item on the previous page. */
                 after_updated_at?: string | null;
+                /** @description ID of the last item on the previous page, paired with `after_updated_at` as the cursor. */
                 after_id?: number | null;
             };
             header?: never;
@@ -11253,31 +15500,63 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Metadata for a texture listed in the public texture library. */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
                             uploader?: components["schemas"]["MinecraftTextureUploaderInfo"] | null;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11318,30 +15597,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11396,20 +15710,37 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description A public-library texture report with its moderation state and participants. */
                         data?: {
+                            /**
+                             * @description Note left by the handling admin; hidden from the reporter unless the
+                             *     API chooses to expose it.
+                             */
                             admin_note?: string | null;
+                            /** @description When the report was filed (UTC). */
                             created_at: string;
+                            /** @description When the report was handled (UTC), if handled. */
                             handled_at: string;
                             handler?: components["schemas"]["TextureReportUserInfo"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Report row id.
+                             */
                             id: number;
+                            /** @description Free-form explanation supplied by the reporter, if any. */
                             message?: string | null;
+                            /** @description Categorized reason the reporter selected. */
                             reason: components["schemas"]["MinecraftTextureReportReason"];
                             reporter?: components["schemas"]["TextureReportUserInfo"] | null;
+                            /** @description Moderation lifecycle state (pending/handled). */
                             status: components["schemas"]["MinecraftTextureReportStatus"];
                             texture?: components["schemas"]["PublicTextureLibraryTextureMetadata"] | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Reported wardrobe texture asset id.
+                             */
                             texture_id: number;
+                            /** @description When the report was last updated (UTC). */
                             updated_at: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11484,9 +15815,13 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Case-insensitive substring matched against tag names. */
                 keyword?: string | null;
+                /** @description Sort order value of the last tag on the previous page, for cursor pagination. */
                 after_sort_order?: number | null;
+                /** @description Name of the last tag on the previous page, paired with `after_sort_order`. */
                 after_name?: string | null;
+                /** @description ID of the last tag on the previous page, completing the sort-order cursor. */
                 after_id?: number | null;
             };
             header?: never;
@@ -11538,11 +15873,17 @@ export interface operations {
             query?: {
                 /** @description Requested page size. */
                 limit?: number | null;
+                /** @description Substring matched against the texture's display name, hash, or MIME type. */
                 keyword?: string | null;
+                /** @description Restricts results to one texture type (skin or cape). */
                 texture_type?: components["schemas"]["MinecraftTextureType"] | null;
+                /** @description Comma-separated texture tag IDs to filter by; at most 16 positive IDs. */
                 tag_ids?: number[];
+                /** @description Whether a texture must carry all of the given tags or any of them; defaults to all. */
                 tag_search_method?: components["schemas"]["TextureTagSearchMethod"];
+                /** @description Updated-at timestamp of the last item on the previous page. */
                 after_updated_at?: string | null;
+                /** @description ID of the last item on the previous page, paired with `after_updated_at` as the cursor. */
                 after_id?: number | null;
             };
             header?: never;
@@ -11655,30 +15996,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11729,30 +16105,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11803,30 +16214,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11874,30 +16320,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11953,30 +16434,65 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /**
+                         * @description Metadata for a texture sitting in a user's wardrobe, including its public
+                         *     library submission state and tags.
+                         */
                         data?: {
+                            /** @description When the asset was uploaded (UTC). */
                             created_at: string;
+                            /** @description Optional user-facing name; falls back to [`Self::name`] when unset. */
                             display_name?: string | null;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Encoded PNG size in bytes.
+                             */
                             file_size: number;
+                            /** @description SHA-256 hash of the texture PNG, lowercase hex (64 chars). */
                             hash: string;
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image height in pixels.
+                             */
                             height: number;
-                            /** Format: int64 */
+                            /**
+                             * Format: int64
+                             * @description Wardrobe texture asset row id.
+                             */
                             id: number;
+                            /**
+                             * @description Reviewer note attached when the library submission was approved or
+                             *     rejected; `None` while unreviewed.
+                             */
                             library_review_note?: string | null;
+                            /** @description When a moderator decided on the library submission, if one has. */
                             library_reviewed_at: string;
+                            /** @description Lifecycle state of the asset's submission to the public texture library. */
                             library_status: components["schemas"]["MinecraftTextureLibraryStatus"];
+                            /** @description When the asset was submitted to the library, if it was. */
                             library_submitted_at: string;
+                            /** @description MIME type; always `image/png` for accepted uploads. */
                             mime_type: string;
+                            /** @description Internal asset name assigned at upload time. */
                             name: string;
+                            /** @description Rendered preview image URL, if a preview has been generated. */
                             preview_url?: string | null;
+                            /** @description Library tags attached to this texture. */
                             tags: components["schemas"]["MinecraftTextureTagInfo"][];
+                            /** @description Skin arm model (`default`/`slim`); irrelevant for capes. */
                             texture_model: components["schemas"]["MinecraftTextureModel"];
+                            /** @description Which body slot this texture fills (skin or cape). */
                             texture_type: components["schemas"]["MinecraftTextureType"];
+                            /** @description When the asset was last updated (UTC). */
                             updated_at: string;
+                            /** @description Public URL the texture bytes can be fetched from. */
                             url: string;
+                            /** @description Whether the asset is private to the owner or publicly visible. */
                             visibility: components["schemas"]["MinecraftTextureVisibility"];
-                            /** Format: int32 */
+                            /**
+                             * Format: int32
+                             * @description Image width in pixels.
+                             */
                             width: number;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -12746,6 +17262,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Static liveness marker reported by the process. */
                         status: string;
                     };
                 };
@@ -12757,6 +17274,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Static liveness marker reported by the process. */
                         status: string;
                     };
                 };
@@ -12780,7 +17298,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         code: components["schemas"]["AsterErrorCode"];
+                        /** @description Liveness probe response. */
                         data?: {
+                            /** @description Static liveness marker reported by the process. */
                             status: string;
                         };
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];

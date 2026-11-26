@@ -1,3 +1,6 @@
+//! Renders a sample Minecraft skin preview with the 3D engine and
+//! writes the result to a file provided as the first CLI argument.
+
 use std::{env, fs, path::PathBuf};
 
 use aster_yggdrasil_render::{

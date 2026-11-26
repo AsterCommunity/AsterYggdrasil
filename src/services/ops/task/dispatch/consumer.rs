@@ -96,7 +96,12 @@ impl TaskConsumer for FallbackTaskConsumer {
 
     async fn claim(&self, available: usize) -> Result<Vec<Self::Task>> {
         let tasks = claim_due_for_lane(self.state.get_ref(), self.config(), available).await?;
-        refresh_pending_metric(self.state.get_ref()).await;
+        // Backlog gauge refresh must not sit on the claim→execute path: the
+        // claimed leases start heartbeating only once their handlers spawn.
+        let state = self.state.clone();
+        tokio::spawn(async move {
+            refresh_pending_metric(state.get_ref()).await;
+        });
         Ok(tasks)
     }
 

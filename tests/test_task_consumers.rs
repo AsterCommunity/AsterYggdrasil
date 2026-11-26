@@ -9,7 +9,7 @@ use aster_yggdrasil_model::types::task::{
     BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload,
 };
 use common::setup;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 mod common;
 
 async fn insert_due_task(state: &aster_yggdrasil::runtime::AppState, name: &str) -> i64 {
@@ -277,5 +277,40 @@ async fn execute_failure_lands_terminal_state_without_a_fresh_claim() {
     assert_eq!(
         outcome.failed, 1,
         "the refusal must count as a failed outcome"
+    );
+}
+
+#[actix_web::test]
+async fn simultaneous_low_quota_claims_stay_within_the_cluster_quota() {
+    let state = setup().await;
+    set_quota(&state, 2).await;
+    let first = consumer(&state);
+    let second = consumer(&state);
+    for name in ["c1", "c2", "c3", "c4"] {
+        insert_due_task(&state, name).await;
+    }
+
+    // Both instances race on the remaining quota at the same time; the claim
+    // transaction's config-row lock must serialize the recheck.
+    let (a, b) = tokio::join!(claim(&first, 8), claim(&second, 8));
+    let total = a.len() + b.len();
+    assert!(
+        total <= 2,
+        "concurrent claims must never exceed the cluster quota, got {total}"
+    );
+
+    let processing = background_task::Entity::find()
+        .filter(background_task::Column::Status.eq(BackgroundTaskStatus::Processing))
+        .all(state.writer_db())
+        .await
+        .expect("processing task query should succeed");
+    assert_eq!(
+        processing.len(),
+        total,
+        "every claimed row must be Processing in the database"
+    );
+    assert!(
+        processing.len() <= 2,
+        "effective Processing rows must not exceed the quota"
     );
 }
