@@ -1,6 +1,7 @@
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { useTranslation } from "react-i18next";
-import { DEFAULT_I18N_NAMESPACE, i18next } from "@/i18n";
+import { i18next } from "@/i18n";
 import { permissionService } from "@/services/permissionService";
 import type {
 	AdminPermissionInfo,
@@ -12,15 +13,22 @@ let cachedPermissions: AdminPermissionInfo[] | null = null;
 let pendingLoad: Promise<LoadResult> | null = null;
 let loadGeneration = 0;
 let languageTick = 0;
+let cachedBackendT: TFunction | null = null;
 
 type LoadResult =
 	| { ok: true; permissions: AdminPermissionInfo[] }
 	| { ok: false };
 
 /**
- * Message key segments that must never enter the i18n tree: they would
- * pollute the prototype chain.
+ * Dedicated namespace holding the backend message map verbatim.
+ *
+ * Keys stay flat and are looked up with an empty key separator (probed
+ * against i18next 27: flat keys, prefix pairs, and prototype-inherited
+ * segments all resolve correctly this way), so no nested tree is built and
+ * the installer cannot corrupt the store.
  */
+export const PERMISSION_LOCALIZATION_NAMESPACE = "permissions_backend";
+
 const FORBIDDEN_MESSAGE_KEY_SEGMENTS = new Set([
 	"__proto__",
 	"constructor",
@@ -28,74 +36,41 @@ const FORBIDDEN_MESSAGE_KEY_SEGMENTS = new Set([
 ]);
 
 /**
- * Installs the backend message map into the shared translation namespace as
- * a nested tree.
- *
- * Two structural hazards are handled during construction:
- * - Every intermediate node is created with `Object.create(null)`, so a
- *   prototype-inherited segment (`plugin.toString.name`) resolves to
- *   `undefined` instead of an inherited function and can never be written.
- * - A prefix conflict (`a.b` as text next to `a.b.c`) upgrades the string
- *   to a wrapper object, so both full keys survive installation.
- *
- * The backend text overwrites the static bundle at the same key (deep
- * merge, overwrite on), demoting the static copy to a fallback for keys
- * the backend does not carry.
+ * Installs the backend message map verbatim under the dedicated namespace.
+ * Forbidden segments are dropped as defense in depth (the backend rejects
+ * them at construction); the fixed translators look keys up flat.
  */
 export function installPermissionMessages(
 	locale: string,
 	messages: Record<string, string>,
 ): void {
-	const hasOwn = (object: object, key: string) => Object.hasOwn(object, key);
-
-	const root: Record<string, unknown> = {};
+	const safe: Record<string, string> = {};
 	for (const [key, value] of Object.entries(messages)) {
-		const segments = key.split(".");
-		if (
-			segments.some((segment) => FORBIDDEN_MESSAGE_KEY_SEGMENTS.has(segment))
-		) {
-			continue;
+		const forbidden = key
+			.split(".")
+			.some((segment) => FORBIDDEN_MESSAGE_KEY_SEGMENTS.has(segment));
+		if (!forbidden) {
+			safe[key] = value;
 		}
-		let cursor: Record<string, unknown> = root;
-		let conflicted = false;
-		for (const segment of segments.slice(0, -1)) {
-			const existing = hasOwn(cursor, segment) ? cursor[segment] : undefined;
-			if (existing === null || typeof existing === "object") {
-				cursor = existing as Record<string, unknown>;
-				continue;
-			}
-			if (existing === undefined) {
-				// Fresh segment: create the intermediate node and descend.
-				const node: Record<string, unknown> = {};
-				cursor[segment] = node;
-				cursor = node;
-				continue;
-			}
-			// A shorter key's text occupies this prefix. The backend rejects
-			// such conflicts at construction, so this is defense only: skip
-			// the longer key and keep the shorter key addressable.
-			conflicted = true;
-			break;
-		}
-		if (conflicted) {
-			console.warn(
-				`permission localization: skipping conflicting key "${key}"`,
-			);
-			continue;
-		}
-		const leaf = segments[segments.length - 1];
-		const existing = hasOwn(cursor, leaf) ? cursor[leaf] : undefined;
-		if (existing === null || typeof existing === "object") {
-			// A longer key already owns this path: keep the subtree, drop the
-			// conflicting text (same construction-time guarantee).
-			console.warn(
-				`permission localization: skipping conflicting key "${key}"`,
-			);
-			continue;
-		}
-		cursor[leaf] = value;
 	}
-	i18next.addResourceBundle(locale, DEFAULT_I18N_NAMESPACE, root, true, true);
+	i18next.addResourceBundle(
+		locale,
+		PERMISSION_LOCALIZATION_NAMESPACE,
+		safe,
+		false,
+		true,
+	);
+}
+
+/**
+ * Fixed translator bound to the backend namespace with flat-key lookup;
+ * created once and refreshed when the language changes.
+ */
+function backendTranslator(): TFunction {
+	if (!cachedBackendT) {
+		cachedBackendT = i18next.getFixedT(null, PERMISSION_LOCALIZATION_NAMESPACE);
+	}
+	return cachedBackendT;
 }
 
 function activeLocale(): string {
@@ -136,22 +111,29 @@ function loadPermissions(): Promise<LoadResult> {
 			if (loadGeneration !== startedGeneration) {
 				return { ok: false } as LoadResult;
 			}
-			// Install at the requested locale tier: the backend already
-			// resolved parent-tag fallbacks, and the active tier is where the
-			// static bundle lives, so backend text reliably overrides it.
-			installPermissionMessages(locale, bundle.messages);
+			// Install at the tier the backend resolved (its parent-tag
+			// fallback already picked the best variant); the i18n language
+			// hierarchy (en-US -> en) resolves into that tier on lookup.
+			installPermissionMessages(bundle.resolved_locale, bundle.messages);
 			cachedPermissions ??= list.permissions;
 			notifyPermissionsUpdated();
 			return { ok: true, permissions: cachedPermissions } as LoadResult;
 		} catch {
 			// Registry introspection is display-only; a failed request must
-			// not read as "no permissions are registered". A stale failure
-			// leaves the invalidation's cleanup untouched.
-			if (loadGeneration === startedGeneration) pendingLoad = null;
+			// not read as "no permissions are registered".
 			return { ok: false } as LoadResult;
 		}
 	})();
 	pendingLoad = current;
+	// Release the pending slot only when this exact request still owns it
+	// and no invalidation has superseded it: an interleaved retry's failure
+	// must not discard a newer request's slot, and a stale load leaves the
+	// invalidation's cleanup intact.
+	current.finally(() => {
+		if (loadGeneration === startedGeneration && pendingLoad === current) {
+			pendingLoad = null;
+		}
+	});
 	return current;
 }
 
@@ -234,24 +216,35 @@ export function useRegistryPermissions(
 }
 
 // A language switch invalidates the process cache, discards in-flight loads
-// from the previous generation, and bumps the tick that remounted consumers
-// watch, so labels refresh in the new language without a page reload.
+// from the previous generation, drops the cached backend translator, and
+// bumps the tick that remounted consumers watch, so labels refresh in the
+// new language without a page reload.
 i18next.on("languageChanged", () => {
 	cachedPermissions = null;
 	pendingLoad = null;
+	cachedBackendT = null;
 	loadGeneration += 1;
 	languageTick += 1;
 });
 
 /**
- * Resolves the display label for one descriptor: the deep-merged backend
- * messages are looked up through the ordinary `t` chain, falling back to
- * the static bundle copy and finally the server-provided English label.
+ * Resolves the display label for one descriptor: the backend-installed
+ * bundle first (flat lookup, probed against i18next 27), then the static
+ * bundle's key, then the server-provided English fallback.
  */
 export function permissionLabel(
 	permission: AdminPermissionInfo,
 	t: ReturnType<typeof useTranslation>["t"],
 ): string {
+	const MISS = `\u0000${permission.label_i18n_key}`;
+	const backend = backendTranslator()(permission.label_i18n_key, {
+		keySeparator: "",
+		nsSeparator: "\u0000",
+		defaultValue: MISS,
+	});
+	if (backend !== MISS) {
+		return backend;
+	}
 	const translated = t(permission.label_i18n_key);
 	return translated === permission.label_i18n_key
 		? permission.label

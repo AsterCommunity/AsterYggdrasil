@@ -5572,7 +5572,12 @@ export interface components {
              */
             limit?: number | null;
         };
-        /** @description A BCP-47-style locale tag (`en`, `zh-CN`), validated at the segment level. */
+        /**
+         * @description A BCP-47-style locale tag (`en`, `zh-CN`), validated at the segment level.
+         *
+         *     Comparison is ASCII case-insensitive (BCP-47 tags are case-insensitive),
+         *     while the canonical original spelling is preserved for display.
+         */
         LocaleTag: string;
         /** @description Request body for password login with username or email. */
         LoginReq: {

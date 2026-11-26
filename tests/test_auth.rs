@@ -3641,8 +3641,8 @@ async fn permission_localizations_serve_locales_with_etag_negotiation() {
         .expect("first response should carry an etag")
         .to_string();
     assert!(
-        etag.starts_with("W/"),
-        "etag should be the weak validator the endpoint issues: {etag}"
+        etag.starts_with('"') && !etag.contains("W/"),
+        "etag should be a strong validator quoting the representation: {etag}"
     );
     assert_eq!(
         resp.headers()

@@ -33,14 +33,21 @@ vi.mock("@/services/permissionService", () => ({
 			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
 			return { permissions: REGISTRY_PERMISSIONS };
 		}),
-		localizations: vi.fn().mockImplementation(async () => {
+		localizations: vi.fn().mockImplementation(async (locale: string) => {
 			const { REGISTRY_MESSAGES } = await import("@/test/permissions");
+			const zh = locale.startsWith("zh");
+			const messages = zh
+				? {
+						"admin.users.operatorScope.texture_library": "材质库",
+						"admin.users.operatorScope.users": "用户管理",
+					}
+				: REGISTRY_MESSAGES;
 			return {
 				namespace: "permissions",
-				requested_locale: "en",
-				resolved_locale: "en",
+				requested_locale: locale,
+				resolved_locale: zh ? "zh" : "en",
 				revision: "test",
-				messages: REGISTRY_MESSAGES,
+				messages,
 			};
 		}),
 	},
@@ -361,9 +368,7 @@ describe("UserDetailPanel", () => {
 			operator_scopes: ["com.astercosm.yggdrasil.permission.admin.users"],
 		});
 
-		fireEvent.click(
-			await screen.findByRole("switch", { name: "Texture library" }),
-		);
+		fireEvent.click(await screen.findByRole("switch", { name: "材质库" }));
 		fireEvent.click(screen.getByRole("button", { name: "保存更改" }));
 
 		expect(onUpdate).toHaveBeenCalledWith(7, {

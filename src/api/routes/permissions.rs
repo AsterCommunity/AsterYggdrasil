@@ -8,6 +8,7 @@ use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::auth::local;
 use actix_web::{HttpRequest, HttpResponse, http::header, web};
+use aster_forge_crypto as hash;
 use aster_yggdrasil_model::types::permission::PermissionKind;
 use aster_yggdrasil_model::types::permission_localization::LocaleTag;
 use serde::Deserialize;
@@ -118,13 +119,16 @@ pub async fn list_permission_localizations(
     let localization = state.permission_registry().localization();
     let bundle = localization.bundle(&requested);
 
-    // The revision already covers the full message content; the resolved
-    // locale pins the served variant on top of it.
-    let etag = format!(
-        "W/\"sha256-{}-{}\"",
-        bundle.revision,
-        bundle.resolved_locale.as_str()
+    // Strong validator quoting the exact representation: the revision
+    // covers the message content, and both locale tiers pin which variant
+    // was resolved and requested.
+    let representation = format!(
+        "{}\u{0}{}\u{0}{}",
+        bundle.requested_locale.as_str(),
+        bundle.resolved_locale.as_str(),
+        bundle.revision
     );
+    let etag = format!("\"{}\"", hash::sha256_hex(representation.as_bytes()));
     if request_etag_matches(&req, &etag) {
         return Ok(not_modified_response(etag, "private, no-cache"));
     }

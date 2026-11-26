@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { i18next } from "@/i18n";
 import {
-	DEFAULT_I18N_NAMESPACE,
 	installPermissionMessages,
 	type RegistryPermissions,
 	useRegistryPermissions,
@@ -33,6 +32,19 @@ function Mount() {
 	return <Probe registry={useRegistryPermissions("capability")} />;
 }
 
+function flatLookup(key: string): string {
+	const backendT = i18next.getFixedT(null, "permissions_backend");
+	const result = backendT(key, {
+		keySeparator: "",
+		nsSeparator: "\u0000",
+		defaultValue: "MISS",
+	});
+	console.error(
+		`FLATPROBE: ${key} -> ${JSON.stringify(result)} | lng-en=${JSON.stringify(i18next.t(key, { ns: "permissions_backend", lng: "en", keySeparator: "", nsSeparator: "\u0000", defaultValue: "MISS" }))} | exists-plain=${JSON.stringify(i18next.exists(key, { ns: "permissions_backend" }))} | exists-flat=${JSON.stringify(i18next.exists(key, { ns: "permissions_backend", keySeparator: "" }))} | hasBundle(en,backend)=${i18next.hasResourceBundle("en", "permissions_backend")}`,
+	);
+	return result;
+}
+
 describe("useRegistryPermissions", () => {
 	it("serves remounts from the process cache without refetching", async () => {
 		mockedLocalizations.mockResolvedValue({
@@ -57,61 +69,49 @@ describe("useRegistryPermissions", () => {
 		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
 	});
 
-	it("drops forbidden segments and serves backend text through t()", () => {
+	it("installs the bundle verbatim and resolves flat keys, prefix pairs, and prototype segments", () => {
 		// Direct installation keeps this test independent of the module-level
-		// cache state left by earlier hook tests.
-		installPermissionMessages("en-US", {
-			// Forbidden segment: dropped before installation.
+		// cache left by earlier hook tests (the probe matrix proved the flat
+		// namespace resolves all these shapes on i18next 27).
+		installPermissionMessages("en", {
 			"plugin.__proto__.escape": "evil",
-			"admin.users.bans.scope.texture_upload": "Backend override label",
-		});
-		expect(
-			i18next.t("admin.users.bans.scope.texture_upload", {
-				ns: DEFAULT_I18N_NAMESPACE,
-				lng: "en-US",
-			}),
-		).toBe("Backend override label");
-		// The forbidden key never entered the tree.
-		expect(
-			i18next.t("plugin.__proto__.escape", {
-				ns: DEFAULT_I18N_NAMESPACE,
-				lng: "en-US",
-				defaultValue: "MISSING",
-			}),
-		).toBe("MISSING");
-	});
-
-	it("backend-installed labels override the static bundle copy", () => {
-		installPermissionMessages("en-US", {
-			"admin.users.bans.scope.texture_upload": "Backend override label",
-		});
-		expect(
-			i18next.t("admin.users.bans.scope.texture_upload", {
-				ns: DEFAULT_I18N_NAMESPACE,
-				lng: "en-US",
-			}),
-		).toBe("Backend override label");
-	});
-
-	it("skips keys that conflict with an installed prefix", () => {
-		installPermissionMessages("en-US", {
 			"com.example.capability": "Short text",
 			"com.example.capability.detail": "Detail text",
+			"plugin.toString.name": "Proto segment label",
+			"admin.users.bans.scope.texture_upload": "Backend override label",
 		});
-		// The backend rejects this shape at construction; the installer's
-		// defense keeps the shorter key addressable and drops the longer one.
-		expect(
-			i18next.t("com.example.capability", {
-				ns: DEFAULT_I18N_NAMESPACE,
-				lng: "en-US",
-			}),
-		).toBe("Short text");
-		expect(
-			i18next.t("com.example.capability.detail", {
-				ns: DEFAULT_I18N_NAMESPACE,
-				lng: "en-US",
-				defaultValue: "MISSING",
-			}),
-		).toBe("MISSING");
+
+		expect(flatLookup("com.example.capability")).toBe("Short text");
+		expect(flatLookup("com.example.capability.detail")).toBe("Detail text");
+		expect(flatLookup("plugin.toString.name")).toBe("Proto segment label");
+		expect(flatLookup("admin.users.bans.scope.texture_upload")).toBe(
+			"Backend override label",
+		);
+		// The forbidden segment never entered the store.
+		expect(flatLookup("plugin.__proto__.escape")).toBe("MISS");
+	});
+
+	it("refetches the localization bundle when the language changes", async () => {
+		await i18next.changeLanguage("en-US");
+		mockedLocalizations.mockImplementation(async (locale: string) => ({
+			namespace: "permissions",
+			requested_locale: locale,
+			resolved_locale: locale.startsWith("zh") ? "zh" : "en",
+			revision: `test-${locale}`,
+			messages: locale.startsWith("zh")
+				? { "admin.users.bans.scope.texture_upload": "材质上传" }
+				: { "admin.users.bans.scope.texture_upload": "Texture upload" },
+		}));
+
+		const { unmount } = render(<Mount />);
+		expect(await screen.findByText("ready")).toBeInTheDocument();
+		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
+		unmount();
+
+		await i18next.changeLanguage("zh-CN");
+		render(<Mount />);
+		expect(await screen.findByText("ready")).toBeInTheDocument();
+		expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
+		await i18next.changeLanguage("en-US");
 	});
 });

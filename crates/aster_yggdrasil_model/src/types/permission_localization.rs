@@ -291,6 +291,24 @@ impl PermissionLocalization {
         };
         validate_messages(&self.default_locale, default_messages)?;
         let default_keys = default_messages.keys().collect::<BTreeSet<_>>();
+
+        // A message id that is a segment-wise prefix of another id (a.b
+        // next to a.b.c) cannot be addressed in a nested i18n store, where
+        // a node is either text or a subtree but never both. Reject it here
+        // so both construction paths refuse the shape and the frontend
+        // installer never sees one.
+        let mut sorted_ids: Vec<&str> = default_keys.iter().map(|key| key.as_str()).collect();
+        sorted_ids.sort_unstable();
+        for pair in sorted_ids.windows(2) {
+            let (shorter, longer) = (pair[0], pair[1]);
+            if longer.starts_with(shorter) && longer[shorter.len()..].starts_with('.') {
+                return Err(PermissionLocalizationError(format!(
+                    "permission message id '{}' is a segment-wise prefix of '{}'; nested i18n stores cannot address both",
+                    shorter, longer
+                )));
+            }
+        }
+
         let default_placeholders = default_messages
             .iter()
             .map(|(key, value)| (key, interpolation_placeholders(value)))
