@@ -6,7 +6,7 @@ use crate::runtime::{
 };
 use crate::services::{texture, user};
 use aster_yggdrasil_model::entities::minecraft_profile;
-use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_protocol::YggdrasilProfile;
 use serde::Serialize;
 
@@ -96,7 +96,7 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     tracing::debug!(user_id, name_len = name.len(), "creating minecraft profile");
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::MinecraftProfileManage).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::profile::MANAGE).await?;
     validate_profile_name(name)?;
     if minecraft_profile_repo::find_by_name(state.reader_db(), name)
         .await?
@@ -148,7 +148,7 @@ where
         profile_uuid = uuid,
         "deleting minecraft profile for user"
     );
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::MinecraftProfileManage).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::profile::MANAGE).await?;
     let Some(profile) =
         minecraft_profile_repo::find_by_uuid_for_user(state.reader_db(), uuid, user_id).await?
     else {
@@ -204,7 +204,7 @@ where
         new_name_len = new_name.len(),
         "renaming minecraft profile for user"
     );
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::MinecraftProfileManage).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::profile::MANAGE).await?;
     validate_profile_name(new_name)?;
     let Some(profile) =
         minecraft_profile_repo::find_by_uuid_for_user(state.reader_db(), uuid, user_id).await?

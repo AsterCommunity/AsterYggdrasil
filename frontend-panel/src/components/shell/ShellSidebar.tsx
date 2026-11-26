@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { AppliedBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
-import type { OperatorScope } from "@/types/api";
+import type { PermissionId } from "@/types/api";
 
 export function ShellSidebar({
 	branding,
@@ -28,7 +28,7 @@ export function ShellSidebar({
 	branding: AppliedBranding;
 	desktopCollapsed: boolean;
 	isAdmin: boolean;
-	operatorScopes: readonly OperatorScope[];
+	operatorScopes: readonly PermissionId[];
 	textureLibraryEnabled: boolean;
 	mobileOpen: boolean;
 	onMobileClose: () => void;

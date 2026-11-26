@@ -2,14 +2,14 @@
 
 use crate::errors::{AsterError, MapAsterErr, Result};
 use aster_yggdrasil_model::entities::user_operator_scope::{self, Entity as UserOperatorScope};
-use aster_yggdrasil_model::types::user::OperatorScope;
+use aster_yggdrasil_model::types::permission::PermissionId;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Lists all operator scopes granted to a user, sorted by scope value ascending.
-pub async fn list_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<Vec<OperatorScope>> {
+pub async fn list_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<Vec<PermissionId>> {
     let rows = UserOperatorScope::find()
         .filter(user_operator_scope::Column::UserId.eq(user_id))
         .order_by_asc(user_operator_scope::Column::Scope)
@@ -26,7 +26,7 @@ pub async fn list_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<V
 pub async fn list_for_user_ids<C: ConnectionTrait>(
     db: &C,
     user_ids: &[i64],
-) -> Result<BTreeMap<i64, Vec<OperatorScope>>> {
+) -> Result<BTreeMap<i64, Vec<PermissionId>>> {
     if user_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -54,7 +54,7 @@ pub async fn list_for_user_ids<C: ConnectionTrait>(
 pub async fn replace_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
-    scopes: &[OperatorScope],
+    scopes: &[PermissionId],
 ) -> Result<()> {
     UserOperatorScope::delete_many()
         .filter(user_operator_scope::Column::UserId.eq(user_id))
@@ -63,7 +63,7 @@ pub async fn replace_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)?;
 
     let now = chrono::Utc::now();
-    let unique_scopes = scopes.iter().copied().collect::<BTreeSet<_>>();
+    let unique_scopes = scopes.iter().cloned().collect::<BTreeSet<_>>();
     for scope in unique_scopes {
         user_operator_scope::ActiveModel {
             user_id: Set(user_id),

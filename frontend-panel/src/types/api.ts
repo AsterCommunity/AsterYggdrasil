@@ -120,7 +120,6 @@ export type UpdateUserBanRequest =
 export type UserBanEventInfo = components["schemas"]["UserBanEventInfo"];
 export type UserBanEventType = components["schemas"]["UserBanEventType"];
 export type UserBanInfo = components["schemas"]["UserBanInfo"];
-export type UserBanScope = components["schemas"]["UserBanScope"];
 export type UserBanStatus = components["schemas"]["UserBanStatus"];
 export type AdminUserInvitationInfo =
 	components["schemas"]["AdminUserInvitationInfo"];
@@ -145,7 +144,9 @@ export type AdminOverviewTrendPoint =
 	components["schemas"]["AdminOverviewTrendPoint"];
 export type UserInvitationStatus =
 	components["schemas"]["UserInvitationStatus"];
-export type OperatorScope = components["schemas"]["OperatorScope"];
+export type PermissionId = components["schemas"]["PermissionId"];
+export type PermissionKind = components["schemas"]["PermissionKind"];
+export type AdminPermissionInfo = components["schemas"]["AdminPermissionInfo"];
 export type PublicUserInvitationInfo =
 	components["schemas"]["PublicUserInvitationInfo"];
 export type AcceptUserInvitationRequest =

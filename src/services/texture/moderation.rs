@@ -20,8 +20,9 @@ use aster_forge_api::NullablePatch;
 use aster_yggdrasil_model::entities::{
     minecraft_profile, minecraft_texture, minecraft_texture_report, user, yggdrasil_token,
 };
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_model::types::{
-    user::UserBanScope, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureReportStatus,
+    yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureReportStatus,
     yggdrasil::MinecraftTextureType, yggdrasil::MinecraftTextureVisibility,
 };
 use futures::StreamExt;
@@ -552,16 +553,12 @@ where
         + RuntimeConfigRuntimeState
         + TextureStorageRuntimeState,
 {
-    user_services::ban::ensure_user_not_banned(state, profile.user_id, UserBanScope::TextureUpload)
+    user_services::ban::ensure_user_not_banned(state, profile.user_id, capability::texture::UPLOAD)
         .await
         .map_err(TextureError::from)?;
-    user_services::ban::ensure_user_not_banned(
-        state,
-        profile.user_id,
-        UserBanScope::MinecraftProfileManage,
-    )
-    .await
-    .map_err(TextureError::from)?;
+    user_services::ban::ensure_user_not_banned(state, profile.user_id, capability::profile::MANAGE)
+        .await
+        .map_err(TextureError::from)?;
     tracing::debug!(
         profile_id = profile.id,
         profile_uuid = %profile.uuid,
@@ -649,7 +646,7 @@ pub async fn store_wardrobe_texture<S>(
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState + TextureStorageRuntimeState,
 {
-    user_services::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload)
+    user_services::ban::ensure_user_not_banned(state, user_id, capability::texture::UPLOAD)
         .await
         .map_err(TextureError::from)?;
     tracing::debug!(

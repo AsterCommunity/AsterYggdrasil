@@ -17,7 +17,7 @@ use crate::runtime::{
 use crate::services::{ops::audit, user, yggdrasil::signature};
 use aster_forge_crypto::sha256_hex;
 use aster_yggdrasil_model::entities::yggdrasil_session_forward_server;
-use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardProviderKind,
 };
@@ -60,7 +60,7 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
     };
-    if user::ban::is_user_banned(state, token.user_id, UserBanScope::YggdrasilJoin)
+    if user::ban::is_user_banned(state, token.user_id, capability::yggdrasil::JOIN)
         .await
         .map_err(YggdrasilError::from)?
     {
@@ -240,7 +240,7 @@ where
     let profile = minecraft_profile_repo::find_by_id(state.reader_db(), session.profile_id)
         .await
         .map_err(YggdrasilError::from)?;
-    if user::ban::is_user_banned(state, profile.user_id, UserBanScope::YggdrasilJoin)
+    if user::ban::is_user_banned(state, profile.user_id, capability::yggdrasil::JOIN)
         .await
         .map_err(YggdrasilError::from)?
     {

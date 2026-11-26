@@ -1,5 +1,7 @@
-//! User account domain types: roles, operator scopes, bans, and invitations.
+//! User account domain types: roles, permission-scoped grants, bans, and
+//! invitations.
 
+use super::permission::PermissionId;
 use sea_orm::{DeriveValueType, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -24,114 +26,21 @@ pub enum UserRole {
 
 impl UserRole {
     /// Whether this role is the full administrator, which gates admin-only
-    /// routes independently of [`OperatorScope`] grants.
+    /// routes independently of permission grants.
     pub const fn is_admin(self) -> bool {
         matches!(self, Self::Admin)
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    EnumIter,
-    DeriveActiveEnum,
-    Serialize,
-    Deserialize,
-)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(32))")]
-/// Admin-panel permission scope granted to an operator account; full admins
-/// pass every scope gate without holding any of these.
-#[serde(rename_all = "snake_case")]
-pub enum OperatorScope {
-    /// Dashboard and server overview pages.
-    #[sea_orm(string_value = "overview")]
-    Overview,
-    /// User account management.
-    #[sea_orm(string_value = "users")]
-    Users,
-    /// Minecraft profile management.
-    #[sea_orm(string_value = "profiles")]
-    Profiles,
-    /// Texture library moderation.
-    #[sea_orm(string_value = "texture_library")]
-    TextureLibrary,
-    /// Audit log access.
-    #[sea_orm(string_value = "audit")]
-    Audit,
-    /// Background task management.
-    #[sea_orm(string_value = "tasks")]
-    Tasks,
-    /// Runtime and system configuration.
-    #[sea_orm(string_value = "settings")]
-    Settings,
-    /// External authentication provider management.
-    #[sea_orm(string_value = "external_auth")]
-    ExternalAuth,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    EnumIter,
-    DeriveActiveEnum,
-    Serialize,
-    Deserialize,
-)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(48))")]
-/// One independently enforceable punishment scope of a user ban.
-#[serde(rename_all = "snake_case")]
-pub enum UserBanScope {
-    /// Blocks Yggdrasil authenticate/refresh/token operations.
-    #[sea_orm(string_value = "yggdrasil_access")]
-    YggdrasilAccess,
-    /// Blocks the multiplayer join handshake for this account.
-    #[sea_orm(string_value = "yggdrasil_join")]
-    YggdrasilJoin,
-    /// Blocks creating, renaming, or deleting Minecraft profiles.
-    #[sea_orm(string_value = "minecraft_profile_manage")]
-    MinecraftProfileManage,
-    /// Blocks uploading new textures.
-    #[sea_orm(string_value = "texture_upload")]
-    TextureUpload,
-    /// Blocks interacting with the shared texture library.
-    #[sea_orm(string_value = "texture_library_interact")]
-    TextureLibraryInteract,
-}
-
-impl UserBanScope {
-    /// Canonical storage/serialization string for this scope.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::YggdrasilAccess => "yggdrasil_access",
-            Self::YggdrasilJoin => "yggdrasil_join",
-            Self::MinecraftProfileManage => "minecraft_profile_manage",
-            Self::TextureUpload => "texture_upload",
-            Self::TextureLibraryInteract => "texture_library_interact",
-        }
-    }
-}
-
 /// DB wrapper storing a ban's scope set as a sorted, deduplicated JSON array
-/// of [`UserBanScope`] strings.
+/// of [`PermissionId`] strings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, DeriveValueType)]
 pub struct UserBanScopes(pub String);
 
 impl UserBanScopes {
-    /// Builds the wrapper from a scope list, normalized (sorted and
+    /// Builds the wrapper from a capability list, normalized (sorted and
     /// deduplicated) before serialization; rejects an empty list.
-    pub fn new(scopes: Vec<UserBanScope>) -> Result<Self, UserBanScopesError> {
+    pub fn new(scopes: Vec<PermissionId>) -> Result<Self, UserBanScopesError> {
         let scopes = normalize_user_ban_scopes(scopes)?;
         let raw = serde_json::to_string(&scopes).map_err(|_| UserBanScopesError::Invalid)?;
         Ok(Self(raw))
@@ -145,18 +54,18 @@ impl UserBanScopes {
         Ok(value)
     }
 
-    /// Decodes and re-normalizes the stored JSON into a scope list.
-    pub fn as_vec(&self) -> Result<Vec<UserBanScope>, UserBanScopesError> {
-        let scopes = serde_json::from_str::<Vec<UserBanScope>>(&self.0)
+    /// Decodes and re-normalizes the stored JSON into a capability list.
+    pub fn as_vec(&self) -> Result<Vec<PermissionId>, UserBanScopesError> {
+        let scopes = serde_json::from_str::<Vec<PermissionId>>(&self.0)
             .map_err(|_| UserBanScopesError::Invalid)?;
         normalize_user_ban_scopes(scopes)
     }
 
-    /// Whether the ban covers `scope`; an unparseable stored value treats as
-    /// not containing it rather than failing the check path.
-    pub fn contains(&self, scope: UserBanScope) -> bool {
+    /// Whether the ban covers `capability`; an unparseable stored value
+    /// treats as not containing it rather than failing the check path.
+    pub fn contains(&self, capability: &PermissionId) -> bool {
         self.as_vec()
-            .map(|scopes| scopes.contains(&scope))
+            .map(|scopes| scopes.contains(capability))
             .unwrap_or(false)
     }
 }
@@ -171,8 +80,8 @@ pub enum UserBanScopesError {
 }
 
 fn normalize_user_ban_scopes(
-    mut scopes: Vec<UserBanScope>,
-) -> Result<Vec<UserBanScope>, UserBanScopesError> {
+    mut scopes: Vec<PermissionId>,
+) -> Result<Vec<PermissionId>, UserBanScopesError> {
     scopes.sort_unstable();
     scopes.dedup();
     if scopes.is_empty() {

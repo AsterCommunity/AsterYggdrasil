@@ -16,6 +16,15 @@ const accountServiceMock = vi.hoisted(() => ({
 	overview: vi.fn(),
 }));
 
+vi.mock("@/services/permissionService", () => ({
+	permissionService: {
+		list: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
+			return { permissions: REGISTRY_PERMISSIONS };
+		}),
+	},
+}));
+
 vi.mock("@/services/accountService", () => ({
 	accountService: accountServiceMock,
 }));
@@ -51,7 +60,7 @@ const activeBan: AccountUserBanInfo = {
 	public_reason: "Visible policy reason",
 	reason: "Internal fallback reason",
 	revoked_at: null,
-	scopes: ["texture_upload"],
+	scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 	starts_at: "2026-06-18T00:00:00.000Z",
 	status: "active",
 	updated_at: "2026-06-18T00:00:00.000Z",
@@ -166,7 +175,9 @@ describe("AccountOverviewPage", () => {
 		expect(
 			await screen.findByText("1 capability is currently restricted."),
 		).toBeInTheDocument();
-		expect(screen.getByText("Texture upload")).toBeInTheDocument();
+		expect(
+			await screen.findByText("Texture upload and wardrobe"),
+		).toBeInTheDocument();
 		expect(screen.getByText("Visible policy reason")).toBeInTheDocument();
 		expect(
 			screen.queryByText("Internal fallback reason"),

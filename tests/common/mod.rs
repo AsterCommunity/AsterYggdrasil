@@ -472,6 +472,21 @@ pub async fn mysql_test_database_url() -> String {
     resolve_test_database_url_for(TestDatabaseBackend::MySql).await
 }
 
+/// Provisions an isolated PostgreSQL database with **no** migrations applied,
+/// for tests that replay partial migration sequences against legacy data.
+pub async fn empty_postgres_test_database_url() -> String {
+    let (admin_database_url, database_url) =
+        shared_test_database_urls(TestDatabaseBackend::Postgres).await;
+    provision_isolated_test_database_url(&admin_database_url, &database_url).await
+}
+
+/// Provisions an isolated MySQL database with **no** migrations applied.
+pub async fn empty_mysql_test_database_url() -> String {
+    let (admin_database_url, database_url) =
+        shared_test_database_urls(TestDatabaseBackend::MySql).await;
+    provision_isolated_test_database_url(&admin_database_url, &database_url).await
+}
+
 pub async fn setup() -> AppState {
     init_test_process_state();
     let database_url = resolve_test_database_url().await;

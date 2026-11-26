@@ -10,7 +10,7 @@ const authState = vi.hoisted(() => ({
 	checking: false,
 	canAccessAdminShell: false,
 	errorCode: null as string | null,
-	hasOperatorScope: vi.fn(),
+	hasPermissionId: vi.fn(),
 	hydrate: vi.fn(),
 	isAdmin: false,
 	isAuthenticated: false,
@@ -76,8 +76,8 @@ describe("route guards", () => {
 		authState.checking = false;
 		authState.canAccessAdminShell = false;
 		authState.errorCode = null;
-		authState.hasOperatorScope.mockReset();
-		authState.hasOperatorScope.mockImplementation((scope: string) =>
+		authState.hasPermissionId.mockReset();
+		authState.hasPermissionId.mockImplementation((scope: string) =>
 			authState.operatorScopes.includes(scope),
 		);
 		authState.hydrate.mockReset();
@@ -132,7 +132,9 @@ describe("route guards", () => {
 	it("allows operator admin routes when the matching scope is present", async () => {
 		authState.canAccessAdminShell = true;
 		authState.isAuthenticated = true;
-		authState.operatorScopes = ["overview"];
+		authState.operatorScopes = [
+			"com.astercosm.yggdrasil.permission.admin.overview",
+		];
 		authState.user = { must_change_password: false, role: "operator" };
 
 		renderAdminRoute();
@@ -143,7 +145,9 @@ describe("route guards", () => {
 	it("blocks operator admin routes when the matching scope is missing", async () => {
 		authState.canAccessAdminShell = true;
 		authState.isAuthenticated = true;
-		authState.operatorScopes = ["texture_library"];
+		authState.operatorScopes = [
+			"com.astercosm.yggdrasil.permission.admin.texture_library",
+		];
 		authState.user = { must_change_password: false, role: "operator" };
 
 		renderAdminRoute("/admin/users");
@@ -157,7 +161,9 @@ describe("route guards", () => {
 	it("allows operator minecraft profile detail routes with profiles scope", async () => {
 		authState.canAccessAdminShell = true;
 		authState.isAuthenticated = true;
-		authState.operatorScopes = ["profiles"];
+		authState.operatorScopes = [
+			"com.astercosm.yggdrasil.permission.admin.profiles",
+		];
 		authState.user = { must_change_password: false, role: "operator" };
 
 		renderAdminRoute("/admin/minecraft-profiles/profile-uuid");

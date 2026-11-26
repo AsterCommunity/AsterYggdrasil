@@ -8,7 +8,8 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::services::{ops::audit::AuditLogEntry, user::ban::UserBanInfo};
 use aster_yggdrasil_model::types::audit::AuditEntityType;
-use aster_yggdrasil_model::types::user::{UserBanScope, UserBanStatus};
+use aster_yggdrasil_model::types::permission::PermissionId;
+use aster_yggdrasil_model::types::user::UserBanStatus;
 
 /// Account overview shown on the current user's home page.
 #[derive(Debug, Clone, Serialize)]
@@ -74,7 +75,7 @@ impl AccountAuditLogFilterQuery {
 )]
 pub struct AccountUserBanListQuery {
     /// Optional ban scope filter.
-    pub scope: Option<UserBanScope>,
+    pub scope: Option<PermissionId>,
     /// Optional stored ban status filter.
     pub status: Option<UserBanStatus>,
     /// When true, only bans whose effective status is currently active are
@@ -93,7 +94,7 @@ pub struct AccountUserBanInfo {
     /// Ban record id.
     pub id: i64,
     /// Capability scopes the user loses while this ban is effective.
-    pub scopes: Vec<UserBanScope>,
+    pub scopes: Vec<PermissionId>,
     /// Stored status of the ban record.
     pub status: UserBanStatus,
     /// Status after applying the time window; e.g. an active ban is expired

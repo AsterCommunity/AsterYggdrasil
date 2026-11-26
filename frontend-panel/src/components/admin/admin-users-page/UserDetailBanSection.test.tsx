@@ -44,6 +44,15 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 	};
 });
 
+vi.mock("@/services/permissionService", () => ({
+	permissionService: {
+		list: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
+			return { permissions: REGISTRY_PERMISSIONS };
+		}),
+	},
+}));
+
 function ban(overrides: Partial<UserBanInfo> = {}): UserBanInfo {
 	return {
 		admin_note: "internal note",
@@ -58,7 +67,7 @@ function ban(overrides: Partial<UserBanInfo> = {}): UserBanInfo {
 		revoke_note: null,
 		revoked_at: null,
 		revoked_by_user_id: null,
-		scopes: ["texture_upload"],
+		scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 		starts_at: "2026-06-18T00:00:00Z",
 		status: "active",
 		updated_at: "2026-06-18T00:00:00Z",
@@ -84,7 +93,7 @@ function event(overrides: Partial<UserBanEventInfo> = {}): UserBanEventInfo {
 		event_type: "created",
 		id: 21,
 		next_expires_at: null,
-		next_scopes: ["texture_upload"],
+		next_scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 		next_status: "active",
 		note: "upload abuse",
 		previous_expires_at: null,
@@ -186,11 +195,47 @@ describe("UserDetailBanSection", () => {
 				expires_at: null,
 				public_reason: "visible",
 				reason: "profile abuse",
-				scopes: ["yggdrasil_access"],
+				scopes: ["com.astercosm.yggdrasil.capability.yggdrasil.access"],
 				starts_at: new Date("2026-06-18T09:30").toISOString(),
 			});
 		});
 		expect(toastMock.success).toHaveBeenCalledWith("Ban created");
+	});
+
+	it("unchecks an extra capability before submitting the ban", async () => {
+		adminUserServiceMock.listBans
+			.mockResolvedValueOnce(banPage([]))
+			.mockResolvedValueOnce(banPage([]));
+		renderSection();
+		await screen.findByText("This user has no ban records.");
+
+		fireEvent.click(screen.getByRole("button", { name: "Add ban" }));
+		const dialog = topDialog();
+
+		const joinCheckbox = within(dialog).getByRole("checkbox", {
+			name: "Yggdrasil server join",
+		});
+		fireEvent.click(joinCheckbox);
+		expect(joinCheckbox).toBeChecked();
+		// Unchecking exercises the removal path; the default capability stays.
+		fireEvent.click(joinCheckbox);
+		expect(joinCheckbox).not.toBeChecked();
+
+		fireEvent.change(within(dialog).getByLabelText("Reason"), {
+			target: { value: "scope toggle" },
+		});
+		fireEvent.click(within(dialog).getByRole("button", { name: "Add ban" }));
+
+		await waitFor(() => {
+			expect(adminUserServiceMock.createBan).toHaveBeenCalledWith(7, {
+				admin_note: null,
+				expires_at: null,
+				public_reason: null,
+				reason: "scope toggle",
+				scopes: ["com.astercosm.yggdrasil.capability.yggdrasil.access"],
+				starts_at: null,
+			});
+		});
 	});
 
 	it("edits active bans with nullable clear fields", async () => {
@@ -219,7 +264,7 @@ describe("UserDetailBanSection", () => {
 				expires_at: null,
 				public_reason: null,
 				reason: "profile abuse",
-				scopes: ["texture_upload"],
+				scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 				starts_at: "2026-06-18T00:00:00.000Z",
 			});
 		});

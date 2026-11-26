@@ -24,10 +24,10 @@ use crate::runtime::{
 use crate::services::user;
 use aster_forge_api::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
 use aster_yggdrasil_model::entities::minecraft_texture;
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_model::types::{
-    user::UserBanScope, yggdrasil::MinecraftTextureLibraryStatus,
-    yggdrasil::MinecraftTextureReportReason, yggdrasil::MinecraftTextureReportStatus,
-    yggdrasil::MinecraftTextureVisibility,
+    yggdrasil::MinecraftTextureLibraryStatus, yggdrasil::MinecraftTextureReportReason,
+    yggdrasil::MinecraftTextureReportStatus, yggdrasil::MinecraftTextureVisibility,
 };
 use chrono::{DateTime, Utc};
 
@@ -187,7 +187,8 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     ensure_texture_library_enabled(state)?;
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureLibraryInteract).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture_library::INTERACT)
+        .await?;
     let texture = user_wardrobe_texture(state, user_id, texture_id).await?;
     if texture.visibility != MinecraftTextureVisibility::Public {
         return Err(AsterError::validation_error_code(
@@ -235,7 +236,8 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     ensure_texture_library_enabled(state)?;
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureLibraryInteract).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture_library::INTERACT)
+        .await?;
     let texture = user_wardrobe_texture(state, user_id, texture_id).await?;
     let updated = minecraft_texture_repo::update_library_review(
         state.writer_db(),
@@ -518,7 +520,7 @@ where
     user::ban::ensure_user_not_banned(
         state,
         reporter_user_id,
-        UserBanScope::TextureLibraryInteract,
+        capability::texture_library::INTERACT,
     )
     .await?;
     let texture = public_reportable_texture(state, texture_id).await?;

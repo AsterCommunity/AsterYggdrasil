@@ -1,8 +1,12 @@
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { OPERATOR_SCOPES } from "@/lib/operatorScopes";
-import type { OperatorScope } from "@/types/api";
+import {
+	permissionLabel,
+	useRegistryPermissions,
+} from "@/lib/permissionRegistry";
+import type { PermissionId } from "@/types/api";
 
 export function OperatorScopeSelector({
 	disabled = false,
@@ -10,10 +14,15 @@ export function OperatorScopeSelector({
 	value,
 }: {
 	disabled?: boolean;
-	onChange: (value: OperatorScope[]) => void;
-	value: OperatorScope[];
+	onChange: (value: PermissionId[]) => void;
+	value: PermissionId[];
 }) {
 	const { t } = useTranslation();
+	const {
+		permissions: adminAreas,
+		status,
+		retry,
+	} = useRegistryPermissions("admin_area");
 	const selected = new Set(value);
 
 	return (
@@ -26,36 +35,51 @@ export function OperatorScopeSelector({
 					{t("admin.users.operatorScopesDescription")}
 				</p>
 			</div>
-			<div className="grid gap-2 sm:grid-cols-2">
-				{OPERATOR_SCOPES.map((scope) => {
-					const checked = selected.has(scope);
-					const inputId = `operator-scope-${scope}`;
-					return (
-						<div
-							key={scope}
-							className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/55 px-3 py-2 dark:border-white/10 dark:bg-card/40"
-						>
-							<Label htmlFor={inputId} className="min-w-0 text-sm leading-5">
-								{t(`admin.users.operatorScope.${scope}`)}
-							</Label>
-							<Switch
-								id={inputId}
-								size="sm"
-								checked={checked}
-								disabled={disabled}
-								onCheckedChange={(nextChecked) => {
-									if (nextChecked) {
-										onChange([...value, scope]);
-										return;
-									}
-									onChange(value.filter((item) => item !== scope));
-								}}
-								aria-label={t(`admin.users.operatorScope.${scope}`)}
-							/>
-						</div>
-					);
-				})}
-			</div>
+			{status === "error" ? (
+				<div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm">
+					<span className="text-destructive">
+						{t("admin.users.permissionsLoadFailed")}
+					</span>
+					<Button type="button" variant="outline" size="sm" onClick={retry}>
+						{t("admin.users.retryPermissionsLoad")}
+					</Button>
+				</div>
+			) : status === "loading" ? (
+				<div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground text-sm dark:border-white/10 dark:bg-white/[0.03]">
+					{t("admin.users.operatorScopesLoading")}
+				</div>
+			) : (
+				<div className="grid gap-2 sm:grid-cols-2">
+					{adminAreas.map((permission) => {
+						const checked = selected.has(permission.id);
+						const inputId = `operator-scope-${permission.id}`;
+						return (
+							<div
+								key={permission.id}
+								className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/55 px-3 py-2 dark:border-white/10 dark:bg-card/40"
+							>
+								<Label htmlFor={inputId} className="min-w-0 text-sm leading-5">
+									{permissionLabel(permission, t)}
+								</Label>
+								<Switch
+									id={inputId}
+									size="sm"
+									checked={checked}
+									disabled={disabled}
+									onCheckedChange={(nextChecked) => {
+										if (nextChecked) {
+											onChange([...value, permission.id]);
+											return;
+										}
+										onChange(value.filter((item) => item !== permission.id));
+									}}
+									aria-label={permissionLabel(permission, t)}
+								/>
+							</div>
+						);
+					})}
+				</div>
+			)}
 		</div>
 	);
 }

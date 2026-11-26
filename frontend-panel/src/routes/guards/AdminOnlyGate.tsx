@@ -6,9 +6,9 @@ import {
 import { RouteAccessState } from "@/routes/guards/RouteAccessState";
 import { accountPaths, adminPaths } from "@/routes/routePaths";
 import { useAuthStore } from "@/stores/authStore";
-import type { OperatorScope } from "@/types/api";
+import type { PermissionId } from "@/types/api";
 
-function scopeForAdminPath(pathname: string): OperatorScope | null {
+function scopeForAdminPath(pathname: string): PermissionId | null {
 	for (const [pattern, scope] of Object.entries(ADMIN_NAV_SCOPE_BY_PATH)) {
 		if (matchPath({ path: pattern, end: true }, pathname)) {
 			return scope;
@@ -24,7 +24,7 @@ export function AdminOnlyGate() {
 		(state) => state.canAccessAdminShell,
 	);
 	const operatorScopes = useAuthStore((state) => state.operatorScopes);
-	const hasOperatorScope = useAuthStore((state) => state.hasOperatorScope);
+	const hasPermissionId = useAuthStore((state) => state.hasPermissionId);
 	const mustChangePassword = useAuthStore(
 		(state) => state.user?.must_change_password ?? false,
 	);
@@ -52,7 +52,7 @@ export function AdminOnlyGate() {
 		) {
 			return <Navigate to={fallbackPath} replace />;
 		}
-		if (!requestedScope || !hasOperatorScope(requestedScope)) {
+		if (!requestedScope || !hasPermissionId(requestedScope)) {
 			return (
 				<RouteAccessState
 					actionHref={fallbackPath ?? accountPaths.home}

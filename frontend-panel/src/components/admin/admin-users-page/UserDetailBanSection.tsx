@@ -25,24 +25,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { handleApiError } from "@/hooks/useApiError";
+import {
+	permissionLabel,
+	permissionLabels,
+	useRegistryPermissions,
+} from "@/lib/permissionRegistry";
 import { cn } from "@/lib/utils";
 import { adminUserService } from "@/services/adminService";
 import type {
+	AdminPermissionInfo,
 	CreateUserBanRequest,
+	PermissionId,
 	UpdateUserBanRequest,
 	UserBanEventInfo,
 	UserBanInfo,
-	UserBanScope,
 	UserBanStatus,
 } from "@/types/api";
-
-const USER_BAN_SCOPES = [
-	"yggdrasil_access",
-	"yggdrasil_join",
-	"minecraft_profile_manage",
-	"texture_upload",
-	"texture_library_interact",
-] as const satisfies readonly UserBanScope[];
 
 type BanDialogState =
 	| { mode: "create"; ban?: undefined }
@@ -53,7 +51,7 @@ type BanFormState = {
 	expiresAt: string;
 	publicReason: string;
 	reason: string;
-	scopes: UserBanScope[];
+	scopes: PermissionId[];
 	startsAt: string;
 };
 
@@ -69,7 +67,9 @@ function createBanFormState(ban?: UserBanInfo): BanFormState {
 		expiresAt: toDateTimeLocal(ban?.expires_at),
 		publicReason: ban?.public_reason ?? "",
 		reason: ban?.reason ?? "",
-		scopes: ban?.scopes?.length ? [...ban.scopes] : ["yggdrasil_access"],
+		scopes: ban?.scopes?.length
+			? [...ban.scopes]
+			: ["com.astercosm.yggdrasil.capability.yggdrasil.access"],
 		startsAt: toDateTimeLocal(ban?.starts_at),
 	};
 }
@@ -336,6 +336,8 @@ function BanRow({
 	onRevoke: () => void;
 }) {
 	const { t } = useTranslation();
+	const { permissions: capabilityList } = useRegistryPermissions("capability");
+	const capabilityLabels = permissionLabels(capabilityList);
 	const active = ban.effective;
 	return (
 		<div className="grid gap-3 p-4 lg:grid-cols-[minmax(13rem,1.1fr)_minmax(0,1.4fr)_minmax(15rem,1fr)_auto] lg:items-center">
@@ -348,7 +350,7 @@ function BanRow({
 						{t(`admin.users.bans.status.${ban.effective_status}`)}
 					</Badge>
 					<span className="font-medium text-sm">
-						{formatScopes(t, ban.scopes)}
+						{formatScopes(t, ban.scopes, capabilityLabels)}
 					</span>
 				</div>
 				<p className="mt-1 text-xs text-muted-foreground">#{ban.id}</p>
@@ -421,7 +423,15 @@ function BanFormDialog({
 	submitting: boolean;
 }) {
 	const { t } = useTranslation();
+	const {
+		permissions: capabilities,
+		status: registryStatus,
+		retry,
+	} = useRegistryPermissions("capability");
 	const mode = dialog?.mode ?? "create";
+	// A failing or in-flight registry must not let an unshown default
+	// capability get submitted silently.
+	const registryReady = registryStatus === "ready" && capabilities.length > 0;
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 			<DialogContent
@@ -443,32 +453,53 @@ function BanFormDialog({
 					<div className="grid gap-4 md:grid-cols-2">
 						<div className="grid gap-2">
 							<Label>{t("admin.users.bans.scopeLabel")}</Label>
+							{registryStatus !== "ready" ? (
+								<div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+									<span className="text-muted-foreground">
+										{registryStatus === "loading"
+											? t("admin.users.bans.registryLoading")
+											: t("admin.users.bans.registryFailed")}
+									</span>
+									{registryStatus === "error" ? (
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={retry}
+										>
+											{t("admin.users.retryPermissionsLoad")}
+										</Button>
+									) : null}
+								</div>
+							) : null}
 							<div className="grid gap-2 rounded-md border border-border/70 bg-muted/20 p-2 dark:border-white/10 dark:bg-white/[0.03]">
-								{USER_BAN_SCOPES.map((scope) => (
+								{capabilities.map((permission) => (
 									<label
-										key={scope}
-										htmlFor={`user-ban-scope-${scope}`}
+										key={permission.id}
+										htmlFor={`user-ban-scope-${permission.id}`}
 										className={cn(
 											"flex cursor-pointer items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-sm transition-colors hover:bg-background/70 dark:hover:bg-white/[0.04]",
-											form.scopes.includes(scope)
+											form.scopes.includes(permission.id)
 												? "border-primary/25 bg-primary/8 text-foreground"
 												: "text-muted-foreground",
 											submitting && "cursor-not-allowed opacity-60",
 										)}
 									>
 										<Checkbox
-											id={`user-ban-scope-${scope}`}
-											checked={form.scopes.includes(scope)}
+											id={`user-ban-scope-${permission.id}`}
+											checked={form.scopes.includes(permission.id)}
 											disabled={submitting}
 											onCheckedChange={(checked) => {
 												const nextScopes = checked
-													? [...form.scopes, scope]
-													: form.scopes.filter((item) => item !== scope);
+													? [...form.scopes, permission.id]
+													: form.scopes.filter(
+															(item) => item !== permission.id,
+														);
 												onFormChange({ ...form, scopes: nextScopes });
 											}}
 										/>
 										<span className="min-w-0 flex-1">
-											{t(`admin.users.bans.scope.${scope}`)}
+											{permissionLabel(permission, t)}
 										</span>
 									</label>
 								))}
@@ -565,7 +596,11 @@ function BanFormDialog({
 					>
 						{t("common.cancel")}
 					</Button>
-					<Button type="submit" form="user-ban-form" disabled={submitting}>
+					<Button
+						type="submit"
+						form="user-ban-form"
+						disabled={submitting || !registryReady}
+					>
 						{submitting ? (
 							<Icon name="Spinner" className="size-4 animate-spin" />
 						) : null}
@@ -595,7 +630,11 @@ function RevokeBanDialog({
 	submitting: boolean;
 }) {
 	const { t } = useTranslation();
-	const descriptionScope = ban ? formatScopes(t, ban.scopes) : "";
+	const { permissions: capabilityList } = useRegistryPermissions("capability");
+	const capabilityLabels = permissionLabels(capabilityList);
+	const descriptionScope = ban
+		? formatScopes(t, ban.scopes, capabilityLabels)
+		: "";
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 			<DialogContent keepMounted className="sm:max-w-lg">
@@ -657,6 +696,8 @@ function BanEventsDialog({
 	state: EventDialogState | null;
 }) {
 	const { t } = useTranslation();
+	const { permissions: capabilityList } = useRegistryPermissions("capability");
+	const capabilityLabels = permissionLabels(capabilityList);
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 			<DialogContent
@@ -709,7 +750,9 @@ function BanEventsDialog({
 											label={t("admin.users.bans.scopeLabel")}
 											next={event.next_scopes}
 											previous={event.previous_scopes}
-											translate={(value) => formatScopes(t, value)}
+											translate={(value) =>
+												formatScopes(t, value, capabilityLabels)
+											}
 										/>
 										<EventTransition
 											label={t("admin.users.bans.expiresAt")}
@@ -769,7 +812,13 @@ function EventTransition<T extends string | string[] | null | undefined>({
 
 function formatScopes(
 	t: ReturnType<typeof useTranslation>["t"],
-	scopes: readonly UserBanScope[],
+	scopes: readonly PermissionId[],
+	labels: Map<PermissionId, AdminPermissionInfo>,
 ) {
-	return scopes.map((scope) => t(`admin.users.bans.scope.${scope}`)).join(", ");
+	return scopes
+		.map((scope) => {
+			const descriptor = labels.get(scope);
+			return descriptor ? permissionLabel(descriptor, t) : scope;
+		})
+		.join(", ");
 }

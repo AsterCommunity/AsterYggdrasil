@@ -395,7 +395,7 @@ describe("accountService", () => {
 			after_id: 11,
 			effective_only: true,
 			limit: 8,
-			scope: "texture_upload",
+			scope: "com.astercosm.yggdrasil.capability.texture.upload",
 			status: "active",
 		});
 
@@ -405,7 +405,7 @@ describe("accountService", () => {
 		);
 		expect(apiMock.get).toHaveBeenNthCalledWith(
 			2,
-			"/account/bans?limit=8&scope=texture_upload&status=active&effective_only=true&after_created_at=2026-06-18T00%3A00%3A00Z&after_id=11",
+			"/account/bans?limit=8&scope=com.astercosm.yggdrasil.capability.texture.upload&status=active&effective_only=true&after_created_at=2026-06-18T00%3A00%3A00Z&after_id=11",
 		);
 	});
 });
@@ -574,7 +574,7 @@ describe("admin services", () => {
 			revoke_note: null,
 			revoked_at: null,
 			revoked_by_user_id: null,
-			scopes: ["texture_upload"],
+			scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 			starts_at: "2026-06-18T00:00:00Z",
 			status: "active",
 			updated_at: "2026-06-18T00:00:00Z",
@@ -597,7 +597,7 @@ describe("admin services", () => {
 				event_type: "created",
 				id: 21,
 				next_expires_at: null,
-				next_scopes: ["texture_upload"],
+				next_scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 				next_status: "active",
 				note: "spam",
 				previous_expires_at: null,
@@ -612,7 +612,7 @@ describe("admin services", () => {
 			after_id: 11,
 			effective_only: true,
 			limit: 20,
-			scope: "texture_upload",
+			scope: "com.astercosm.yggdrasil.capability.texture.upload",
 			user_id: 7,
 		});
 		await adminUserService.createBan(7, {
@@ -620,7 +620,7 @@ describe("admin services", () => {
 			expires_at: null,
 			public_reason: "policy",
 			reason: "spam",
-			scopes: ["texture_upload"],
+			scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 			starts_at: null,
 		});
 		await adminUserService.updateBan(11, { reason: "abuse" });
@@ -629,14 +629,14 @@ describe("admin services", () => {
 
 		expect(apiMock.get).toHaveBeenNthCalledWith(
 			1,
-			"/admin/user-bans?limit=20&user_id=7&scope=texture_upload&effective_only=true&after_created_at=2026-06-18T00%3A00%3A00Z&after_id=11",
+			"/admin/user-bans?limit=20&user_id=7&scope=com.astercosm.yggdrasil.capability.texture.upload&effective_only=true&after_created_at=2026-06-18T00%3A00%3A00Z&after_id=11",
 		);
 		expect(apiMock.post).toHaveBeenNthCalledWith(1, "/admin/users/7/bans", {
 			admin_note: "internal",
 			expires_at: null,
 			public_reason: "policy",
 			reason: "spam",
-			scopes: ["texture_upload"],
+			scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 			starts_at: null,
 		});
 		expect(apiMock.patch).toHaveBeenCalledWith("/admin/user-bans/11", {

@@ -18,7 +18,7 @@ pub(crate) mod test_support;
 pub use state::{AppState, AppStateParts};
 pub use state_traits::{
     AppConfigRuntimeState, AuditRuntimeState, CacheRuntimeState, ConfigSyncRuntimeState,
-    DatabaseRuntimeState, MailRuntimeState, MetricsRuntimeState, RuntimeConfigRuntimeState,
-    SharedRuntimeState, TaskRuntimeState, TextureStorageRuntimeState,
+    DatabaseRuntimeState, MailRuntimeState, MetricsRuntimeState, PermissionRegistryRuntimeState,
+    RuntimeConfigRuntimeState, SharedRuntimeState, TaskRuntimeState, TextureStorageRuntimeState,
     YggdrasilSessionForwardRuntimeState,
 };

@@ -9,7 +9,7 @@ import type {
 	AdminUserInfo,
 	IdCursor,
 	MinecraftTextureMetadata,
-	OperatorScope,
+	PermissionId,
 	UpdateAdminUserRequest,
 	UserRole,
 	UserStatus,
@@ -42,7 +42,7 @@ type UserDetailDraftState = {
 	confirmPasswordError?: string;
 	revokingSessions: boolean;
 	savingForcePasswordChange: boolean;
-	operatorScopes: OperatorScope[];
+	operatorScopes: PermissionId[];
 	role: UserRole;
 	savingPassword: boolean;
 	savingProfile: boolean;
@@ -62,7 +62,7 @@ type UserDetailDraftAction =
 			errors: { confirmPassword?: string; password?: string };
 	  }
 	| { type: "set_role"; value: UserRole }
-	| { type: "set_operator_scopes"; value: OperatorScope[] }
+	| { type: "set_operator_scopes"; value: PermissionId[] }
 	| { type: "set_status"; value: UserStatus }
 	| { type: "set_username"; value: string };
 
@@ -424,7 +424,7 @@ export function UserDetailPanel({
 								onEmailChange={(value) =>
 									dispatch({ type: "set_email", value })
 								}
-								onOperatorScopesChange={(value) =>
+								onPermissionIdsChange={(value) =>
 									dispatch({ type: "set_operator_scopes", value })
 								}
 								onRoleChange={(value) => dispatch({ type: "set_role", value })}

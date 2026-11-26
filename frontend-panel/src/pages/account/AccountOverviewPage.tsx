@@ -12,6 +12,11 @@ import {
 	formatAuditSummary,
 	formatAuditTarget,
 } from "@/lib/audit";
+import {
+	permissionLabel,
+	permissionLabels,
+	useRegistryPermissions,
+} from "@/lib/permissionRegistry";
 import { accountPaths, adminPaths } from "@/routes/routePaths";
 import { accountService } from "@/services/accountService";
 import { useAuthStore } from "@/stores/authStore";
@@ -276,6 +281,8 @@ function CapabilityStatusPanel({ bans }: { bans: AccountUserBanInfo[] }) {
 
 function CapabilityBanRow({ ban }: { ban: AccountUserBanInfo }) {
 	const { t } = useTranslation();
+	const { permissions: capabilities } = useRegistryPermissions("capability");
+	const labels = permissionLabels(capabilities);
 	const reason = ban.public_reason || ban.reason;
 
 	return (
@@ -283,17 +290,20 @@ function CapabilityBanRow({ ban }: { ban: AccountUserBanInfo }) {
 			<div className="flex min-w-0 items-start justify-between gap-3">
 				<div className="min-w-0">
 					<div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto pr-1">
-						{ban.scopes.map((scope) => (
-							<Badge
-								key={scope}
-								variant="outline"
-								className="max-w-full rounded-md border-border/70 bg-muted/35 text-foreground"
-							>
-								<span className="min-w-0 truncate">
-									{t(`account.bans.scope.${scope}`)}
-								</span>
-							</Badge>
-						))}
+						{ban.scopes.map((scope) => {
+							const descriptor = labels.get(scope);
+							return (
+								<Badge
+									key={scope}
+									variant="outline"
+									className="max-w-full rounded-md border-border/70 bg-muted/35 text-foreground"
+								>
+									<span className="min-w-0 truncate">
+										{descriptor ? permissionLabel(descriptor, t) : scope}
+									</span>
+								</Badge>
+							);
+						})}
 					</div>
 					<div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
 						{reason}

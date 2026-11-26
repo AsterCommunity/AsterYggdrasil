@@ -42,7 +42,7 @@ pub async fn list_user_bans(
             limit: page.limit_or(50, 100),
             cursor,
             user_id: query.user_id,
-            scope: query.scope,
+            scope: query.scope.clone(),
             status: query.status,
             effective_only: query.effective_only,
         },
@@ -278,7 +278,9 @@ async fn log_user_ban_audit(
     .await;
 }
 
-fn ban_scope_entity_name(scopes: &[aster_yggdrasil_model::types::user::UserBanScope]) -> String {
+fn ban_scope_entity_name(
+    scopes: &[aster_yggdrasil_model::types::permission::PermissionId],
+) -> String {
     scopes
         .iter()
         .map(|scope| scope.as_str())

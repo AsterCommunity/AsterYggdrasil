@@ -21,7 +21,7 @@ use aster_forge_config::ConfigValue;
 use aster_forge_config::ConfigVisibility;
 use aster_yggdrasil_model::types::{
     external_auth::ExternalAuthProviderKind, external_auth::ExternalAuthProviderOptions,
-    task::BackgroundTaskKind, task::BackgroundTaskStatus, user::OperatorScope, user::UserBanScope,
+    permission::PermissionId, task::BackgroundTaskKind, task::BackgroundTaskStatus,
     user::UserBanStatus, user::UserRole, user::UserStatus,
     yggdrasil::YggdrasilSessionForwardEndpointKind, yggdrasil::YggdrasilSessionForwardServerSortBy,
 };
@@ -133,7 +133,7 @@ pub struct AdminUserBanListQuery {
     /// Optional filter restricting results to bans of this user.
     pub user_id: Option<i64>,
     /// Optional ban scope filter.
-    pub scope: Option<UserBanScope>,
+    pub scope: Option<PermissionId>,
     /// Optional stored ban status filter.
     pub status: Option<UserBanStatus>,
     /// When true, only bans whose effective status is currently active are
@@ -153,7 +153,7 @@ pub struct AdminUserBanListQuery {
 pub struct CreateUserBanReq {
     /// Capability scopes the user loses while the ban is effective; must be
     /// non-empty.
-    pub scopes: Vec<UserBanScope>,
+    pub scopes: Vec<PermissionId>,
     /// Internal reason recorded for moderators; 1-128 characters.
     #[validate(length(min = 1, max = 128, message = "reason must be 1-128 characters"))]
     pub reason: String,
@@ -176,7 +176,7 @@ pub struct CreateUserBanReq {
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct UpdateUserBanReq {
     /// Replacement scope set; omitted leaves the scopes unchanged.
-    pub scopes: Option<Vec<UserBanScope>>,
+    pub scopes: Option<Vec<PermissionId>>,
     /// Replacement internal reason; 1-128 characters when provided.
     #[validate(length(min = 1, max = 128, message = "reason must be 1-128 characters"))]
     pub reason: Option<String>,
@@ -243,7 +243,7 @@ pub struct CreateAdminUserReq {
     /// Account role; falls back to the service default when omitted.
     pub role: Option<UserRole>,
     /// Operator scopes for limited staff accounts.
-    pub operator_scopes: Option<Vec<OperatorScope>>,
+    pub operator_scopes: Option<Vec<PermissionId>>,
     /// Initial account status; falls back to the service default when omitted.
     pub status: Option<UserStatus>,
 }
@@ -275,7 +275,7 @@ pub struct UpdateAdminUserReq {
     /// New role when provided.
     pub role: Option<UserRole>,
     /// Replacement operator scopes when provided.
-    pub operator_scopes: Option<Vec<OperatorScope>>,
+    pub operator_scopes: Option<Vec<PermissionId>>,
     /// New account status when provided.
     pub status: Option<UserStatus>,
     /// Force a password change at next login when provided.

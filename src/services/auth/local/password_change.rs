@@ -7,7 +7,10 @@ use super::shared::{is_email_verified, update_password_in_connection};
 use crate::api::error_code::AsterErrorCode;
 use crate::db::{repository::user_repo, transaction};
 use crate::errors::{AsterError, Result};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
+use crate::runtime::{
+    DatabaseRuntimeState, PermissionRegistryRuntimeState, RuntimeConfigRuntimeState,
+    SharedRuntimeState,
+};
 use crate::services::{auth::local, ops::audit};
 use aster_yggdrasil_model::entities::user;
 
@@ -55,7 +58,7 @@ pub async fn change_password<S>(
     new_password: &str,
 ) -> Result<local::AuthUserInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let updated = transaction::with_transaction(state.writer_db(), async |txn| {
         let user =
@@ -78,7 +81,7 @@ pub async fn change_password_with_audit<S>(
     new_password: &str,
 ) -> Result<local::AuthUserInfo>
 where
-    S: SharedRuntimeState,
+    S: PermissionRegistryRuntimeState + SharedRuntimeState,
 {
     let user = change_password(state, user_id, current_password, new_password).await?;
     let audit_ctx = audit::AuditContext::from_request(req, user.id);

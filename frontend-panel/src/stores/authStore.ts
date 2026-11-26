@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { firstAdminPathForScopes, OPERATOR_SCOPES } from "@/lib/operatorScopes";
+import {
+	firstAdminPathForScopes,
+	LEGACY_OPERATOR_SCOPE_IDS,
+	OPERATOR_SCOPES,
+} from "@/lib/operatorScopes";
 import {
 	readStorageItem,
 	removeStorageItem,
@@ -18,7 +22,7 @@ import type {
 	AdminUserInfo,
 	AuthTokenResponse,
 	AuthUserInfo,
-	OperatorScope,
+	PermissionId,
 	RegisterResponse,
 	UpdateAvatarSourceRequest,
 	UpdateProfileRequest,
@@ -49,9 +53,9 @@ type AuthState = {
 	isAuthenticated: boolean;
 	isAdmin: boolean;
 	isOperator: boolean;
-	operatorScopes: OperatorScope[];
+	operatorScopes: PermissionId[];
 	canAccessAdminShell: boolean;
-	hasOperatorScope: (scope: OperatorScope) => boolean;
+	hasPermissionId: (scope: PermissionId) => boolean;
 	checkPublicSession: () => Promise<void>;
 	hydrate: () => Promise<void>;
 	setup: (
@@ -139,11 +143,19 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 		pending_email:
 			typeof source.pending_email === "string" ? source.pending_email : null,
 		operator_scopes: Array.isArray(source.operator_scopes)
-			? (source.operator_scopes.filter(
-					(value): value is OperatorScope =>
-						typeof value === "string" &&
-						OPERATOR_SCOPES.includes(value as OperatorScope),
-				) as OperatorScope[])
+			? (source.operator_scopes
+					.map((value) =>
+						typeof value === "string"
+							? (LEGACY_OPERATOR_SCOPE_IDS[value] ?? value)
+							: value,
+					)
+					.filter(
+						(value): value is PermissionId =>
+							typeof value === "string" &&
+							OPERATOR_SCOPES.includes(
+								value as (typeof OPERATOR_SCOPES)[number],
+							),
+					) as PermissionId[])
 			: [],
 		profile: source.profile ?? defaultUserProfile(),
 		username: source.username,
@@ -366,7 +378,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	isOperator: initialFlags.isOperator,
 	operatorScopes: initialFlags.operatorScopes,
 	canAccessAdminShell: initialFlags.canAccessAdminShell,
-	hasOperatorScope(scope) {
+	hasPermissionId(scope) {
 		const state = get();
 		return state.isAdmin || state.operatorScopes.includes(scope);
 	},

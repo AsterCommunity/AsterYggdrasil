@@ -470,7 +470,9 @@ describe("authStore persistence", () => {
 		authServiceMock.me.mockResolvedValue({
 			...fullUser,
 			role: "operator",
-			operator_scopes: ["texture_library"],
+			operator_scopes: [
+				"com.astercosm.yggdrasil.permission.admin.texture_library",
+			],
 		});
 		const { useAuthStore } = await loadStore();
 
@@ -480,12 +482,22 @@ describe("authStore persistence", () => {
 			isAdmin: false,
 			isOperator: true,
 			canAccessAdminShell: true,
-			operatorScopes: ["texture_library"],
+			operatorScopes: [
+				"com.astercosm.yggdrasil.permission.admin.texture_library",
+			],
 		});
-		expect(useAuthStore.getState().hasOperatorScope("texture_library")).toBe(
-			true,
-		);
-		expect(useAuthStore.getState().hasOperatorScope("users")).toBe(false);
+		expect(
+			useAuthStore
+				.getState()
+				.hasPermissionId(
+					"com.astercosm.yggdrasil.permission.admin.texture_library",
+				),
+		).toBe(true);
+		expect(
+			useAuthStore
+				.getState()
+				.hasPermissionId("com.astercosm.yggdrasil.permission.admin.users"),
+		).toBe(false);
 	});
 
 	it("drops unknown operator scopes from cached users", async () => {
@@ -496,14 +508,41 @@ describe("authStore persistence", () => {
 				username: "steve",
 				role: "operator",
 				status: "active",
-				operator_scopes: ["texture_library", "not_real"],
+				operator_scopes: [
+					"com.astercosm.yggdrasil.permission.admin.texture_library",
+					"not_real",
+				],
 				profile: fullUser.profile,
 			}),
 		);
 
 		const { useAuthStore } = await loadStore();
 
-		expect(useAuthStore.getState().operatorScopes).toEqual(["texture_library"]);
+		expect(useAuthStore.getState().operatorScopes).toEqual([
+			"com.astercosm.yggdrasil.permission.admin.texture_library",
+		]);
+		expect(useAuthStore.getState().canAccessAdminShell).toBe(true);
+	});
+
+	it("upgrades legacy short-name scopes from cached users", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: 7,
+				username: "steve",
+				role: "operator",
+				status: "active",
+				operator_scopes: ["texture_library", "audit"],
+				profile: fullUser.profile,
+			}),
+		);
+
+		const { useAuthStore } = await loadStore();
+
+		expect(useAuthStore.getState().operatorScopes).toEqual([
+			"com.astercosm.yggdrasil.permission.admin.texture_library",
+			"com.astercosm.yggdrasil.permission.admin.audit",
+		]);
 		expect(useAuthStore.getState().canAccessAdminShell).toBe(true);
 	});
 

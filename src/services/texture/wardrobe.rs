@@ -19,8 +19,9 @@ use crate::runtime::{
 use crate::services::user;
 use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
 use aster_yggdrasil_model::entities::{minecraft_profile, minecraft_texture};
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_model::types::{
-    user::UserBanScope, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
+    yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
     yggdrasil::MinecraftTextureVisibility,
 };
 
@@ -42,7 +43,7 @@ pub async fn update_wardrobe_texture_metadata<S>(
 where
     S: CacheRuntimeState + DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture::UPLOAD).await?;
     if texture_id <= 0 {
         return Err(AsterError::record_not_found_code(
             crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
@@ -109,7 +110,7 @@ pub async fn replace_wardrobe_texture_tags<S>(
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture::UPLOAD).await?;
     if texture_id <= 0 {
         return Err(AsterError::record_not_found_code(
             crate::api::error_code::AsterErrorCode::WardrobeTextureNotFound,
@@ -234,7 +235,8 @@ where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
 {
     ensure_texture_library_enabled(state)?;
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureLibraryInteract).await?;
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture_library::INTERACT)
+        .await?;
     if texture_id <= 0 {
         return Err(AsterError::record_not_found_code(
             crate::api::error_code::AsterErrorCode::TextureLibraryTextureNotFound,
@@ -322,7 +324,7 @@ pub async fn delete_wardrobe_texture<S>(
 where
     S: CacheRuntimeState + DatabaseRuntimeState + TextureStorageRuntimeState,
 {
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload)
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture::UPLOAD)
         .await
         .map_err(TextureError::from)?;
     tracing::debug!(
@@ -409,10 +411,10 @@ pub async fn bind_wardrobe_texture_to_profile<S>(
 where
     S: CacheRuntimeState + DatabaseRuntimeState + TextureStorageRuntimeState,
 {
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::TextureUpload)
+    user::ban::ensure_user_not_banned(state, user_id, capability::texture::UPLOAD)
         .await
         .map_err(TextureError::from)?;
-    user::ban::ensure_user_not_banned(state, user_id, UserBanScope::MinecraftProfileManage)
+    user::ban::ensure_user_not_banned(state, user_id, capability::profile::MANAGE)
         .await
         .map_err(TextureError::from)?;
     tracing::debug!(

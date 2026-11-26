@@ -5,7 +5,7 @@ use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey, LineEnding};
 use crate::errors::AsterError;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::user;
-use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_protocol::{
     MinecraftServicesBanStatus, MinecraftServicesCertificateResp, MinecraftServicesChatPreferences,
     MinecraftServicesFriendsPreferences, MinecraftServicesKeyPair,
@@ -85,7 +85,7 @@ where
     S: CacheRuntimeState + DatabaseRuntimeState,
 {
     let token = validate_minecraft_services_token(state, access_token).await?;
-    let join_banned = user::ban::is_user_banned(state, token.user_id, UserBanScope::YggdrasilJoin)
+    let join_banned = user::ban::is_user_banned(state, token.user_id, capability::yggdrasil::JOIN)
         .await
         .map_err(YggdrasilError::from)?;
     Ok(MinecraftServicesPlayerAttributesResp {
@@ -145,7 +145,7 @@ async fn privileges_for_user<S: DatabaseRuntimeState>(
     user_id: i64,
 ) -> std::result::Result<MinecraftServicesPrivileges, YggdrasilError> {
     let multiplayer_enabled =
-        !user::ban::is_user_banned(state, user_id, UserBanScope::YggdrasilJoin)
+        !user::ban::is_user_banned(state, user_id, capability::yggdrasil::JOIN)
             .await
             .map_err(YggdrasilError::from)?;
     Ok(MinecraftServicesPrivileges {

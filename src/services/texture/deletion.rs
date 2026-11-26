@@ -11,7 +11,7 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, TextureStorageRuntimeState};
 use crate::services::user;
 use aster_yggdrasil_model::entities::minecraft_profile;
-use aster_yggdrasil_model::types::{user::UserBanScope, yggdrasil::MinecraftTextureType};
+use aster_yggdrasil_model::types::{permission::capability, yggdrasil::MinecraftTextureType};
 
 use self::maintenance::cleanup_texture_blob_if_unreferenced;
 
@@ -29,10 +29,10 @@ pub async fn delete_texture<S>(
 where
     S: CacheRuntimeState + DatabaseRuntimeState + TextureStorageRuntimeState,
 {
-    user::ban::ensure_user_not_banned(state, profile.user_id, UserBanScope::TextureUpload)
+    user::ban::ensure_user_not_banned(state, profile.user_id, capability::texture::UPLOAD)
         .await
         .map_err(TextureError::from)?;
-    user::ban::ensure_user_not_banned(state, profile.user_id, UserBanScope::MinecraftProfileManage)
+    user::ban::ensure_user_not_banned(state, profile.user_id, capability::profile::MANAGE)
         .await
         .map_err(TextureError::from)?;
     tracing::debug!(
