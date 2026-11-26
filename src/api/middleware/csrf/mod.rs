@@ -15,24 +15,18 @@ use aster_forge_middleware::actix::csrf::{
 };
 
 use crate::config::{
-    AuthConfig, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME, RuntimeConfig,
-    site_url,
+    DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME, RuntimeConfig, site_url,
 };
 use crate::errors::{AsterError, Result};
 
 static CSRF_TOKEN_NAMES: OnceLock<CsrfTokenNames> = OnceLock::new();
 
-/// Initializes process-wide CSRF token names from static startup configuration.
+/// Initializes process-wide CSRF token names.
 ///
 /// CSRF token names are intentionally initialized once instead of being read
 /// from runtime configuration on every request. Changing the cookie or header
 /// name while a process is serving traffic would desynchronize browser cookies,
 /// frontend request headers, and backend validation.
-pub fn init_token_names_from_auth_config(config: &AuthConfig) -> Result<()> {
-    init_token_names(&config.csrf_cookie_name, &config.csrf_header_name)
-}
-
-/// Initializes process-wide CSRF token names.
 ///
 /// Calling this more than once with the same values is accepted so tests and
 /// startup paths can be idempotent. Calling it with different values after

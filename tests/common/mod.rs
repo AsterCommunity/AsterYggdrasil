@@ -766,7 +766,7 @@ pub fn access_cookie_header(access_token: impl AsRef<str>) -> String {
     let access_token = access_token.as_ref();
     let csrf_token = csrf_token_for(access_token);
     pin_csrf_token_for_current_thread(access_token, &csrf_token);
-    format!("aster_access={access_token}; aster_yggdrasil_csrf={csrf_token}")
+    format!("aster_access={access_token}; aster_csrf={csrf_token}")
 }
 
 pub fn refresh_cookie_header(
@@ -776,7 +776,7 @@ pub fn refresh_cookie_header(
     let refresh_token = refresh_token.as_ref();
     let csrf_token = csrf_token.as_ref();
     pin_csrf_token_for_current_thread(refresh_token, csrf_token);
-    format!("aster_refresh={refresh_token}; aster_yggdrasil_csrf={csrf_token}")
+    format!("aster_refresh={refresh_token}; aster_csrf={csrf_token}")
 }
 
 pub fn access_and_refresh_cookie_header(
@@ -790,12 +790,12 @@ pub fn access_and_refresh_cookie_header(
     pin_csrf_token_for_current_thread(access_token, csrf_token);
     pin_csrf_token_for_current_thread(refresh_token, csrf_token);
     format!(
-        "aster_access={access_token}; aster_refresh={refresh_token}; aster_yggdrasil_csrf={csrf_token}"
+        "aster_access={access_token}; aster_refresh={refresh_token}; aster_csrf={csrf_token}"
     )
 }
 
 pub fn csrf_header(csrf_token: impl AsRef<str>) -> (&'static str, String) {
-    ("X-Aster-Yggdrasil-CSRF", csrf_token.as_ref().to_string())
+    ("X-CSRF-Token", csrf_token.as_ref().to_string())
 }
 
 fn csrf_tokens_by_session() -> &'static Mutex<HashMap<String, String>> {
@@ -858,7 +858,7 @@ pub fn extract_cookie<B>(resp: &actix_web::dev::ServiceResponse<B>, name: &str) 
             .find_map(|raw| {
                 raw.split(';')
                     .next()
-                    .and_then(|pair| pair.strip_prefix("aster_yggdrasil_csrf="))
+                    .and_then(|pair| pair.strip_prefix("aster_csrf="))
                     .map(str::to_string)
             })
     {

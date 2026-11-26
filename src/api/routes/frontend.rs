@@ -7,7 +7,6 @@
 //! injected through stable placeholders.
 
 use crate::api::cache::conditional_bytes_response;
-use crate::api::middleware::csrf;
 use crate::config::{branding, yggdrasil::DEFAULT_YGGDRASIL_API_ROOT_ALI};
 use crate::runtime::AppState;
 use actix_web::{HttpRequest, HttpResponse, web};
@@ -124,15 +123,7 @@ impl FrontendService {
                     state.runtime_config(),
                 )),
             )
-            .replace("%ASTERYGGDRASIL_CSP%", &escape_html(FRONTEND_CSP_META))
-            .replace(
-                "%ASTERYGGDRASIL_CSRF_COOKIE_NAME%",
-                &escape_html(csrf::token_names().cookie_name()),
-            )
-            .replace(
-                "%ASTERYGGDRASIL_CSRF_HEADER_NAME%",
-                &escape_html(csrf::token_names().header_name_str()),
-            );
+            .replace("%ASTERYGGDRASIL_CSP%", &escape_html(FRONTEND_CSP_META));
 
         HttpResponse::Ok()
             .insert_header(("Content-Security-Policy", FRONTEND_CSP_HEADER))

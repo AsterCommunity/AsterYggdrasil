@@ -35,7 +35,10 @@ pub async fn bootstrap(
     }
 
     let config = crate::config::init_config_at(location)?;
-    crate::api::middleware::csrf::init_token_names_from_auth_config(&config.auth)?;
+    crate::api::middleware::csrf::init_token_names(
+        crate::config::DEFAULT_AUTH_CSRF_COOKIE_NAME,
+        crate::config::DEFAULT_AUTH_CSRF_HEADER_NAME,
+    )?;
 
     let logging = aster_forge_logging::init_logging(&config.logging);
     if let Some(warning) = logging.warning.as_ref() {

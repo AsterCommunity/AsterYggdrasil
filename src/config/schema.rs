@@ -15,11 +15,13 @@ use aster_forge_metrics::ObservabilityConfig;
 use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
 use secrecy::SecretString;
 
-/// Default CSRF cookie name used when `auth.csrf_cookie_name` is not set.
-pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_yggdrasil_csrf";
-/// Default CSRF request header name used when `auth.csrf_header_name` is not
-/// set.
-pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
+/// Fixed CSRF cookie name shared across Aster products (Drive uses the same
+/// name); cookies are host-only, so same-named cookies cannot collide across
+/// deployment hosts.
+pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_csrf";
+/// Fixed CSRF request header name aligned with AsterDrive and common backend
+/// framework conventions.
+pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-CSRF-Token";
 
 /// Default per-process limit for concurrent Argon2 password hash/verify jobs,
 /// sourced from `aster_forge_auth` so Aster product defaults stay coherent.
@@ -204,12 +206,6 @@ pub struct AuthConfig {
     /// startup and persisted into the config file.
     #[serde(default = "AuthConfig::default_mfa_secret_key")]
     pub mfa_secret_key: secrecy::SecretString,
-    /// CSRF cookie name; defaults to [`DEFAULT_AUTH_CSRF_COOKIE_NAME`].
-    #[serde(default = "AuthConfig::default_csrf_cookie_name")]
-    pub csrf_cookie_name: String,
-    /// CSRF request header name; defaults to [`DEFAULT_AUTH_CSRF_HEADER_NAME`].
-    #[serde(default = "AuthConfig::default_csrf_header_name")]
-    pub csrf_header_name: String,
     /// Per-process cap for concurrent Argon2 password hash/verify jobs.
     ///
     /// Each job reserves about 64 MiB of Argon2 working memory. Changing this
@@ -226,8 +222,6 @@ impl Default for AuthConfig {
         Self {
             jwt_secret: Self::default_jwt_secret(),
             mfa_secret_key: Self::default_mfa_secret_key(),
-            csrf_cookie_name: Self::default_csrf_cookie_name(),
-            csrf_header_name: Self::default_csrf_header_name(),
             password_hash_max_concurrency: Self::default_password_hash_max_concurrency(),
             bootstrap_insecure_cookies: Self::default_bootstrap_insecure_cookies(),
         }
@@ -241,11 +235,9 @@ impl serde::Serialize for AuthConfig {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use secrecy::ExposeSecret as _;
         use serde::ser::SerializeStruct as _;
-        let mut state = serializer.serialize_struct("AuthConfig", 6)?;
+        let mut state = serializer.serialize_struct("AuthConfig", 4)?;
         state.serialize_field("jwt_secret", self.jwt_secret.expose_secret())?;
         state.serialize_field("mfa_secret_key", self.mfa_secret_key.expose_secret())?;
-        state.serialize_field("csrf_cookie_name", &self.csrf_cookie_name)?;
-        state.serialize_field("csrf_header_name", &self.csrf_header_name)?;
         state.serialize_field(
             "password_hash_max_concurrency",
             &self.password_hash_max_concurrency,
@@ -271,12 +263,6 @@ impl AuthConfig {
     }
     fn default_mfa_secret_key() -> SecretString {
         Self::random_hex_secret()
-    }
-    fn default_csrf_cookie_name() -> String {
-        DEFAULT_AUTH_CSRF_COOKIE_NAME.to_string()
-    }
-    fn default_csrf_header_name() -> String {
-        DEFAULT_AUTH_CSRF_HEADER_NAME.to_string()
     }
     fn default_password_hash_max_concurrency() -> usize {
         DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY

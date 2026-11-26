@@ -7,7 +7,7 @@ import type {
 import axios, { AxiosHeaders } from "axios";
 import { config } from "@/config/app";
 import type { ApiResponse, AsterErrorCode } from "@/types/api";
-import { getCsrfHeaderName, getCsrfToken } from "./csrf";
+import { CSRF_HEADER_NAME, getCsrfToken } from "./csrf";
 
 type FrontendTransportErrorCode = "network_error" | "request_timeout";
 export type ApiClientErrorCode = AsterErrorCode | FrontendTransportErrorCode;
@@ -297,7 +297,7 @@ function createApi(axiosClient: AxiosInstance) {
 function attachCsrfHeader(request: InternalAxiosRequestConfig) {
 	const csrfToken = getCsrfToken();
 	if (!csrfToken || !isUnsafeMethod(request.method)) return request;
-	const csrfHeaderName = getCsrfHeaderName();
+	const csrfHeaderName = CSRF_HEADER_NAME;
 	if (!hasHeader(request.headers, csrfHeaderName)) {
 		setHeader(request, csrfHeaderName, csrfToken);
 	}
