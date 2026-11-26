@@ -789,9 +789,7 @@ pub fn access_and_refresh_cookie_header(
     let csrf_token = csrf_token.as_ref();
     pin_csrf_token_for_current_thread(access_token, csrf_token);
     pin_csrf_token_for_current_thread(refresh_token, csrf_token);
-    format!(
-        "aster_access={access_token}; aster_refresh={refresh_token}; aster_csrf={csrf_token}"
-    )
+    format!("aster_access={access_token}; aster_refresh={refresh_token}; aster_csrf={csrf_token}")
 }
 
 pub fn csrf_header(csrf_token: impl AsRef<str>) -> (&'static str, String) {

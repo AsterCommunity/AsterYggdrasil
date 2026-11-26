@@ -2600,8 +2600,7 @@ async fn auth_change_password_enforces_new_password_boundaries() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
     access = common::extract_cookie(&resp, "aster_access").expect("new access cookie missing");
-    let csrf =
-        common::extract_cookie(&resp, "aster_csrf").expect("new csrf cookie missing");
+    let csrf = common::extract_cookie(&resp, "aster_csrf").expect("new csrf cookie missing");
 
     let req = test::TestRequest::put()
         .uri("/api/v1/auth/password")
