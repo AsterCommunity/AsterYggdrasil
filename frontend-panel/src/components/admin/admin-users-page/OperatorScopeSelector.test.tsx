@@ -1,13 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { i18next } from "@/i18n";
 import "@/i18n";
 
 const mockedList = vi.hoisted(() => vi.fn());
+const mockedLocalizations = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/permissionService", () => ({
 	permissionService: {
 		list: mockedList,
+		localizations: mockedLocalizations,
 	},
 }));
 
@@ -25,9 +26,18 @@ async function registryFixture() {
 }
 
 describe("OperatorScopeSelector", () => {
-	beforeEach(async () => {
-		await i18next.changeLanguage("zh-CN");
+	beforeEach(() => {
 		mockedList.mockReset();
+		mockedLocalizations.mockReset();
+		mockedLocalizations.mockImplementation(async () => ({
+			namespace: "permissions",
+			requested_locale: "en",
+			resolved_locale: "en",
+			revision: "test",
+			messages: {
+				"admin.users.operatorScope.texture_library": "Texture library",
+			},
+		}));
 	});
 
 	it("renders admin-area switches from the registry", async () => {
@@ -36,7 +46,7 @@ describe("OperatorScopeSelector", () => {
 		render(<OperatorScopeSelector value={[]} onChange={vi.fn()} />);
 
 		expect(
-			await screen.findByRole("switch", { name: "材质库" }),
+			await screen.findByRole("switch", { name: "Texture library" }),
 		).toBeInTheDocument();
 	});
 
@@ -45,17 +55,45 @@ describe("OperatorScopeSelector", () => {
 		const OperatorScopeSelector = await loadSelector();
 		render(<OperatorScopeSelector value={[]} onChange={vi.fn()} />);
 
-		expect(await screen.findByText("权限列表加载失败。")).toBeInTheDocument();
 		expect(
-			screen.queryByRole("switch", { name: "材质库" }),
+			await screen.findByText("Failed to load the permission registry."),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("switch", { name: "Texture library" }),
 		).not.toBeInTheDocument();
 
 		mockedList.mockResolvedValue(await registryFixture());
-		fireEvent.click(screen.getByRole("button", { name: "重试" }));
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 		expect(
-			await screen.findByRole("switch", { name: "材质库" }),
+			await screen.findByRole("switch", { name: "Texture library" }),
 		).toBeInTheDocument();
-		expect(screen.queryByText("权限列表加载失败。")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("Failed to load the permission registry."),
+		).not.toBeInTheDocument();
+	});
+
+	it("backend-installed labels override the static bundle copy", async () => {
+		mockedList.mockResolvedValue(await registryFixture());
+		// Deliberately different from the static en-US bundle text so the
+		// assertion proves the backend message won.
+		mockedLocalizations.mockResolvedValue({
+			namespace: "permissions",
+			requested_locale: "en",
+			resolved_locale: "en",
+			revision: "test-override",
+			messages: {
+				"admin.users.operatorScope.texture_library": "Backend override label",
+			},
+		});
+		const OperatorScopeSelector = await loadSelector();
+		render(<OperatorScopeSelector value={[]} onChange={vi.fn()} />);
+
+		expect(
+			await screen.findByRole("switch", { name: "Backend override label" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("switch", { name: "Texture library" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("emits removals when a selected switch is toggled off", async () => {
@@ -70,7 +108,7 @@ describe("OperatorScopeSelector", () => {
 		);
 
 		const textureSwitch = await screen.findByRole("switch", {
-			name: "材质库",
+			name: "Texture library",
 		});
 		// The parent owns `value` and does not round-trip through the mock, so
 		// the switch stays checked; one click exercises the removal path.

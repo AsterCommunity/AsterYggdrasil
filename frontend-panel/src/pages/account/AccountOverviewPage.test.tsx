@@ -22,6 +22,16 @@ vi.mock("@/services/permissionService", () => ({
 			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
 			return { permissions: REGISTRY_PERMISSIONS };
 		}),
+		localizations: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_MESSAGES } = await import("@/test/permissions");
+			return {
+				namespace: "permissions",
+				requested_locale: "en",
+				resolved_locale: "en",
+				revision: "test",
+				messages: REGISTRY_MESSAGES,
+			};
+		}),
 	},
 }));
 

@@ -18,6 +18,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
+use super::permission_localization::{
+    BUILTIN_PERMISSION_MESSAGES, PermissionLocalization, PermissionLocalizationError,
+    PermissionLocalizationMessage,
+};
+
 use sea_orm::DeriveValueType;
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -323,6 +328,9 @@ pub enum PermissionRegistryError {
         /// The offending identifier.
         id: PermissionId,
     },
+    /// The localization table is missing a translation a descriptor
+    /// references, or an extra message declaration is invalid.
+    Localization(String),
 }
 
 impl fmt::Display for PermissionRegistryError {
@@ -338,11 +346,18 @@ impl fmt::Display for PermissionRegistryError {
                 f,
                 "permission '{id}' occupies the reserved '{BUILTIN_NAMESPACE}' namespace"
             ),
+            Self::Localization(message) => f.write_str(message),
         }
     }
 }
 
 impl std::error::Error for PermissionRegistryError {}
+
+impl PermissionRegistryError {
+    fn from_localization(error: PermissionLocalizationError) -> Self {
+        Self::Localization(error.to_string())
+    }
+}
 
 /// Descriptor table of the built-in permissions.
 ///
@@ -451,17 +466,27 @@ pub const BUILTIN_DESCRIPTORS: [PermissionDescriptor; 13] = [
 #[derive(Debug, Clone)]
 pub struct PermissionRegistry {
     entries: BTreeMap<PermissionId, PermissionDescriptor>,
+    localization: PermissionLocalization,
 }
 
 impl PermissionRegistry {
-    /// Builds a registry from the built-in table plus `extra` descriptors,
-    /// rejecting duplicates, kind mismatches, and extras occupying the
-    /// reserved built-in namespace.
+    /// Builds a registry from the built-in table plus `extra` descriptors
+    /// and their translations, rejecting duplicates, kind mismatches, extras
+    /// occupying the reserved built-in namespace, and any descriptor whose
+    /// label key has no translation.
+    ///
+    /// Extra message declarations merge into the built-in translation table;
+    /// redeclaring an existing message id fails so external sources cannot
+    /// override built-in labels.
     ///
     /// # Errors
     ///
-    /// Returns [`PermissionRegistryError`] on the first invalid descriptor.
-    pub fn new(extra: Vec<PermissionDescriptor>) -> Result<Self, PermissionRegistryError> {
+    /// Returns [`PermissionRegistryError`] on the first invalid descriptor or
+    /// message declaration.
+    pub fn new(
+        extra: Vec<PermissionDescriptor>,
+        extra_messages: &[PermissionLocalizationMessage<'_>],
+    ) -> Result<Self, PermissionRegistryError> {
         let mut entries = BTreeMap::new();
         for descriptor in BUILTIN_DESCRIPTORS {
             insert_descriptor(&mut entries, descriptor)?;
@@ -472,17 +497,47 @@ impl PermissionRegistry {
             }
             insert_descriptor(&mut entries, descriptor)?;
         }
-        Ok(Self { entries })
+
+        // One merged translation table: built-ins first, extras appended. A
+        // duplicate message id fails the build, so external sources cannot
+        // override built-in labels.
+        let combined: Vec<&PermissionLocalizationMessage> = BUILTIN_PERMISSION_MESSAGES
+            .iter()
+            .chain(extra_messages.iter())
+            .collect();
+        let localization = PermissionLocalization::from_messages(
+            super::permission_localization::PERMISSION_DEFAULT_LOCALE,
+            combined.iter().copied(),
+        )
+        .map_err(PermissionRegistryError::from_localization)?;
+
+        let referenced: Vec<&str> = entries
+            .values()
+            .map(|descriptor| descriptor.label_i18n_key)
+            .collect();
+        localization
+            .validate_message_ids(referenced.iter().copied())
+            .map_err(PermissionRegistryError::from_localization)?;
+        Ok(Self {
+            entries,
+            localization,
+        })
     }
 
-    /// Registry holding exactly the built-in permissions.
+    /// Registry holding exactly the built-in permissions and translations.
     ///
     /// # Errors
     ///
     /// Returns the registry error when the compile-time built-in table
     /// violates registry invariants; the unit tests keep the table valid.
     pub fn builtin() -> Result<Self, PermissionRegistryError> {
-        Self::new(Vec::new())
+        Self::new(Vec::new(), &[])
+    }
+
+    /// Backend-owned translations backing the registered label keys.
+    #[must_use]
+    pub fn localization(&self) -> &PermissionLocalization {
+        &self.localization
     }
 
     /// Descriptor registered under `id`, if any.
@@ -741,7 +796,7 @@ mod tests {
             label: "x",
             group: "x",
         };
-        let error = PermissionRegistry::new(vec![descriptor(), descriptor()]).unwrap_err();
+        let error = PermissionRegistry::new(vec![descriptor(), descriptor()], &[]).unwrap_err();
         assert!(
             matches!(error, PermissionRegistryError::Duplicate { ref id } if id.as_str() == "com.example.plugin.capability.rendering.export")
         );
@@ -751,13 +806,16 @@ mod tests {
     fn registry_rejects_kind_mismatch() {
         let id =
             PermissionId::new("com.example.plugin.capability.rendering.export").expect("valid");
-        let error = PermissionRegistry::new(vec![PermissionDescriptor {
-            id,
-            kind: PermissionKind::AdminArea,
-            label_i18n_key: "x",
-            label: "x",
-            group: "x",
-        }])
+        let error = PermissionRegistry::new(
+            vec![PermissionDescriptor {
+                id,
+                kind: PermissionKind::AdminArea,
+                label_i18n_key: "x",
+                label: "x",
+                group: "x",
+            }],
+            &[],
+        )
         .unwrap_err();
         assert!(matches!(
             error,
@@ -772,13 +830,16 @@ mod tests {
     fn registry_rejects_reserved_namespace() {
         let id = PermissionId::new("com.astercosm.yggdrasil.capability.sneaky.bypass")
             .expect("valid syntax");
-        let error = PermissionRegistry::new(vec![PermissionDescriptor {
-            id,
-            kind: PermissionKind::Capability,
-            label_i18n_key: "x",
-            label: "x",
-            group: "x",
-        }])
+        let error = PermissionRegistry::new(
+            vec![PermissionDescriptor {
+                id,
+                kind: PermissionKind::Capability,
+                label_i18n_key: "x",
+                label: "x",
+                group: "x",
+            }],
+            &[],
+        )
         .unwrap_err();
         assert!(matches!(
             error,
@@ -844,13 +905,20 @@ mod tests {
         let lookalike =
             PermissionId::new("com.astercosm.yggdrasil2.capability.export").expect("valid syntax");
         assert!(!lookalike.is_builtin());
-        let registry = PermissionRegistry::new(vec![PermissionDescriptor {
-            id: lookalike.clone(),
-            kind: PermissionKind::Capability,
-            label_i18n_key: "plugin.export",
-            label: "Export",
-            group: "plugin",
-        }])
+        let registry = PermissionRegistry::new(
+            vec![PermissionDescriptor {
+                id: lookalike.clone(),
+                kind: PermissionKind::Capability,
+                label_i18n_key: "plugin.export",
+                label: "Export",
+                group: "plugin",
+            }],
+            &[crate::permission_message!(
+                "plugin.export",
+                "Export",
+                "导出"
+            )],
+        )
         .expect("look-alike namespace must not be treated as reserved");
         assert!(registry.contains(&lookalike));
     }
@@ -859,14 +927,21 @@ mod tests {
     fn registry_accepts_foreign_namespace() {
         let id =
             PermissionId::new("com.example.plugin.capability.rendering.export").expect("valid");
-        let registry = PermissionRegistry::new(vec![PermissionDescriptor {
-            id: id.clone(),
-            kind: PermissionKind::Capability,
-            label_i18n_key: "plugin.rendering.export",
-            label: "Export",
-            group: "plugin",
-        }])
-        .expect("foreign namespace descriptor must register");
+        let registry = PermissionRegistry::new(
+            vec![PermissionDescriptor {
+                id: id.clone(),
+                kind: PermissionKind::Capability,
+                label_i18n_key: "plugin.rendering.export",
+                label: "Export",
+                group: "plugin",
+            }],
+            &[crate::permission_message!(
+                "plugin.rendering.export",
+                "Export rendering",
+                "导出渲染"
+            )],
+        )
+        .expect("foreign descriptor with translation must register");
         assert!(registry.contains(&id));
         assert_eq!(registry.len(), BUILTIN_DESCRIPTORS.len() + 1);
     }

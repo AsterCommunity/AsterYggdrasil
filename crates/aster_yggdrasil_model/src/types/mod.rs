@@ -9,6 +9,7 @@ pub mod auth;
 pub mod external_auth;
 pub mod passkey;
 pub mod permission;
+pub mod permission_localization;
 pub mod task;
 pub mod user;
 pub mod yggdrasil;

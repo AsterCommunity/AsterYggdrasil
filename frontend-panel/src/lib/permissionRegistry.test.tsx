@@ -1,17 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import "@/i18n";
+import { i18next } from "@/i18n";
 import {
 	type RegistryPermissions,
 	useRegistryPermissions,
 } from "@/lib/permissionRegistry";
-import { REGISTRY_PERMISSIONS } from "@/test/permissions";
 
-const mockedList = vi.hoisted(() => vi.fn());
+const mockedLocalizations = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/permissionService", () => ({
 	permissionService: {
-		list: mockedList,
+		list: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
+			return { permissions: REGISTRY_PERMISSIONS };
+		}),
+		localizations: mockedLocalizations,
 	},
 }));
 
@@ -30,17 +33,49 @@ function Mount() {
 
 describe("useRegistryPermissions", () => {
 	it("serves remounts from the process cache without refetching", async () => {
-		mockedList.mockResolvedValue({ permissions: REGISTRY_PERMISSIONS });
+		mockedLocalizations.mockResolvedValue({
+			namespace: "permissions",
+			requested_locale: "en",
+			resolved_locale: "en",
+			revision: "test",
+			messages: {
+				"admin.users.bans.scope.texture_upload": "Texture upload and wardrobe",
+			},
+		});
 
 		const { unmount } = render(<Mount />);
 		expect(await screen.findByText("ready")).toBeInTheDocument();
-		expect(mockedList).toHaveBeenCalledTimes(1);
+		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
 		expect(screen.getByText("5")).toBeInTheDocument();
 		unmount();
 
 		render(<Mount />);
 		expect(screen.getByText("ready")).toBeInTheDocument();
 		expect(screen.getByText("5")).toBeInTheDocument();
-		expect(mockedList).toHaveBeenCalledTimes(1);
+		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
+	});
+
+	it("refetches the localization bundle when the language changes", async () => {
+		await i18next.changeLanguage("en-US");
+		mockedLocalizations.mockImplementation(async (locale: string) => ({
+			namespace: "permissions",
+			requested_locale: locale,
+			resolved_locale: locale.startsWith("zh") ? "zh" : "en",
+			revision: `test-${locale}`,
+			messages: locale.startsWith("zh")
+				? { "admin.users.bans.scope.texture_upload": "材质上传" }
+				: { "admin.users.bans.scope.texture_upload": "Texture upload" },
+		}));
+
+		const { unmount } = render(<Mount />);
+		expect(await screen.findByText("ready")).toBeInTheDocument();
+		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
+		unmount();
+
+		await i18next.changeLanguage("zh-CN");
+		render(<Mount />);
+		expect(await screen.findByText("ready")).toBeInTheDocument();
+		expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
+		await i18next.changeLanguage("en-US");
 	});
 });

@@ -260,9 +260,14 @@ fn normalize_update_role_and_scopes(
             UserRole::Operator => {
                 if requested_role == Some(UserRole::Operator) && existing_role != UserRole::Operator
                 {
+                    // An explicit promotion starts from an empty grant set.
                     Ok((UserRole::Operator, Some(Vec::new())))
                 } else if existing_role == UserRole::Operator {
-                    Ok((UserRole::Operator, Some(existing_scopes)))
+                    // Omitted scopes on an existing operator leave the stored
+                    // grants untouched: the snapshot was read outside the
+                    // transaction, and writing it back could resurrect grants
+                    // a concurrent update already revoked.
+                    Ok((UserRole::Operator, None))
                 } else {
                     Ok((UserRole::Operator, Some(Vec::new())))
                 }
@@ -1538,5 +1543,32 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(kept.operator_scopes, vec![permission::admin::AUDIT]);
+
+        // A concurrent revocation committed between this update's out-of-
+        // transaction scope read and its write must not be resurrected: an
+        // update that omits operator_scopes leaves the stored set alone.
+        user_operator_scope_repo::replace_for_user(ctx.state.writer_db(), bare.user.id, &[])
+            .await
+            .unwrap();
+        let after_concurrent_revoke = update_user(
+            &ctx.state,
+            bare.user.id,
+            AdminUpdateUserInput {
+                username: Some("renamed-operator".to_string()),
+                email: None,
+                password: None,
+                role: None,
+                operator_scopes: None,
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(after_concurrent_revoke.username, "renamed-operator");
+        assert!(
+            after_concurrent_revoke.operator_scopes.is_empty(),
+            "omitted scopes must not resurrect concurrently revoked grants"
+        );
     }
 }

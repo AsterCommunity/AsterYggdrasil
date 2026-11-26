@@ -5,6 +5,9 @@ import { readStorageItem, STORAGE_KEYS, writeStorageItem } from "@/lib/storage";
 
 const supportedLanguages = Object.keys(resources);
 
+/** The single namespace all static and backend-installed bundles merge into. */
+export const DEFAULT_I18N_NAMESPACE = "frontend";
+
 function supportedLanguageFor(value: string | null | undefined) {
 	if (!value) {
 		return null;
@@ -49,7 +52,7 @@ void i18next.use(initReactI18next).init({
 	resources,
 	lng: detectLanguage(),
 	fallbackLng: "en-US",
-	defaultNS: "frontend",
+	defaultNS: DEFAULT_I18N_NAMESPACE,
 	interpolation: {
 		escapeValue: false,
 	},

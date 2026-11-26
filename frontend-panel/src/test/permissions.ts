@@ -98,3 +98,24 @@ export const REGISTRY_PERMISSIONS: AdminPermissionInfo[] = [
 		group: "texture_library",
 	},
 ];
+
+/**
+ * The localized label texts the backend localization endpoint serves for
+ * the default locale; mirrors BUILTIN_PERMISSION_MESSAGES.
+ */
+export const REGISTRY_MESSAGES: Record<string, string> = {
+	"admin.users.bans.scope.minecraft_profile_manage": "Profile management",
+	"admin.users.bans.scope.texture_library_interact":
+		"Texture library interaction",
+	"admin.users.bans.scope.texture_upload": "Texture upload and wardrobe",
+	"admin.users.bans.scope.yggdrasil_access": "Yggdrasil login access",
+	"admin.users.bans.scope.yggdrasil_join": "Yggdrasil server join",
+	"admin.users.operatorScope.audit": "Audit logs",
+	"admin.users.operatorScope.external_auth": "External auth",
+	"admin.users.operatorScope.overview": "Admin overview",
+	"admin.users.operatorScope.profiles": "Profiles",
+	"admin.users.operatorScope.settings": "System settings",
+	"admin.users.operatorScope.tasks": "Background tasks",
+	"admin.users.operatorScope.texture_library": "Texture library",
+	"admin.users.operatorScope.users": "Users",
+};

@@ -50,6 +50,16 @@ vi.mock("@/services/permissionService", () => ({
 			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
 			return { permissions: REGISTRY_PERMISSIONS };
 		}),
+		localizations: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_MESSAGES } = await import("@/test/permissions");
+			return {
+				namespace: "permissions",
+				requested_locale: "en",
+				resolved_locale: "en",
+				revision: "test",
+				messages: REGISTRY_MESSAGES,
+			};
+		}),
 	},
 }));
 
@@ -150,7 +160,7 @@ describe("UserDetailBanSection", () => {
 		renderSection();
 
 		expect(
-			await screen.findByText("Texture upload and wardrobe"),
+			(await screen.findAllByText("Texture upload and wardrobe"))[0],
 		).toBeInTheDocument();
 		expect(adminUserServiceMock.listBans).toHaveBeenCalledWith({
 			limit: 50,
@@ -243,7 +253,7 @@ describe("UserDetailBanSection", () => {
 			.mockResolvedValueOnce(banPage())
 			.mockResolvedValueOnce(banPage([ban({ reason: "profile abuse" })]));
 		renderSection();
-		await screen.findByText("Texture upload and wardrobe");
+		await screen.findAllByText("Texture upload and wardrobe");
 
 		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 		const dialog = topDialog();
@@ -284,7 +294,7 @@ describe("UserDetailBanSection", () => {
 				]),
 			);
 		renderSection();
-		await screen.findByText("Texture upload and wardrobe");
+		await screen.findAllByText("Texture upload and wardrobe");
 
 		fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
 		let dialog = topDialog();

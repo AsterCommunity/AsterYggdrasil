@@ -146,6 +146,8 @@ export type UserInvitationStatus =
 	components["schemas"]["UserInvitationStatus"];
 export type PermissionId = components["schemas"]["PermissionId"];
 export type PermissionKind = components["schemas"]["PermissionKind"];
+export type PermissionLocalizationBundle =
+	OperationData<"list_permission_localizations">;
 export type AdminPermissionInfo = components["schemas"]["AdminPermissionInfo"];
 export type PublicUserInvitationInfo =
 	components["schemas"]["PublicUserInvitationInfo"];

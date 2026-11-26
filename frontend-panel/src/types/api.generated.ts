@@ -1870,6 +1870,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/permissions/localizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serves the localized label texts for the requested locale, so clients
+         *     render permission labels without shipping per-permission translations.
+         */
+        get: operations["list_permission_localizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profiles/minecraft": {
         parameters: {
             query?: never;
@@ -5552,6 +5572,8 @@ export interface components {
              */
             limit?: number | null;
         };
+        /** @description A BCP-47-style locale tag (`en`, `zh-CN`), validated at the segment level. */
+        LocaleTag: string;
         /** @description Request body for password login with username or email. */
         LoginReq: {
             /** @description Answer for the captcha challenge paired with `captcha_challenge_id`. */
@@ -14886,6 +14908,59 @@ export interface operations {
                         msg: string;
                     };
                 };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_permission_localizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Localized permission labels */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        /** @description One permission registry's resolved message set for a locale request. */
+                        data?: {
+                            /** @description Message id to localized text for the resolved locale. */
+                            messages: {
+                                [key: string]: string;
+                            };
+                            /** @description Serving namespace; clients install the messages under it. */
+                            namespace: string;
+                            /** @description Locale the client asked for, before fallback. */
+                            requested_locale: components["schemas"]["LocaleTag"];
+                            /** @description Locale actually served after fallback resolution. */
+                            resolved_locale: components["schemas"]["LocaleTag"];
+                            /** @description Resource revision the messages belong to. */
+                            revision: string;
+                        };
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Bundle unchanged since the sent ETag */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unauthorized */
             401: {

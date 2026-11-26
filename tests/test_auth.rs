@@ -3612,3 +3612,61 @@ async fn permissions_dictionary_is_readable_by_any_authenticated_account() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 401, "anonymous access must be rejected");
 }
+
+#[actix_web::test]
+async fn permission_localizations_serve_locales_with_etag_negotiation() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+    admin_create_user!(
+        app,
+        admin_token,
+        "locale-reader",
+        "locale-reader@example.com",
+        "password1234"
+    );
+    let (reader_token, _, _) = login_session!(app, "locale-reader", "password1234");
+
+    // zh-CN resolves to the zh bundle.
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions/localizations?locale=zh-CN")
+        .insert_header(common::bearer_header(&reader_token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["requested_locale"], "zh-CN");
+    assert_eq!(body["data"]["resolved_locale"], "zh");
+    assert_eq!(
+        body["data"]["messages"]["admin.users.operatorScope.overview"],
+        "后台概览"
+    );
+    assert_eq!(body["data"]["namespace"], "permissions");
+    let revision = body["data"]["revision"].as_str().expect("revision string");
+
+    // An unsupported locale falls back to the default locale.
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions/localizations?locale=fr-FR")
+        .insert_header(common::bearer_header(&reader_token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["data"]["resolved_locale"], "en");
+
+    // A matching If-None-Match short-circuits to 304.
+    let etag = format!("W/\"sha256-{revision}-zh\"");
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions/localizations?locale=zh-CN")
+        .insert_header(common::bearer_header(&reader_token))
+        .insert_header(("If-None-Match", etag))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 304);
+
+    // Anonymous access stays rejected.
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions/localizations")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}
