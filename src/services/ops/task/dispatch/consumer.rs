@@ -21,11 +21,15 @@ use super::{claimed_task_execution_config, refresh_pending_metric};
 /// Forge task-consumer adapter for the single Fallback lane: claims due queue
 /// tasks through the transactional claim store and executes each claim under
 /// its processing-token lease.
+/// Single-flight gate for the detached pending-metric refresh spawned per claim.
 #[derive(Clone)]
 pub struct FallbackTaskConsumer {
     state: web::Data<AppState>,
     lane: TaskLane,
+    refresh_gate: std::sync::Arc<tokio::sync::Semaphore>,
 }
+
+const PENDING_METRIC_REFRESH_TIMEOUT_SECS: u64 = 5;
 
 impl FallbackTaskConsumer {
     /// Builds the Fallback lane consumer on top of the shared app state.
@@ -33,6 +37,7 @@ impl FallbackTaskConsumer {
         Self {
             state,
             lane: TASK_LANES[0],
+            refresh_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
@@ -98,10 +103,25 @@ impl TaskConsumer for FallbackTaskConsumer {
         let tasks = claim_due_for_lane(self.state.get_ref(), self.config(), available).await?;
         // Backlog gauge refresh must not sit on the claim→execute path: the
         // claimed leases start heartbeating only once their handlers spawn.
-        let state = self.state.clone();
-        tokio::spawn(async move {
-            refresh_pending_metric(state.get_ref()).await;
-        });
+        // The single-permit gate keeps at most one refresh in flight, and the
+        // timeout stops a slow database from piling refresh tasks up.
+        if let Ok(permit) = self.refresh_gate.clone().try_acquire_owned() {
+            let state = self.state.get_ref().clone();
+            tokio::spawn(async move {
+                let _permit = permit;
+                let refresh = tokio::time::timeout(
+                    Duration::from_secs(PENDING_METRIC_REFRESH_TIMEOUT_SECS),
+                    refresh_pending_metric(&state),
+                )
+                .await;
+                if refresh.is_err() {
+                    tracing::warn!(
+                        timeout_secs = PENDING_METRIC_REFRESH_TIMEOUT_SECS,
+                        "background task pending metric refresh timed out"
+                    );
+                }
+            });
+        }
         Ok(tasks)
     }
 

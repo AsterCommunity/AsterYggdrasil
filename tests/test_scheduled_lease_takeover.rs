@@ -94,7 +94,7 @@ async fn run_task_cleanup_body(state: web::Data<AppState>) -> RuntimeTaskRunOutc
     }
 }
 
-async fn lease_owner(state: &AppState) -> Option<String> {
+async fn lease_owner_and_expiry(state: &AppState) -> Option<(String, chrono::DateTime<Utc>)> {
     // Forge keeps the lease model private; a raw query is the honest way to
     // observe the current owner from the shared table. Placeholder style
     // follows the backend: MySQL takes `?`, everything else takes `$N`.
@@ -107,14 +107,21 @@ async fn lease_owner(state: &AppState) -> Option<String> {
         .writer_db()
         .query_one_raw(sea_orm::Statement::from_sql_and_values(
             backend,
-            format!("SELECT owner_id FROM runtime_leases WHERE lease_id = {placeholder}"),
+            format!(
+                "SELECT owner_id, expires_at FROM runtime_leases WHERE lease_id = {placeholder}"
+            ),
             [LEASE_ID.into()],
         ))
         .await
         .expect("runtime lease query should succeed");
     row.map(|row| {
-        row.try_get::<String>("", "owner_id")
-            .expect("owner_id should decode as a string")
+        let owner = row
+            .try_get::<String>("", "owner_id")
+            .expect("owner_id should decode as a string");
+        let expires_at = row
+            .try_get::<chrono::DateTime<Utc>>("", "expires_at")
+            .expect("expires_at should decode as a timestamp");
+        (owner, expires_at)
     })
 }
 
@@ -181,8 +188,8 @@ async fn standby_takes_over_scheduled_lease_after_holder_failure() {
     // Start the holder first and wait for it to own the lease, so the
     // takeover observed later is really a failover, not a startup race.
     let holder = spawn_group(state_data.clone(), holder_status, holder_stop);
-    let first_owner = wait_for!("the holder to acquire the runtime lease", {
-        lease_owner(&state).await
+    let (first_owner, _) = wait_for!("the holder to acquire the runtime lease", {
+        lease_owner_and_expiry(&state).await
     });
 
     let standby = spawn_group(state_data.clone(), standby_status, standby_stop.clone());
@@ -193,22 +200,27 @@ async fn standby_takes_over_scheduled_lease_after_holder_failure() {
     let _ = holder.await;
 
     let second_owner = wait_for!("the standby to take over the expired lease", {
-        match lease_owner(&state).await {
-            Some(owner) if owner != first_owner => Some(owner),
+        match lease_owner_and_expiry(&state).await {
+            Some((owner, _)) if owner != first_owner => Some(owner),
             _ => None,
         }
     });
     assert_ne!(second_owner, first_owner, "a new owner must hold the lease");
 
     // The new owner keeps renewing: the same owner still holds the lease well
-    // past one TTL window after takeover.
+    // past one TTL window after takeover, and the stored expiry stays in the
+    // future — a live lease, not just a renamed row.
     tokio::time::sleep(LEASE_TTL * 2).await;
-    let renewed = lease_owner(&state)
+    let (renewed_owner, renewed_expires_at) = lease_owner_and_expiry(&state)
         .await
         .expect("lease row must persist after takeover");
     assert_eq!(
-        renewed, second_owner,
+        renewed_owner, second_owner,
         "the standby must keep holding the lease"
+    );
+    assert!(
+        renewed_expires_at > Utc::now(),
+        "the taken-over lease must be renewed past now, expires at {renewed_expires_at}"
     );
 
     // Scheduled work keeps flowing under the new owner: the catalog's
