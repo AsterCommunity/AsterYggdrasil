@@ -10,6 +10,7 @@ import type {
 } from "@/types/api";
 
 let cachedPermissions: AdminPermissionInfo[] | null = null;
+let bundleLoaded = false;
 let pendingLoad: Promise<LoadResult> | null = null;
 let loadGeneration = 0;
 let languageTick = 0;
@@ -84,11 +85,27 @@ function notifyPermissionsUpdated(): void {
 }
 
 /**
+ * Fetches and installs the localization bundle for one locale. Best-effort
+ * by design: a bundle failure must not block the descriptor flow, because
+ * labels degrade to the static bundle and descriptor labels.
+ */
+async function loadBundle(locale: string): Promise<boolean> {
+	try {
+		const bundle = await permissionService.localizations(locale);
+		installPermissionMessages(bundle.resolved_locale, bundle.messages);
+		bundleLoaded = true;
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Loads the registry once per process, distinguishing a genuinely empty
  * registry from a failed request; failures are never cached, so a retry
- * always reaches the network again. Descriptors and the localized label
- * bundle arrive together, and the bundle is installed into i18n before the
- * result resolves so the first render already has translated labels.
+ * always reaches the network again. The descriptor list is the required
+ * success path; the localization bundle is best-effort so a bundle failure
+ * degrades labels instead of hiding the editor.
  *
  * Every invalidation (language switch, retry after failure) bumps the
  * generation; an in-flight request from a stale generation discards its
@@ -97,25 +114,34 @@ function notifyPermissionsUpdated(): void {
  */
 function loadPermissions(): Promise<LoadResult> {
 	if (cachedPermissions) {
-		return Promise.resolve({ ok: true, permissions: cachedPermissions });
+		if (bundleLoaded) {
+			return Promise.resolve({ ok: true, permissions: cachedPermissions });
+		}
+		// Descriptors are cached but the bundle never arrived: retry it.
+		const bundleRetry = loadBundle(activeLocale()).then((ok) => {
+			if (ok) notifyPermissionsUpdated();
+			return { ok: true, permissions: cachedPermissions } as LoadResult;
+		});
+		return bundleRetry;
 	}
 	if (pendingLoad) return pendingLoad;
 	const startedGeneration = loadGeneration;
 	const locale = activeLocale();
 	const current: Promise<LoadResult> = (async () => {
 		try {
-			const [list, bundle] = await Promise.all([
-				permissionService.list(),
-				permissionService.localizations(locale),
-			]);
+			const list = await permissionService.list();
 			if (loadGeneration !== startedGeneration) {
 				return { ok: false } as LoadResult;
 			}
+			cachedPermissions ??= list.permissions;
 			// Install at the tier the backend resolved (its parent-tag
 			// fallback already picked the best variant); the i18n language
 			// hierarchy (en-US -> en) resolves into that tier on lookup.
-			installPermissionMessages(bundle.resolved_locale, bundle.messages);
-			cachedPermissions ??= list.permissions;
+			const bundleOk = await loadBundle(locale);
+			if (loadGeneration !== startedGeneration) {
+				return { ok: false } as LoadResult;
+			}
+			bundleLoaded = bundleOk;
 			notifyPermissionsUpdated();
 			return { ok: true, permissions: cachedPermissions } as LoadResult;
 		} catch {
@@ -139,6 +165,8 @@ function loadPermissions(): Promise<LoadResult> {
 
 export type RegistryPermissionStatus = "loading" | "error" | "ready";
 
+export type RegistryBundleStatus = "loading" | "error" | "ready";
+
 export type RegistryPermissions = {
 	/** Descriptors of the requested kind; empty while loading or on error. */
 	permissions: AdminPermissionInfo[];
@@ -146,6 +174,11 @@ export type RegistryPermissions = {
 	status: RegistryPermissionStatus;
 	/** Retries the registry request after a failure. */
 	retry: () => void;
+	/** Tracks the localization bundle independently: a bundle failure
+	 * degrades labels but must not block the descriptor flow. */
+	bundleStatus: RegistryBundleStatus;
+	/** Retries a failed localization bundle without touching descriptors. */
+	retryBundle: () => void;
 };
 
 /**
@@ -158,6 +191,9 @@ export function useRegistryPermissions(
 ): RegistryPermissions {
 	const [attempt, setAttempt] = useState(0);
 	const [tick, setTick] = useState(languageTick);
+	const [bundleStatus, setBundleStatus] = useState<RegistryBundleStatus>(() =>
+		bundleLoaded ? "ready" : "loading",
+	);
 	const [permissions, setPermissions] = useState<AdminPermissionInfo[]>(
 		() => cachedPermissions?.filter((item) => item.kind === kind) ?? [],
 	);
@@ -183,6 +219,7 @@ export function useRegistryPermissions(
 			if (result.ok) {
 				setPermissions(result.permissions.filter((item) => item.kind === kind));
 				setStatus("ready");
+				setBundleStatus(bundleLoaded ? "ready" : "error");
 			} else {
 				setStatus("error");
 			}
@@ -191,6 +228,15 @@ export function useRegistryPermissions(
 			cancelled = true;
 		};
 	}, [kind, attempt, tick]);
+
+	const retryBundle = useCallback(() => {
+		if (bundleStatus === "loading") return;
+		setBundleStatus("loading");
+		void loadBundle(activeLocale()).then((ok) => {
+			setBundleStatus(ok ? "ready" : "error");
+			if (ok) notifyPermissionsUpdated();
+		});
+	}, [bundleStatus]);
 
 	// Another consumer's retry or the first successful load updates the
 	// shared cache; mounted instances sync from it instead of staying stale.
@@ -212,7 +258,7 @@ export function useRegistryPermissions(
 		setAttempt((current) => current + 1);
 	}, []);
 
-	return { permissions, status, retry };
+	return { permissions, status, retry, bundleStatus, retryBundle };
 }
 
 // A language switch invalidates the process cache, discards in-flight loads
@@ -223,6 +269,7 @@ i18next.on("languageChanged", () => {
 	cachedPermissions = null;
 	pendingLoad = null;
 	cachedBackendT = null;
+	bundleLoaded = false;
 	loadGeneration += 1;
 	languageTick += 1;
 });

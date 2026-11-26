@@ -924,6 +924,29 @@ mod tests {
     }
 
     #[test]
+    fn localization_getter_and_serde_deserialization_round_trip() {
+        let registry = PermissionRegistry::builtin().expect("built-in registry");
+        // The getter backs the localizations endpoint.
+        assert_eq!(
+            registry
+                .localization()
+                .bundle(
+                    &super::super::permission_localization::LocaleTag::parse("en").expect("valid"),
+                )
+                .namespace,
+            "permissions_backend",
+        );
+
+        // The serde TryFrom path is what API payloads exercise.
+        let id: PermissionId =
+            serde_json::from_str("\"com.astercosm.yggdrasil.capability.texture.upload\"")
+                .expect("valid id deserializes");
+        assert_eq!(id, super::super::permission::capability::texture::UPLOAD);
+        let bad: Result<PermissionId, _> = serde_json::from_str("\"yggdrasil_access\"");
+        assert!(bad.is_err(), "legacy short names must fail deserialization");
+    }
+
+    #[test]
     fn untranslated_descriptor_keys_fail_the_build() {
         let id = PermissionId::new("com.example.plugin.capability.rendering.export")
             .expect("valid syntax");

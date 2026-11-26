@@ -22,6 +22,8 @@ export function OperatorScopeSelector({
 		permissions: adminAreas,
 		status,
 		retry,
+		bundleStatus,
+		retryBundle,
 	} = useRegistryPermissions("admin_area");
 	const selected = new Set(value);
 
@@ -35,6 +37,21 @@ export function OperatorScopeSelector({
 					{t("admin.users.operatorScopesDescription")}
 				</p>
 			</div>
+			{bundleStatus === "error" ? (
+				<div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+					<span className="text-amber-700 dark:text-amber-200">
+						{t("admin.users.bundleLoadFailed")}
+					</span>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={retryBundle}
+					>
+						{t("admin.users.retryPermissionsLoad")}
+					</Button>
+				</div>
+			) : null}
 			{status === "error" ? (
 				<div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm">
 					<span className="text-destructive">

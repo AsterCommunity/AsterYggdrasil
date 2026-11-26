@@ -29,7 +29,7 @@ const MAX_REVISION_LENGTH: usize = 128;
 const REVISION_DOMAIN: &str = "aster.yggdrasil.permissions";
 
 /// Serving namespace advertised to clients installing the bundle.
-pub const PERMISSION_LOCALIZATION_NAMESPACE: &str = "permissions";
+pub const PERMISSION_LOCALIZATION_NAMESPACE: &str = "permissions_backend";
 
 /// Default locale used when no supported locale matches the request.
 pub const PERMISSION_DEFAULT_LOCALE: &str = "en";
@@ -292,23 +292,6 @@ impl PermissionLocalization {
         validate_messages(&self.default_locale, default_messages)?;
         let default_keys = default_messages.keys().collect::<BTreeSet<_>>();
 
-        // A message id that is a segment-wise prefix of another id (a.b
-        // next to a.b.c) cannot be addressed in a nested i18n store, where
-        // a node is either text or a subtree but never both. Reject it here
-        // so both construction paths refuse the shape and the frontend
-        // installer never sees one.
-        let mut sorted_ids: Vec<&str> = default_keys.iter().map(|key| key.as_str()).collect();
-        sorted_ids.sort_unstable();
-        for pair in sorted_ids.windows(2) {
-            let (shorter, longer) = (pair[0], pair[1]);
-            if longer.starts_with(shorter) && longer[shorter.len()..].starts_with('.') {
-                return Err(PermissionLocalizationError(format!(
-                    "permission message id '{}' is a segment-wise prefix of '{}'; nested i18n stores cannot address both",
-                    shorter, longer
-                )));
-            }
-        }
-
         let default_placeholders = default_messages
             .iter()
             .map(|(key, value)| (key, interpolation_placeholders(value)))
@@ -464,6 +447,19 @@ fn validate_messages(
         )));
     }
     for (message_id, value) in messages {
+        // Keys carrying a segment the frontend installer filters out must be
+        // rejected here: otherwise the registry builds successfully and the
+        // label silently degrades to English for non-English users.
+        if message_id
+            .split('.')
+            .any(|segment| matches!(segment, "__proto__" | "constructor" | "prototype"))
+        {
+            return Err(PermissionLocalizationError(format!(
+                "permission locale '{}' has message id '{}' with a forbidden segment",
+                locale.as_str(),
+                message_id
+            )));
+        }
         if message_id.is_empty()
             || message_id.len() > MAX_MESSAGE_ID_LENGTH
             // Alphanumerics plus separators: the frontend bundle keys use
@@ -795,12 +791,105 @@ mod tests {
     }
 
     #[test]
+    fn prefix_pairs_are_legal_and_forbidden_segments_are_rejected() {
+        // The frontend installs messages flat (empty key separator), so a
+        // prefix pair is two independent keys, not a node conflict.
+        let localization = PermissionLocalization::from_messages(
+            "en",
+            &[
+                crate::permission_message!("plugin.render", "Render", "渲染"),
+                crate::permission_message!("plugin.render.export", "Export", "导出"),
+            ],
+        )
+        .expect("prefix pairs are legal in the flat store");
+        let bundle = localization.bundle(&LocaleTag::parse("en").expect("valid"));
+        assert_eq!(
+            bundle.messages.get("plugin.render"),
+            Some(&"Render".to_string())
+        );
+        assert_eq!(
+            bundle.messages.get("plugin.render.export"),
+            Some(&"Export".to_string())
+        );
+
+        // Keys the frontend installer filters out must fail the build,
+        // otherwise the label silently degrades to English.
+        let error = PermissionLocalization::from_messages(
+            "en",
+            &[
+                crate::permission_message!("plugin.render", "Render", "渲染"),
+                crate::permission_message!("plugin.constructor.export", "Export", "导出"),
+            ],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("forbidden segment"));
+    }
+
+    #[test]
     fn validate_message_ids_names_the_missing_key() {
         let localization = builtin_permission_localization().expect("built-in table");
         let error = localization
             .validate_message_ids(["admin.users.operatorScope.does_not_exist"])
             .unwrap_err();
         assert!(error.to_string().contains("does_not_exist"));
+    }
+
+    #[test]
+    fn locale_tag_traits_and_limits_are_covered() {
+        // Case-insensitive equality and ordering.
+        let en = LocaleTag::parse("en").expect("valid");
+        let en_upper = LocaleTag::parse("EN").expect("valid");
+        assert_eq!(en, en_upper);
+        assert!(en == en_upper);
+
+        // Display and the serde TryFrom path.
+        assert_eq!(en.to_string(), "en");
+        let from_serde: LocaleTag = serde_json::from_str("\"zh-CN\"").expect("valid");
+        assert_eq!(from_serde.as_str(), "zh-CN");
+
+        // Overlong and malformed tags fail at the segment level.
+        assert!(LocaleTag::parse(&"a".repeat(36)).is_err());
+        assert!(LocaleTag::parse("zh__CN").is_err());
+        assert!(LocaleTag::parse("").is_err());
+
+        // Hash-based collections see case variants as one entry.
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(LocaleTag::parse("EN").expect("valid"));
+        assert!(set.contains(&LocaleTag::parse("en").expect("valid")));
+
+        // The public resolved_locale helper mirrors bundle()'s resolution.
+        let localization = builtin_permission_localization().expect("built-in");
+        let resolved = localization.resolved_locale(&LocaleTag::parse("zh-SG").expect("valid"));
+        assert_eq!(resolved.as_str(), "zh");
+    }
+
+    #[test]
+    fn empty_locale_map_in_direct_construction_is_rejected() {
+        let error = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            BTreeMap::from([
+                (
+                    LocaleTag::parse("en").expect("valid"),
+                    BTreeMap::from([("a".to_string(), "A".to_string())]),
+                ),
+                (LocaleTag::parse("zh").expect("valid"), BTreeMap::new()),
+            ]),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("1..=512 messages"));
+    }
+
+    #[test]
+    fn resolve_walks_single_segment_and_deep_parent_chains() {
+        let localization = builtin_permission_localization().expect("built-in");
+        // A single unsupported segment walks straight to the default.
+        let bundle = localization.bundle(&LocaleTag::parse("xx").expect("valid"));
+        assert_eq!(bundle.resolved_locale.as_str(), "en");
+        // A deep chain strips subtags until a supported locale matches.
+        let bundle = localization.bundle(&LocaleTag::parse("zh-Hant-TW").expect("valid"));
+        assert_eq!(bundle.resolved_locale.as_str(), "zh");
     }
 
     #[test]

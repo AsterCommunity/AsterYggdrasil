@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { i18next } from "@/i18n";
 import {
@@ -91,7 +91,7 @@ describe("useRegistryPermissions", () => {
 		expect(flatLookup("plugin.__proto__.escape")).toBe("MISS");
 	});
 
-	it("refetches the localization bundle when the language changes", async () => {
+	it("refetches the localization bundle for a mounted consumer on language change", async () => {
 		await i18next.changeLanguage("en-US");
 		mockedLocalizations.mockImplementation(async (locale: string) => ({
 			namespace: "permissions",
@@ -103,15 +103,19 @@ describe("useRegistryPermissions", () => {
 				: { "admin.users.bans.scope.texture_upload": "Texture upload" },
 		}));
 
-		const { unmount } = render(<Mount />);
-		expect(await screen.findByText("ready")).toBeInTheDocument();
-		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
-		unmount();
-
-		await i18next.changeLanguage("zh-CN");
+		// Keep the consumer mounted across the switch: this pins the
+		// language-tick subscription, so a regression where mounted hooks
+		// stop refetching cannot pass.
 		render(<Mount />);
 		expect(await screen.findByText("ready")).toBeInTheDocument();
-		expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
+		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
+
+		await i18next.changeLanguage("zh-CN");
+		await waitFor(() => {
+			expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
+		});
+		expect(await screen.findByText("ready")).toBeInTheDocument();
+		expect(mockedLocalizations).toHaveBeenCalledTimes(2);
 		await i18next.changeLanguage("en-US");
 	});
 });

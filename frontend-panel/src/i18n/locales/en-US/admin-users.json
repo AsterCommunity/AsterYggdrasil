@@ -46,6 +46,7 @@
 			"password": "Password",
 			"roleLabel": "Role",
 			"operatorScopesLoading": "Loading permissions...",
+			"bundleLoadFailed": "Failed to load permission labels; falling back to static copy.",
 			"permissionsLoadFailed": "Failed to load the permission registry.",
 			"retryPermissionsLoad": "Retry",
 			"operatorScopesLabel": "Manageable areas",

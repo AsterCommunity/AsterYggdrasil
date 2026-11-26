@@ -46,6 +46,7 @@
 			"password": "密码",
 			"roleLabel": "角色",
 			"operatorScopesLoading": "权限列表加载中……",
+			"bundleLoadFailed": "权限标签加载失败，标签将显示为备用文案。",
 			"permissionsLoadFailed": "权限列表加载失败。",
 			"retryPermissionsLoad": "重试",
 			"operatorScopesLabel": "可管理区域",
