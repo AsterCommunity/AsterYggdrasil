@@ -63,3 +63,35 @@ describe("http transport errors", () => {
 		});
 	});
 });
+
+describe("csrf header attachment", () => {
+	afterEach(() => {
+		// biome-ignore lint/suspicious/noDocumentCookie: jsdom tests need direct cookie mutation.
+		document.cookie =
+			"aster_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+	});
+
+	it("attaches the csrf header on unsafe methods", async () => {
+		// biome-ignore lint/suspicious/noDocumentCookie: jsdom tests need direct cookie mutation.
+		document.cookie = "aster_csrf=csrf-token-abc; path=/";
+		let capturedHeader: string | null = null;
+		api.client.defaults.adapter = (config) => {
+			const headers = config.headers;
+			capturedHeader =
+				headers && typeof headers.get === "function"
+					? (headers.get("X-CSRF-Token") as string | null)
+					: null;
+			return Promise.resolve({
+				config,
+				data: { code: "success", msg: "", data: null },
+				headers: {},
+				status: 200,
+				statusText: "OK",
+			});
+		};
+
+		await api.post("/guarded");
+
+		expect(capturedHeader).toBe("csrf-token-abc");
+	});
+});

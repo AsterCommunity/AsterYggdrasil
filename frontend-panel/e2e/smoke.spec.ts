@@ -131,3 +131,29 @@ test("keeps app topbar compact across account and admin shells", async ({
 	).toHaveCount(0);
 	await expect(page.getByText("⌘K")).toHaveCount(0);
 });
+
+test("keeps users logged out after reload once logout succeeds", async ({
+	page,
+}) => {
+	await loginAsAdmin(page);
+
+	await page.getByRole("button", { name: adminUsername }).click();
+	await page.getByRole("menuitem", { name: "Logout" }).click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Regression for issue #37: after a successful logout, a page reload must
+	// not resurrect the session; protected routes stay inaccessible.
+	await page.reload();
+	await expect(
+		page.getByRole("link", { name: "Login / Register" }),
+	).toBeVisible();
+
+	await page.goto("/account");
+	await expect(
+		page.getByRole("heading", { name: "Login required" }),
+	).toBeVisible();
+	await expect(page.getByRole("link", { name: "Go to login" })).toHaveAttribute(
+		"href",
+		"/login",
+	);
+});

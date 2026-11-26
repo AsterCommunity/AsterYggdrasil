@@ -58,6 +58,7 @@
 		"openNavigation": "Open navigation",
 		"expandNavigation": "Expand navigation",
 		"collapseNavigation": "Collapse navigation",
+		"logoutIncomplete": "Signed out locally, but the server session may not have been revoked and could still be active",
 		"logoutSuccess": "Logged out",
 		"navigationTitle": "App navigation",
 		"sections": {
