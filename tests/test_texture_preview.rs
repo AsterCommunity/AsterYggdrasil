@@ -76,12 +76,12 @@ async fn worker_dispatch_renders_and_the_next_request_is_200_immutable() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 202);
 
-    // Worker side: dispatch drains the queue and renders into object storage.
-    let stats = aster_yggdrasil::services::ops::task::dispatch_due(&state)
+    // Worker side: the queue consumer claims and executes the preview task.
+    let outcomes = common::run_pending_tasks_once(&state, 8)
         .await
         .expect("dispatch should run");
     assert!(
-        stats.has_activity(),
+        !outcomes.is_empty(),
         "the queued preview task must dispatch"
     );
     let tasks = pending_preview_tasks(&state).await;
@@ -163,5 +163,66 @@ async fn failed_generation_answers_404_instead_of_202() {
         pending_preview_tasks(&state).await.len(),
         1,
         "a failed task must not be re-enqueued by request traffic"
+    );
+}
+
+#[actix_web::test]
+async fn spawned_queue_consumer_executes_enqueued_preview_and_reports_ready() {
+    let (state, _storage_guard) = common::setup_with_isolated_storage().await;
+    let app = create_test_app!(state.clone());
+    let url = preview_url(&state, STEVE_HASH);
+
+    let req = test::TestRequest::get().uri(&url).to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 202);
+
+    let statuses = aster_yggdrasil::services::ops::task::consumer_statuses();
+    assert_eq!(statuses.len(), 1, "one fallback lane, one runner status");
+    let stop = tokio_util::sync::CancellationToken::new();
+    let mut tasks = aster_forge_tasks::BackgroundTasks::new();
+    aster_yggdrasil::services::ops::task::spawn_consumers(
+        actix_web::web::Data::new(state.clone()),
+        statuses.clone(),
+        stop.clone(),
+        &mut tasks,
+    );
+
+    // The runner's startup claim must pick the enqueued task up without any
+    // explicit wakeup and drive it to a successful preview render.
+    let rendered = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        loop {
+            let tasks = pending_preview_tasks(&state).await;
+            if tasks
+                .first()
+                .is_some_and(|task| task.status == BackgroundTaskStatus::Succeeded)
+            {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    assert!(
+        rendered.is_ok(),
+        "spawned consumer must execute the queued preview task"
+    );
+
+    let task = &pending_preview_tasks(&state).await[0];
+    assert!(
+        task.result_json.is_some(),
+        "preview result must record the rendered file name"
+    );
+    assert!(
+        statuses
+            .iter()
+            .all(aster_forge_tasks::TaskRuntimeStatus::ready),
+        "a claiming runner must report ready for health probes"
+    );
+
+    stop.cancel();
+    tasks.shutdown().await;
+    assert!(
+        statuses.iter().all(|status| !status.ready()),
+        "stopped runners must leave readiness so orchestrators rotate the instance"
     );
 }

@@ -2,23 +2,8 @@ use chrono::Utc;
 
 use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
-use crate::runtime::{AppConfigRuntimeState, AppState, DatabaseRuntimeState};
-use aster_forge_tasks::DispatchStats;
+use crate::runtime::{AppConfigRuntimeState, DatabaseRuntimeState};
 use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
-
-use super::{TASK_DRAIN_MAX_ROUNDS, dispatch_due};
-
-/// Runs dispatch rounds until no more due tasks claim or the round cap is
-/// hit; used at shutdown and in tests to finish in-flight work promptly.
-pub async fn drain(state: &AppState) -> Result<DispatchStats> {
-    aster_forge_tasks::drain_dispatcher(
-        TASK_DRAIN_MAX_ROUNDS,
-        std::time::Duration::from_millis(10),
-        || dispatch_due(state),
-        || background_task_repo::count_processing(state.writer_db()),
-    )
-    .await
-}
 
 /// Deletes expired task records' temp working directories under the
 /// configured runtime temp root; returns the removed entries.

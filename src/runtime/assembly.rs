@@ -38,11 +38,19 @@ pub async fn run(state: crate::runtime::AppState, role: ServeRole) -> io::Result
         web::Data::from(state.get_ref().metrics.clone());
     let app_state = state.get_ref();
 
-    // One shared consumer status per process: the HTTP component reads it for
-    // probes, the task-consumer component drives it while claiming work.
-    let consumer_status = aster_forge_tasks::TaskRuntimeStatus::default();
-    let consumers = if role.consumes_tasks() {
-        vec![consumer_status.clone()]
+    // Queue consumer statuses drive the per-instance consumer component and
+    // the HTTP probes; the scheduled group reports through its own status.
+    let consumer_statuses = if role.consumes_tasks() {
+        crate::services::ops::task::consumer_statuses()
+    } else {
+        Vec::new()
+    };
+    let scheduled_status = aster_forge_tasks::TaskRuntimeStatus::default();
+    // Only consuming roles mount the leased scheduled group; an api process
+    // must report an empty list so probes do not wait on a runner that never
+    // starts.
+    let scheduled_consumers = if role.consumes_tasks() {
+        vec![scheduled_status.clone()]
     } else {
         Vec::new()
     };
@@ -60,17 +68,23 @@ pub async fn run(state: crate::runtime::AppState, role: ServeRole) -> io::Result
             metrics_data,
             RoleHealth {
                 role,
-                consumers,
+                consumers: consumer_statuses.clone(),
+                scheduled: scheduled_consumers,
                 shutdown: Default::default(),
                 initialized,
             },
         ))?
         .component(crate::runtime::tasks::maintenance_component(state.clone()));
     let runtime = if role.consumes_tasks() {
-        runtime.component(crate::runtime::tasks::task_consumers_component(
-            state.clone(),
-            consumer_status,
-        ))
+        runtime
+            .component(crate::runtime::tasks::task_consumers_component(
+                state.clone(),
+                consumer_statuses,
+            ))
+            .component(crate::runtime::tasks::scheduled_tasks_component(
+                state.clone(),
+                scheduled_status,
+            ))
     } else {
         runtime
     };

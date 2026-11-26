@@ -105,11 +105,12 @@ where
 pub(super) async fn claim_due_for_lane(
     state: &(impl DatabaseRuntimeState + Sync),
     lane_config: TaskLaneConfig,
+    max_claim: usize,
 ) -> Result<Vec<(background_task::Model, TaskLease)>> {
     aster_forge_tasks::claim_due_for_lane(
         &BackgroundTaskClaimStore { state },
         lane_config,
-        lane_config.limit,
+        max_claim,
         TASK_PROCESSING_STALE_SECS,
         task_lane,
     )

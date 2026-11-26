@@ -19,12 +19,19 @@ const BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL: Duration = Duration::from_se
 const BACKGROUND_TASK_RUNTIME_LEASE_STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULED_TASK_CLAIM_TTL: Duration = Duration::from_secs(120);
 
-/// Independent component identity for the leased task-consumer group.
+/// Independent component identity for the per-instance queue consumer group.
 ///
 /// Process-owned maintenance (metrics updates, config reload) keeps the default
 /// [`aster_forge_tasks::BACKGROUND_TASKS_COMPONENT`] name, so shutdown graphs can
 /// order the consumer group against it explicitly.
 pub const TASK_CONSUMERS_COMPONENT: &str = "task_consumers";
+
+/// Independent component identity for the leased scheduled maintenance group.
+///
+/// Unlike [`TASK_CONSUMERS_COMPONENT`], only the instance holding the runtime
+/// lease runs these tasks; the component exists so health reports and shutdown
+/// graphs can address the group separately from queue consumers.
+pub const SCHEDULED_TASKS_COMPONENT: &str = "scheduled_tasks";
 
 type BackgroundTasksComponent<F> =
     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponentFromShutdown<
@@ -46,19 +53,36 @@ pub fn maintenance_component(
     })
 }
 
-/// Creates the leased task-consumer component. Only registered by roles that
-/// consume tasks (`all`, `worker`); API-only processes leave tasks queued.
+/// Creates the per-instance queue consumer component. Every consuming role
+/// instance runs it in parallel; claims are fenced by the claim transaction,
+/// so throughput scales with instance count. API-only processes leave tasks
+/// queued for workers.
 pub fn task_consumers_component(
     state: web::Data<AppState>,
-    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
+    consumer_statuses: Vec<aster_forge_tasks::TaskRuntimeStatus>,
+) -> aster_forge_tasks::BackgroundTaskRuntimeComponentFromShutdown<
+    impl FnOnce(CancellationToken) -> BackgroundTasks,
+> {
+    aster_forge_tasks::background_task_component_from_shutdown(move |shutdown_token| {
+        spawn_queue_consumers(state, consumer_statuses, shutdown_token)
+    })
+    .named(TASK_CONSUMERS_COMPONENT)
+}
+
+/// Creates the leased scheduled maintenance component (the 10 maintenance
+/// tasks). Only the runtime-lease holder executes them; standbys retry until
+/// the lease is handed over.
+pub fn scheduled_tasks_component(
+    state: web::Data<AppState>,
+    scheduled_status: aster_forge_tasks::TaskRuntimeStatus,
 ) -> BackgroundTasksComponent<impl FnOnce(CancellationToken) -> BackgroundTasks> {
     aster_forge_tasks::background_task_component_with_definitions_from_shutdown(
         crate::services::ops::task::registered_system_runtime_tasks(),
         move |shutdown_token| {
-            spawn_runtime_background_tasks(state, consumer_status, shutdown_token)
+            spawn_scheduled_runtime_tasks(state, scheduled_status, shutdown_token)
         },
     )
-    .named(TASK_CONSUMERS_COMPONENT)
+    .named(SCHEDULED_TASKS_COMPONENT)
 }
 
 fn spawn_maintenance_tasks(
@@ -85,9 +109,9 @@ fn spawn_maintenance_tasks(
     tasks
 }
 
-fn spawn_runtime_background_tasks(
+fn spawn_queue_consumers(
     state: web::Data<AppState>,
-    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
+    consumer_statuses: Vec<aster_forge_tasks::TaskRuntimeStatus>,
     shutdown_token: CancellationToken,
 ) -> BackgroundTasks {
     let budget = state.get_ref().config.worker.consumer_config();
@@ -95,21 +119,44 @@ fn spawn_runtime_background_tasks(
         budget.drain_timeout + budget.cancellation_timeout + Duration::from_secs(5);
     tracing::info!(
         shutdown_grace_secs = shutdown_grace.as_secs(),
-        "starting runtime background tasks"
+        lanes = consumer_statuses.len(),
+        "starting queue task consumers"
     );
     let mut tasks = BackgroundTasks::with_shutdown_token_and_grace(shutdown_token, shutdown_grace);
-    tasks.push(run_background_runtime_group(
+    crate::services::ops::task::spawn_consumers(
+        state,
+        consumer_statuses,
+        tasks.shutdown_token(),
+        &mut tasks,
+    );
+    tasks
+}
+
+fn spawn_scheduled_runtime_tasks(
+    state: web::Data<AppState>,
+    scheduled_status: aster_forge_tasks::TaskRuntimeStatus,
+    shutdown_token: CancellationToken,
+) -> BackgroundTasks {
+    let budget = state.get_ref().config.worker.consumer_config();
+    let shutdown_grace =
+        budget.drain_timeout + budget.cancellation_timeout + Duration::from_secs(5);
+    tracing::info!(
+        shutdown_grace_secs = shutdown_grace.as_secs(),
+        "starting leased scheduled runtime tasks"
+    );
+    let mut tasks = BackgroundTasks::with_shutdown_token_and_grace(shutdown_token, shutdown_grace);
+    tasks.push(run_scheduled_runtime_group(
         tasks.shutdown_token(),
         state,
-        consumer_status,
+        scheduled_status,
     ));
     tasks
 }
 
-async fn run_background_runtime_group(
+async fn run_scheduled_runtime_group(
     shutdown_token: CancellationToken,
     state: web::Data<AppState>,
-    consumer_status: aster_forge_tasks::TaskRuntimeStatus,
+    scheduled_status: aster_forge_tasks::TaskRuntimeStatus,
 ) {
     let config = aster_forge_tasks::LeasedScheduledRuntimeConfig::new(
         "aster_yggdrasil",
@@ -122,7 +169,7 @@ async fn run_background_runtime_group(
         },
         record_scheduled_task_outcome,
     )
-    .status(consumer_status)
+    .status(scheduled_status)
     .claim_ttl(SCHEDULED_TASK_CLAIM_TTL)
     .lease_ttl(BACKGROUND_TASK_RUNTIME_LEASE_TTL)
     .lease_renew_interval(BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL)
@@ -130,7 +177,6 @@ async fn run_background_runtime_group(
 
     config
         .run(shutdown_token, |runtime| {
-            runtime.singleton_worker(spawn_background_task_dispatcher);
             runtime.scheduled(
                 SystemRuntimeTaskKind::MailOutboxDispatch,
                 mail_outbox_dispatch_interval_for_web_state,
@@ -224,27 +270,6 @@ async fn record_scheduled_task_outcome(
         state.get_ref(),
         name,
         claim.scheduled_at,
-        started_at,
-        finished_at,
-        &outcome,
-    )
-    .await
-    {
-        tracing::warn!("failed to record runtime task '{task_name}': {error}");
-    }
-}
-
-async fn record_runtime_task_outcome(
-    state: web::Data<AppState>,
-    name: SystemRuntimeTaskKind,
-    started_at: chrono::DateTime<Utc>,
-    finished_at: chrono::DateTime<Utc>,
-    outcome: RuntimeTaskRunOutcome,
-) {
-    let task_name = name.as_str();
-    if let Err(error) = crate::services::ops::task::record_runtime_task_run(
-        state.get_ref(),
-        name,
         started_at,
         finished_at,
         &outcome,
@@ -538,109 +563,6 @@ async fn run_yggdrasil_texture_cleanup(state: web::Data<AppState>) -> RuntimeTas
     }
 }
 
-async fn spawn_background_task_dispatcher(
-    shutdown_token: CancellationToken,
-    state: web::Data<AppState>,
-) {
-    aster_forge_tasks::run_dispatch_worker(
-        SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str(),
-        shutdown_token,
-        state,
-        |state| background_task_dispatch_interval(state.get_ref()),
-        |state| background_task_dispatch_idle_max_interval(state.get_ref()),
-        |state: web::Data<AppState>| async move {
-            state.background_task_dispatch_wakeup().notified().await;
-        },
-        run_background_task_dispatch_iteration,
-    )
-    .await;
-}
-
-async fn run_background_task_dispatch_iteration(
-    state: web::Data<AppState>,
-    shutdown_token: CancellationToken,
-) -> aster_forge_tasks::BackgroundTaskDispatchIteration {
-    let iteration = std::sync::Arc::new(std::sync::Mutex::new(
-        aster_forge_tasks::BackgroundTaskDispatchIteration::idle(),
-    ));
-    let iteration_for_record = iteration.clone();
-    let iteration_for_panic = iteration.clone();
-
-    aster_forge_tasks::run_recorded_task_iteration(
-        SystemRuntimeTaskKind::BackgroundTaskDispatch,
-        SystemRuntimeTaskKind::BackgroundTaskDispatch.as_str(),
-        state,
-        &move |state: web::Data<AppState>| {
-            let shutdown_token = shutdown_token.clone();
-            let iteration_for_record = iteration_for_record.clone();
-            async move {
-                let result = crate::services::ops::task::dispatch::dispatch_due_with_shutdown(
-                    state.get_ref(),
-                    shutdown_token,
-                )
-                .await;
-                let dispatch_iteration = match &result {
-                    Ok(stats) if stats.has_activity() => {
-                        aster_forge_tasks::BackgroundTaskDispatchIteration::active()
-                    }
-                    Ok(_) => aster_forge_tasks::BackgroundTaskDispatchIteration::idle(),
-                    Err(_) => aster_forge_tasks::BackgroundTaskDispatchIteration::failed(),
-                };
-                match iteration_for_record.lock() {
-                    Ok(mut stored) => *stored = dispatch_iteration,
-                    Err(poisoned) => *poisoned.into_inner() = dispatch_iteration,
-                }
-                background_task_dispatch_outcome(result)
-            }
-        },
-        &move |panic_message| {
-            match iteration_for_panic.lock() {
-                Ok(mut stored) => {
-                    *stored = aster_forge_tasks::BackgroundTaskDispatchIteration::failed();
-                }
-                Err(poisoned) => {
-                    *poisoned.into_inner() =
-                        aster_forge_tasks::BackgroundTaskDispatchIteration::failed();
-                }
-            }
-            RuntimeTaskRunOutcome::failed(Some("Task panicked".to_string()), panic_message)
-        },
-        &record_runtime_task_outcome,
-    )
-    .await;
-
-    match iteration.lock() {
-        Ok(stored) => *stored,
-        Err(poisoned) => *poisoned.into_inner(),
-    }
-}
-
-fn background_task_dispatch_outcome(
-    result: crate::errors::Result<aster_forge_tasks::DispatchStats>,
-) -> RuntimeTaskRunOutcome {
-    match result {
-        Ok(stats) => {
-            if stats.has_activity() {
-                tracing::info!(
-                    claimed = stats.claimed,
-                    succeeded = stats.succeeded,
-                    retried = stats.retried,
-                    failed = stats.failed,
-                    "processed background task batch"
-                );
-            }
-            RuntimeTaskRunOutcome::quiet()
-        }
-        Err(error) => {
-            tracing::warn!("background task dispatch failed: {error}");
-            RuntimeTaskRunOutcome::failed(
-                Some("Background task dispatch failed".to_string()),
-                error.to_string(),
-            )
-        }
-    }
-}
-
 fn build_background_tasks_base(
     metrics: &SharedMetricsRecorder,
     shutdown_token: CancellationToken,
@@ -655,18 +577,6 @@ fn build_background_tasks_base(
         tasks.push(task);
     }
     tasks
-}
-
-fn background_task_dispatch_interval(state: &impl SharedRuntimeState) -> Duration {
-    Duration::from_secs(operations::background_task_dispatch_interval_secs(
-        state.runtime_config(),
-    ))
-}
-
-fn background_task_dispatch_idle_max_interval(state: &impl SharedRuntimeState) -> Duration {
-    Duration::from_secs(operations::background_task_dispatch_idle_max_interval_secs(
-        state.runtime_config(),
-    ))
 }
 
 fn maintenance_cleanup_interval(state: &impl SharedRuntimeState) -> Duration {
@@ -699,32 +609,46 @@ mod tests {
     use aster_forge_runtime::{HealthComponentReport, RuntimeComponentBundle, SystemHealthReport};
 
     #[test]
-    fn task_consumers_component_registers_background_task_shutdown() {
+    fn queue_and_scheduled_components_register_as_separate_task_groups() {
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
+            aster_forge_runtime::runtime_component(
+                aster_forge_tasks::BackgroundTaskRuntimeComponent::new(BackgroundTasks::new())
+                    .named(TASK_CONSUMERS_COMPONENT),
+            )
+            .register(registry);
             aster_forge_runtime::runtime_component(
                 aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent::new(
                     BackgroundTasks::new(),
                     crate::services::ops::task::registered_system_runtime_tasks(),
                 )
-                .named(TASK_CONSUMERS_COMPONENT),
+                .named(SCHEDULED_TASKS_COMPONENT),
             )
             .register(registry);
         });
 
-        let descriptor = registry
+        let queue = registry
             .descriptor(TASK_CONSUMERS_COMPONENT)
-            .expect("background task component should be registered");
+            .expect("queue consumer component should be registered");
+        assert_eq!(queue.kind, aster_forge_runtime::RuntimeComponentKind::Tasks);
+        assert_eq!(queue.shutdown.len(), 1);
         assert_eq!(
-            descriptor.kind,
-            aster_forge_runtime::RuntimeComponentKind::Tasks
-        );
-        assert_eq!(descriptor.shutdown.len(), 1);
-        assert_eq!(
-            descriptor.shutdown[0].phase_name,
+            queue.shutdown[0].phase_name,
             aster_forge_tasks::BACKGROUND_TASKS_SHUTDOWN_PHASE
         );
+        assert!(
+            queue.tasks.is_empty(),
+            "queue consumers are per-instance runners without scheduled definitions"
+        );
+
+        let scheduled = registry
+            .descriptor(SCHEDULED_TASKS_COMPONENT)
+            .expect("scheduled component should be registered");
         assert_eq!(
-            descriptor
+            scheduled.kind,
+            aster_forge_runtime::RuntimeComponentKind::Tasks
+        );
+        assert_eq!(
+            scheduled
                 .tasks
                 .iter()
                 .map(|task| task.task_name)
@@ -733,6 +657,10 @@ mod tests {
                 .iter()
                 .map(|task| task.wire_value)
                 .collect::<Vec<_>>()
+        );
+        assert_ne!(
+            TASK_CONSUMERS_COMPONENT, SCHEDULED_TASKS_COMPONENT,
+            "the two groups must stay independently addressable"
         );
     }
 
