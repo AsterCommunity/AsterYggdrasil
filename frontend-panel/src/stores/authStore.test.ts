@@ -524,6 +524,28 @@ describe("authStore persistence", () => {
 		expect(useAuthStore.getState().canAccessAdminShell).toBe(true);
 	});
 
+	it("upgrades legacy short-name scopes from cached users", async () => {
+		localStorage.setItem(
+			"asteryggdrasil-cached-user",
+			JSON.stringify({
+				id: 7,
+				username: "steve",
+				role: "operator",
+				status: "active",
+				operator_scopes: ["texture_library", "audit"],
+				profile: fullUser.profile,
+			}),
+		);
+
+		const { useAuthStore } = await loadStore();
+
+		expect(useAuthStore.getState().operatorScopes).toEqual([
+			"com.astercosm.yggdrasil.permission.admin.texture_library",
+			"com.astercosm.yggdrasil.permission.admin.audit",
+		]);
+		expect(useAuthStore.getState().canAccessAdminShell).toBe(true);
+	});
+
 	it("ignores admin updates for other users", async () => {
 		const { useAuthStore } = await loadStore();
 

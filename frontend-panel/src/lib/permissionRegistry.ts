@@ -23,20 +23,24 @@ function loadPermissions(): Promise<LoadResult> {
 	if (cachedPermissions) {
 		return Promise.resolve({ ok: true, permissions: cachedPermissions });
 	}
-	pendingLoad ??= permissionService
+	if (pendingLoad) return pendingLoad;
+	const current: Promise<LoadResult> = permissionService
 		.list()
 		.then((data) => {
-			cachedPermissions = data.permissions;
-			pendingLoad = null;
+			// A superseded request must neither clear the newer pending load
+			// nor overwrite an already-populated cache.
+			if (pendingLoad === current) pendingLoad = null;
+			cachedPermissions ??= data.permissions;
 			return { ok: true, permissions: cachedPermissions } as LoadResult;
 		})
 		.catch(() => {
 			// Registry introspection is display-only; a failed request must
 			// not read as "no permissions are registered".
-			pendingLoad = null;
+			if (pendingLoad === current) pendingLoad = null;
 			return { ok: false } as LoadResult;
 		});
-	return pendingLoad;
+	pendingLoad = current;
+	return current;
 }
 
 export type RegistryPermissionStatus = "loading" | "error" | "ready";

@@ -423,8 +423,15 @@ function BanFormDialog({
 	submitting: boolean;
 }) {
 	const { t } = useTranslation();
-	const { permissions: capabilities } = useRegistryPermissions("capability");
+	const {
+		permissions: capabilities,
+		status: registryStatus,
+		retry,
+	} = useRegistryPermissions("capability");
 	const mode = dialog?.mode ?? "create";
+	// A failing or in-flight registry must not let an unshown default
+	// capability get submitted silently.
+	const registryReady = registryStatus === "ready" && capabilities.length > 0;
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 			<DialogContent
@@ -446,6 +453,25 @@ function BanFormDialog({
 					<div className="grid gap-4 md:grid-cols-2">
 						<div className="grid gap-2">
 							<Label>{t("admin.users.bans.scopeLabel")}</Label>
+							{registryStatus !== "ready" ? (
+								<div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+									<span className="text-muted-foreground">
+										{registryStatus === "loading"
+											? t("admin.users.bans.registryLoading")
+											: t("admin.users.bans.registryFailed")}
+									</span>
+									{registryStatus === "error" ? (
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={retry}
+										>
+											{t("admin.users.retryPermissionsLoad")}
+										</Button>
+									) : null}
+								</div>
+							) : null}
 							<div className="grid gap-2 rounded-md border border-border/70 bg-muted/20 p-2 dark:border-white/10 dark:bg-white/[0.03]">
 								{capabilities.map((permission) => (
 									<label
@@ -570,7 +596,11 @@ function BanFormDialog({
 					>
 						{t("common.cancel")}
 					</Button>
-					<Button type="submit" form="user-ban-form" disabled={submitting}>
+					<Button
+						type="submit"
+						form="user-ban-form"
+						disabled={submitting || !registryReady}
+					>
 						{submitting ? (
 							<Icon name="Spinner" className="size-4 animate-spin" />
 						) : null}

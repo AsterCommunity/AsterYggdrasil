@@ -57,4 +57,25 @@ describe("OperatorScopeSelector", () => {
 		).toBeInTheDocument();
 		expect(screen.queryByText("权限列表加载失败。")).not.toBeInTheDocument();
 	});
+
+	it("emits removals when a selected switch is toggled off", async () => {
+		mockedList.mockResolvedValue(await registryFixture());
+		const OperatorScopeSelector = await loadSelector();
+		const onChange = vi.fn();
+		render(
+			<OperatorScopeSelector
+				value={["com.astercosm.yggdrasil.permission.admin.texture_library"]}
+				onChange={onChange}
+			/>,
+		);
+
+		const textureSwitch = await screen.findByRole("switch", {
+			name: "材质库",
+		});
+		// The parent owns `value` and does not round-trip through the mock, so
+		// the switch stays checked; one click exercises the removal path.
+		fireEvent.click(textureSwitch);
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenCalledWith([]);
+	});
 });

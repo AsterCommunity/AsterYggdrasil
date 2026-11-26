@@ -787,6 +787,59 @@ mod tests {
     }
 
     #[test]
+    fn error_and_kind_display_forms_render() {
+        let errors: Vec<PermissionIdError> = vec![
+            PermissionIdError::Empty,
+            PermissionIdError::TooLong { len: 300 },
+            PermissionIdError::MissingNamespace,
+            PermissionIdError::AmbiguousNamespace,
+            PermissionIdError::InvalidSegment {
+                segment: "Bad".to_string(),
+            },
+        ];
+        for error in errors {
+            assert!(!error.to_string().is_empty());
+        }
+
+        let registry_errors: Vec<PermissionRegistryError> = vec![
+            PermissionRegistryError::Duplicate {
+                id: permission::admin::USERS,
+            },
+            PermissionRegistryError::KindMismatch {
+                id: capability::texture::UPLOAD,
+                declared: PermissionKind::AdminArea,
+            },
+            PermissionRegistryError::ReservedNamespace {
+                id: capability::texture::UPLOAD,
+            },
+        ];
+        for error in registry_errors {
+            assert!(!error.to_string().is_empty());
+        }
+
+        assert_eq!(PermissionKind::AdminArea.as_str(), "admin_area");
+        assert_eq!(PermissionKind::Capability.as_str(), "capability");
+        assert_eq!(PermissionKind::AdminArea.to_string(), "admin_area");
+        assert_eq!(PermissionKind::Capability.to_string(), "capability");
+    }
+
+    #[test]
+    fn builtin_constructor_also_runs_at_runtime() {
+        // `builtin` is a const fn evaluated at compile time for the built-in
+        // table; calling it at runtime keeps the wrapper counted by coverage.
+        let id = PermissionId::builtin("com.example.runtime.capability.render");
+        assert_eq!(id.as_str(), "com.example.runtime.capability.render");
+        assert_eq!(id.kind(), PermissionKind::Capability);
+    }
+
+    #[test]
+    fn registry_length_helpers_report_builtins() {
+        let registry = PermissionRegistry::builtin().expect("built-in registry");
+        assert!(!registry.is_empty());
+        assert!(registry.all().next().is_some());
+    }
+
+    #[test]
     fn lookalike_namespaces_stay_external() {
         let lookalike =
             PermissionId::new("com.astercosm.yggdrasil2.capability.export").expect("valid syntax");

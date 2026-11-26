@@ -37,7 +37,7 @@ pub struct AdminPermissionListResp {
 #[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/permissions",
-    tag = "admin",
+    tag = "permissions",
     operation_id = "list_admin_permissions",
     responses(
         (status = 200, description = "Registered permissions", body = inline(ApiResponse<AdminPermissionListResp>)),

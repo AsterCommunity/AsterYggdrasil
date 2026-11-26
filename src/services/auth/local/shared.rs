@@ -3,7 +3,9 @@
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{user_operator_scope_repo, user_repo};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    DatabaseRuntimeState, PermissionRegistryRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::user::profile::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 
 use aster_forge_validation::email::normalize_email;
@@ -80,7 +82,7 @@ fn default_user_profile_info() -> UserProfileInfo {
 /// (display name + avatar) and operator scopes when the user is an operator.
 pub async fn auth_user_info<S>(state: &S, user: user::Model) -> Result<AuthUserInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let profile = profile::get_profile_info(state, &user, AvatarAudience::SelfUser).await?;
     let operator_scopes = auth_user_operator_scopes(state, &user).await?;
@@ -102,7 +104,7 @@ where
 /// its default placeholder. Only operator scopes are loaded.
 pub async fn auth_request_user_info<S>(state: &S, user: user::Model) -> Result<AuthUserInfo>
 where
-    S: DatabaseRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState,
 {
     let operator_scopes = auth_user_operator_scopes(state, &user).await?;
     Ok(AuthUserInfo {
@@ -113,12 +115,28 @@ where
 
 async fn auth_user_operator_scopes<S>(state: &S, user: &user::Model) -> Result<Vec<PermissionId>>
 where
-    S: DatabaseRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState,
 {
     if user.role != UserRole::Operator {
         return Ok(Vec::new());
     }
-    user_operator_scope_repo::list_for_user(state.reader_db(), user.id).await
+    let stored = user_operator_scope_repo::list_for_user(state.reader_db(), user.id).await?;
+    // Only registry-recognized identifiers may participate in authorization
+    // gates; stray rows (manual SQL, future deprecations) never match.
+    let registry = state.permission_registry();
+    let mut scopes = Vec::with_capacity(stored.len());
+    for scope in stored {
+        if registry.contains(&scope) {
+            scopes.push(scope);
+        } else {
+            tracing::warn!(
+                user_id = user.id,
+                permission = %scope,
+                "dropping unregistered operator scope from stored grants"
+            );
+        }
+    }
+    Ok(scopes)
 }
 
 pub(super) async fn create_user<C, S>(

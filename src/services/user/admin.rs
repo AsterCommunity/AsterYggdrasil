@@ -1445,4 +1445,98 @@ mod tests {
         let missing_error = delete_user(&ctx.state, 404).await.unwrap_err();
         assert!(missing_error.message().contains("user #404"));
     }
+
+    #[tokio::test]
+    async fn operator_scope_normalization_covers_transition_arms() {
+        let ctx = test_context().await;
+        let _super_admin = insert_user(&ctx.state, "root-user").await;
+
+        // Operator created without scopes: the (Operator, None) creation arm.
+        let bare = create_user(
+            &ctx.state,
+            create_input(
+                "bare-operator",
+                "bare-operator@example.com",
+                Some("bare-operator-password"),
+                UserRole::Operator,
+                None,
+                UserStatus::Active,
+                None,
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(bare.user.operator_scopes.is_empty());
+
+        // Update with a replacement set: (Operator, Some(scopes)).
+        let with_scopes = update_user(
+            &ctx.state,
+            bare.user.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: None,
+                operator_scopes: Some(vec![permission::admin::AUDIT]),
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(with_scopes.operator_scopes, vec![permission::admin::AUDIT]);
+
+        // Promoting a plain user to operator without scopes grants an empty
+        // set: requested Some(Operator), existing non-operator.
+        let plain = create_user(
+            &ctx.state,
+            create_input(
+                "promoted-user",
+                "promoted-user@example.com",
+                Some("promoted-user-password"),
+                UserRole::User,
+                None,
+                UserStatus::Active,
+                None,
+            ),
+        )
+        .await
+        .unwrap();
+        let promoted = update_user(
+            &ctx.state,
+            plain.user.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: Some(UserRole::Operator),
+                operator_scopes: None,
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(promoted.role, UserRole::Operator);
+        assert!(promoted.operator_scopes.is_empty());
+
+        // Requesting operator again on an existing operator without scopes
+        // keeps the stored grant set.
+        let kept = update_user(
+            &ctx.state,
+            bare.user.id,
+            AdminUpdateUserInput {
+                username: None,
+                email: None,
+                password: None,
+                role: Some(UserRole::Operator),
+                operator_scopes: None,
+                status: None,
+                must_change_password: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(kept.operator_scopes, vec![permission::admin::AUDIT]);
+    }
 }

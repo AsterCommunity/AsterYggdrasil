@@ -40,6 +40,23 @@ export const ADMIN_NAV_SCOPE_BY_PATH = {
 		"com.astercosm.yggdrasil.permission.admin.profiles",
 } as const satisfies Record<string, PermissionId>;
 
+/**
+ * Pre-migration short names for the built-in admin-area scopes. Cached
+ * users written before the namespaced identifier rollout are upgraded to
+ * the full ids instead of being silently dropped on load.
+ */
+export const LEGACY_OPERATOR_SCOPE_IDS: Readonly<Record<string, PermissionId>> =
+	{
+		overview: "com.astercosm.yggdrasil.permission.admin.overview",
+		users: "com.astercosm.yggdrasil.permission.admin.users",
+		profiles: "com.astercosm.yggdrasil.permission.admin.profiles",
+		texture_library: "com.astercosm.yggdrasil.permission.admin.texture_library",
+		audit: "com.astercosm.yggdrasil.permission.admin.audit",
+		tasks: "com.astercosm.yggdrasil.permission.admin.tasks",
+		settings: "com.astercosm.yggdrasil.permission.admin.settings",
+		external_auth: "com.astercosm.yggdrasil.permission.admin.external_auth",
+	};
+
 export function hasOperatorScope(
 	scopes: readonly PermissionId[] | null | undefined,
 	scope: PermissionId,

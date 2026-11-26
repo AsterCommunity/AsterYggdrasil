@@ -8,7 +8,9 @@ use super::shared::{
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{contact_verification_token_repo, user_repo};
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
+use crate::runtime::{
+    DatabaseRuntimeState, PermissionRegistryRuntimeState, RuntimeConfigRuntimeState,
+};
 use crate::services::mail;
 use crate::services::mail::outbox::enqueue;
 use crate::services::mail::template::MailTemplatePayload;
@@ -81,7 +83,7 @@ pub async fn request_email_change<S>(
     new_email: &str,
 ) -> Result<AuthUserInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let normalized_email = normalize_email(new_email)?;
     let existing = user_repo::find_by_id(state.writer_db(), user_id).await?;
@@ -152,7 +154,7 @@ where
 /// `None` (without sending) when the resend cooldown has not elapsed.
 pub async fn resend_email_change<S>(state: &S, user_id: i64) -> Result<Option<AuthUserInfo>>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let user = user_repo::find_by_id(state.writer_db(), user_id).await?;
     let pending_email = user
@@ -211,7 +213,7 @@ where
 /// present a uniform response so account existence is not revealed.
 pub async fn request_password_reset<S>(state: &S, email: &str) -> Result<PasswordResetRequestResult>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let normalized_email = normalize_email(email)?;
     let Some(user) = user_repo::find_by_email(state.writer_db(), &normalized_email).await? else {
@@ -262,7 +264,7 @@ pub async fn confirm_password_reset<S>(
     new_password: &str,
 ) -> Result<AuthUserInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     validate_password(new_password)?;
     let token_hash = sha256_hex(token.as_bytes());
@@ -348,7 +350,7 @@ pub async fn resend_register_activation<S>(
     identifier: &str,
 ) -> Result<RegisterActivationResendOutcome>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let Some(user) = user_repo::find_by_identifier(state.writer_db(), identifier).await? else {
         return Ok(RegisterActivationResendOutcome::EmailNotFound);
@@ -409,7 +411,7 @@ pub async fn confirm_contact_verification<S>(
     token: &str,
 ) -> Result<ContactVerificationConfirmResult>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let token_hash = sha256_hex(token.as_bytes());
     let record =

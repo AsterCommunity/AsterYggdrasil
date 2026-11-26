@@ -44,6 +44,10 @@ export function OperatorScopeSelector({
 						{t("admin.users.retryPermissionsLoad")}
 					</Button>
 				</div>
+			) : status === "loading" ? (
+				<div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground text-sm dark:border-white/10 dark:bg-white/[0.03]">
+					{t("admin.users.operatorScopesLoading")}
+				</div>
 			) : (
 				<div className="grid gap-2 sm:grid-cols-2">
 					{adminAreas.map((permission) => {

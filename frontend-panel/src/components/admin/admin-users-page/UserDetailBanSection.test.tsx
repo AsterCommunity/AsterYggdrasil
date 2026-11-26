@@ -202,6 +202,42 @@ describe("UserDetailBanSection", () => {
 		expect(toastMock.success).toHaveBeenCalledWith("Ban created");
 	});
 
+	it("unchecks an extra capability before submitting the ban", async () => {
+		adminUserServiceMock.listBans
+			.mockResolvedValueOnce(banPage([]))
+			.mockResolvedValueOnce(banPage([]));
+		renderSection();
+		await screen.findByText("This user has no ban records.");
+
+		fireEvent.click(screen.getByRole("button", { name: "Add ban" }));
+		const dialog = topDialog();
+
+		const joinCheckbox = within(dialog).getByRole("checkbox", {
+			name: "Yggdrasil server join",
+		});
+		fireEvent.click(joinCheckbox);
+		expect(joinCheckbox).toBeChecked();
+		// Unchecking exercises the removal path; the default capability stays.
+		fireEvent.click(joinCheckbox);
+		expect(joinCheckbox).not.toBeChecked();
+
+		fireEvent.change(within(dialog).getByLabelText("Reason"), {
+			target: { value: "scope toggle" },
+		});
+		fireEvent.click(within(dialog).getByRole("button", { name: "Add ban" }));
+
+		await waitFor(() => {
+			expect(adminUserServiceMock.createBan).toHaveBeenCalledWith(7, {
+				admin_note: null,
+				expires_at: null,
+				public_reason: null,
+				reason: "scope toggle",
+				scopes: ["com.astercosm.yggdrasil.capability.yggdrasil.access"],
+				starts_at: null,
+			});
+		});
+	});
+
 	it("edits active bans with nullable clear fields", async () => {
 		adminUserServiceMock.listBans
 			.mockResolvedValueOnce(banPage())

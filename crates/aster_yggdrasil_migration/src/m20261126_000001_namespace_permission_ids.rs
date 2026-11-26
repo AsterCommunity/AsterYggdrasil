@@ -229,3 +229,42 @@ enum UserOperatorScopes {
     Table,
     Scope,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rewrite_scope_json_covers_all_element_shapes() {
+        // Non-string elements pass through untouched.
+        let mixed = r#"[42, "texture_upload", {"k": 1}]"#;
+        let rewritten = rewrite_scope_json(mixed, BAN_SCOPE_REWRITES, false)
+            .expect("a mapping applies so the array is rewritten");
+        assert_eq!(
+            rewritten,
+            r#"[42,"com.astercosm.yggdrasil.capability.texture.upload",{"k":1}]"#
+        );
+
+        // Unknown strings survive as-is; the unchanged array yields None.
+        let unknown = r#"["not_a_scope","also_unknown"]"#;
+        assert_eq!(rewrite_scope_json(unknown, BAN_SCOPE_REWRITES, false), None);
+
+        // Already-namespaced arrays are a no-op in the forward direction.
+        let namespaced = r#"["com.astercosm.yggdrasil.capability.texture.upload"]"#;
+        assert_eq!(
+            rewrite_scope_json(namespaced, BAN_SCOPE_REWRITES, false),
+            None
+        );
+
+        // The reverse direction folds namespaced ids back to short names.
+        let folded = rewrite_scope_json(namespaced, BAN_SCOPE_REWRITES, true)
+            .expect("the reverse map applies to namespaced ids");
+        assert_eq!(folded, r#"["texture_upload"]"#);
+
+        // Unparseable JSON yields None instead of failing the migration.
+        assert_eq!(
+            rewrite_scope_json("not json", BAN_SCOPE_REWRITES, false),
+            None
+        );
+    }
+}

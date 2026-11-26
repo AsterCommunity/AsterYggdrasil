@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { firstAdminPathForScopes, OPERATOR_SCOPES } from "@/lib/operatorScopes";
+import {
+	firstAdminPathForScopes,
+	LEGACY_OPERATOR_SCOPE_IDS,
+	OPERATOR_SCOPES,
+} from "@/lib/operatorScopes";
 import {
 	readStorageItem,
 	removeStorageItem,
@@ -139,11 +143,19 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 		pending_email:
 			typeof source.pending_email === "string" ? source.pending_email : null,
 		operator_scopes: Array.isArray(source.operator_scopes)
-			? (source.operator_scopes.filter(
-					(value): value is PermissionId =>
-						typeof value === "string" &&
-						OPERATOR_SCOPES.includes(value as (typeof OPERATOR_SCOPES)[number]),
-				) as PermissionId[])
+			? (source.operator_scopes
+					.map((value) =>
+						typeof value === "string"
+							? (LEGACY_OPERATOR_SCOPE_IDS[value] ?? value)
+							: value,
+					)
+					.filter(
+						(value): value is PermissionId =>
+							typeof value === "string" &&
+							OPERATOR_SCOPES.includes(
+								value as (typeof OPERATOR_SCOPES)[number],
+							),
+					) as PermissionId[])
 			: [],
 		profile: source.profile ?? defaultUserProfile(),
 		username: source.username,
