@@ -3634,6 +3634,22 @@ async fn permission_localizations_serve_locales_with_etag_negotiation() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
+    let etag = resp
+        .headers()
+        .get("etag")
+        .and_then(|value| value.to_str().ok())
+        .expect("first response should carry an etag")
+        .to_string();
+    assert!(
+        etag.starts_with("W/"),
+        "etag should be the weak validator the endpoint issues: {etag}"
+    );
+    assert_eq!(
+        resp.headers()
+            .get("cache-control")
+            .and_then(|value| value.to_str().ok()),
+        Some("private, no-cache")
+    );
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["data"]["requested_locale"], "zh-CN");
     assert_eq!(body["data"]["resolved_locale"], "zh");
@@ -3642,7 +3658,6 @@ async fn permission_localizations_serve_locales_with_etag_negotiation() {
         "后台概览"
     );
     assert_eq!(body["data"]["namespace"], "permissions");
-    let revision = body["data"]["revision"].as_str().expect("revision string");
 
     // An unsupported locale falls back to the default locale.
     let req = test::TestRequest::get()
@@ -3653,15 +3668,34 @@ async fn permission_localizations_serve_locales_with_etag_negotiation() {
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["data"]["resolved_locale"], "en");
 
-    // A matching If-None-Match short-circuits to 304.
-    let etag = format!("W/\"sha256-{revision}-zh\"");
+    // A matching If-None-Match short-circuits to 304 and keeps the headers.
     let req = test::TestRequest::get()
         .uri("/api/v1/permissions/localizations?locale=zh-CN")
         .insert_header(common::bearer_header(&reader_token))
-        .insert_header(("If-None-Match", etag))
+        .insert_header(("If-None-Match", etag.clone()))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 304);
+    assert_eq!(
+        resp.headers()
+            .get("etag")
+            .and_then(|value| value.to_str().ok()),
+        Some(etag.as_str())
+    );
+    assert_eq!(
+        resp.headers()
+            .get("cache-control")
+            .and_then(|value| value.to_str().ok()),
+        Some("private, no-cache")
+    );
+
+    // A malformed locale fails validation instead of falling back.
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions/localizations?locale=zh__CN")
+        .insert_header(common::bearer_header(&reader_token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
 
     // Anonymous access stays rejected.
     let req = test::TestRequest::get()

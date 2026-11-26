@@ -352,10 +352,41 @@ impl std::fmt::Display for PermissionLocalizationError {
 impl std::error::Error for PermissionLocalizationError {}
 
 /// A BCP-47-style locale tag (`en`, `zh-CN`), validated at the segment level.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+///
+/// Comparison is ASCII case-insensitive (BCP-47 tags are case-insensitive),
+/// while the canonical original spelling is preserved for display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[serde(try_from = "String")]
 pub struct LocaleTag(String);
+
+impl PartialEq for LocaleTag {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq_ignore_ascii_case(&other.0)
+    }
+}
+
+impl Eq for LocaleTag {}
+
+impl PartialOrd for LocaleTag {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for LocaleTag {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0
+            .to_ascii_lowercase()
+            .cmp(&other.0.to_ascii_lowercase())
+    }
+}
+
+impl std::hash::Hash for LocaleTag {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.to_ascii_lowercase().hash(state);
+    }
+}
 
 impl LocaleTag {
     /// Parses and validates a locale tag.
@@ -606,6 +637,152 @@ mod tests {
 
         let bad_tag = LocaleTag::parse("zh__CN").unwrap_err();
         assert!(bad_tag.to_string().contains("invalid locale tag"));
+    }
+
+    #[test]
+    fn placeholder_mismatch_fails_construction() {
+        let error = PermissionLocalization::from_messages(
+            "en",
+            &[
+                crate::permission_message!("a", "Hello {{name}}", "你好 {{name}}"),
+                crate::permission_message!(
+                    "b";
+                    "en" => "Open {{path}}",
+                    "zh" => "打开 {{target}}",
+                ),
+            ],
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("different interpolation placeholders")
+        );
+    }
+
+    #[test]
+    fn duplicate_locale_in_one_message_fails() {
+        let error = PermissionLocalization::from_messages(
+            "en",
+            &[crate::permission_message!(
+                "a";
+                "en" => "A",
+                "EN" => "A again",
+            )],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("more than once"));
+    }
+
+    #[test]
+    fn invalid_default_locale_fails_parse() {
+        let error = PermissionLocalization::from_messages(
+            "zh__CN",
+            &[crate::permission_message!("a", "A", "甲")],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("invalid locale tag"));
+    }
+
+    #[test]
+    fn structural_validation_rejects_bad_revisions_and_bounds() {
+        let make = |id: &str, value: &str| {
+            BTreeMap::from([(
+                LocaleTag::parse("en").expect("valid"),
+                BTreeMap::from([(id.to_string(), value.to_string())]),
+            )])
+        };
+
+        let blank_revision = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "  ",
+            make("a", "A"),
+        )
+        .unwrap_err();
+        assert!(blank_revision.to_string().contains("revision"));
+
+        let empty_resources = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            BTreeMap::new(),
+        )
+        .unwrap_err();
+        assert!(empty_resources.to_string().contains("1..=32 locales"));
+
+        let missing_default = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            BTreeMap::from([(
+                LocaleTag::parse("zh").expect("valid"),
+                BTreeMap::from([("a".to_string(), "甲".to_string())]),
+            )]),
+        )
+        .unwrap_err();
+        assert!(missing_default.to_string().contains("default locale"));
+    }
+
+    #[test]
+    fn message_content_limits_are_enforced() {
+        let make = |id: &str, value: &str| {
+            BTreeMap::from([(
+                LocaleTag::parse("en").expect("valid"),
+                BTreeMap::from([(id.to_string(), value.to_string())]),
+            )])
+        };
+
+        let empty_id =
+            PermissionLocalization::new(LocaleTag::parse("en").expect("valid"), "1", make("", "A"))
+                .unwrap_err();
+        assert!(empty_id.to_string().contains("invalid message id"));
+
+        let bad_chars = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            make("Bad Key", "A"),
+        )
+        .unwrap_err();
+        assert!(bad_chars.to_string().contains("invalid message id"));
+
+        let long_id = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            make(&"a".repeat(129), "A"),
+        )
+        .unwrap_err();
+        assert!(long_id.to_string().contains("invalid message id"));
+
+        let blank_value = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            make("a", "   "),
+        )
+        .unwrap_err();
+        assert!(blank_value.to_string().contains("invalid text"));
+
+        let control_chars = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            make("a", "bad\u{7}text"),
+        )
+        .unwrap_err();
+        assert!(control_chars.to_string().contains("invalid text"));
+
+        let long_value = PermissionLocalization::new(
+            LocaleTag::parse("en").expect("valid"),
+            "1",
+            make("a", &"x".repeat(4_097)),
+        )
+        .unwrap_err();
+        assert!(long_value.to_string().contains("invalid text"));
+    }
+
+    #[test]
+    fn validate_message_ids_names_the_missing_key() {
+        let localization = builtin_permission_localization().expect("built-in table");
+        let error = localization
+            .validate_message_ids(["admin.users.operatorScope.does_not_exist"])
+            .unwrap_err();
+        assert!(error.to_string().contains("does_not_exist"));
     }
 
     #[test]

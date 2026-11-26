@@ -924,6 +924,27 @@ mod tests {
     }
 
     #[test]
+    fn untranslated_descriptor_keys_fail_the_build() {
+        let id = PermissionId::new("com.example.plugin.capability.rendering.export")
+            .expect("valid syntax");
+        // No translation ships for this key: the registry must refuse to
+        // build rather than let users see a raw key.
+        let error = PermissionRegistry::new(
+            vec![PermissionDescriptor {
+                id,
+                kind: PermissionKind::Capability,
+                label_i18n_key: "plugin.rendering.export",
+                label: "Export",
+                group: "plugin",
+            }],
+            &[],
+        )
+        .unwrap_err();
+        assert!(matches!(error, PermissionRegistryError::Localization(_)));
+        assert!(error.to_string().contains("plugin.rendering.export"));
+    }
+
+    #[test]
     fn registry_accepts_foreign_namespace() {
         let id =
             PermissionId::new("com.example.plugin.capability.rendering.export").expect("valid");

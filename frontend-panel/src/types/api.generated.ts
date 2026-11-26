@@ -14920,7 +14920,13 @@ export interface operations {
     };
     list_permission_localizations: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Requested BCP-47 locale; falls back to the default locale when no
+                 *     supported locale matches.
+                 */
+                locale?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

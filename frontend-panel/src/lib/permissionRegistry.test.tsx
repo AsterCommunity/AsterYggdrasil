@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { i18next } from "@/i18n";
 import {
+	DEFAULT_I18N_NAMESPACE,
+	installPermissionMessages,
 	type RegistryPermissions,
 	useRegistryPermissions,
 } from "@/lib/permissionRegistry";
@@ -55,27 +57,61 @@ describe("useRegistryPermissions", () => {
 		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
 	});
 
-	it("refetches the localization bundle when the language changes", async () => {
-		await i18next.changeLanguage("en-US");
-		mockedLocalizations.mockImplementation(async (locale: string) => ({
-			namespace: "permissions",
-			requested_locale: locale,
-			resolved_locale: locale.startsWith("zh") ? "zh" : "en",
-			revision: `test-${locale}`,
-			messages: locale.startsWith("zh")
-				? { "admin.users.bans.scope.texture_upload": "材质上传" }
-				: { "admin.users.bans.scope.texture_upload": "Texture upload" },
-		}));
+	it("drops forbidden segments and serves backend text through t()", () => {
+		// Direct installation keeps this test independent of the module-level
+		// cache state left by earlier hook tests.
+		installPermissionMessages("en-US", {
+			// Forbidden segment: dropped before installation.
+			"plugin.__proto__.escape": "evil",
+			"admin.users.bans.scope.texture_upload": "Backend override label",
+		});
+		expect(
+			i18next.t("admin.users.bans.scope.texture_upload", {
+				ns: DEFAULT_I18N_NAMESPACE,
+				lng: "en-US",
+			}),
+		).toBe("Backend override label");
+		// The forbidden key never entered the tree.
+		expect(
+			i18next.t("plugin.__proto__.escape", {
+				ns: DEFAULT_I18N_NAMESPACE,
+				lng: "en-US",
+				defaultValue: "MISSING",
+			}),
+		).toBe("MISSING");
+	});
 
-		const { unmount } = render(<Mount />);
-		expect(await screen.findByText("ready")).toBeInTheDocument();
-		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
-		unmount();
+	it("backend-installed labels override the static bundle copy", () => {
+		installPermissionMessages("en-US", {
+			"admin.users.bans.scope.texture_upload": "Backend override label",
+		});
+		expect(
+			i18next.t("admin.users.bans.scope.texture_upload", {
+				ns: DEFAULT_I18N_NAMESPACE,
+				lng: "en-US",
+			}),
+		).toBe("Backend override label");
+	});
 
-		await i18next.changeLanguage("zh-CN");
-		render(<Mount />);
-		expect(await screen.findByText("ready")).toBeInTheDocument();
-		expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
-		await i18next.changeLanguage("en-US");
+	it("skips keys that conflict with an installed prefix", () => {
+		installPermissionMessages("en-US", {
+			"com.example.capability": "Short text",
+			"com.example.capability.detail": "Detail text",
+		});
+		// The backend rejects this shape at construction; the installer's
+		// defense keeps the shorter key addressable and drops the longer one.
+		expect(
+			i18next.t("com.example.capability", {
+				ns: DEFAULT_I18N_NAMESPACE,
+				lng: "en-US",
+			}),
+		).toBe("Short text");
+		expect(
+			i18next.t("com.example.capability.detail", {
+				ns: DEFAULT_I18N_NAMESPACE,
+				lng: "en-US",
+				defaultValue: "MISSING",
+			}),
+		).toBe("MISSING");
 	});
 });

@@ -242,7 +242,6 @@ fn normalize_update_role_and_scopes(
     existing_role: UserRole,
     requested_role: Option<UserRole>,
     requested_scopes: Option<Vec<PermissionId>>,
-    existing_scopes: Vec<PermissionId>,
 ) -> Result<(UserRole, Option<Vec<PermissionId>>)> {
     if let Some(scopes) = &requested_scopes {
         validate_admin_area_permissions(registry, scopes)?;
@@ -257,19 +256,17 @@ fn normalize_update_role_and_scopes(
         None => match base_role {
             UserRole::Admin => Ok((UserRole::Admin, Some(Vec::new()))),
             UserRole::User => Ok((UserRole::User, Some(Vec::new()))),
+            // An omitted grant set on an existing operator leaves the stored
+            // grants untouched: the snapshot was read outside the
+            // transaction, and writing it back could resurrect grants a
+            // concurrent update already revoked. Only an explicit promotion
+            // (user -> operator) starts from an empty set.
             UserRole::Operator => {
                 if requested_role == Some(UserRole::Operator) && existing_role != UserRole::Operator
                 {
-                    // An explicit promotion starts from an empty grant set.
                     Ok((UserRole::Operator, Some(Vec::new())))
-                } else if existing_role == UserRole::Operator {
-                    // Omitted scopes on an existing operator leave the stored
-                    // grants untouched: the snapshot was read outside the
-                    // transaction, and writing it back could resurrect grants
-                    // a concurrent update already revoked.
-                    Ok((UserRole::Operator, None))
                 } else {
-                    Ok((UserRole::Operator, Some(Vec::new())))
+                    Ok((UserRole::Operator, None))
                 }
             }
         },
@@ -462,13 +459,11 @@ where
             ));
         }
     }
-    let existing_scopes = user_operator_scope_repo::list_for_user(state.reader_db(), id).await?;
     let (normalized_role, normalized_operator_scopes) = normalize_update_role_and_scopes(
         state.permission_registry(),
         existing.role,
         role,
         operator_scopes,
-        existing_scopes,
     )?;
 
     let normalized_username = username

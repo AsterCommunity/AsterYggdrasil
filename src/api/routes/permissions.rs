@@ -97,6 +97,7 @@ pub struct LocalizationQuery {
     path = "/api/v1/permissions/localizations",
     tag = "permissions",
     operation_id = "list_permission_localizations",
+    params(LocalizationQuery),
     responses(
         (status = 200, description = "Localized permission labels", body = inline(ApiResponse<aster_yggdrasil_model::types::permission_localization::PermissionLocalizationBundle>)),
         (status = 304, description = "Bundle unchanged since the sent ETag"),
