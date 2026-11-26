@@ -5,6 +5,7 @@ pub mod admin;
 pub mod auth;
 pub mod frontend;
 pub mod health;
+pub mod permissions;
 pub mod profiles;
 pub mod public;
 pub mod texture_library;
@@ -21,6 +22,7 @@ pub fn configure_api(cfg: &mut web::ServiceConfig) {
         .configure(auth::external::configure)
         .configure(auth::configure)
         .configure(account::configure)
+        .configure(permissions::configure)
         .configure(profiles::configure)
         .configure(wardrobe::configure)
         .configure(texture_library::configure)

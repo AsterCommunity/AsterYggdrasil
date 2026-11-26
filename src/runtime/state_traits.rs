@@ -111,6 +111,14 @@ pub trait TaskRuntimeState: SharedRuntimeState {
     fn wake_background_task_dispatcher(&self);
 }
 
+/// Exposes the process-wide permission registry that validates permission
+/// identifiers at authorization boundaries.
+pub trait PermissionRegistryRuntimeState {
+    /// Registry of valid permission descriptors (built-ins plus any
+    /// process-injected extras).
+    fn permission_registry(&self) -> &aster_yggdrasil_model::types::permission::PermissionRegistry;
+}
+
 impl DatabaseRuntimeState for AppState {
     fn writer_db(&self) -> &DatabaseConnection {
         self.writer_db()
@@ -178,5 +186,11 @@ impl MailRuntimeState for AppState {
 impl TaskRuntimeState for AppState {
     fn wake_background_task_dispatcher(&self) {
         self.background_task_dispatch_wakeup.notify();
+    }
+}
+
+impl PermissionRegistryRuntimeState for AppState {
+    fn permission_registry(&self) -> &aster_yggdrasil_model::types::permission::PermissionRegistry {
+        self.permission_registry()
     }
 }

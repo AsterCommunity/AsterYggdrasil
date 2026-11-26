@@ -18,7 +18,7 @@ import type {
 	AdminUserInfo,
 	AuthTokenResponse,
 	AuthUserInfo,
-	OperatorScope,
+	PermissionId,
 	RegisterResponse,
 	UpdateAvatarSourceRequest,
 	UpdateProfileRequest,
@@ -49,9 +49,9 @@ type AuthState = {
 	isAuthenticated: boolean;
 	isAdmin: boolean;
 	isOperator: boolean;
-	operatorScopes: OperatorScope[];
+	operatorScopes: PermissionId[];
 	canAccessAdminShell: boolean;
-	hasOperatorScope: (scope: OperatorScope) => boolean;
+	hasPermissionId: (scope: PermissionId) => boolean;
 	checkPublicSession: () => Promise<void>;
 	hydrate: () => Promise<void>;
 	setup: (
@@ -140,10 +140,10 @@ function sanitizeCachedUser(value: unknown): CachedAuthUser | null {
 			typeof source.pending_email === "string" ? source.pending_email : null,
 		operator_scopes: Array.isArray(source.operator_scopes)
 			? (source.operator_scopes.filter(
-					(value): value is OperatorScope =>
+					(value): value is PermissionId =>
 						typeof value === "string" &&
-						OPERATOR_SCOPES.includes(value as OperatorScope),
-				) as OperatorScope[])
+						OPERATOR_SCOPES.includes(value as (typeof OPERATOR_SCOPES)[number]),
+				) as PermissionId[])
 			: [],
 		profile: source.profile ?? defaultUserProfile(),
 		username: source.username,
@@ -366,7 +366,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	isOperator: initialFlags.isOperator,
 	operatorScopes: initialFlags.operatorScopes,
 	canAccessAdminShell: initialFlags.canAccessAdminShell,
-	hasOperatorScope(scope) {
+	hasPermissionId(scope) {
 		const state = get();
 		return state.isAdmin || state.operatorScopes.includes(scope);
 	},

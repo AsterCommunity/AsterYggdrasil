@@ -44,6 +44,15 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 	};
 });
 
+vi.mock("@/services/permissionService", () => ({
+	permissionService: {
+		list: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
+			return { permissions: REGISTRY_PERMISSIONS };
+		}),
+	},
+}));
+
 function ban(overrides: Partial<UserBanInfo> = {}): UserBanInfo {
 	return {
 		admin_note: "internal note",
@@ -58,7 +67,7 @@ function ban(overrides: Partial<UserBanInfo> = {}): UserBanInfo {
 		revoke_note: null,
 		revoked_at: null,
 		revoked_by_user_id: null,
-		scopes: ["texture_upload"],
+		scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 		starts_at: "2026-06-18T00:00:00Z",
 		status: "active",
 		updated_at: "2026-06-18T00:00:00Z",
@@ -84,7 +93,7 @@ function event(overrides: Partial<UserBanEventInfo> = {}): UserBanEventInfo {
 		event_type: "created",
 		id: 21,
 		next_expires_at: null,
-		next_scopes: ["texture_upload"],
+		next_scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 		next_status: "active",
 		note: "upload abuse",
 		previous_expires_at: null,
@@ -186,7 +195,7 @@ describe("UserDetailBanSection", () => {
 				expires_at: null,
 				public_reason: "visible",
 				reason: "profile abuse",
-				scopes: ["yggdrasil_access"],
+				scopes: ["com.astercosm.yggdrasil.capability.yggdrasil.access"],
 				starts_at: new Date("2026-06-18T09:30").toISOString(),
 			});
 		});
@@ -219,7 +228,7 @@ describe("UserDetailBanSection", () => {
 				expires_at: null,
 				public_reason: null,
 				reason: "profile abuse",
-				scopes: ["texture_upload"],
+				scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 				starts_at: "2026-06-18T00:00:00.000Z",
 			});
 		});

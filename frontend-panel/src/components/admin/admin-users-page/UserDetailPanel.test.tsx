@@ -27,6 +27,15 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 	};
 });
 
+vi.mock("@/services/permissionService", () => ({
+	permissionService: {
+		list: vi.fn().mockImplementation(async () => {
+			const { REGISTRY_PERMISSIONS } = await import("@/test/permissions");
+			return { permissions: REGISTRY_PERMISSIONS };
+		}),
+	},
+}));
+
 const user = {
 	active_session_count: 2,
 	created_at: "2026-06-15T00:00:00.000Z",
@@ -339,14 +348,17 @@ describe("UserDetailPanel", () => {
 	it("saves operator scope changes without rewriting unchanged profile fields", async () => {
 		const { onUpdate } = renderPanel({
 			role: "operator",
-			operator_scopes: ["users"],
+			operator_scopes: ["com.astercosm.yggdrasil.permission.admin.users"],
 		});
 
-		fireEvent.click(screen.getByRole("switch", { name: "材质库" }));
+		fireEvent.click(await screen.findByRole("switch", { name: "材质库" }));
 		fireEvent.click(screen.getByRole("button", { name: "保存更改" }));
 
 		expect(onUpdate).toHaveBeenCalledWith(7, {
-			operator_scopes: ["users", "texture_library"],
+			operator_scopes: [
+				"com.astercosm.yggdrasil.permission.admin.users",
+				"com.astercosm.yggdrasil.permission.admin.texture_library",
+			],
 		});
 	});
 

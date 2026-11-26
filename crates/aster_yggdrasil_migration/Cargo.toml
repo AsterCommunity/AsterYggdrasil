@@ -21,6 +21,7 @@ cli = ["sea-orm-migration/cli"]
 async-trait = { workspace = true }
 aster_forge_db = { workspace = true, features = ["audit-log", "mail-outbox", "runtime-lease", "scheduled-task", "system-config"] }
 aster_forge_db_migration = { workspace = true }
+serde_json = { workspace = true }
 sea-orm-migration = { workspace = true, features = [
   # Enable at least one `ASYNC_RUNTIME` and `DATABASE_DRIVER` feature if you want to run migration via CLI.
   # View the list of supported features at https://www.sea-ql.org/SeaORM/docs/install-and-config/database-and-async-runtime.

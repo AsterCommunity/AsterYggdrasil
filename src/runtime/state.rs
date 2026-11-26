@@ -52,6 +52,9 @@ pub struct AppState {
     /// Coalescing broadcast signal woken when a task is enqueued or task
     /// configuration changes; every queue consumer subscribes independently.
     pub background_task_dispatch_wakeup: aster_forge_tasks::TaskWakeup,
+    /// Registry of valid permission identifiers used at authorization
+    /// boundaries; built-in table plus any injected extras.
+    pub permission_registry: Arc<aster_yggdrasil_model::types::permission::PermissionRegistry>,
 }
 
 /// Injectable subset of [`AppState`]: the components built during startup
@@ -101,6 +104,13 @@ impl AppState {
             yggdrasil_rate_limiter,
             yggdrasil_session_forward_http_client,
             background_task_dispatch_wakeup: Self::new_background_task_dispatch_wakeup(),
+            permission_registry: Arc::new(
+                aster_yggdrasil_model::types::permission::PermissionRegistry::builtin().map_err(
+                    |error| {
+                        AsterError::internal_error(format!("build permission registry: {error}"))
+                    },
+                )?,
+            ),
         })
     }
 
@@ -204,5 +214,13 @@ impl AppState {
     /// Wake signal broadcast to all background task queue consumers.
     pub fn background_task_dispatch_wakeup(&self) -> &aster_forge_tasks::TaskWakeup {
         &self.background_task_dispatch_wakeup
+    }
+
+    /// Registry of valid permission identifiers used at authorization
+    /// boundaries.
+    pub fn permission_registry(
+        &self,
+    ) -> &aster_yggdrasil_model::types::permission::PermissionRegistry {
+        &self.permission_registry
     }
 }

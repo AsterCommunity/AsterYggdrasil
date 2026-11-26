@@ -1,11 +1,13 @@
 //! Administrator user management service.
 
+use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{
     minecraft_profile_repo, user_operator_scope_repo, user_repo, yggdrasil_token_repo,
 };
 use crate::errors::{AsterError, Result};
 use crate::runtime::{
-    CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState, TextureStorageRuntimeState,
+    CacheRuntimeState, DatabaseRuntimeState, PermissionRegistryRuntimeState,
+    RuntimeConfigRuntimeState, TextureStorageRuntimeState,
 };
 use crate::services::user::profile::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
 use crate::services::{auth::local, texture, yggdrasil::protocol};
@@ -13,7 +15,8 @@ use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_utils::numbers::u64_to_usize;
 use aster_forge_validation::email::normalize_email;
 use aster_yggdrasil_model::entities::user;
-use aster_yggdrasil_model::types::user::{OperatorScope, UserRole, UserStatus};
+use aster_yggdrasil_model::types::permission::{PermissionId, PermissionKind, PermissionRegistry};
+use aster_yggdrasil_model::types::user::{UserRole, UserStatus};
 use rand::RngExt;
 use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -44,7 +47,7 @@ pub struct AdminUserInfo {
     /// Account role (`user`, `operator` or `admin`).
     pub role: UserRole,
     /// Scoped permissions; populated only for operators.
-    pub operator_scopes: Vec<OperatorScope>,
+    pub operator_scopes: Vec<PermissionId>,
     /// Account status (`active` or `disabled`).
     pub status: UserStatus,
     /// Whether the next login must set a new password.
@@ -95,7 +98,7 @@ pub struct AdminCreateUserInput {
     /// request to an operator with those scopes.
     pub role: UserRole,
     /// Requested operator scopes; ignored (cleared) for plain users.
-    pub operator_scopes: Option<Vec<OperatorScope>>,
+    pub operator_scopes: Option<Vec<PermissionId>>,
     /// Initial account status.
     pub status: UserStatus,
     /// Force a password change at next login; forced on when the server
@@ -136,7 +139,7 @@ pub struct AdminUpdateUserInput {
     /// request to an operator with those scopes.
     pub role: Option<UserRole>,
     /// Replacement operator scopes applied wholesale when provided.
-    pub operator_scopes: Option<Vec<OperatorScope>>,
+    pub operator_scopes: Option<Vec<PermissionId>>,
     /// Replacement status; disabling the account invalidates its sessions.
     pub status: Option<UserStatus>,
     /// Force a password change at next login.
@@ -190,47 +193,78 @@ fn generate_temporary_password() -> String {
 }
 
 fn normalize_role_and_scopes(
+    registry: &PermissionRegistry,
     requested_role: UserRole,
-    requested_scopes: Option<Vec<OperatorScope>>,
-) -> (UserRole, Vec<OperatorScope>) {
+    requested_scopes: Option<Vec<PermissionId>>,
+) -> Result<(UserRole, Vec<PermissionId>)> {
     match requested_scopes {
-        Some(scopes) => match requested_role {
-            UserRole::Admin => (UserRole::Operator, scopes),
-            UserRole::Operator => (UserRole::Operator, scopes),
-            UserRole::User => (UserRole::User, Vec::new()),
-        },
+        Some(scopes) => {
+            validate_admin_area_permissions(registry, &scopes)?;
+            match requested_role {
+                UserRole::Admin => Ok((UserRole::Operator, scopes)),
+                UserRole::Operator => Ok((UserRole::Operator, scopes)),
+                UserRole::User => Ok((UserRole::User, Vec::new())),
+            }
+        }
         None => match requested_role {
-            UserRole::Admin => (UserRole::Admin, Vec::new()),
-            UserRole::User => (UserRole::User, Vec::new()),
-            UserRole::Operator => (UserRole::Operator, Vec::new()),
+            UserRole::Admin => Ok((UserRole::Admin, Vec::new())),
+            UserRole::User => Ok((UserRole::User, Vec::new())),
+            UserRole::Operator => Ok((UserRole::Operator, Vec::new())),
         },
     }
 }
 
+/// Rejects the grant unless every identifier is registered and names an
+/// admin-panel area; player capabilities cannot be granted to staff.
+fn validate_admin_area_permissions(
+    registry: &PermissionRegistry,
+    scopes: &[PermissionId],
+) -> Result<()> {
+    for scope in scopes {
+        let Some(descriptor) = registry.get(scope) else {
+            return Err(AsterError::validation_error_code(
+                AsterErrorCode::PermissionNotRegistered,
+                format!("permission '{scope}' is not registered"),
+            ));
+        };
+        if descriptor.kind != PermissionKind::AdminArea {
+            return Err(AsterError::validation_error_code(
+                AsterErrorCode::PermissionNotRegistered,
+                format!("permission '{scope}' is not an admin-panel permission"),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn normalize_update_role_and_scopes(
+    registry: &PermissionRegistry,
     existing_role: UserRole,
     requested_role: Option<UserRole>,
-    requested_scopes: Option<Vec<OperatorScope>>,
-    existing_scopes: Vec<OperatorScope>,
-) -> (UserRole, Option<Vec<OperatorScope>>) {
+    requested_scopes: Option<Vec<PermissionId>>,
+    existing_scopes: Vec<PermissionId>,
+) -> Result<(UserRole, Option<Vec<PermissionId>>)> {
+    if let Some(scopes) = &requested_scopes {
+        validate_admin_area_permissions(registry, scopes)?;
+    }
     let base_role = requested_role.unwrap_or(existing_role);
     match requested_scopes {
         Some(scopes) => match base_role {
-            UserRole::Admin => (UserRole::Operator, Some(scopes)),
-            UserRole::Operator => (UserRole::Operator, Some(scopes)),
-            UserRole::User => (UserRole::User, Some(Vec::new())),
+            UserRole::Admin => Ok((UserRole::Operator, Some(scopes))),
+            UserRole::Operator => Ok((UserRole::Operator, Some(scopes))),
+            UserRole::User => Ok((UserRole::User, Some(Vec::new()))),
         },
         None => match base_role {
-            UserRole::Admin => (UserRole::Admin, Some(Vec::new())),
-            UserRole::User => (UserRole::User, Some(Vec::new())),
+            UserRole::Admin => Ok((UserRole::Admin, Some(Vec::new()))),
+            UserRole::User => Ok((UserRole::User, Some(Vec::new()))),
             UserRole::Operator => {
                 if requested_role == Some(UserRole::Operator) && existing_role != UserRole::Operator
                 {
-                    (UserRole::Operator, Some(Vec::new()))
+                    Ok((UserRole::Operator, Some(Vec::new())))
                 } else if existing_role == UserRole::Operator {
-                    (UserRole::Operator, Some(existing_scopes))
+                    Ok((UserRole::Operator, Some(existing_scopes)))
                 } else {
-                    (UserRole::Operator, Some(Vec::new()))
+                    Ok((UserRole::Operator, Some(Vec::new())))
                 }
             }
         },
@@ -317,7 +351,7 @@ where
 /// scopes transactionally.
 pub async fn create_user<S>(state: &S, input: AdminCreateUserInput) -> Result<CreateAdminUserOutput>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let AdminCreateUserInput {
         username,
@@ -350,7 +384,8 @@ where
         crate::services::auth::local::hash_password_with_runtime(state, password).await?;
     let must_change_password =
         generated_password.is_some() || must_change_password.unwrap_or(false);
-    let (role, operator_scopes) = normalize_role_and_scopes(role, operator_scopes);
+    let (role, operator_scopes) =
+        normalize_role_and_scopes(state.permission_registry(), role, operator_scopes)?;
     let user = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
         let user = user_repo::create_with_options(
             txn,
@@ -389,7 +424,7 @@ pub async fn update_user<S>(
     input: AdminUpdateUserInput,
 ) -> Result<AdminUserInfo>
 where
-    S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState + RuntimeConfigRuntimeState,
 {
     let AdminUpdateUserInput {
         username,
@@ -423,8 +458,13 @@ where
         }
     }
     let existing_scopes = user_operator_scope_repo::list_for_user(state.reader_db(), id).await?;
-    let (normalized_role, normalized_operator_scopes) =
-        normalize_update_role_and_scopes(existing.role, role, operator_scopes, existing_scopes);
+    let (normalized_role, normalized_operator_scopes) = normalize_update_role_and_scopes(
+        state.permission_registry(),
+        existing.role,
+        role,
+        operator_scopes,
+        existing_scopes,
+    )?;
 
     let normalized_username = username
         .map(|value| {
@@ -613,6 +653,7 @@ mod tests {
     use aster_yggdrasil_model::entities::{
         auth_session, minecraft_profile, minecraft_texture, user_profile,
     };
+    use aster_yggdrasil_model::types::permission::permission;
     use aster_yggdrasil_model::types::{
         user::AvatarSource, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
         yggdrasil::MinecraftTextureVisibility,
@@ -850,7 +891,7 @@ mod tests {
         email: &str,
         password: Option<&str>,
         role: UserRole,
-        operator_scopes: Option<Vec<OperatorScope>>,
+        operator_scopes: Option<Vec<PermissionId>>,
         status: UserStatus,
         must_change_password: Option<bool>,
     ) -> AdminCreateUserInput {
@@ -968,9 +1009,9 @@ mod tests {
                 Some("operator-password"),
                 UserRole::Operator,
                 Some(vec![
-                    OperatorScope::Users,
-                    OperatorScope::TextureLibrary,
-                    OperatorScope::Users,
+                    permission::admin::USERS,
+                    permission::admin::TEXTURE_LIBRARY,
+                    permission::admin::USERS,
                 ]),
                 UserStatus::Active,
                 None,
@@ -982,7 +1023,7 @@ mod tests {
         assert_eq!(operator.user.role, UserRole::Operator);
         assert_eq!(
             operator.user.operator_scopes,
-            vec![OperatorScope::TextureLibrary, OperatorScope::Users]
+            vec![permission::admin::TEXTURE_LIBRARY, permission::admin::USERS]
         );
 
         let admin_with_scopes = create_user(
@@ -992,7 +1033,7 @@ mod tests {
                 "scoped-admin@example.com",
                 Some("scoped-admin-password"),
                 UserRole::Admin,
-                Some(vec![OperatorScope::Audit]),
+                Some(vec![permission::admin::AUDIT]),
                 UserStatus::Active,
                 None,
             ),
@@ -1003,7 +1044,7 @@ mod tests {
         assert_eq!(admin_with_scopes.user.role, UserRole::Operator);
         assert_eq!(
             admin_with_scopes.user.operator_scopes,
-            vec![OperatorScope::Audit]
+            vec![permission::admin::AUDIT]
         );
 
         let user_with_scopes = create_user(
@@ -1013,7 +1054,7 @@ mod tests {
                 "scoped-user@example.com",
                 Some("scoped-user-password"),
                 UserRole::User,
-                Some(vec![OperatorScope::Tasks]),
+                Some(vec![permission::admin::TASKS]),
                 UserStatus::Active,
                 None,
             ),
@@ -1062,7 +1103,7 @@ mod tests {
                 email: None,
                 password: None,
                 role: None,
-                operator_scopes: Some(vec![OperatorScope::TextureLibrary]),
+                operator_scopes: Some(vec![permission::admin::TEXTURE_LIBRARY]),
                 status: None,
                 must_change_password: None,
             },
@@ -1073,7 +1114,7 @@ mod tests {
         assert_eq!(downgraded.role, UserRole::Operator);
         assert_eq!(
             downgraded.operator_scopes,
-            vec![OperatorScope::TextureLibrary]
+            vec![permission::admin::TEXTURE_LIBRARY]
         );
 
         let promoted = update_user(
@@ -1109,7 +1150,7 @@ mod tests {
                 email: None,
                 password: None,
                 role: Some(UserRole::Admin),
-                operator_scopes: Some(vec![OperatorScope::Audit]),
+                operator_scopes: Some(vec![permission::admin::AUDIT]),
                 status: None,
                 must_change_password: None,
             },
@@ -1118,7 +1159,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(downgraded_again.role, UserRole::Operator);
-        assert_eq!(downgraded_again.operator_scopes, vec![OperatorScope::Audit]);
+        assert_eq!(
+            downgraded_again.operator_scopes,
+            vec![permission::admin::AUDIT]
+        );
 
         let renamed_operator = update_user(
             &ctx.state,
@@ -1137,7 +1181,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(renamed_operator.role, UserRole::Operator);
-        assert_eq!(renamed_operator.operator_scopes, vec![OperatorScope::Audit]);
+        assert_eq!(
+            renamed_operator.operator_scopes,
+            vec![permission::admin::AUDIT]
+        );
 
         let demoted_user = update_user(
             &ctx.state,
@@ -1147,7 +1194,7 @@ mod tests {
                 email: None,
                 password: None,
                 role: Some(UserRole::User),
-                operator_scopes: Some(vec![OperatorScope::Tasks]),
+                operator_scopes: Some(vec![permission::admin::TASKS]),
                 status: None,
                 must_change_password: None,
             },
@@ -1201,7 +1248,7 @@ mod tests {
                 "auth-operator@example.com",
                 Some("auth-operator-password"),
                 UserRole::Operator,
-                Some(vec![OperatorScope::TextureLibrary]),
+                Some(vec![permission::admin::TEXTURE_LIBRARY]),
                 UserStatus::Active,
                 None,
             ),
@@ -1216,7 +1263,7 @@ mod tests {
                 "auth-user@example.com",
                 Some("auth-user-password"),
                 UserRole::User,
-                Some(vec![OperatorScope::Users]),
+                Some(vec![permission::admin::USERS]),
                 UserStatus::Active,
                 None,
             ),
@@ -1233,7 +1280,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             operator_info.operator_scopes,
-            vec![OperatorScope::TextureLibrary]
+            vec![permission::admin::TEXTURE_LIBRARY]
         );
 
         let user_model = user_repo::find_by_id(ctx.state.reader_db(), user.id)

@@ -6,13 +6,13 @@ use serde::Serialize;
 use crate::api::error_code::AsterErrorCode;
 use crate::db::repository::{user_ban_repo, user_repo};
 use crate::errors::{AsterError, Result};
-use crate::runtime::DatabaseRuntimeState;
+use crate::runtime::{DatabaseRuntimeState, PermissionRegistryRuntimeState};
 use aster_forge_api::{CursorPage, DateTimeIdCursor, NullablePatch};
 use aster_forge_utils::text::char_count;
 use aster_yggdrasil_model::entities::{user_ban, user_ban_event};
+use aster_yggdrasil_model::types::permission::{PermissionId, PermissionKind, PermissionRegistry};
 use aster_yggdrasil_model::types::{
-    user::UserBanEventType, user::UserBanScope, user::UserBanScopes, user::UserBanScopesError,
-    user::UserBanStatus,
+    user::UserBanEventType, user::UserBanScopes, user::UserBanScopesError, user::UserBanStatus,
 };
 
 const REASON_MAX_CHARS: usize = 128;
@@ -25,7 +25,7 @@ pub struct CreateUserBanInput {
     pub target_user_id: i64,
     /// Capability scopes the ban applies to; must be non-empty and must not
     /// overlap any other effective ban on the same user.
-    pub scopes: Vec<UserBanScope>,
+    pub scopes: Vec<PermissionId>,
     /// Internal justification recorded in the audit trail (1-128 chars).
     pub reason: String,
     /// Optional reason shown to the affected user.
@@ -42,7 +42,7 @@ pub struct CreateUserBanInput {
 /// Payload for patching an existing ban; omitted fields keep their value.
 pub struct UpdateUserBanInput {
     /// Replacement scope set applied wholesale when provided.
-    pub scopes: Option<Vec<UserBanScope>>,
+    pub scopes: Option<Vec<PermissionId>>,
     /// Replacement internal reason.
     pub reason: Option<String>,
     /// Nullable patch for the user-facing reason.
@@ -65,7 +65,7 @@ pub struct ListUserBansInput {
     /// Restrict the page to bans against this user.
     pub user_id: Option<i64>,
     /// Restrict the page to bans containing this scope (applied in memory).
-    pub scope: Option<UserBanScope>,
+    pub scope: Option<PermissionId>,
     /// Restrict the page to bans with this stored status.
     pub status: Option<UserBanStatus>,
     /// When true, only bans effective at the current time are returned.
@@ -81,7 +81,7 @@ pub struct UserBanInfo {
     /// Banned user identifier.
     pub user_id: i64,
     /// Capability scopes the ban covers.
-    pub scopes: Vec<UserBanScope>,
+    pub scopes: Vec<PermissionId>,
     /// Status stored on the record (`active` or `revoked`).
     pub status: UserBanStatus,
     /// Stored status folded with the time window, so an unrevoked ban past
@@ -141,9 +141,9 @@ pub struct UserBanEventInfo {
     /// Status after the transition.
     pub next_status: Option<UserBanStatus>,
     /// Scope set before the transition; `None` on creation.
-    pub previous_scopes: Option<Vec<UserBanScope>>,
+    pub previous_scopes: Option<Vec<PermissionId>>,
     /// Scope set after the transition.
-    pub next_scopes: Option<Vec<UserBanScope>>,
+    pub next_scopes: Option<Vec<PermissionId>>,
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
         schema(value_type = Option<String>)
@@ -165,11 +165,11 @@ pub struct UserBanEventInfo {
 
 /// Guard rejecting the request with a 403 when the user carries an effective
 /// ban covering the given capability scope.
-pub async fn ensure_user_not_banned<S>(state: &S, user_id: i64, scope: UserBanScope) -> Result<()>
+pub async fn ensure_user_not_banned<S>(state: &S, user_id: i64, scope: PermissionId) -> Result<()>
 where
     S: DatabaseRuntimeState,
 {
-    if let Some(ban) = active_user_ban_for_scope(state, user_id, scope).await? {
+    if let Some(ban) = active_user_ban_for_scope(state, user_id, &scope).await? {
         tracing::debug!(
             user_id,
             ban_id = ban.id,
@@ -186,11 +186,11 @@ where
 
 /// Returns whether the user currently has an effective ban on the scope,
 /// without raising an error.
-pub async fn is_user_banned<S>(state: &S, user_id: i64, scope: UserBanScope) -> Result<bool>
+pub async fn is_user_banned<S>(state: &S, user_id: i64, scope: PermissionId) -> Result<bool>
 where
     S: DatabaseRuntimeState,
 {
-    Ok(active_user_ban_for_scope(state, user_id, scope)
+    Ok(active_user_ban_for_scope(state, user_id, &scope)
         .await?
         .is_some())
 }
@@ -200,7 +200,7 @@ where
 pub async fn active_user_ban_for_scope<S>(
     state: &S,
     user_id: i64,
-    scope: UserBanScope,
+    scope: &PermissionId,
 ) -> Result<Option<user_ban::Model>>
 where
     S: DatabaseRuntimeState,
@@ -229,7 +229,7 @@ pub async fn list_user_bans<S>(
 where
     S: DatabaseRuntimeState,
 {
-    let scope_filter = input.scope;
+    let scope_filter = input.scope.as_ref();
     let page = user_ban_repo::list_cursor(
         state.reader_db(),
         input.limit,
@@ -254,7 +254,7 @@ where
         .items
         .iter()
         .map(|ban| ban_info_at(ban, now))
-        .filter(|ban| scope_filter.is_none_or(|scope| ban.scopes.contains(&scope)))
+        .filter(|ban| scope_filter.is_none_or(|scope| ban.scopes.contains(scope)))
         .collect::<Vec<_>>();
     let total = if scope_filter.is_some() {
         aster_forge_utils::numbers::usize_to_u64(items.len(), "filtered user ban total")?
@@ -288,7 +288,7 @@ pub async fn create_user_ban<S>(
     input: CreateUserBanInput,
 ) -> Result<UserBanInfo>
 where
-    S: DatabaseRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState,
 {
     user_repo::find_by_id(state.reader_db(), input.target_user_id).await?;
     let starts_at = input.starts_at.unwrap_or_else(Utc::now);
@@ -312,7 +312,7 @@ where
         "ban admin note",
     )?;
 
-    let scopes = normalize_scopes(input.scopes)?;
+    let scopes = normalize_scopes(state.permission_registry(), input.scopes)?;
     reject_duplicate_effective_scopes(state, input.target_user_id, scopes.as_slice(), None).await?;
 
     let ban = crate::db::transaction::with_transaction(state.writer_db(), async |txn| {
@@ -363,7 +363,7 @@ pub async fn update_user_ban<S>(
     input: UpdateUserBanInput,
 ) -> Result<UserBanInfo>
 where
-    S: DatabaseRuntimeState,
+    S: DatabaseRuntimeState + PermissionRegistryRuntimeState,
 {
     let ban = user_ban(state, ban_id).await?;
     if !is_effective(&ban, Utc::now()) {
@@ -375,7 +375,7 @@ where
 
     let previous_scopes = ban_scopes(&ban)?;
     let next_scopes = match input.scopes {
-        Some(scopes) => normalize_scopes(scopes)?,
+        Some(scopes) => normalize_scopes(state.permission_registry(), scopes)?,
         None => previous_scopes.clone(),
     };
     let next_starts_at = input.starts_at.unwrap_or(ban.starts_at);
@@ -546,14 +546,14 @@ where
 async fn reject_duplicate_effective_scopes<S>(
     state: &S,
     user_id: i64,
-    scopes: &[UserBanScope],
+    scopes: &[PermissionId],
     excluding_ban_id: Option<i64>,
 ) -> Result<()>
 where
     S: DatabaseRuntimeState,
 {
     for scope in scopes {
-        if user_ban_repo::find_effective_for_scope(state.reader_db(), user_id, *scope, Utc::now())
+        if user_ban_repo::find_effective_for_scope(state.reader_db(), user_id, scope, Utc::now())
             .await?
             .is_some_and(|ban| Some(ban.id) != excluding_ban_id)
         {
@@ -621,13 +621,40 @@ fn event_info(event: &user_ban_event::Model) -> UserBanEventInfo {
     }
 }
 
-fn normalize_scopes(scopes: Vec<UserBanScope>) -> Result<Vec<UserBanScope>> {
+fn normalize_scopes(
+    registry: &PermissionRegistry,
+    scopes: Vec<PermissionId>,
+) -> Result<Vec<PermissionId>> {
+    validate_capability_permissions(registry, &scopes)?;
     UserBanScopes::new(scopes)
         .and_then(|scopes| scopes.as_vec())
         .map_err(scope_error)
 }
 
-fn ban_scopes(ban: &user_ban::Model) -> Result<Vec<UserBanScope>> {
+/// Rejects the ban unless every identifier is registered and names a player
+/// capability; admin-panel areas cannot be banned.
+fn validate_capability_permissions(
+    registry: &PermissionRegistry,
+    scopes: &[PermissionId],
+) -> Result<()> {
+    for scope in scopes {
+        let Some(descriptor) = registry.get(scope) else {
+            return Err(AsterError::validation_error_code(
+                AsterErrorCode::PermissionNotRegistered,
+                format!("capability '{scope}' is not registered"),
+            ));
+        };
+        if descriptor.kind != PermissionKind::Capability {
+            return Err(AsterError::validation_error_code(
+                AsterErrorCode::PermissionNotRegistered,
+                format!("capability '{scope}' is not a player capability"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn ban_scopes(ban: &user_ban::Model) -> Result<Vec<PermissionId>> {
     ban.scopes.as_vec().map_err(scope_error)
 }
 

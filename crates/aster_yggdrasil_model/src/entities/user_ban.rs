@@ -14,8 +14,9 @@ pub struct Model {
     pub id: i64,
     /// Banned account.
     pub user_id: i64,
-    /// Banned capability set (for example `yggdrasil_join` or `texture_upload`),
-    /// stored as a sorted JSON array string.
+    /// Banned capability set as namespaced permission identifiers (for
+    /// example `com.astercosm.yggdrasil.capability.yggdrasil.join`), stored
+    /// as a sorted JSON array string.
     pub scopes: UserBanScopes,
     /// Ban lifecycle state (`active`, `revoked`, or `expired`).
     pub status: UserBanStatus,

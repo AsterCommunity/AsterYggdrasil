@@ -33,6 +33,7 @@ mod m20260626_000001_runtime_leases;
 mod m20260626_000002_background_task_dedupe_key;
 mod m20260626_000003_scheduled_tasks;
 mod m20260626_000004_widen_mail_outbox_template_code;
+mod m20261126_000001_namespace_permission_ids;
 mod time;
 
 /// Entry point for running the Yggdrasil schema migrations.
@@ -71,6 +72,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260626_000002_background_task_dedupe_key::Migration),
             Box::new(m20260626_000003_scheduled_tasks::Migration),
             Box::new(m20260626_000004_widen_mail_outbox_template_code::Migration),
+            Box::new(m20261126_000001_namespace_permission_ids::Migration),
         ]
     }
 }

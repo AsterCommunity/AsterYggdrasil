@@ -4,7 +4,7 @@ use crate::config::yggdrasil::RuntimeYggdrasilPolicy;
 use crate::db::repository::{minecraft_profile_repo, user_repo};
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, SharedRuntimeState};
 use crate::services::{ops::audit, user};
-use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_protocol::{
     YggdrasilAuthenticateReq, YggdrasilAuthenticateResp, YggdrasilRefreshReq, YggdrasilRefreshResp,
     YggdrasilTokenReq,
@@ -86,7 +86,7 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidCredentials));
     }
-    if user::ban::is_user_banned(state, login_target.user.id, UserBanScope::YggdrasilAccess)
+    if user::ban::is_user_banned(state, login_target.user.id, capability::yggdrasil::ACCESS)
         .await
         .map_err(YggdrasilError::from)?
     {

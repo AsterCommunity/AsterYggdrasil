@@ -9,7 +9,7 @@ use crate::services::user::profile::{self, AvatarAudience, AvatarInfo, UserProfi
 use aster_forge_validation::email::normalize_email;
 use aster_yggdrasil_model::entities::user;
 use aster_yggdrasil_model::types::{
-    user::AvatarSource, user::OperatorScope, user::UserRole, user::UserStatus,
+    permission::PermissionId, user::AvatarSource, user::UserRole, user::UserStatus,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, IntoActiveModel};
@@ -37,7 +37,7 @@ pub struct AuthUserInfo {
     pub role: UserRole,
     /// Operator-only scope grants; empty for non-operator accounts unless
     /// explicitly loaded.
-    pub operator_scopes: Vec<OperatorScope>,
+    pub operator_scopes: Vec<PermissionId>,
     /// Account status (active, disabled, pending activation).
     pub status: UserStatus,
     /// Whether the account must change its password before normal use.
@@ -111,7 +111,7 @@ where
     })
 }
 
-async fn auth_user_operator_scopes<S>(state: &S, user: &user::Model) -> Result<Vec<OperatorScope>>
+async fn auth_user_operator_scopes<S>(state: &S, user: &user::Model) -> Result<Vec<PermissionId>>
 where
     S: DatabaseRuntimeState,
 {

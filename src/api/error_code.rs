@@ -152,6 +152,9 @@ define_error_codes! {
     MinecraftProfileLimitExceeded => "minecraft_profile.limit_exceeded",
     MinecraftProfileDeleteForbidden => "minecraft_profile.delete_forbidden",
 
+    // Permission registry errors.
+    PermissionNotRegistered => "permission.not_registered",
+
     // User capability ban errors.
     UserBanNotFound => "user_ban.not_found",
     UserBanAlreadyActive => "user_ban.already_active",

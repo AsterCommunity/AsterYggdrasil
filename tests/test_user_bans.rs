@@ -115,7 +115,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         &admin_access,
         "banop",
         "banop@example.com",
-        &["users"],
+        &["com.astercosm.yggdrasil.permission.admin.users"],
     )
     .await;
     let texture_operator_access = create_operator_user(
@@ -123,7 +123,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         &admin_access,
         "bantextureop",
         "bantextureop@example.com",
-        &["texture_library"],
+        &["com.astercosm.yggdrasil.permission.admin.texture_library"],
     )
     .await;
     let target_user_id = admin_create_user!(
@@ -149,7 +149,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
         .insert_header(common::bearer_header(&texture_operator_access))
         .set_json(json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "wrong operator scope"
         }))
         .to_request();
@@ -165,7 +165,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         &app,
         &users_operator_access,
         target_user_id,
-        "texture_upload",
+        "com.astercosm.yggdrasil.capability.texture.upload",
         "  repeated invalid uploads  ",
         None,
         None,
@@ -173,7 +173,10 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
     .await;
     let ban_id = create_body["data"]["id"].as_i64().unwrap();
     assert_eq!(create_body["data"]["user_id"], target_user_id);
-    assert_eq!(create_body["data"]["scopes"], json!(["texture_upload"]));
+    assert_eq!(
+        create_body["data"]["scopes"],
+        json!(["com.astercosm.yggdrasil.capability.texture.upload"])
+    );
     assert_eq!(create_body["data"]["reason"], "repeated invalid uploads");
     assert_eq!(create_body["data"]["effective"], true);
     assert_eq!(create_body["data"]["effective_status"], "active");
@@ -187,7 +190,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
         .insert_header(common::bearer_header(&users_operator_access))
         .set_json(json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "duplicate active scope"
         }))
         .to_request();
@@ -202,7 +205,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         &app,
         &users_operator_access,
         target_user_id,
-        "yggdrasil_join",
+        "com.astercosm.yggdrasil.capability.yggdrasil.join",
         "future moderation window",
         Some(future_starts),
         Some(future_expires),
@@ -258,7 +261,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         .uri(&format!("/api/v1/admin/user-bans/{ban_id}"))
         .insert_header(common::bearer_header(&users_operator_access))
         .set_json(json!({
-            "scopes": ["minecraft_profile_manage"],
+            "scopes": ["com.astercosm.yggdrasil.capability.profile.manage"],
             "reason": "profile abuse",
             "public_reason": null,
             "admin_note": "updated note",
@@ -270,7 +273,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
     let update_body: Value = test::read_body_json(resp).await;
     assert_eq!(
         update_body["data"]["scopes"],
-        json!(["minecraft_profile_manage"])
+        json!(["com.astercosm.yggdrasil.capability.profile.manage"])
     );
     assert_eq!(update_body["data"]["reason"], "profile abuse");
     assert_eq!(update_body["data"]["public_reason"], Value::Null);
@@ -324,7 +327,7 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
         &app,
         &users_operator_access,
         target_user_id,
-        "minecraft_profile_manage",
+        "com.astercosm.yggdrasil.capability.profile.manage",
         "replacement after revoke",
         None,
         None,
@@ -344,10 +347,13 @@ async fn admin_user_ban_flow_lists_updates_revokes_events_and_audit() {
     assert_eq!(events[0]["event_type"], "revoked");
     assert_eq!(events[0]["note"], "appeal accepted");
     assert_eq!(events[1]["event_type"], "updated");
-    assert_eq!(events[1]["previous_scopes"], json!(["texture_upload"]));
+    assert_eq!(
+        events[1]["previous_scopes"],
+        json!(["com.astercosm.yggdrasil.capability.texture.upload"])
+    );
     assert_eq!(
         events[1]["next_scopes"],
-        json!(["minecraft_profile_manage"])
+        json!(["com.astercosm.yggdrasil.capability.profile.manage"])
     );
     assert_eq!(events[2]["event_type"], "created");
 
@@ -392,10 +398,10 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
         &admin_access,
         target_user_id,
         &[
-            "texture_upload",
-            "yggdrasil_access",
-            "texture_upload",
-            "minecraft_profile_manage",
+            "com.astercosm.yggdrasil.capability.texture.upload",
+            "com.astercosm.yggdrasil.capability.yggdrasil.access",
+            "com.astercosm.yggdrasil.capability.texture.upload",
+            "com.astercosm.yggdrasil.capability.profile.manage",
         ],
         "multi capability restriction",
     )
@@ -404,16 +410,16 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
     assert_eq!(
         create_body["data"]["scopes"],
         json!([
-            "yggdrasil_access",
-            "minecraft_profile_manage",
-            "texture_upload"
+            "com.astercosm.yggdrasil.capability.profile.manage",
+            "com.astercosm.yggdrasil.capability.texture.upload",
+            "com.astercosm.yggdrasil.capability.yggdrasil.access"
         ])
     );
 
     for scope in [
-        "texture_upload",
-        "yggdrasil_access",
-        "minecraft_profile_manage",
+        "com.astercosm.yggdrasil.capability.texture.upload",
+        "com.astercosm.yggdrasil.capability.yggdrasil.access",
+        "com.astercosm.yggdrasil.capability.profile.manage",
     ] {
         let req = test::TestRequest::get()
             .uri(&format!(
@@ -430,7 +436,7 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
 
     let req = test::TestRequest::get()
         .uri(&format!(
-            "/api/v1/admin/user-bans?user_id={target_user_id}&scope=texture_library_interact&effective_only=true"
+            "/api/v1/admin/user-bans?user_id={target_user_id}&scope=com.astercosm.yggdrasil.capability.texture_library.interact&effective_only=true"
         ))
         .insert_header(common::bearer_header(&admin_access))
         .to_request();
@@ -440,8 +446,11 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
     assert_eq!(unmatched_body["data"]["total"], 0);
 
     for scopes in [
-        json!(["texture_upload"]),
-        json!(["texture_library_interact", "minecraft_profile_manage"]),
+        json!(["com.astercosm.yggdrasil.capability.texture.upload"]),
+        json!([
+            "com.astercosm.yggdrasil.capability.texture_library.interact",
+            "com.astercosm.yggdrasil.capability.profile.manage"
+        ]),
     ] {
         let req = test::TestRequest::post()
             .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
@@ -461,7 +470,7 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
         .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
         .insert_header(common::bearer_header(&admin_access))
         .set_json(json!({
-            "scopes": ["texture_library_interact"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture_library.interact"],
             "reason": "non-overlapping restriction",
         }))
         .to_request();
@@ -470,7 +479,7 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
     let non_overlapping_body: Value = test::read_body_json(resp).await;
     assert_eq!(
         non_overlapping_body["data"]["scopes"],
-        json!(["texture_library_interact"])
+        json!(["com.astercosm.yggdrasil.capability.texture_library.interact"])
     );
 
     let req = test::TestRequest::patch()
@@ -498,9 +507,9 @@ async fn user_ban_record_supports_multiple_scopes_and_rejects_overlap() {
     assert_eq!(
         events[0].next_scopes.as_ref().unwrap().as_vec().unwrap(),
         vec![
-            aster_yggdrasil::types::user::UserBanScope::YggdrasilAccess,
-            aster_yggdrasil::types::user::UserBanScope::MinecraftProfileManage,
-            aster_yggdrasil::types::user::UserBanScope::TextureUpload,
+            aster_yggdrasil::types::permission::capability::profile::MANAGE,
+            aster_yggdrasil::types::permission::capability::texture::UPLOAD,
+            aster_yggdrasil::types::permission::capability::yggdrasil::ACCESS,
         ]
     );
 }
@@ -522,7 +531,7 @@ async fn user_ban_admin_api_rejects_invalid_edges_without_writing_events() {
         .uri("/api/v1/admin/users/999999/bans")
         .insert_header(common::bearer_header(&admin_access))
         .set_json(json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "missing user"
         }))
         .to_request();
@@ -530,20 +539,20 @@ async fn user_ban_admin_api_rejects_invalid_edges_without_writing_events() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     for payload in [
-        json!({ "scopes": ["texture_upload"], "reason": "" }),
-        json!({ "scopes": ["texture_upload"], "reason": "   " }),
+        json!({ "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"], "reason": "" }),
+        json!({ "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"], "reason": "   " }),
         json!({ "scopes": [], "reason": "valid" }),
         json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "x".repeat(129)
         }),
         json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "valid",
             "public_reason": "x".repeat(1001)
         }),
         json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "valid",
             "admin_note": "x".repeat(1001)
         }),
@@ -570,7 +579,7 @@ async fn user_ban_admin_api_rejects_invalid_edges_without_writing_events() {
         .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
         .insert_header(common::bearer_header(&admin_access))
         .set_json(json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "bad range",
             "starts_at": starts_at,
             "expires_at": expires_at
@@ -587,7 +596,7 @@ async fn user_ban_admin_api_rejects_invalid_edges_without_writing_events() {
         &app,
         &admin_access,
         target_user_id,
-        "texture_upload",
+        "com.astercosm.yggdrasil.capability.texture.upload",
         "already expired",
         Some(expired_start),
         Some(expired_end),
@@ -681,7 +690,7 @@ async fn account_user_bans_list_only_current_user_and_hide_admin_fields() {
         &app,
         &admin_access,
         target_user_id,
-        "texture_upload",
+        "com.astercosm.yggdrasil.capability.texture.upload",
         "private moderation reason",
         None,
         None,
@@ -695,7 +704,7 @@ async fn account_user_bans_list_only_current_user_and_hide_admin_fields() {
         &app,
         &admin_access,
         target_user_id,
-        "minecraft_profile_manage",
+        "com.astercosm.yggdrasil.capability.profile.manage",
         "expired restriction",
         Some(expired_start),
         Some(expired_end),
@@ -707,7 +716,7 @@ async fn account_user_bans_list_only_current_user_and_hide_admin_fields() {
         &app,
         &admin_access,
         other_user_id,
-        "yggdrasil_join",
+        "com.astercosm.yggdrasil.capability.yggdrasil.join",
         "other user restriction",
         None,
         None,
@@ -767,7 +776,7 @@ async fn account_user_bans_list_only_current_user_and_hide_admin_fields() {
     );
 
     let req = test::TestRequest::get()
-        .uri("/api/v1/account/bans?status=active&scope=minecraft_profile_manage")
+        .uri("/api/v1/account/bans?status=active&scope=com.astercosm.yggdrasil.capability.profile.manage")
         .insert_header(common::bearer_header(&target_access))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -790,4 +799,44 @@ async fn account_user_bans_list_only_current_user_and_hide_admin_fields() {
     assert_eq!(other_page["data"]["total"], 1);
     assert_ne!(other_page["data"]["items"][0]["id"], active_ban_id);
     assert_ne!(other_page["data"]["items"][0]["id"], expired_ban_id);
+}
+
+#[actix_web::test]
+async fn user_ban_admin_api_rejects_unregistered_or_non_capability_scopes() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+    let admin_access = setup_admin!(app);
+    let target_user_id = admin_create_user!(
+        app,
+        admin_access,
+        "banregscope",
+        "banregscope@example.com",
+        "password1234"
+    );
+
+    for payload in [
+        // Valid syntax, but no plugin registry exists to register it.
+        json!({
+            "scopes": ["com.example.plugin.capability.rendering.export"],
+            "reason": "unregistered capability"
+        }),
+        // Admin-panel areas are grant-scoped and can never be banned.
+        json!({
+            "scopes": ["com.astercosm.yggdrasil.permission.admin.users"],
+            "reason": "admin area as ban scope"
+        }),
+    ] {
+        let req = test::TestRequest::post()
+            .uri(&format!("/api/v1/admin/users/{target_user_id}/bans"))
+            .insert_header(common::bearer_header(&admin_access))
+            .set_json(payload)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(
+            body["code"], "permission.not_registered",
+            "unexpected error body: {body}"
+        );
+    }
 }

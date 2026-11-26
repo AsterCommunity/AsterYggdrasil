@@ -45,6 +45,8 @@
 			"email": "邮箱",
 			"password": "密码",
 			"roleLabel": "角色",
+			"permissionsLoadFailed": "权限列表加载失败。",
+			"retryPermissionsLoad": "重试",
 			"operatorScopesLabel": "可管理区域",
 			"operatorScopesDescription": "operator 只能访问已开启的后台区域。管理员始终拥有全部权限，不能裁剪权限。",
 			"adminScopePolicy": "管理员始终拥有全部后台权限。如果需要裁剪权限，请将账号设置为 operator。",

@@ -45,6 +45,8 @@
 			"email": "Email",
 			"password": "Password",
 			"roleLabel": "Role",
+			"permissionsLoadFailed": "Failed to load the permission registry.",
+			"retryPermissionsLoad": "Retry",
 			"operatorScopesLabel": "Manageable areas",
 			"operatorScopesDescription": "Operators can only access enabled admin areas. Administrators always have full permissions and cannot be scoped down.",
 			"adminScopePolicy": "Administrators always have full admin permissions. Use the operator role when permissions need to be scoped.",

@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use aster_forge_config::ConfigVisibility;
-use aster_yggdrasil_model::types::user::{UserBanScope, UserBanStatus, UserRole, UserStatus};
+use aster_yggdrasil_model::types::permission::PermissionId;
+use aster_yggdrasil_model::types::user::{UserBanStatus, UserRole, UserStatus};
 use aster_yggdrasil_model::types::yggdrasil::{
     MinecraftTextureLibraryStatus, MinecraftTextureModel, MinecraftTextureReportReason,
     MinecraftTextureReportStatus, MinecraftTextureType,
@@ -169,7 +170,7 @@ pub struct UserBanAuditDetails<'a> {
     /// Banned user's ID.
     pub target_user_id: i64,
     /// Account surfaces the ban applies to (login, texture upload, ...).
-    pub scopes: &'a [UserBanScope],
+    pub scopes: &'a [PermissionId],
     /// Ban status as stored.
     pub status: UserBanStatus,
     /// Stored status with expired-but-active bans folded to `Expired` at

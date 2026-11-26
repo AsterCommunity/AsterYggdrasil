@@ -8,7 +8,7 @@ use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState};
 use crate::services::user;
 use aster_forge_crypto::sha256_hex;
 use aster_yggdrasil_model::entities::{minecraft_profile, yggdrasil_token};
-use aster_yggdrasil_model::types::user::UserBanScope;
+use aster_yggdrasil_model::types::permission::capability;
 
 use super::error::{YggdrasilError, YggdrasilErrorKind};
 
@@ -295,7 +295,7 @@ where
         );
         return Err(YggdrasilError::new(YggdrasilErrorKind::InvalidToken));
     }
-    if user::ban::is_user_banned(state, token.user_id, UserBanScope::YggdrasilAccess)
+    if user::ban::is_user_banned(state, token.user_id, capability::yggdrasil::ACCESS)
         .await
         .map_err(YggdrasilError::from)?
     {

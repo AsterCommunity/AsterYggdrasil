@@ -1,6 +1,6 @@
 //! Operator scope binding entity.
 
-use crate::types::user::OperatorScope;
+use crate::types::permission::PermissionId;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 #[cfg(all(debug_assertions, feature = "openapi"))]
@@ -20,9 +20,9 @@ pub struct Model {
     pub id: i64,
     /// Granted account.
     pub user_id: i64,
-    /// Granted capability (`overview`, `users`, `profiles`, `texture_library`, `audit`,
-    /// `tasks`, `settings`, or `external_auth`).
-    pub scope: OperatorScope,
+    /// Granted capability as a namespaced permission identifier, for example
+    /// `com.astercosm.yggdrasil.permission.admin.texture_library`.
+    pub scope: PermissionId,
     /// When the grant was created.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: DateTimeUtc,

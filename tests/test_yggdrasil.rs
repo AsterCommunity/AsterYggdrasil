@@ -2191,7 +2191,7 @@ async fn user_ban_yggdrasil_join_scope_blocks_join_without_invalidating_login() 
         .uri("/api/v1/admin/users/1/bans")
         .insert_header(common::bearer_header(&admin_access))
         .set_json(serde_json::json!({
-            "scopes": ["yggdrasil_join"],
+            "scopes": ["com.astercosm.yggdrasil.capability.yggdrasil.join"],
             "reason": "join policy violation",
             "public_reason": "join disabled by moderation"
         }))
@@ -2202,7 +2202,7 @@ async fn user_ban_yggdrasil_join_scope_blocks_join_without_invalidating_login() 
     let ban_id = ban_body["data"]["id"].as_i64().unwrap();
     assert_eq!(
         ban_body["data"]["scopes"],
-        serde_json::json!(["yggdrasil_join"])
+        serde_json::json!(["com.astercosm.yggdrasil.capability.yggdrasil.join"])
     );
     assert_eq!(ban_body["data"]["effective"], true);
 
@@ -2287,7 +2287,7 @@ async fn user_ban_texture_upload_scope_blocks_wardrobe_upload_before_temp_or_rec
         .uri("/api/v1/admin/users/1/bans")
         .insert_header(common::bearer_header(&admin_access))
         .set_json(serde_json::json!({
-            "scopes": ["texture_upload"],
+            "scopes": ["com.astercosm.yggdrasil.capability.texture.upload"],
             "reason": "upload policy violation",
             "public_reason": "texture upload disabled by moderation"
         }))
@@ -8167,7 +8167,7 @@ async fn texture_library_admin_filters_permissions_and_state_edges() {
         &admin_access,
         "texture-reviewer",
         "texture-reviewer@example.com",
-        &["texture_library"],
+        &["com.astercosm.yggdrasil.permission.admin.texture_library"],
     )
     .await;
     let users_operator_access = create_operator_user(
@@ -8175,7 +8175,7 @@ async fn texture_library_admin_filters_permissions_and_state_edges() {
         &admin_access,
         "users-reviewer",
         "users-reviewer@example.com",
-        &["users"],
+        &["com.astercosm.yggdrasil.permission.admin.users"],
     )
     .await;
     let user_access = register_user!(
@@ -8655,7 +8655,7 @@ async fn admin_texture_library_delete_enforces_scope_and_not_found_edges() {
         &admin_access,
         "tdelop",
         "tdelop@example.com",
-        &["texture_library"],
+        &["com.astercosm.yggdrasil.permission.admin.texture_library"],
     )
     .await;
     let users_operator_access = create_operator_user(
@@ -8663,7 +8663,7 @@ async fn admin_texture_library_delete_enforces_scope_and_not_found_edges() {
         &admin_access,
         "tdeluser",
         "tdeluser@example.com",
-        &["users"],
+        &["com.astercosm.yggdrasil.permission.admin.users"],
     )
     .await;
 
@@ -8708,7 +8708,7 @@ async fn texture_library_reports_require_login_and_follow_moderation_edges() {
         &admin_access,
         "report-reviewer",
         "report-reviewer@example.com",
-        &["texture_library"],
+        &["com.astercosm.yggdrasil.permission.admin.texture_library"],
     )
     .await;
     let users_operator_access = create_operator_user(
@@ -8716,7 +8716,7 @@ async fn texture_library_reports_require_login_and_follow_moderation_edges() {
         &admin_access,
         "reportuserop",
         "report-users-reviewer@example.com",
-        &["users"],
+        &["com.astercosm.yggdrasil.permission.admin.users"],
     )
     .await;
     let publisher_access = register_user!(

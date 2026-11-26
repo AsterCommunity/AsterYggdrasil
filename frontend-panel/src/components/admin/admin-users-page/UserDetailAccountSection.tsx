@@ -7,7 +7,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { OperatorScope, UserRole, UserStatus } from "@/types/api";
+import type { PermissionId, UserRole, UserStatus } from "@/types/api";
 import {
 	AdminScopePolicyNote,
 	OperatorScopeSelector,
@@ -24,20 +24,20 @@ export function UserDetailAccountSection({
 	status,
 	username,
 	onEmailChange,
-	onOperatorScopesChange,
+	onPermissionIdsChange,
 	onRoleChange,
 	onStatusChange,
 	onUsernameChange,
 }: {
 	email: string;
-	operatorScopes: OperatorScope[];
+	operatorScopes: PermissionId[];
 	role: UserRole;
 	roleStatusLocked: boolean;
 	savingProfile: boolean;
 	status: UserStatus;
 	username: string;
 	onEmailChange: (value: string) => void;
-	onOperatorScopesChange: (value: OperatorScope[]) => void;
+	onPermissionIdsChange: (value: PermissionId[]) => void;
 	onRoleChange: (value: UserRole) => void;
 	onStatusChange: (value: UserStatus) => void;
 	onUsernameChange: (value: string) => void;
@@ -131,7 +131,7 @@ export function UserDetailAccountSection({
 						<OperatorScopeSelector
 							disabled={savingProfile || roleStatusLocked}
 							value={operatorScopes}
-							onChange={onOperatorScopesChange}
+							onChange={onPermissionIdsChange}
 						/>
 					</div>
 				) : null}

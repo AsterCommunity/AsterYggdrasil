@@ -9,7 +9,8 @@ use std::rc::Rc;
 
 use crate::errors::AsterError;
 use crate::services::auth::local::AuthUserInfo;
-use aster_yggdrasil_model::types::user::{OperatorScope, UserRole};
+use aster_yggdrasil_model::types::permission::PermissionId;
+use aster_yggdrasil_model::types::user::UserRole;
 
 /// Authorization middleware that only lets admin-role users through.
 ///
@@ -19,15 +20,15 @@ use aster_yggdrasil_model::types::user::{OperatorScope, UserRole};
 pub struct RequireAdmin;
 
 /// Authorization middleware that lets admin-role users through, plus
-/// operators holding one specific operator scope.
-#[derive(Clone, Copy)]
+/// operators holding one specific admin-area permission.
+#[derive(Clone)]
 pub struct RequireAdminOrScope {
-    scope: OperatorScope,
+    scope: PermissionId,
 }
 
 impl RequireAdminOrScope {
-    /// Builds the gate for the given operator scope.
-    pub const fn new(scope: OperatorScope) -> Self {
+    /// Builds the gate for the given admin-area permission.
+    pub const fn new(scope: PermissionId) -> Self {
         Self { scope }
     }
 }
@@ -64,7 +65,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ok(RequireAdminOrScopeMiddleware {
             service: Rc::new(service),
-            scope: self.scope,
+            scope: self.scope.clone(),
         })
     }
 }
@@ -73,7 +74,7 @@ where
 /// rule per request.
 pub struct RequireAdminOrScopeMiddleware<S> {
     service: Rc<S>,
-    scope: OperatorScope,
+    scope: PermissionId,
 }
 
 /// Service produced by [`RequireAdmin`]; enforces the admin-only rule per
@@ -95,7 +96,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
-        let scope = self.scope;
+        let scope = self.scope.clone();
 
         Box::pin(async move {
             let allowed = {
@@ -161,8 +162,9 @@ mod tests {
     use actix_web::HttpResponse;
     use actix_web::dev::fn_service;
     use actix_web::test;
+    use aster_yggdrasil_model::types::permission::permission;
     use aster_yggdrasil_model::types::user::{AvatarSource, UserStatus};
-    fn auth_user(role: UserRole, operator_scopes: Vec<OperatorScope>) -> AuthUserInfo {
+    fn auth_user(role: UserRole, operator_scopes: Vec<PermissionId>) -> AuthUserInfo {
         AuthUserInfo {
             id: 42,
             username: "scope-user".to_string(),
@@ -189,7 +191,7 @@ mod tests {
         let service = fn_service(|req: ServiceRequest| async move {
             Ok(req.into_response(HttpResponse::Ok().finish()))
         });
-        let gate = RequireAdminOrScope::new(OperatorScope::TextureLibrary)
+        let gate = RequireAdminOrScope::new(permission::admin::TEXTURE_LIBRARY)
             .new_transform(service)
             .await
             .expect("scope gate should build");
@@ -212,7 +214,7 @@ mod tests {
     async fn admin_or_scope_gate_allows_operator_with_matching_scope() {
         let status = call_scope_gate(auth_user(
             UserRole::Operator,
-            vec![OperatorScope::TextureLibrary],
+            vec![permission::admin::TEXTURE_LIBRARY],
         ))
         .await
         .unwrap();
@@ -221,10 +223,12 @@ mod tests {
 
     #[actix_web::test]
     async fn admin_or_scope_gate_rejects_operator_without_matching_scope_and_user() {
-        let operator_error =
-            call_scope_gate(auth_user(UserRole::Operator, vec![OperatorScope::Users]))
-                .await
-                .unwrap_err();
+        let operator_error = call_scope_gate(auth_user(
+            UserRole::Operator,
+            vec![permission::admin::USERS],
+        ))
+        .await
+        .unwrap_err();
         assert!(
             operator_error
                 .to_string()

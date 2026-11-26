@@ -5,7 +5,7 @@ use crate::config::{NetworkTrustConfig, RateLimitConfig};
 use actix_web::middleware::Condition;
 use actix_web::web;
 use aster_forge_middleware::actix::rate_limit::RateLimit;
-use aster_yggdrasil_model::types::user::OperatorScope;
+use aster_yggdrasil_model::types::permission::permission;
 
 pub mod audit_logs;
 pub mod avatars;
@@ -75,17 +75,17 @@ pub fn routes(
                 .wrap(JwtAuth)
                 .service(
                     web::scope("/overview")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Overview))
+                        .wrap(RequireAdminOrScope::new(permission::admin::OVERVIEW))
                         .route("", web::get().to(get_overview)),
                 )
                 .service(
                     web::scope("/system-info")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Overview))
+                        .wrap(RequireAdminOrScope::new(permission::admin::OVERVIEW))
                         .route("", web::get().to(get_system_info)),
                 )
                 .service(
                     web::scope("/config")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Settings))
+                        .wrap(RequireAdminOrScope::new(permission::admin::SETTINGS))
                         .route("", web::get().to(list_config))
                         .route("/schema", web::get().to(config_schema))
                         .route(
@@ -99,19 +99,19 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/audit-logs")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Audit))
+                        .wrap(RequireAdminOrScope::new(permission::admin::AUDIT))
                         .route("", web::get().to(list_audit_logs)),
                 )
                 .service(
                     web::scope("/tasks")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Tasks))
+                        .wrap(RequireAdminOrScope::new(permission::admin::TASKS))
                         .route("", web::get().to(list_tasks))
                         .route("/cleanup", web::post().to(cleanup_tasks))
                         .route("/{id}/retry", web::post().to(retry_task)),
                 )
                 .service(
                     web::scope("/texture-library")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::TextureLibrary))
+                        .wrap(RequireAdminOrScope::new(permission::admin::TEXTURE_LIBRARY))
                         .route("/reports", web::get().to(list_texture_library_reports))
                         .route(
                             "/reports/{report_id}",
@@ -159,7 +159,7 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/users")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Users))
+                        .wrap(RequireAdminOrScope::new(permission::admin::USERS))
                         .route("", web::get().to(list_users))
                         .route("", web::post().to(create_user))
                         .route("/invitations", web::get().to(list_user_invitations))
@@ -183,7 +183,7 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/user-bans")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Users))
+                        .wrap(RequireAdminOrScope::new(permission::admin::USERS))
                         .route("", web::get().to(list_user_bans))
                         .route("/{ban_id}", web::get().to(get_user_ban))
                         .route("/{ban_id}", web::patch().to(update_user_ban))
@@ -192,12 +192,12 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/avatars")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Users))
+                        .wrap(RequireAdminOrScope::new(permission::admin::USERS))
                         .route("/users/{id}/{size}", web::get().to(get_user_avatar)),
                 )
                 .service(
                     web::scope("/minecraft-profiles")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Profiles))
+                        .wrap(RequireAdminOrScope::new(permission::admin::PROFILES))
                         .route("", web::get().to(list_minecraft_profiles))
                         .route("/{uuid}", web::get().to(get_minecraft_profile))
                         .route("/{uuid}/name", web::put().to(rename_minecraft_profile))
@@ -213,7 +213,7 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/minecraft-textures")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Profiles))
+                        .wrap(RequireAdminOrScope::new(permission::admin::PROFILES))
                         .route(
                             "/{hash}",
                             web::delete().to(delete_minecraft_textures_by_hash),
@@ -221,7 +221,7 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/external-auth")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::ExternalAuth))
+                        .wrap(RequireAdminOrScope::new(permission::admin::EXTERNAL_AUTH))
                         .route(
                             "/provider-kinds",
                             web::get().to(list_external_auth_provider_kinds),
@@ -248,7 +248,7 @@ pub fn routes(
                 )
                 .service(
                     web::scope("/yggdrasil")
-                        .wrap(RequireAdminOrScope::new(OperatorScope::Settings))
+                        .wrap(RequireAdminOrScope::new(permission::admin::SETTINGS))
                         .route(
                             "/session-forward-servers",
                             web::get().to(list_session_forward_servers),

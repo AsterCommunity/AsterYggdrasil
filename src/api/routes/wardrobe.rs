@@ -18,8 +18,9 @@ use crate::services::{auth::local, ops::audit, texture, user};
 use aster_forge_api::{
     LimitQuery, NullablePatch, parse_datetime_id_cursor, parse_sort_order_name_id_cursor,
 };
+use aster_yggdrasil_model::types::permission::capability;
 use aster_yggdrasil_model::types::{
-    user::UserBanScope, yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
+    yggdrasil::MinecraftTextureModel, yggdrasil::MinecraftTextureType,
     yggdrasil::MinecraftTextureVisibility, yggdrasil::TextureTagSearchMethod,
 };
 
@@ -483,7 +484,7 @@ pub async fn upload_wardrobe_texture(
         texture_type = ?texture_type,
         "receiving wardrobe texture upload"
     );
-    user::ban::ensure_user_not_banned(state.get_ref(), user.id, UserBanScope::TextureUpload)
+    user::ban::ensure_user_not_banned(state.get_ref(), user.id, capability::texture::UPLOAD)
         .await?;
     let upload = receive_texture_upload(&state, payload, texture_type)
         .await

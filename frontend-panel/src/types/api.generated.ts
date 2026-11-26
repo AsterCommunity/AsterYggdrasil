@@ -1849,6 +1849,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists every registered permission descriptor, so permission editors and
+         *     player-facing capability badges can render labels without hardcoding an
+         *     identifier-to-display mapping.
+         */
+        get: operations["list_admin_permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profiles/minecraft": {
         parameters: {
             query?: never;
@@ -2695,7 +2716,7 @@ export interface components {
             /** @description When the ban was revoked; absent while the ban is not revoked. */
             revoked_at?: string | null;
             /** @description Capability scopes the user loses while this ban is effective. */
-            scopes: components["schemas"]["UserBanScope"][];
+            scopes: components["schemas"]["PermissionId"][];
             /** @description Ban start time. */
             starts_at: string;
             /** @description Stored status of the ban record. */
@@ -2723,7 +2744,7 @@ export interface components {
              *     returned.
              */
             effective_only?: boolean | null;
-            scope?: components["schemas"]["UserBanScope"] | null;
+            scope?: components["schemas"]["PermissionId"] | null;
             status?: components["schemas"]["UserBanStatus"] | null;
         };
         /** @description Generic response carrying a single human-readable message. */
@@ -2973,6 +2994,19 @@ export interface components {
              */
             yggdrasil_api_calls: number;
         };
+        /** @description One registered permission descriptor. */
+        AdminPermissionInfo: {
+            /** @description UI grouping hint. */
+            group: string;
+            /** @description Namespaced permission identifier. */
+            id: string;
+            /** @description Semantic class (`admin_area` or `capability`). */
+            kind: components["schemas"]["PermissionKind"];
+            /** @description English fallback label used when the i18n bundle lacks the key. */
+            label: string;
+            /** @description Frontend i18n message key rendering the localized label. */
+            label_i18n_key: string;
+        };
         /** @description Admin request body for bulk-deleting finished background tasks. */
         AdminTaskCleanupReq: {
             /**
@@ -3065,7 +3099,7 @@ export interface components {
              *     returned.
              */
             effective_only?: boolean;
-            scope?: components["schemas"]["UserBanScope"] | null;
+            scope?: components["schemas"]["PermissionId"] | null;
             status?: components["schemas"]["UserBanStatus"] | null;
             /**
              * Format: int64
@@ -3097,7 +3131,7 @@ export interface components {
             /** @description Whether the next login must set a new password. */
             must_change_password: boolean;
             /** @description Scoped permissions; populated only for operators. */
-            operator_scopes: components["schemas"]["OperatorScope"][];
+            operator_scopes: components["schemas"]["PermissionId"][];
             /** @description Email awaiting verification before replacing the current one. */
             pending_email?: string | null;
             /** @description Display profile summary including the avatar for admin viewing. */
@@ -3264,7 +3298,7 @@ export interface components {
             retryable: boolean;
         };
         /** @enum {string} */
-        AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.captcha_required" | "auth.captcha_invalid" | "auth.captcha_expired" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "user_ban.not_found" | "user_ban.already_active" | "user_ban.not_active" | "user_ban.duration_invalid" | "user_ban.reason_invalid" | "user_ban.forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "wardrobe.texture_name_invalid" | "wardrobe.texture_name_taken" | "texture_library.tag_not_found" | "texture_library.tag_name_invalid" | "texture_library.tag_color_invalid" | "texture_library.tag_name_taken" | "texture_library.texture_not_found" | "texture_library.disabled" | "texture_library.texture_not_public" | "texture_library.texture_not_pending" | "texture_library.texture_not_published" | "texture_library.review_note_invalid" | "texture_report.texture_not_reportable" | "texture_report.self_report_not_allowed" | "texture_report.pending_exists" | "texture_report.message_invalid" | "texture_report.not_found" | "texture_report.not_pending" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
+        AsterErrorCode: "success" | "bad_request" | "validation.failed" | "request.malformed" | "request.payload_too_large" | "not_found" | "internal_server_error" | "database.error" | "cache.error" | "storage.error" | "config.error" | "runtime.unavailable" | "endpoint.not_found" | "endpoint.method_not_allowed" | "rate_limited" | "auth.setup_required" | "auth.setup_already_completed" | "auth.registration_disabled" | "auth.password_policy_failed" | "auth.username_exists" | "auth.email_exists" | "auth.email_blocked" | "auth.email_not_allowlisted" | "auth.user_disabled" | "auth.pending_activation" | "auth.password_change_required" | "auth.passkey_login_disabled" | "auth.captcha_required" | "auth.captcha_invalid" | "auth.captcha_expired" | "auth.contact_verification_invalid" | "auth.contact_verification_expired" | "auth.invitation_invalid" | "auth.invitation_expired" | "auth.invitation_accepted" | "auth.invitation_revoked" | "mail.not_configured" | "mail.delivery_failed" | "auth.credentials_failed" | "auth.token_expired" | "auth.token_invalid" | "auth.session_not_found" | "auth.session_revocation_failed" | "auth.csrf_missing" | "auth.csrf_invalid" | "auth.admin_required" | "forbidden" | "external_auth.error" | "external_auth.provider_not_found" | "external_auth.provider_disabled" | "external_auth.provider_misconfigured" | "external_auth.state_invalid" | "external_auth.state_expired" | "external_auth.callback_failed" | "external_auth.identity_conflict" | "external_auth.callback_redirect_uri_required" | "mail.template_invalid" | "mail.outbox_not_found" | "config.not_found" | "config.read_only" | "config.validation_failed" | "config.action_not_found" | "config.action_invalid" | "config.action_failed" | "audit_log.invalid_filter" | "task.not_found" | "task.invalid_state" | "task.retry_not_allowed" | "task.cleanup_failed" | "task.lease_conflict" | "minecraft_profile.not_found" | "minecraft_profile.uuid_invalid" | "minecraft_profile.name_invalid" | "minecraft_profile.name_taken" | "minecraft_profile.limit_exceeded" | "minecraft_profile.delete_forbidden" | "permission.not_registered" | "user_ban.not_found" | "user_ban.already_active" | "user_ban.not_active" | "user_ban.duration_invalid" | "user_ban.reason_invalid" | "user_ban.forbidden" | "minecraft_texture.not_found" | "minecraft_texture.invalid_type" | "minecraft_texture.upload_disabled" | "minecraft_texture.invalid_png" | "minecraft_texture.invalid_dimensions" | "minecraft_texture.invalid_model" | "minecraft_texture.unsupported_mime" | "minecraft_texture.too_large" | "minecraft_texture.storage_failed" | "minecraft_texture.bind_conflict" | "wardrobe.texture_not_found" | "wardrobe.texture_type_mismatch" | "wardrobe.texture_delete_conflict" | "wardrobe.texture_name_invalid" | "wardrobe.texture_name_taken" | "texture_library.tag_not_found" | "texture_library.tag_name_invalid" | "texture_library.tag_color_invalid" | "texture_library.tag_name_taken" | "texture_library.texture_not_found" | "texture_library.disabled" | "texture_library.texture_not_public" | "texture_library.texture_not_pending" | "texture_library.texture_not_published" | "texture_library.review_note_invalid" | "texture_report.texture_not_reportable" | "texture_report.self_report_not_allowed" | "texture_report.pending_exists" | "texture_report.message_invalid" | "texture_report.not_found" | "texture_report.not_pending" | "passkey.name_invalid" | "passkey.name_too_long" | "passkey.not_discoverable" | "avatar.not_found" | "avatar.file_required" | "avatar.upload_read_failed" | "avatar.empty_image" | "avatar.source_invalid" | "avatar.size_invalid" | "avatar.render_failed" | "avatar.output_invalid" | "config.public_site_url_required" | "config.public_site_url_invalid" | "frontend_config.unavailable";
         /**
          * @description One auditable operation, persisted with its stable snake_case name.
          *
@@ -3526,7 +3560,7 @@ export interface components {
              * @description Operator-only scope grants; empty for non-operator accounts unless
              *     explicitly loaded.
              */
-            operator_scopes: components["schemas"]["OperatorScope"][];
+            operator_scopes: components["schemas"]["PermissionId"][];
             /**
              * @description New email awaiting verification during an email change; `None` when no
              *     change is in flight.
@@ -3786,7 +3820,7 @@ export interface components {
              */
             must_change_password?: boolean | null;
             /** @description Operator scopes for limited staff accounts. */
-            operator_scopes?: components["schemas"]["OperatorScope"][] | null;
+            operator_scopes?: components["schemas"]["PermissionId"][] | null;
             /**
              * @description Initial password; when omitted the server generates a temporary
              *     password, returns it once, and forces a change at next login.
@@ -3924,7 +3958,7 @@ export interface components {
              * @description Capability scopes the user loses while the ban is effective; must be
              *     non-empty.
              */
-            scopes: components["schemas"]["UserBanScope"][];
+            scopes: components["schemas"]["PermissionId"][];
             /**
              * Format: date-time
              * @description Optional ban start time; defaults to now when omitted.
@@ -4020,7 +4054,7 @@ export interface components {
                 /** @description When the ban was revoked; absent while the ban is not revoked. */
                 revoked_at?: string | null;
                 /** @description Capability scopes the user loses while this ban is effective. */
-                scopes: components["schemas"]["UserBanScope"][];
+                scopes: components["schemas"]["PermissionId"][];
                 /** @description Ban start time. */
                 starts_at: string;
                 /** @description Stored status of the ban record. */
@@ -4174,7 +4208,7 @@ export interface components {
                 /** @description Whether the next login must set a new password. */
                 must_change_password: boolean;
                 /** @description Scoped permissions; populated only for operators. */
-                operator_scopes: components["schemas"]["OperatorScope"][];
+                operator_scopes: components["schemas"]["PermissionId"][];
                 /** @description Email awaiting verification before replacing the current one. */
                 pending_email?: string | null;
                 /** @description Display profile summary including the avatar for admin viewing. */
@@ -5067,7 +5101,7 @@ export interface components {
                  */
                 revoked_by_user_id?: number | null;
                 /** @description Capability scopes the ban covers. */
-                scopes: components["schemas"]["UserBanScope"][];
+                scopes: components["schemas"]["PermissionId"][];
                 /** @description Time the ban takes effect. */
                 starts_at: string;
                 /** @description Status stored on the record (`active` or `revoked`). */
@@ -6101,12 +6135,6 @@ export interface components {
             /** @description When the record was last modified. */
             updated_at: string;
         };
-        /**
-         * @description Admin-panel permission scope granted to an operator account; full admins
-         *     pass every scope gate without holding any of these.
-         * @enum {string}
-         */
-        OperatorScope: "overview" | "users" | "profiles" | "texture_library" | "audit" | "tasks" | "settings" | "external_auth";
         /** @description Registered passkey as shown in the account security settings. */
         PasskeyInfo: {
             /** @description Whether the credential is currently synced to backup storage. */
@@ -6220,6 +6248,39 @@ export interface components {
             /** @description New friendly name for the passkey. */
             name: string;
         };
+        /** @description Metadata describing one registered permission. */
+        PermissionDescriptor: {
+            /** @description UI grouping hint (for example `admin_panel` or the capability domain). */
+            group: string;
+            /** @description Validated permission identifier. */
+            id: components["schemas"]["PermissionId"];
+            /** @description Semantic class; must agree with the namespace boundary of `id`. */
+            kind: components["schemas"]["PermissionKind"];
+            /** @description English fallback label used when the i18n bundle lacks the key. */
+            label: string;
+            /** @description Frontend i18n message key rendering the localized label. */
+            label_i18n_key: string;
+        };
+        /**
+         * @description Validated permission identifier shared by admin-area grants and player
+         *     capability bans.
+         *
+         *     The syntax is `{namespace}.permission.{segments}` or
+         *     `{namespace}.capability.{segments}` where `namespace` is at least two
+         *     reversed-DNS segments and every segment matches `[a-z][a-z0-9_]*`. The
+         *     total length is capped at [`PERMISSION_ID_MAX_LEN`] bytes.
+         *
+         *     Identifiers coming from compile-time built-ins use
+         *     [`PermissionId::builtin`]; identifiers parsed from external input go
+         *     through [`PermissionId::new`], which validates the syntax. Semantic
+         *     registration checks live in [`PermissionRegistry`].
+         */
+        PermissionId: string;
+        /**
+         * @description Semantic class of a permission, encoded by its namespace boundary.
+         * @enum {string}
+         */
+        PermissionKind: "admin_area" | "capability";
         /**
          * @description Site branding and registration entry points exposed to unauthenticated
          *     visitors; every value falls back to its default when unset.
@@ -6968,7 +7029,7 @@ export interface components {
             /** @description Force a password change at next login when provided. */
             must_change_password?: boolean | null;
             /** @description Replacement operator scopes when provided. */
-            operator_scopes?: components["schemas"]["OperatorScope"][] | null;
+            operator_scopes?: components["schemas"]["PermissionId"][] | null;
             /**
              * @description Replacement password; changing it invalidates the user's existing
              *     sessions.
@@ -7094,7 +7155,7 @@ export interface components {
             /** @description Replacement internal reason; 1-128 characters when provided. */
             reason?: string | null;
             /** @description Replacement scope set; omitted leaves the scopes unchanged. */
-            scopes?: components["schemas"]["UserBanScope"][] | null;
+            scopes?: components["schemas"]["PermissionId"][] | null;
             /**
              * Format: date-time
              * @description Replacement start time; omit to keep.
@@ -7175,14 +7236,14 @@ export interface components {
             /** @description Expiry time after the transition. */
             next_expires_at?: string | null;
             /** @description Scope set after the transition. */
-            next_scopes?: components["schemas"]["UserBanScope"][] | null;
+            next_scopes?: components["schemas"]["PermissionId"][] | null;
             next_status?: components["schemas"]["UserBanStatus"] | null;
             /** @description Free-form note recorded with the transition. */
             note?: string | null;
             /** @description Expiry time before the transition. */
             previous_expires_at?: string | null;
             /** @description Scope set before the transition; `None` on creation. */
-            previous_scopes?: components["schemas"]["UserBanScope"][] | null;
+            previous_scopes?: components["schemas"]["PermissionId"][] | null;
             previous_status?: components["schemas"]["UserBanStatus"] | null;
         };
         /**
@@ -7229,7 +7290,7 @@ export interface components {
              */
             revoked_by_user_id?: number | null;
             /** @description Capability scopes the ban covers. */
-            scopes: components["schemas"]["UserBanScope"][];
+            scopes: components["schemas"]["PermissionId"][];
             /** @description Time the ban takes effect. */
             starts_at: string;
             /** @description Status stored on the record (`active` or `revoked`). */
@@ -7242,11 +7303,6 @@ export interface components {
              */
             user_id: number;
         };
-        /**
-         * @description One independently enforceable punishment scope of a user ban.
-         * @enum {string}
-         */
-        UserBanScope: "yggdrasil_access" | "yggdrasil_join" | "minecraft_profile_manage" | "texture_upload" | "texture_library_interact";
         /**
          * @description Lifecycle state of a single user ban record.
          * @enum {string}
@@ -7587,7 +7643,7 @@ export interface operations {
                 /** @description Requested page size. */
                 limit?: number | null;
                 /** @description Optional ban scope filter. */
-                scope?: components["schemas"]["UserBanScope"] | null;
+                scope?: components["schemas"]["PermissionId"] | null;
                 /** @description Optional stored ban status filter. */
                 status?: components["schemas"]["UserBanStatus"] | null;
                 /**
@@ -10981,7 +11037,7 @@ export interface operations {
                 /** @description Optional filter restricting results to bans of this user. */
                 user_id?: number | null;
                 /** @description Optional ban scope filter. */
-                scope?: components["schemas"]["UserBanScope"] | null;
+                scope?: components["schemas"]["PermissionId"] | null;
                 /** @description Optional stored ban status filter. */
                 status?: components["schemas"]["UserBanStatus"] | null;
                 /**
@@ -11104,7 +11160,7 @@ export interface operations {
                              */
                             revoked_by_user_id?: number | null;
                             /** @description Capability scopes the ban covers. */
-                            scopes: components["schemas"]["UserBanScope"][];
+                            scopes: components["schemas"]["PermissionId"][];
                             /** @description Time the ban takes effect. */
                             starts_at: string;
                             /** @description Status stored on the record (`active` or `revoked`). */
@@ -11208,7 +11264,7 @@ export interface operations {
                              */
                             revoked_by_user_id?: number | null;
                             /** @description Capability scopes the ban covers. */
-                            scopes: components["schemas"]["UserBanScope"][];
+                            scopes: components["schemas"]["PermissionId"][];
                             /** @description Time the ban takes effect. */
                             starts_at: string;
                             /** @description Status stored on the record (`active` or `revoked`). */
@@ -11299,14 +11355,14 @@ export interface operations {
                             /** @description Expiry time after the transition. */
                             next_expires_at?: string | null;
                             /** @description Scope set after the transition. */
-                            next_scopes?: components["schemas"]["UserBanScope"][] | null;
+                            next_scopes?: components["schemas"]["PermissionId"][] | null;
                             next_status?: components["schemas"]["UserBanStatus"] | null;
                             /** @description Free-form note recorded with the transition. */
                             note?: string | null;
                             /** @description Expiry time before the transition. */
                             previous_expires_at?: string | null;
                             /** @description Scope set before the transition; `None` on creation. */
-                            previous_scopes?: components["schemas"]["UserBanScope"][] | null;
+                            previous_scopes?: components["schemas"]["PermissionId"][] | null;
                             previous_status?: components["schemas"]["UserBanStatus"] | null;
                         }[];
                         error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
@@ -11400,7 +11456,7 @@ export interface operations {
                              */
                             revoked_by_user_id?: number | null;
                             /** @description Capability scopes the ban covers. */
-                            scopes: components["schemas"]["UserBanScope"][];
+                            scopes: components["schemas"]["PermissionId"][];
                             /** @description Time the ban takes effect. */
                             starts_at: string;
                             /** @description Status stored on the record (`active` or `revoked`). */
@@ -11867,7 +11923,7 @@ export interface operations {
                             /** @description Whether the next login must set a new password. */
                             must_change_password: boolean;
                             /** @description Scoped permissions; populated only for operators. */
-                            operator_scopes: components["schemas"]["OperatorScope"][];
+                            operator_scopes: components["schemas"]["PermissionId"][];
                             /** @description Email awaiting verification before replacing the current one. */
                             pending_email?: string | null;
                             /** @description Display profile summary including the avatar for admin viewing. */
@@ -12036,7 +12092,7 @@ export interface operations {
                             /** @description Whether the next login must set a new password. */
                             must_change_password: boolean;
                             /** @description Scoped permissions; populated only for operators. */
-                            operator_scopes: components["schemas"]["OperatorScope"][];
+                            operator_scopes: components["schemas"]["PermissionId"][];
                             /** @description Email awaiting verification before replacing the current one. */
                             pending_email?: string | null;
                             /** @description Display profile summary including the avatar for admin viewing. */
@@ -12214,7 +12270,7 @@ export interface operations {
                              */
                             revoked_by_user_id?: number | null;
                             /** @description Capability scopes the ban covers. */
-                            scopes: components["schemas"]["UserBanScope"][];
+                            scopes: components["schemas"]["PermissionId"][];
                             /** @description Time the ban takes effect. */
                             starts_at: string;
                             /** @description Status stored on the record (`active` or `revoked`). */
@@ -13000,7 +13056,7 @@ export interface operations {
                              * @description Operator-only scope grants; empty for non-operator accounts unless
                              *     explicitly loaded.
                              */
-                            operator_scopes: components["schemas"]["OperatorScope"][];
+                            operator_scopes: components["schemas"]["PermissionId"][];
                             /**
                              * @description New email awaiting verification during an email change; `None` when no
                              *     change is in flight.
@@ -13584,7 +13640,7 @@ export interface operations {
                              * @description Operator-only scope grants; empty for non-operator accounts unless
                              *     explicitly loaded.
                              */
-                            operator_scopes: components["schemas"]["OperatorScope"][];
+                            operator_scopes: components["schemas"]["PermissionId"][];
                             /**
                              * @description New email awaiting verification during an email change; `None` when no
                              *     change is in flight.
@@ -13738,7 +13794,7 @@ export interface operations {
                              * @description Operator-only scope grants; empty for non-operator accounts unless
                              *     explicitly loaded.
                              */
-                            operator_scopes: components["schemas"]["OperatorScope"][];
+                            operator_scopes: components["schemas"]["PermissionId"][];
                             /**
                              * @description New email awaiting verification during an email change; `None` when no
                              *     change is in flight.
@@ -14797,6 +14853,42 @@ export interface operations {
             };
             /** @description System is already initialized or input is invalid */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_admin_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered permissions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: components["schemas"]["AsterErrorCode"];
+                        /** @description Every permission the server considers valid at authorization boundaries. */
+                        data?: {
+                            /** @description Registered descriptors ordered by identifier. */
+                            permissions: components["schemas"]["AdminPermissionInfo"][];
+                        };
+                        error?: components["schemas"]["ApiErrorInfo_TupleUnit"];
+                        msg: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

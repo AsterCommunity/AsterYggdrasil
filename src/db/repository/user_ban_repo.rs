@@ -5,7 +5,7 @@ use aster_forge_api::CursorSlice;
 use aster_yggdrasil_model::entities::user_ban::{self, Entity as UserBan};
 use aster_yggdrasil_model::entities::user_ban_event::{self, Entity as UserBanEvent};
 use aster_yggdrasil_model::types::{
-    user::UserBanEventType, user::UserBanScope, user::UserBanScopes, user::UserBanStatus,
+    permission::PermissionId, user::UserBanEventType, user::UserBanScopes, user::UserBanStatus,
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
@@ -132,7 +132,7 @@ pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<us
 pub async fn find_effective_for_scope<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
-    scope: UserBanScope,
+    scope: &PermissionId,
     now: DateTime<Utc>,
 ) -> Result<Option<user_ban::Model>> {
     let bans = UserBan::find()

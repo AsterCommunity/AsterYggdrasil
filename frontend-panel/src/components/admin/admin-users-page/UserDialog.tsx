@@ -23,7 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { emailSchema, passwordSchema, usernameSchema } from "@/lib/validation";
 import type {
 	CreateAdminUserRequest,
-	OperatorScope,
+	PermissionId,
 	UserRole,
 	UserStatus,
 } from "@/types/api";
@@ -36,7 +36,7 @@ import { RoleBadge, StatusBadge } from "./UsersTable";
 type UserForm = {
 	email: string;
 	mustChangePassword: boolean;
-	operatorScopes: OperatorScope[];
+	operatorScopes: PermissionId[];
 	password: string;
 	role: UserRole;
 	status: UserStatus;

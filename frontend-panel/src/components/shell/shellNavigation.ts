@@ -1,7 +1,7 @@
 import type { IconName } from "@/components/ui/icon";
 import { hasOperatorScope } from "@/lib/operatorScopes";
 import { accountPaths, adminPaths, publicPaths } from "@/routes/routePaths";
-import type { OperatorScope } from "@/types/api";
+import type { PermissionId } from "@/types/api";
 
 export type ShellScope = "account" | "admin";
 
@@ -10,7 +10,7 @@ export type ShellNavItem = {
 	labelKey: string;
 	icon: IconName;
 	end?: boolean;
-	operatorScope?: OperatorScope;
+	operatorScope?: PermissionId;
 	preload?: () => Promise<unknown>;
 };
 
@@ -134,7 +134,7 @@ export function getShellNavSections({
 	textureLibraryEnabled = true,
 }: {
 	isAdmin: boolean;
-	operatorScopes: readonly OperatorScope[];
+	operatorScopes: readonly PermissionId[];
 	textureLibraryEnabled?: boolean;
 }): ShellNavSection[] {
 	const visibleAccountItems = accountNavItems.filter(

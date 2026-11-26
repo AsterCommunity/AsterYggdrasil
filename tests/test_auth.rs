@@ -3065,7 +3065,7 @@ async fn admin_user_avatar_media_requires_users_scope() {
             "email": "users-operator@example.com",
             "password": "password123",
             "role": "operator",
-            "operator_scopes": ["users"]
+            "operator_scopes": ["com.astercosm.yggdrasil.permission.admin.users"]
         }),
     )
     .await;
@@ -3079,7 +3079,7 @@ async fn admin_user_avatar_media_requires_users_scope() {
             "email": "texture-operator@example.com",
             "password": "password123",
             "role": "operator",
-            "operator_scopes": ["texture_library"]
+            "operator_scopes": ["com.astercosm.yggdrasil.permission.admin.texture_library"]
         }),
     )
     .await;
@@ -3533,4 +3533,82 @@ async fn email_change_rejects_conflicts_and_pending_activation() {
     assert_eq!(resp.status(), 403);
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["code"], "auth.pending_activation");
+}
+
+#[actix_web::test]
+async fn admin_create_user_rejects_unregistered_or_non_admin_area_scopes() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+
+    for payload in [
+        serde_json::json!({
+            "username": "unreg-scope",
+            "email": "unreg-scope@example.com",
+            "password": "password123",
+            "role": "operator",
+            "operator_scopes": ["com.example.plugin.permission.admin.dashboard"]
+        }),
+        serde_json::json!({
+            "username": "cap-scope",
+            "email": "cap-scope@example.com",
+            "password": "password123",
+            "role": "operator",
+            "operator_scopes": ["com.astercosm.yggdrasil.capability.texture.upload"]
+        }),
+    ] {
+        let req = test::TestRequest::post()
+            .uri("/api/v1/admin/users")
+            .insert_header(common::bearer_header(&admin_token))
+            .set_json(payload)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 400);
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(
+            body["code"], "permission.not_registered",
+            "unexpected error body: {body}"
+        );
+    }
+}
+
+#[actix_web::test]
+async fn permissions_dictionary_is_readable_by_any_authenticated_account() {
+    let state = common::setup().await;
+    let app = create_test_app!(state.clone());
+    let admin_token = setup_admin!(app);
+    admin_create_user!(
+        app,
+        admin_token,
+        "perm-reader",
+        "perm-reader@example.com",
+        "password1234"
+    );
+    let (reader_token, _, _) = login_session!(app, "perm-reader", "password1234");
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions")
+        .insert_header(common::bearer_header(&reader_token))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    let permissions = body["data"]["permissions"]
+        .as_array()
+        .expect("permissions array");
+    assert_eq!(permissions.len(), 13, "built-in registry size");
+    let ids: Vec<&str> = permissions
+        .iter()
+        .filter_map(|item| item["id"].as_str())
+        .collect();
+    assert!(
+        ids.contains(&"com.astercosm.yggdrasil.capability.texture.upload"),
+        "capability descriptors must be present for player-facing labels: {ids:?}"
+    );
+
+    let req = test::TestRequest::get()
+        .uri("/api/v1/permissions")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401, "anonymous access must be rejected");
 }
