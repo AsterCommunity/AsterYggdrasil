@@ -10,6 +10,7 @@ use sea_orm::{
     QueryOrder, QuerySelect, sea_query::Expr,
 };
 
+/// Lists all passkeys registered by a user, most recently used first, then newest created.
 pub async fn list_for_user(db: &DatabaseConnection, user_id: i64) -> Result<Vec<passkey::Model>> {
     Passkey::find()
         .filter(passkey::Column::UserId.eq(user_id))
@@ -20,6 +21,11 @@ pub async fn list_for_user(db: &DatabaseConnection, user_id: i64) -> Result<Vec<
         .map_err(AsterError::from)
 }
 
+/// Paginates a user's passkeys using a keyset cursor over `(created_at, id)`, newest first.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the user's total passkey count and a next cursor, which
+/// is absent on the last page.
 pub async fn list_for_user_cursor(
     db: &DatabaseConnection,
     user_id: i64,
@@ -50,6 +56,9 @@ pub async fn list_for_user_cursor(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Loads a passkey by id, scoped to its owner.
+///
+/// Returns `None` when the passkey does not exist or belongs to a different user.
 pub async fn find_by_id_for_user(
     db: &DatabaseConnection,
     id: i64,
@@ -63,6 +72,9 @@ pub async fn find_by_id_for_user(
         .map_err(AsterError::from)
 }
 
+/// Loads a passkey by its WebAuthn credential id during authentication.
+///
+/// Returns `None` when no credential with that id is registered.
 pub async fn find_by_credential_id(
     db: &DatabaseConnection,
     credential_id: &str,
@@ -74,6 +86,10 @@ pub async fn find_by_credential_id(
         .map_err(AsterError::from)
 }
 
+/// Loads a passkey matching both the WebAuthn user handle and credential id.
+///
+/// Returns `None` on any mismatch; used to detect credentials registered to a different
+/// account than the one being asserted.
 pub async fn find_by_user_handle_and_credential_id(
     db: &DatabaseConnection,
     user_handle: &str,
@@ -87,6 +103,7 @@ pub async fn find_by_user_handle_and_credential_id(
         .map_err(AsterError::from)
 }
 
+/// Reports whether any passkey is registered under the WebAuthn user handle.
 pub async fn user_handle_exists(db: &DatabaseConnection, user_handle: &str) -> Result<bool> {
     let found = Passkey::find()
         .select_only()
@@ -99,6 +116,9 @@ pub async fn user_handle_exists(db: &DatabaseConnection, user_handle: &str) -> R
     Ok(found.is_some())
 }
 
+/// Renames a passkey owned by `user_id`, stamping `updated_at`.
+///
+/// Returns `false` when the passkey does not exist or belongs to a different user.
 pub async fn update_name_for_user(
     db: &DatabaseConnection,
     id: i64,
@@ -116,6 +136,11 @@ pub async fn update_name_for_user(
     Ok(result.rows_affected == 1)
 }
 
+/// Persists the authenticator state observed after a successful WebAuthn assertion.
+///
+/// Stores the returned credential bytes, backup flags, and monotonic sign count, and stamps
+/// `last_used_at`. Rejects a negative sign count as a validation error. Returns `false` when
+/// the passkey row no longer exists.
 pub async fn update_credential_after_auth(
     db: &DatabaseConnection,
     id: i64,
@@ -148,6 +173,9 @@ pub async fn update_credential_after_auth(
     Ok(result.rows_affected == 1)
 }
 
+/// Stamps `last_used_at` on a passkey without touching credential state.
+///
+/// Returns `false` when the passkey row no longer exists.
 pub async fn touch_last_used(
     db: &DatabaseConnection,
     id: i64,
@@ -163,6 +191,9 @@ pub async fn touch_last_used(
     Ok(result.rows_affected == 1)
 }
 
+/// Deletes a passkey owned by `user_id`.
+///
+/// Returns `false` when the passkey does not exist or belongs to a different user.
 pub async fn delete_for_user(db: &DatabaseConnection, id: i64, user_id: i64) -> Result<bool> {
     let result = Passkey::delete_many()
         .filter(passkey::Column::Id.eq(id))

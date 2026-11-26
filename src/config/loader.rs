@@ -10,6 +10,8 @@ use secrecy::ExposeSecret;
 use std::path::{Path, PathBuf};
 use toml_edit::{DocumentMut, Item, Table, value};
 
+/// Loads the static config for the current working directory, layering
+/// `ASTER__*` environment overrides on top of `./data/config.toml`.
 pub fn load() -> Result<Config> {
     let base_dir = std::env::current_dir()
         .map_aster_err_ctx("failed to resolve current dir", AsterError::config_error)?;
@@ -26,6 +28,8 @@ pub struct ConfigLocation {
 }
 
 impl ConfigLocation {
+    /// Resolves the location from mutually exclusive CLI inputs; relative
+    /// paths are anchored to the current working directory.
     pub fn resolve(config_file: Option<&Path>, data_dir: Option<&Path>) -> Result<Self> {
         let cwd = std::env::current_dir()
             .map_aster_err_ctx("failed to resolve current dir", AsterError::config_error)?;
@@ -48,6 +52,7 @@ impl ConfigLocation {
         })
     }
 
+    /// The resolved config file path, always absolute.
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -79,6 +84,8 @@ pub fn load_at(location: &ConfigLocation) -> Result<Config> {
     )
 }
 
+/// Writes the default config file to `<cwd>/data/config.toml` when missing
+/// and returns its path, without loading it.
 pub fn ensure_default_config_for_current_dir(default: &Config) -> Result<PathBuf> {
     let base_dir = std::env::current_dir()
         .map_aster_err_ctx("failed to resolve current dir", AsterError::config_error)?;

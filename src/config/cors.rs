@@ -15,10 +15,22 @@ pub use crate::config::definitions::{
     CORS_ALLOW_CREDENTIALS_KEY, CORS_ALLOWED_ORIGINS_KEY, CORS_ENABLED_KEY, CORS_MAX_AGE_SECS_KEY,
 };
 
+/// Whether CORS enforcement is on when no runtime value exists; defaults to
+/// false because same-origin-only deployments need no CORS handling.
 pub const DEFAULT_CORS_ENABLED: bool = false;
+/// Whether cross-origin requests may carry credentials when the stored
+/// `cors_allow_credentials` value is missing or invalid; defaults to false,
+/// the safe choice.
 pub const DEFAULT_CORS_ALLOW_CREDENTIALS: bool = false;
+/// `Access-Control-Max-Age` (in seconds) advertised when the stored value is
+/// missing or invalid; one hour balances preflight caching against how quickly
+/// policy edits take effect for browsers.
 pub const DEFAULT_CORS_MAX_AGE_SECS: u64 = 3600;
 
+/// Builds the effective CORS policy from the runtime config store. Invalid
+/// stored values fall back to safe defaults (deny cross-origin), and an
+/// invalid combination (`*` origins plus credentials) disables enforcement
+/// entirely with a warning.
 pub fn runtime_cors_policy(runtime_config: &RuntimeConfig) -> RuntimeCorsPolicy {
     let enabled = match runtime_config.get(CORS_ENABLED_KEY) {
         Some(raw) => match parse_bool_str(&raw) {
@@ -111,10 +123,14 @@ pub fn runtime_cors_policy(runtime_config: &RuntimeConfig) -> RuntimeCorsPolicy 
     }
 }
 
+/// Validates a stored `cors_enabled` value as a strict boolean string
+/// ("true"/"false").
 pub fn normalize_enabled_config_value(value: &str) -> Result<String> {
     normalize_strict_bool_config_value(CORS_ENABLED_KEY, value).map_err(Into::into)
 }
 
+/// Validates a stored `cors_allowed_origins` value: a comma-separated origin
+/// list, `*` alone, or empty to deny all cross-origin requests.
 pub fn normalize_allowed_origins_config_value(value: &str) -> Result<String> {
     let parsed = parse_allowed_origins_value(value)?;
     Ok(match parsed {
@@ -124,14 +140,22 @@ pub fn normalize_allowed_origins_config_value(value: &str) -> Result<String> {
     })
 }
 
+/// Validates a stored `cors_allow_credentials` value as a strict boolean
+/// string ("true"/"false").
 pub fn normalize_allow_credentials_config_value(value: &str) -> Result<String> {
     normalize_strict_bool_config_value(CORS_ALLOW_CREDENTIALS_KEY, value).map_err(Into::into)
 }
 
+/// Validates a stored `cors_max_age_secs` value as a non-negative integer
+/// number of seconds for the `Access-Control-Max-Age` header.
 pub fn normalize_max_age_config_value(value: &str) -> Result<String> {
     normalize_non_negative_u64_config_value(CORS_MAX_AGE_SECS_KEY, value).map_err(Into::into)
 }
 
+/// Parses the stored comma-separated origins value into a policy shape:
+/// [`CorsAllowedOrigins::None`] for empty, [`CorsAllowedOrigins::Any`] for a
+/// lone `*`, or a deduplicated sorted list otherwise. Mixing `*` with explicit
+/// origins is rejected.
 pub fn parse_allowed_origins_value(value: &str) -> Result<CorsAllowedOrigins> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -170,11 +194,15 @@ pub fn parse_allowed_origins_value(value: &str) -> Result<CorsAllowedOrigins> {
     }
 }
 
+/// Normalizes a single origin entry to `scheme://host[:port]` form, rejecting
+/// non-http(s) schemes, paths, and (unless `allow_wildcard`) `*`.
 pub fn normalize_origin(origin: &str, allow_wildcard: bool) -> Result<String> {
     aster_forge_utils::url::normalize_origin(origin, allow_wildcard)
         .map_err(|error| AsterError::validation_error(error.to_string()))
 }
 
+/// Rejects the credential-leaking combination of wildcard (`*`) origins with
+/// `allow_credentials = true`.
 pub fn validate_runtime_cors_combination(
     allowed_origins: &CorsAllowedOrigins,
     allow_credentials: bool,

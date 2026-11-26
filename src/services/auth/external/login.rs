@@ -22,6 +22,10 @@ use super::{
     ExternalAuthPrimaryLogin, ExternalAuthStartLoginResponse, FLOW_TTL_SECS,
 };
 
+/// Starts an external auth login for one provider: validates the provider is
+/// enabled, builds the redirect URI, asks the driver for an authorization URL,
+/// and persists a login flow (state hash, nonce, PKCE verifier) that expires
+/// after `FLOW_TTL_SECS` (300 seconds).
 pub async fn start_login(
     state: &impl SharedRuntimeState,
     req: &actix_web::HttpRequest,
@@ -94,6 +98,10 @@ pub async fn start_login(
     })
 }
 
+/// Completes an external auth login from the provider's redirect callback.
+/// Consumes the login flow matched by the (hashed) `state`, rejects kind/key
+/// mismatches and disabled providers, exchanges the code for claims, and then
+/// resolves a login or creates a pending email verification flow.
 pub async fn finish_callback(
     state: &impl SharedRuntimeState,
     provider_kind: ExternalAuthProviderKind,

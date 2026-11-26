@@ -8,6 +8,8 @@ use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 
 use super::{TASK_DRAIN_MAX_ROUNDS, dispatch_due};
 
+/// Runs dispatch rounds until no more due tasks claim or the round cap is
+/// hit; used at shutdown and in tests to finish in-flight work promptly.
 pub async fn drain(state: &AppState) -> Result<DispatchStats> {
     aster_forge_tasks::drain_dispatcher(
         TASK_DRAIN_MAX_ROUNDS,
@@ -18,6 +20,8 @@ pub async fn drain(state: &AppState) -> Result<DispatchStats> {
     .await
 }
 
+/// Deletes expired task records' temp working directories under the
+/// configured runtime temp root; returns the removed entries.
 pub async fn cleanup_expired(
     state: &(impl AppConfigRuntimeState + DatabaseRuntimeState),
 ) -> Result<u64> {

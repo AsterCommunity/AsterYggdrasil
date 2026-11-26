@@ -35,9 +35,11 @@ mod m20260626_000003_scheduled_tasks;
 mod m20260626_000004_widen_mail_outbox_template_code;
 mod time;
 
+/// Entry point for running the Yggdrasil schema migrations.
 pub struct Migrator;
 
 impl Migrator {
+    /// Applies pending migrations, optionally limited to `steps` of them.
     pub async fn up(
         db: &sea_orm_migration::sea_orm::DatabaseConnection,
         steps: Option<u32>,

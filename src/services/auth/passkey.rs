@@ -30,39 +30,64 @@ const PASSKEY_NAME_MAX_LEN: usize = 128;
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Registered passkey as shown in the account security settings.
 pub struct PasskeyInfo {
+    /// Passkey row id used in rename/delete routes.
     pub id: i64,
+    /// User-chosen label (up to 128 chars, control chars rejected).
     pub name: String,
+    /// Transports reported at registration (e.g. `internal`, `hybrid`).
     pub transports: Option<Vec<String>>,
+    /// Whether the authenticator allowed the credential to be backed up.
     pub backup_eligible: bool,
+    /// Whether the credential is currently synced to backup storage.
     pub backed_up: bool,
+    /// WebAuthn signature counter from the most recent authentication.
     pub sign_count: i64,
+    /// When the passkey was registered.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<Utc>,
+    /// When the stored credential record was last updated (e.g. after login).
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub updated_at: chrono::DateTime<Utc>,
+    /// Last successful authentication with this passkey; null until first use.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
     pub last_used_at: Option<chrono::DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Start of a WebAuthn registration ceremony.
 pub struct PasskeyRegisterStartResp {
+    /// Flow id correlating the finish call with the cached challenge; the
+    /// challenge expires after 300 seconds and is consumed on first finish.
     pub flow_id: String,
+    /// `PublicKeyCredentialCreationOptions` JSON for the browser's
+    /// `navigator.credentials.create()` call.
     pub public_key: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Start of a WebAuthn (discoverable credential) login ceremony.
 pub struct PasskeyLoginStartResp {
+    /// Flow id correlating the finish call with the cached challenge; the
+    /// challenge expires after 300 seconds and is consumed on first finish.
     pub flow_id: String,
+    /// `PublicKeyCredentialRequestOptions` JSON for the browser's
+    /// `navigator.credentials.get()` call.
     pub public_key: serde_json::Value,
 }
 
 #[derive(Debug)]
+/// Successful passkey login: the issued session plus which passkey was used,
+/// for audit and UI feedback.
 pub struct PasskeyLoginResult {
+    /// Fresh token pair for the authenticated user.
     pub session: local::AuthTokenBundle,
+    /// Passkey row that authenticated the user.
     pub passkey_id: i64,
+    /// Label of the passkey that authenticated the user.
     pub passkey_name: String,
 }
 
@@ -481,6 +506,7 @@ fn map_unique_passkey_err(err: DbErr) -> AsterError {
     AsterError::from(err)
 }
 
+/// Lists all passkeys registered by the user.
 pub async fn list_passkeys(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -494,6 +520,8 @@ pub async fn list_passkeys(
         })
 }
 
+/// Cursor-paginated variant of [`list_passkeys`], ordered by
+/// `(created_at, id)`; `limit` is clamped to 1..=100.
 pub async fn list_passkeys_cursor(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -534,6 +562,10 @@ pub async fn list_passkeys_cursor(
     ))
 }
 
+/// Begins passkey registration for an active user: allocates/reuses the user
+/// handle, excludes already-registered credentials, forces a discoverable
+/// credential with required user verification, and caches the challenge state
+/// under a fresh flow id.
 pub async fn start_registration(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -600,6 +632,10 @@ pub async fn start_registration(
     })
 }
 
+/// Completes registration by verifying the browser credential against the
+/// cached challenge, rejecting duplicates and non-discoverable credentials,
+/// and storing the credential with its transports, backup flags, and sign
+/// counter. `name` overrides the default name captured at start.
 pub async fn finish_registration(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -693,6 +729,8 @@ pub async fn finish_registration(
     Ok(model_to_info(created))
 }
 
+/// Renames one of the user's passkeys; reports not found when the passkey
+/// does not belong to the user.
 pub async fn rename_passkey(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -716,6 +754,8 @@ pub async fn rename_passkey(
     Ok(model_to_info(passkey))
 }
 
+/// Deletes one of the user's passkeys; returns `false` when no matching
+/// passkey exists.
 pub async fn delete_passkey(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -727,6 +767,10 @@ pub async fn delete_passkey(
     Ok(deleted)
 }
 
+/// Begins a discoverable-credential login. The optional `identifier`
+/// (username or email) pins the finish step to that account; `conditional`
+/// keeps browser autofill mediation enabled. Requires passkey login to be
+/// enabled by policy.
 pub async fn start_login(
     state: &impl SharedRuntimeState,
     identifier: Option<&str>,
@@ -764,6 +808,10 @@ pub async fn start_login(
     })
 }
 
+/// Completes a passkey login: resolves the credential to a stored passkey,
+/// enforces the pinned identifier, account status/activation, and user
+/// verification, updates the credential's counter/backup state, and issues a
+/// fresh session.
 pub async fn finish_login(
     state: &impl SharedRuntimeState,
     flow_id: &str,

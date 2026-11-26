@@ -7,18 +7,30 @@
 use crate::errors::{AsterError, Result};
 use std::path::Path;
 
+/// Default data directory, resolved relative to the process working directory.
 pub const DEFAULT_DATA_DIR: &str = "data";
+/// Default config file path inside the data directory.
 pub const DEFAULT_CONFIG_PATH: &str = "data/config.toml";
+/// Default SQLite database file path inside the data directory.
 pub const DEFAULT_SQLITE_DATABASE_PATH: &str = "data/asteryggdrasil.db";
+/// Default SQLite URL used when writing the config file; relative to the data directory.
 pub const DEFAULT_CONFIG_SQLITE_DATABASE_URL: &str = "sqlite://asteryggdrasil.db?mode=rwc";
+/// Default SQLite URL used when opening the database at runtime; relative to the process working directory.
 pub const DEFAULT_SQLITE_DATABASE_URL: &str = "sqlite://data/asteryggdrasil.db?mode=rwc";
+/// Default temp directory written into the config file; relative to the data directory.
 pub const DEFAULT_CONFIG_TEMP_DIR: &str = ".tmp";
+/// Default temp directory used at runtime; relative to the process working directory.
 pub const DEFAULT_TEMP_DIR: &str = "data/.tmp";
 
 fn map_utils_config(error: aster_forge_utils::UtilsError) -> AsterError {
     AsterError::config_error(error.to_string())
 }
 
+/// Resolves a configured path value against the config directory, keeping it inside `base_dir`.
+///
+/// Plain values are interpreted relative to `config_dir`; values already prefixed with the
+/// data directory name (or absolute values) are kept as-is. Returns an error when the result
+/// escapes `base_dir`.
 pub fn resolve_config_relative_path(
     base_dir: &Path,
     config_dir: &Path,
@@ -28,6 +40,11 @@ pub fn resolve_config_relative_path(
         .map_err(map_utils_config)
 }
 
+/// Resolves a configured `sqlite://` URL so its database file stays inside `base_dir`.
+///
+/// Plain relative file paths are re-rooted under `config_dir`; URLs already prefixed with the
+/// data directory name or pointing to an absolute path are kept unchanged. Returns an error
+/// when the resolved database path escapes `base_dir`.
 pub fn resolve_config_relative_sqlite_url(
     base_dir: &Path,
     config_dir: &Path,

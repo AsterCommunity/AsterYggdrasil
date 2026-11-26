@@ -19,6 +19,7 @@ pub enum ServeRole {
 }
 
 impl ServeRole {
+    /// Canonical lowercase name of the role as used in logs and metrics.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::All => "all",
@@ -27,10 +28,12 @@ impl ServeRole {
         }
     }
 
+    /// Whether a process with this role answers product HTTP traffic.
     pub const fn serves_api(self) -> bool {
         !matches!(self, Self::Worker)
     }
 
+    /// Whether a process with this role claims and executes background tasks.
     pub const fn consumes_tasks(self) -> bool {
         !matches!(self, Self::Api)
     }
@@ -44,9 +47,16 @@ impl ServeRole {
 /// an empty list is only valid for roles that do not consume tasks.
 #[derive(Clone)]
 pub struct RoleHealth {
+    /// Responsibility this process carries; decides which probe conditions apply.
     pub role: ServeRole,
+    /// One status per scheduled runtime task consumer group this process runs.
+    /// Empty lists are only valid for roles that do not consume tasks.
     pub consumers: Vec<aster_forge_tasks::TaskRuntimeStatus>,
+    /// Cancellation token fired when graceful shutdown begins; draining
+    /// processes report not-ready but stay live while it is cancelled.
     pub shutdown: tokio_util::sync::CancellationToken,
+    /// Flips to true once every component startup phase has completed, so
+    /// probes during startup report not-ready instead of success.
     pub initialized: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 

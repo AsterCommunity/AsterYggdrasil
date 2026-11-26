@@ -7,6 +7,7 @@ use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::texture;
 
+/// Registers the public `/texture-previews` scope serving rendered preview PNGs by texture hash.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/texture-previews").route(
         "/{hash}/{file_name}",
@@ -29,6 +30,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         (status = 404, description = "Texture or preview variant not found, or generation previously failed"),
     ),
 )]
+/// Returns the cached PNG preview for the given texture hash and variant, with conditional
+/// request support; responds 202 with `Retry-After` while the preview render is still queued or running.
 pub async fn texture_preview_by_hash(
     state: web::Data<AppState>,
     req: HttpRequest,

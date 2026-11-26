@@ -12,6 +12,9 @@ use aster_yggdrasil_model::types::task::{
     BackgroundTaskKind, BackgroundTaskStatus, StoredTaskPayload,
 };
 
+/// Loads a single task by id.
+///
+/// Returns `Err(record_not_found)` when no task with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<background_task::Model> {
     BackgroundTask::find_by_id(id)
         .one(db)
@@ -20,6 +23,11 @@ pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<backgroun
         .ok_or_else(|| AsterError::record_not_found(format!("task #{id}")))
 }
 
+/// Paginates tasks for the admin list using a keyset cursor over `(updated_at, id)`, newest first.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the unfiltered total count and a next cursor, which is
+/// absent on the last page.
 pub async fn find_cursor_filtered<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -50,6 +58,7 @@ pub async fn find_cursor_filtered<C: ConnectionTrait>(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Lists up to `limit` most recently updated tasks, newest first.
 pub async fn list_recent<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -62,6 +71,9 @@ pub async fn list_recent<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Finds the most recently updated `SystemRuntime` task with an exactly matching payload.
+///
+/// Returns `None` when no such task exists.
 pub async fn find_latest_system_runtime_by_payload<C: ConnectionTrait>(
     db: &C,
     payload_json: &StoredTaskPayload,
@@ -75,6 +87,9 @@ pub async fn find_latest_system_runtime_by_payload<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Finds the task registered under `dedupe_key`.
+///
+/// Returns `None` when no task carries that key; dedupe keys are unique, so at most one row matches.
 pub async fn find_by_dedupe_key<C: ConnectionTrait>(
     db: &C,
     dedupe_key: &str,
@@ -86,6 +101,7 @@ pub async fn find_by_dedupe_key<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Counts tasks currently in `Processing` status, regardless of lease liveness.
 pub async fn count_processing<C: ConnectionTrait>(db: &C) -> Result<u64> {
     BackgroundTask::find()
         .filter(background_task::Column::Status.eq(BackgroundTaskStatus::Processing))
@@ -94,6 +110,7 @@ pub async fn count_processing<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_err(AsterError::from)
 }
 
+/// Counts tasks waiting to be dispatched (statuses `Pending` or `Retry`).
 pub async fn count_pending_or_retry<C: ConnectionTrait>(db: &C) -> Result<u64> {
     BackgroundTask::find()
         .filter(
@@ -105,6 +122,9 @@ pub async fn count_pending_or_retry<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_err(AsterError::from)
 }
 
+/// Counts processing tasks for `kinds` whose lease is still live at `now`.
+///
+/// Returns 0 when `kinds` is empty.
 pub async fn count_active_processing_by_kinds<C: ConnectionTrait>(
     db: &C,
     now: DateTime<Utc>,
@@ -133,6 +153,9 @@ pub async fn count_active_processing_by_kinds<C: ConnectionTrait>(
     )?)
 }
 
+/// Finds the newest task of `kind` with the given display name, ordered by `created_at` descending.
+///
+/// Returns `None` when no matching task exists.
 pub async fn find_latest_by_kind_and_display_name<C: ConnectionTrait>(
     db: &C,
     kind: BackgroundTaskKind,

@@ -35,6 +35,7 @@ use self::maintenance::cleanup_texture_blob_if_unreferenced;
 
 use super::*;
 
+/// Lists every texture-library tag in sort order.
 pub async fn list_texture_library_tags<S: DatabaseRuntimeState>(
     state: &S,
 ) -> Result<Vec<MinecraftTextureTagInfo>> {
@@ -42,6 +43,8 @@ pub async fn list_texture_library_tags<S: DatabaseRuntimeState>(
     Ok(tags.into_iter().map(texture_tag_info).collect())
 }
 
+/// Lists texture-library tags as a cursor page ordered by sort order, name,
+/// and id; `limit` is clamped to 1-100 and `keyword` filters by name.
 pub async fn list_texture_library_tags_paginated<S: DatabaseRuntimeState>(
     state: &S,
     limit: u64,
@@ -73,6 +76,8 @@ pub async fn list_texture_library_tags_paginated<S: DatabaseRuntimeState>(
     ))
 }
 
+/// Creates a texture-library tag; names are normalized (trimmed, 1-64 chars)
+/// and must be unique ignoring case, colors must be `#RRGGBB`.
 pub async fn create_texture_library_tag<S: DatabaseRuntimeState>(
     state: &S,
     name: &str,
@@ -103,6 +108,8 @@ pub async fn create_texture_library_tag<S: DatabaseRuntimeState>(
     Ok(texture_tag_info(tag))
 }
 
+/// Partially updates a texture-library tag; only the supplied fields change,
+/// and name uniqueness is enforced ignoring case against other tags.
 pub async fn update_texture_library_tag<S: DatabaseRuntimeState>(
     state: &S,
     tag_id: i64,
@@ -152,6 +159,8 @@ pub async fn update_texture_library_tag<S: DatabaseRuntimeState>(
     Ok(texture_tag_info(tag))
 }
 
+/// Deletes a texture-library tag by id; fails with not-found when the tag
+/// does not exist.
 pub async fn delete_texture_library_tag<S: DatabaseRuntimeState>(
     state: &S,
     tag_id: i64,
@@ -165,6 +174,10 @@ pub async fn delete_texture_library_tag<S: DatabaseRuntimeState>(
     Ok(())
 }
 
+/// Submits a user's public wardrobe texture to the public texture library.
+/// Requires the library feature and a public-visibility texture; the entry
+/// enters `PendingReview` when runtime policy requires review, otherwise it
+/// is published immediately.
 pub async fn submit_texture_library_review<S>(
     state: &S,
     user_id: i64,
@@ -211,6 +224,8 @@ where
     wardrobe_texture_with_current_tags(state, &updated).await
 }
 
+/// Pulls a submitted texture back out of the public library, resetting its
+/// library status to private and clearing submission/review timestamps.
 pub async fn withdraw_texture_library_submission<S>(
     state: &S,
     user_id: i64,
@@ -237,6 +252,8 @@ where
     wardrobe_texture_with_current_tags(state, &updated).await
 }
 
+/// Admin cursor listing over library texture submissions, filtered by the
+/// given status/filter set; `limit` is clamped to 1-100.
 pub async fn list_admin_texture_library_textures_cursor<S>(
     state: &S,
     limit: u64,
@@ -272,6 +289,8 @@ pub(super) fn texture_next_cursor(
     })
 }
 
+/// Loads one wardrobe texture by id for admin review, with admin-audience
+/// metadata.
 pub async fn get_admin_texture_library_texture<S>(
     state: &S,
     texture_id: i64,
@@ -283,6 +302,8 @@ where
     admin_texture_library_metadata(state, &texture).await
 }
 
+/// Approves a pending library submission, publishing it and optionally
+/// (re)setting its tags; requires the texture to be in `PendingReview`.
 pub async fn approve_texture_library_texture<S>(
     state: &S,
     reviewer_user_id: i64,
@@ -325,6 +346,8 @@ where
     admin_texture_library_metadata(state, &updated).await
 }
 
+/// Rejects a pending library submission with a required review note; the
+/// texture stays in the owner's wardrobe but is marked `Rejected`.
 pub async fn reject_texture_library_texture<S>(
     state: &S,
     reviewer_user_id: i64,
@@ -358,6 +381,8 @@ where
     admin_texture_library_metadata(state, &updated).await
 }
 
+/// Takes a published library entry down: resets it to private, records the
+/// reviewer note, and auto-accepts the texture's pending reports as handled.
 pub async fn unpublish_texture_library_texture<S>(
     state: &S,
     reviewer_user_id: i64,
@@ -403,6 +428,9 @@ where
     admin_texture_library_metadata(state, &updated).await
 }
 
+/// Hard-deletes a wardrobe texture from the admin library view along with all
+/// of its profile bindings and, when unreferenced, its stored blob. Returns a
+/// pre-deletion metadata snapshot.
 pub async fn delete_texture_library_texture<S>(
     state: &S,
     texture_id: i64,
@@ -473,6 +501,9 @@ where
     })
 }
 
+/// Files a report against a public library texture. Self-reports and a
+/// second pending report for the same texture by the same reporter are
+/// rejected.
 pub async fn create_texture_library_report<S>(
     state: &S,
     reporter_user_id: i64,
@@ -525,6 +556,8 @@ where
     texture_report_info(state, &report).await
 }
 
+/// Admin cursor listing over texture reports, filtered by the given filter
+/// set; entries carry reporter, handler, and texture snapshots.
 pub async fn list_admin_texture_library_reports_cursor<S>(
     state: &S,
     limit: u64,
@@ -553,6 +586,7 @@ where
     ))
 }
 
+/// Loads a single texture report by id for the admin report view.
 pub async fn get_admin_texture_library_report<S>(
     state: &S,
     report_id: i64,
@@ -564,6 +598,8 @@ where
     texture_report_info(state, &report).await
 }
 
+/// Upholds a pending report: unpublishes the reported texture (resetting it
+/// to private with the admin note) and marks the report accepted.
 pub async fn accept_texture_library_report<S>(
     state: &S,
     handler_user_id: i64,

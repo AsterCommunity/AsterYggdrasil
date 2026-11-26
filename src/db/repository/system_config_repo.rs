@@ -37,10 +37,15 @@ fn map_store_result<T>(result: aster_forge_db::Result<T>) -> Result<T> {
     result.map_err(map_store_error)
 }
 
+/// Loads every system config row, including locked system entries and custom keys.
 pub async fn find_all<C: ConnectionTrait>(db: &C) -> Result<Vec<system_config::Model>> {
     map_store_result(STORE.find_all(db).await)
 }
 
+/// Paginates config rows by ascending id.
+///
+/// `after_id` continues from the last id of the previous page; the returned [`CursorSlice`]
+/// carries the total row count and a `has_more` flag.
 pub async fn find_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -54,6 +59,9 @@ pub async fn find_cursor<C: ConnectionTrait>(
     })
 }
 
+/// Loads a single config entry by its key.
+///
+/// Returns `None` when the key is not configured.
 pub async fn find_by_key<C: ConnectionTrait>(
     db: &C,
     key: &str,
@@ -61,6 +69,10 @@ pub async fn find_by_key<C: ConnectionTrait>(
     map_store_result(STORE.find_by_key(db, key).await)
 }
 
+/// Lists custom config entries visible to the requesting audience.
+///
+/// `include_authenticated` widens visibility from public-only to public plus
+/// authenticated-only entries; system-source rows are always excluded.
 pub async fn find_visible_custom<C: ConnectionTrait>(
     db: &C,
     include_authenticated: bool,
@@ -68,10 +80,14 @@ pub async fn find_visible_custom<C: ConnectionTrait>(
     map_store_result(STORE.find_visible_custom(db, include_authenticated).await)
 }
 
+/// Locks a config key back to the system-managed source, discarding any custom override.
+///
+/// Returns `Err(record_not_found)` when the key does not exist.
 pub async fn lock_by_key<C: ConnectionTrait>(db: &C, key: &str) -> Result<()> {
     map_store_result(STORE.lock_by_key(db, key).await)
 }
 
+/// Upserts a config value attributed to the acting user, keeping the entry's current visibility.
 pub async fn upsert<C: ConnectionTrait>(
     db: &C,
     key: &str,
@@ -81,6 +97,7 @@ pub async fn upsert<C: ConnectionTrait>(
     upsert_with_options(db, key, value, None, Some(updated_by)).await
 }
 
+/// Upserts a config value with an explicit actor, allowing `None` for system-driven writes.
 pub async fn upsert_with_actor<C: ConnectionTrait>(
     db: &C,
     key: &str,
@@ -90,6 +107,10 @@ pub async fn upsert_with_actor<C: ConnectionTrait>(
     upsert_with_options(db, key, value, None, updated_by).await
 }
 
+/// Upserts a config value with optional visibility override and actor attribution.
+///
+/// The value is validated against the Yggdrasil config registry before writing; keys unknown
+/// to the registry or values failing validation return an error without modifying the row.
 pub async fn upsert_with_options<C: ConnectionTrait>(
     db: &C,
     key: &str,
@@ -112,10 +133,17 @@ pub async fn upsert_with_options<C: ConnectionTrait>(
     )
 }
 
+/// Deletes a config entry by key.
+///
+/// Deleting system-managed entries is rejected with an auth-forbidden error.
 pub async fn delete_by_key<C: ConnectionTrait>(db: &C, key: &str) -> Result<()> {
     map_store_result(STORE.delete_by_key(db, key).await)
 }
 
+/// Writes a system-sourced value for a registry key only when the key is not configured yet.
+///
+/// Existing values are left untouched. Returns whether a row was inserted; unknown keys are
+/// rejected as a validation error.
 pub async fn ensure_system_value_if_missing<C: ConnectionTrait>(
     db: &C,
     key: &str,
@@ -124,10 +152,16 @@ pub async fn ensure_system_value_if_missing<C: ConnectionTrait>(
     map_store_result(STORE.ensure_system_value_if_missing(db, key, value).await)
 }
 
+/// Deletes config rows whose keys appear in the deprecated-key list, returning the number of
+/// rows removed.
 pub async fn delete_deprecated_keys<C: ConnectionTrait>(db: &C) -> Result<u64> {
     map_store_result(STORE.delete_deprecated_keys(db).await)
 }
 
+/// Seeds missing registry defaults and repairs metadata drift on existing rows.
+///
+/// Returns the number of rows inserted; running it again is a no-op that also prunes
+/// deprecated keys introduced between releases.
 pub async fn ensure_defaults<C: ConnectionTrait>(db: &C) -> Result<usize> {
     map_store_result(STORE.ensure_defaults(db).await)
 }

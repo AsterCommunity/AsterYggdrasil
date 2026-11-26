@@ -14,13 +14,18 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, sea_query::Expr,
 };
 
+/// Optional filters for the admin user list; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct AdminUserFilters {
+    /// Case-insensitive substring match against username or email when non-empty.
     pub keyword: Option<String>,
+    /// Restricts results to one role when set.
     pub role: Option<UserRole>,
+    /// Restricts results to one account status when set.
     pub status: Option<UserStatus>,
 }
 
+/// Counts all user accounts.
 pub async fn count_all<C: ConnectionTrait>(db: &C) -> Result<u64> {
     User::find()
         .count(db)
@@ -28,6 +33,7 @@ pub async fn count_all<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Counts users registered in the `[start, end)` interval.
 pub async fn count_created_between<C: ConnectionTrait>(
     db: &C,
     start: DateTime<Utc>,
@@ -41,6 +47,9 @@ pub async fn count_created_between<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user by id.
+///
+/// Returns `Err(record_not_found)` when no user with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<user::Model> {
     User::find_by_id(id)
         .one(db)
@@ -49,6 +58,9 @@ pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<user::Mod
         .ok_or_else(|| AsterError::record_not_found(format!("user #{id}")))
 }
 
+/// Batch-loads users by id, ordered by id ascending.
+///
+/// An empty `ids` slice returns an empty list without querying; unknown ids are simply absent.
 pub async fn find_by_ids<C: ConnectionTrait>(db: &C, ids: &[i64]) -> Result<Vec<user::Model>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -62,6 +74,10 @@ pub async fn find_by_ids<C: ConnectionTrait>(db: &C, ids: &[i64]) -> Result<Vec<
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user matching `identifier` as either username or email.
+///
+/// Used by the login flow to accept both credential kinds; returns `None` when neither
+/// matches.
 pub async fn find_by_identifier<C: ConnectionTrait>(
     db: &C,
     identifier: &str,
@@ -77,6 +93,9 @@ pub async fn find_by_identifier<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user by their current email address.
+///
+/// Returns `None` when no account uses that email.
 pub async fn find_by_email<C: ConnectionTrait>(db: &C, email: &str) -> Result<Option<user::Model>> {
     User::find()
         .filter(user::Column::Email.eq(email))
@@ -85,6 +104,10 @@ pub async fn find_by_email<C: ConnectionTrait>(db: &C, email: &str) -> Result<Op
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user whose pending (not yet verified) email change matches `email`.
+///
+/// Used to resolve verification tokens targeting an email swap; returns `None` when no
+/// account has that address queued.
 pub async fn find_by_pending_email<C: ConnectionTrait>(
     db: &C,
     email: &str,
@@ -96,6 +119,9 @@ pub async fn find_by_pending_email<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user by exact username.
+///
+/// Returns `None` when no account carries that username.
 pub async fn find_by_username<C: ConnectionTrait>(
     db: &C,
     username: &str,
@@ -107,6 +133,9 @@ pub async fn find_by_username<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a user by its public UUID (simple hex form, no dashes).
+///
+/// Returns `None` when no account carries that UUID.
 pub async fn find_by_public_uuid<C: ConnectionTrait>(
     db: &C,
     public_uuid: &str,
@@ -118,6 +147,12 @@ pub async fn find_by_public_uuid<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates users for the admin list using a keyset cursor over `(created_at, id)`, newest
+/// first.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the filtered total count and a next cursor, which is
+/// absent on the last page.
 pub async fn list_admin_cursor<C: ConnectionTrait>(
     db: &C,
     filters: AdminUserFilters,
@@ -179,6 +214,10 @@ fn apply_admin_filters(
     query
 }
 
+/// Counts Minecraft profiles per user in one grouped query.
+///
+/// Returns a map keyed by user id; users in `user_ids` without profiles are absent from the
+/// map, and an empty slice returns an empty map without querying.
 pub async fn count_profiles_by_user_ids<C: ConnectionTrait>(
     db: &C,
     user_ids: &[i64],
@@ -207,6 +246,10 @@ pub async fn count_profiles_by_user_ids<C: ConnectionTrait>(
         .collect()
 }
 
+/// Counts active (unrevoked, unexpired) auth sessions per user in one grouped query.
+///
+/// Returns a map keyed by user id; users without active sessions are absent from the map, and
+/// an empty slice returns an empty map without querying.
 pub async fn count_active_sessions_by_user_ids<C: ConnectionTrait>(
     db: &C,
     user_ids: &[i64],
@@ -238,17 +281,29 @@ pub async fn count_active_sessions_by_user_ids<C: ConnectionTrait>(
         .collect()
 }
 
+/// Partial admin update for a user account; `None` fields are left unchanged.
 #[derive(Debug, Clone, Default)]
 pub struct AdminUpdateUserInput {
+    /// Replaces the username when set.
     pub username: Option<String>,
+    /// Replaces the email when set.
     pub email: Option<String>,
+    /// Replaces the stored password hash when set.
     pub password_hash: Option<String>,
+    /// Replaces the role when set.
     pub role: Option<UserRole>,
+    /// Replaces the account status when set.
     pub status: Option<UserStatus>,
+    /// Replaces the must-change-password flag when set.
     pub must_change_password: Option<bool>,
+    /// When true, increments `session_version` to invalidate all issued tokens.
     pub bump_session_version: bool,
 }
 
+/// Inserts a new active user account.
+///
+/// Generates a fresh public UUID, starts `session_version` at 1, and marks the email verified
+/// immediately (signup flows verify upstream).
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     username: &str,
@@ -268,6 +323,9 @@ pub async fn create<C: ConnectionTrait>(
     .await
 }
 
+/// Inserts a user account with explicit status and must-change-password settings.
+///
+/// Same defaults as [`create`] otherwise: fresh public UUID, `session_version` 1, verified email.
 pub async fn create_with_options<C: ConnectionTrait>(
     db: &C,
     username: &str,
@@ -299,6 +357,7 @@ pub async fn create_with_options<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Generates a random 32-char hex public UUID, retrying until one is unused.
 pub async fn unique_public_uuid<C: ConnectionTrait>(db: &C) -> Result<String> {
     aster_forge_utils::id::new_best_effort_uuid("user public UUID", |candidate| {
         let public_uuid = candidate.simple().to_string();
@@ -312,6 +371,9 @@ pub async fn unique_public_uuid<C: ConnectionTrait>(db: &C) -> Result<String> {
     .map(|uuid| uuid.simple().to_string())
 }
 
+/// Applies an admin update to a user row, stamping `updated_at`.
+///
+/// Returns the updated user; unknown ids are a `record_not_found` error.
 pub async fn update_admin<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -347,6 +409,7 @@ pub async fn update_admin<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Revokes every unrevoked auth session of a user, returning how many were revoked.
 pub async fn revoke_sessions_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<u64> {
     let result = auth_session::Entity::update_many()
         .col_expr(
@@ -361,6 +424,9 @@ pub async fn revoke_sessions_for_user<C: ConnectionTrait>(db: &C, user_id: i64) 
     Ok(result.rows_affected)
 }
 
+/// Increments a user's `session_version`, invalidating tokens issued against older versions.
+///
+/// Unknown ids are a `record_not_found` error.
 pub async fn bump_session_version<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<()> {
     let user = find_by_id(db, user_id).await?;
     let mut active: user::ActiveModel = user.into();
@@ -373,6 +439,10 @@ pub async fn bump_session_version<C: ConnectionTrait>(db: &C, user_id: i64) -> R
     Ok(())
 }
 
+/// Deletes a user by id, returning the removed row.
+///
+/// Returns `Err(record_not_found)` when no user with that id exists; related rows (sessions,
+/// profiles, identities) are not cascaded here and remain the caller's responsibility.
 pub async fn delete_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<user::Model> {
     let user = find_by_id(db, id).await?;
     User::delete_by_id(id)

@@ -23,14 +23,23 @@ use crate::services::ops::task::types::TexturePreviewGenerateTaskPayload;
 use aster_yggdrasil_model::entities::minecraft_texture;
 use aster_yggdrasil_model::types::yggdrasil::{MinecraftTextureModel, MinecraftTextureType};
 
+/// `Cache-Control` for preview responses; previews are content-addressed by
+/// texture hash plus render fingerprint, so they never change once written.
 pub const TEXTURE_PREVIEW_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
+/// A rendered preview PNG together with the object-storage key it is cached
+/// under.
 #[derive(Debug, Clone)]
 pub struct TexturePreviewBytes {
+    /// Encoded PNG payload of the preview image.
     pub bytes: Vec<u8>,
+    /// Object-storage key the preview is persisted to.
     pub storage_key: String,
 }
 
+/// Returns the canonical preview URL path for the given skin hash and model,
+/// or `None` when previews are disabled for this texture type (only skins get
+/// previews) or the hash is not valid.
 pub fn current_texture_preview_url(
     runtime_config: &crate::config::RuntimeConfig,
     hash: &str,
@@ -53,7 +62,10 @@ pub fn current_texture_preview_url(
 /// back after the worker finished (or started) generating the preview task.
 #[derive(Debug, Clone)]
 pub enum TexturePreviewLookup {
+    /// Cached preview found; serve [`TexturePreviewBytes`] directly.
     Ready(TexturePreviewBytes),
+    /// No cached preview yet; a generation task has been queued and the
+    /// client should retry after the worker finishes.
     Accepted,
 }
 

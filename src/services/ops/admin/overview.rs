@@ -63,40 +63,62 @@ const YGGDRASIL_ACTIVITY_ACTIONS: &[AuditAction] = &[
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Platform-wide counts for the admin overview cards.
 pub struct AdminOverviewSummary {
+    /// All registered user accounts.
     pub total_users: u64,
+    /// All live Minecraft profiles.
     pub minecraft_profile_count: u64,
+    /// All stored texture records.
     pub texture_count: u64,
+    /// Currently unrevoked auth sessions.
     pub active_session_count: u64,
+    /// Currently valid Yggdrasil access tokens.
     pub active_yggdrasil_token_count: u64,
+    /// Background tasks currently being executed.
     pub processing_task_count: u64,
+    /// Background tasks waiting to run, including retry-scheduled ones.
     pub pending_task_count: u64,
 }
 
+/// Verdict for one platform service shown in the overview service grid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub enum AdminOverviewServiceStatusKind {
+    /// Service is operating normally.
     Ok,
+    /// Service needs attention (e.g. a queue is backing up).
     Warning,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// One platform service's status line for the admin overview service grid.
 pub struct AdminOverviewServiceStatus {
+    /// Stable service identifier (e.g. `database`, `background_tasks`).
     pub key: String,
+    /// Verdict for this service.
     pub status: AdminOverviewServiceStatusKind,
+    /// Primary measurement shown for the service, preformatted.
     pub metric: Option<String>,
+    /// Secondary explanatory text, when the service has more to say.
     pub detail: Option<String>,
 }
 
+/// System health verdict shown in the overview; `Unknown` when no health
+/// check has run yet or the report is missing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub enum AdminOverviewSystemHealthStatus {
+    /// No health report available.
     Unknown,
+    /// All checked components operational.
     Healthy,
+    /// Operational with fallbacks in effect.
     Degraded,
+    /// Some components not operational.
     Unhealthy,
 }
 
@@ -112,46 +134,77 @@ impl From<RuntimeSystemHealthStatus> for AdminOverviewSystemHealthStatus {
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// One runtime component's health verdict for the overview health panel.
 pub struct AdminOverviewSystemHealthComponent {
+    /// Stable component identifier (e.g. `database`, `cache`).
     pub name: String,
+    /// Verdict for this component.
     pub status: AdminOverviewSystemHealthStatus,
+    /// Human-readable explanation of the verdict.
     pub message: String,
+    /// Structured key/value details for diagnostics; omitted when empty.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub details: Vec<aster_forge_runtime::HealthComponentDetail>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Latest known system health for the overview panel, sourced from the most
+/// recent health-check and storage-consistency tasks rather than a live
+/// probe.
 pub struct AdminOverviewSystemHealthSummary {
+    /// Worst verdict across all reported components.
     pub status: AdminOverviewSystemHealthStatus,
+    /// Per-component verdicts.
     pub components: Vec<AdminOverviewSystemHealthComponent>,
+    /// When the sourced report was produced (UTC); absent when no check has
+    /// run yet.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
     pub checked_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Background task record the report came from, when one exists.
     pub task_id: Option<i64>,
+    /// Report summary line, falling back to the task's status text.
     pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// One day of platform activity counts for the overview trend chart.
 pub struct AdminOverviewTrendPoint {
+    /// UTC calendar day this point covers, formatted `YYYY-MM-DD`.
     pub date: String,
+    /// Distinct users with a user-scope audit action that day.
     pub active_users: u64,
+    /// Distinct profiles with a Yggdrasil audit action that day.
     pub active_players: u64,
+    /// Texture uploads recorded that day.
     pub new_textures: u64,
+    /// Yggdrasil protocol audit records created that day.
     pub yggdrasil_api_calls: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Aggregate admin dashboard response: counters, service statuses, system
+/// health, activity trend, and the latest audit entries.
 pub struct AdminOverviewResp {
+    /// Platform-wide counts.
     pub summary: AdminOverviewSummary,
+    /// Per-service status lines for the service grid.
     pub services: Vec<AdminOverviewServiceStatus>,
+    /// Latest known system health.
     pub system_health: AdminOverviewSystemHealthSummary,
+    /// Daily activity counts for the trend chart.
     pub activity_trend: Vec<AdminOverviewTrendPoint>,
+    /// Most recent audit entries for the activity feed.
     pub recent_activity: Vec<AuditLogEntry>,
+    /// Process/system metadata (version, uptime, backend choices).
     pub system_info: SystemInfoResponse,
 }
 
+/// Aggregates everything the admin dashboard needs: platform counters,
+/// per-service statuses, latest system health, the 7-day activity trend, and
+/// the most recent audit entries.
 pub async fn overview(state: &AppState) -> Result<AdminOverviewResp> {
     let total_users = user_repo::count_all(state.reader_db()).await?;
     let minecraft_profile_count = minecraft_profile_repo::count_all(state.reader_db()).await?;
@@ -237,6 +290,8 @@ pub async fn overview(state: &AppState) -> Result<AdminOverviewResp> {
     })
 }
 
+/// Builds the last [`ACTIVITY_TREND_DAYS`] days of per-day activity counts
+/// from audit log aggregates.
 async fn load_activity_trend(state: &AppState) -> Result<Vec<AdminOverviewTrendPoint>> {
     let today = chrono::Utc::now().date_naive();
     let mut points = Vec::new();

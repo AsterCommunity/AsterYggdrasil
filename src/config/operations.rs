@@ -10,18 +10,36 @@ pub use crate::config::definitions::{
     MAINTENANCE_CLEANUP_INTERVAL_SECS_KEY, TASK_LIST_MAX_LIMIT_KEY, TASK_RETENTION_HOURS_KEY,
 };
 
+/// Default background task poll interval, in seconds; short enough that queued
+/// tasks start promptly while keeping poll traffic negligible.
 pub const DEFAULT_BACKGROUND_TASK_DISPATCH_INTERVAL_SECS: u64 = 5;
+/// Default upper bound, in seconds, for the dispatcher's idle backoff between
+/// polls; trades a slower idle poll rate for prompt pickup once work appears.
 pub const DEFAULT_BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS: u64 = 60;
+/// Default number of background tasks executed concurrently; sized modestly so
+/// a single instance stays responsive under default deployments.
 pub const DEFAULT_BACKGROUND_TASK_MAX_CONCURRENCY: usize = 4;
+/// Default number of attempts before a background task is marked failed;
+/// low enough to bound retry noise, high enough to survive transient faults.
 pub const DEFAULT_BACKGROUND_TASK_MAX_ATTEMPTS: i32 = 3;
+/// Default page-size cap for admin task list queries, in records per request.
 pub const DEFAULT_TASK_LIST_MAX_LIMIT: u64 = 100;
+/// Default interval, in seconds, between maintenance cleanup sweeps of expired
+/// task records and similar residue.
 pub const DEFAULT_MAINTENANCE_CLEANUP_INTERVAL_SECS: u64 = 3600;
+/// Default interval, in seconds, between attempts to dispatch queued mail from
+/// the persistent outbox.
 pub const DEFAULT_MAIL_OUTBOX_DISPATCH_INTERVAL_SECS: u64 = 5;
 
+/// Validates a stored interval value as a positive integer number of seconds,
+/// rejecting zero, negatives, and non-numeric input.
 pub fn normalize_interval_config_value(key: &str, value: &str) -> Result<String> {
     aster_forge_config::normalize_positive_u64_config_value(key, value).map_err(Into::into)
 }
 
+/// Returns the background task poll interval in seconds, falling back to
+/// [`DEFAULT_BACKGROUND_TASK_DISPATCH_INTERVAL_SECS`] for missing or
+/// non-positive values.
 pub fn background_task_dispatch_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
     aster_forge_config::read_positive_u64(
         runtime_config,
@@ -30,6 +48,9 @@ pub fn background_task_dispatch_interval_secs(runtime_config: &RuntimeConfig) ->
     )
 }
 
+/// Returns the dispatcher's maximum idle backoff interval in seconds, falling
+/// back to [`DEFAULT_BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS`] for
+/// missing or non-positive values.
 pub fn background_task_dispatch_idle_max_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
     aster_forge_config::read_positive_u64(
         runtime_config,
@@ -38,6 +59,9 @@ pub fn background_task_dispatch_idle_max_interval_secs(runtime_config: &RuntimeC
     )
 }
 
+/// Returns how many background tasks may run concurrently, falling back to
+/// [`DEFAULT_BACKGROUND_TASK_MAX_CONCURRENCY`] for missing or non-positive
+/// values.
 pub fn background_task_max_concurrency(runtime_config: &RuntimeConfig) -> usize {
     aster_forge_config::read_positive_usize(
         runtime_config,
@@ -46,6 +70,9 @@ pub fn background_task_max_concurrency(runtime_config: &RuntimeConfig) -> usize 
     )
 }
 
+/// Returns the maximum attempts per background task before it is marked
+/// failed, falling back to [`DEFAULT_BACKGROUND_TASK_MAX_ATTEMPTS`] for
+/// missing, non-positive, or out-of-range values.
 pub fn background_task_max_attempts(runtime_config: &RuntimeConfig) -> i32 {
     aster_forge_config::read_positive_i32(
         runtime_config,
@@ -54,6 +81,8 @@ pub fn background_task_max_attempts(runtime_config: &RuntimeConfig) -> i32 {
     )
 }
 
+/// Returns the page-size cap for admin task list queries, falling back to
+/// [`DEFAULT_TASK_LIST_MAX_LIMIT`] for missing or non-positive values.
 pub fn task_list_max_limit(runtime_config: &RuntimeConfig) -> u64 {
     aster_forge_config::read_positive_u64(
         runtime_config,
@@ -62,6 +91,9 @@ pub fn task_list_max_limit(runtime_config: &RuntimeConfig) -> u64 {
     )
 }
 
+/// Returns the maintenance cleanup sweep interval in seconds, falling back to
+/// [`DEFAULT_MAINTENANCE_CLEANUP_INTERVAL_SECS`] for missing or non-positive
+/// values.
 pub fn maintenance_cleanup_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
     aster_forge_config::read_positive_u64(
         runtime_config,
@@ -70,6 +102,9 @@ pub fn maintenance_cleanup_interval_secs(runtime_config: &RuntimeConfig) -> u64 
     )
 }
 
+/// Returns the mail outbox dispatch poll interval in seconds, falling back to
+/// [`DEFAULT_MAIL_OUTBOX_DISPATCH_INTERVAL_SECS`] for missing or non-positive
+/// values.
 pub fn mail_outbox_dispatch_interval_secs(runtime_config: &RuntimeConfig) -> u64 {
     aster_forge_config::read_positive_u64(
         runtime_config,

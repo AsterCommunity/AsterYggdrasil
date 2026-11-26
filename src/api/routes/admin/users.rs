@@ -49,6 +49,8 @@ fn user_audit_details(user: &user::admin::AdminUserInfo) -> Option<serde_json::V
     ),
     security(("bearer" = [])),
 )]
+/// Lists platform users with keyword search and role/status filters, using
+/// cursor pagination.
 pub async fn list_users(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -97,6 +99,8 @@ pub async fn list_users(
     ),
     security(("bearer" = [])),
 )]
+/// Creates a user account directly as an administrator, optionally generating
+/// a temporary password, and records the creation in the audit log.
 pub async fn create_user(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -166,6 +170,8 @@ pub async fn create_user(
     ),
     security(("bearer" = [])),
 )]
+/// Creates a registration invitation for the given email, queues an
+/// invitation mail, and records the action in the audit log.
 pub async fn create_user_invitation(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -204,6 +210,8 @@ pub async fn create_user_invitation(
     ),
     security(("bearer" = [])),
 )]
+/// Lists registration invitations with limit and datetime-id cursor
+/// pagination.
 pub async fn list_user_invitations(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -234,6 +242,8 @@ pub async fn list_user_invitations(
     ),
     security(("bearer" = [])),
 )]
+/// Revokes a pending registration invitation so it can no longer be accepted,
+/// and records the revocation in the audit log.
 pub async fn revoke_user_invitation(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -281,6 +291,8 @@ fn invitation_audit_details(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single user's administrative profile, including role, status,
+/// operator scopes, profile count, and active session count.
 pub async fn get_user(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
     let user_id = *path;
     tracing::debug!(user_id, "admin loading user");
@@ -310,6 +322,8 @@ pub async fn get_user(state: web::Data<AppState>, path: web::Path<i64>) -> Resul
     ),
     security(("bearer" = [])),
 )]
+/// Updates a user's account fields (username, email, password, role, operator
+/// scopes, status); disabling the user is audited as a dedicated action.
 pub async fn update_user(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -381,6 +395,8 @@ pub async fn update_user(
     ),
     security(("bearer" = [])),
 )]
+/// Revokes all active sessions of a user, forcing re-login everywhere, and
+/// records the revocation in the audit log.
 pub async fn revoke_user_sessions(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -422,6 +438,8 @@ pub async fn revoke_user_sessions(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes a user along with their Minecraft profiles, textures, sessions,
+/// and Yggdrasil tokens, reporting per-category removal counts.
 pub async fn delete_user(
     state: web::Data<AppState>,
     req: HttpRequest,

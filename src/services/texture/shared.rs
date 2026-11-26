@@ -15,11 +15,15 @@ use super::*;
 pub(crate) const PNG_CONTENT_TYPE: &str = "image/png";
 pub(crate) const TEXTURE_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
+/// Parses a texture type from a request path segment (`skin`/`cape`), mapping
+/// unknown values to [`TextureErrorKind::InvalidTextureType`].
 pub fn parse_texture_type(value: &str) -> std::result::Result<MinecraftTextureType, TextureError> {
     MinecraftTextureType::parse_path(value)
         .ok_or_else(|| TextureError::new(TextureErrorKind::InvalidTextureType))
 }
 
+/// Parses the optional skin model parameter; empty or `default` maps to the
+/// classic model, `slim` to the slim model, anything else is rejected.
 pub fn parse_skin_model(
     value: Option<&str>,
 ) -> std::result::Result<MinecraftTextureModel, TextureError> {
@@ -72,16 +76,22 @@ pub(super) async fn invalidate_texture_asset_caches<S>(
     query::invalidate_texture_blob_lookup_cache(state, &texture.hash).await;
 }
 
+/// Response payload after creating, updating, or deleting a texture-library tag.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
 pub struct MinecraftTextureTagMutationResult {
+    /// Final state of the affected tag.
     pub tag: MinecraftTextureTagInfo,
 }
 
+/// Result of deleting a texture from the public texture library.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
 pub struct DeletedTextureLibraryTexture {
+    /// Snapshot of the library texture as it looked right before deletion.
     pub texture: PublicTextureLibraryTextureMetadata,
+    /// Number of profile texture bindings that referenced the deleted asset
+    /// and were removed along with it.
     pub deleted_profile_binding_count: u64,
 }
 

@@ -1,3 +1,5 @@
+//! Audit trail domain types: actions and audited entity kinds.
+
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -6,12 +8,17 @@ use utoipa::ToSchema;
 
 macro_rules! define_audit_actions {
     ($($variant:ident => $name:literal),+ $(,)?) => {
+        /// One auditable operation, persisted with its stable snake_case name.
+        ///
+        /// The name doubles as the database value and the wire value served to
+        /// the admin audit view; never rename an existing entry.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
         #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
         #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(64))")]
         #[serde(rename_all = "snake_case")]
         pub enum AuditAction {
             $(
+                #[doc = concat!("Audit action stored and serialized as `", $name, "`.")]
                 #[sea_orm(string_value = $name)]
                 #[serde(rename = $name)]
                 $variant,
@@ -19,15 +26,19 @@ macro_rules! define_audit_actions {
         }
 
         impl AuditAction {
+            /// Number of distinct audit actions; grows with the enum.
             pub const COUNT: usize = <[()]>::len(&[$(define_audit_actions!(@unit $variant)),+]);
+            /// Every action in declaration order, the canonical iteration order.
             pub const ALL: [Self; Self::COUNT] = [$(Self::$variant,)+];
 
+            /// Stable snake_case storage and serialization name.
             pub const fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$variant => $name,)+
                 }
             }
 
+            /// Parses back a name produced by [`AuditAction::as_str`].
             pub fn from_str_name(value: &str) -> Option<Self> {
                 match value {
                     $($name => Some(Self::$variant),)+
@@ -35,6 +46,8 @@ macro_rules! define_audit_actions {
                 }
             }
 
+            /// Zero-based position in [`AuditAction::ALL`], used as a dense
+            /// index for per-action aggregation.
             pub fn index(self) -> usize {
                 Self::ALL
                     .iter()
@@ -128,6 +141,8 @@ impl AsRef<str> for AuditAction {
 }
 
 impl AuditAction {
+    /// Coarse category shown in the admin audit view (`system`, `config`,
+    /// `task`, `user`, `yggdrasil`, `admin`, `mail`, `external_auth`).
     pub const fn group(self) -> &'static str {
         match self {
             Self::SystemSetup | Self::ServerStart | Self::ServerShutdown => "system",
@@ -210,27 +225,46 @@ impl fmt::Display for AuditAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Kind of the entity an audit entry points at, paired with the entry's
+/// entity id.
 #[serde(rename_all = "snake_case")]
 pub enum AuditEntityType {
+    /// The system itself (setup, start, shutdown).
     System,
+    /// A runtime configuration record.
     SystemConfig,
+    /// A user account.
     User,
+    /// A registration invitation.
     Invitation,
+    /// A web login session.
     AuthSession,
+    /// A registered passkey credential.
     Passkey,
+    /// An external authentication provider configuration.
     ExternalAuthProvider,
+    /// A user identity linked to an external provider.
     ExternalAuthIdentity,
+    /// An API token.
     ApiToken,
+    /// An outbound mail record.
     Mail,
+    /// A background task record.
     Task,
+    /// A user ban record.
     UserBan,
+    /// A Minecraft player profile.
     MinecraftProfile,
+    /// A Minecraft texture record.
     MinecraftTexture,
+    /// A Yggdrasil access token.
     YggdrasilToken,
+    /// A Yggdrasil session join record.
     YggdrasilSession,
 }
 
 impl AuditEntityType {
+    /// Stable snake_case storage and serialization name.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::System => "system",
@@ -252,6 +286,7 @@ impl AuditEntityType {
         }
     }
 
+    /// Parses back a name produced by [`AuditEntityType::as_str`].
     pub fn from_str_name(value: &str) -> Option<Self> {
         match value {
             "system" => Some(Self::System),

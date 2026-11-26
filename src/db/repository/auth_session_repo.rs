@@ -9,6 +9,7 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, sea_query::Expr,
 };
 
+/// Inserts a new auth session row.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     model: auth_session::ActiveModel,
@@ -19,6 +20,10 @@ pub async fn create<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Looks up a session by the jti of its current refresh token.
+///
+/// Returns `None` when the jti is not the session's current refresh token (rotated or revoked
+/// tokens do not match); revocation and expiry are not filtered here.
 pub async fn find_by_refresh_jti<C: ConnectionTrait>(
     db: &C,
     refresh_jti: &str,
@@ -30,6 +35,10 @@ pub async fn find_by_refresh_jti<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Looks up a session by the jti of its previous refresh token, i.e. one rotated away.
+///
+/// Used to detect refresh token reuse, which is a signal of theft; returns `None` when the
+/// session never held that jti as its previous token.
 pub async fn find_by_previous_refresh_jti<C: ConnectionTrait>(
     db: &C,
     refresh_jti: &str,
@@ -41,6 +50,7 @@ pub async fn find_by_previous_refresh_jti<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists all sessions of a user, including revoked and expired ones, newest seen first.
 pub async fn list_by_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -53,6 +63,11 @@ pub async fn list_by_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates a user's sessions using a keyset cursor over `(last_seen_at, id)`, newest seen first.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the user's total session count and a next cursor, which
+/// is absent on the last page.
 pub async fn list_by_user_cursor<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -87,6 +102,9 @@ pub async fn list_by_user_cursor<C: ConnectionTrait>(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Lists a user's still-active sessions: neither revoked nor past `refresh_expires_at`.
+///
+/// Ordered by `last_seen_at` descending, most recently active first.
 pub async fn list_active_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -101,6 +119,7 @@ pub async fn list_active_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Counts currently active sessions across all users: not revoked and not past refresh expiry.
 pub async fn count_active<C: ConnectionTrait>(db: &C) -> Result<u64> {
     AuthSession::find()
         .filter(auth_session::Column::RevokedAt.is_null())
@@ -110,6 +129,9 @@ pub async fn count_active<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a session by id scoped to its owner.
+///
+/// Returns `None` when the session does not exist or belongs to a different user.
 pub async fn find_by_id_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -123,6 +145,12 @@ pub async fn find_by_id_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Rotates a session's refresh token jti in a single guarded update.
+///
+/// The current jti moves to `previous_refresh_jti` (enabling reuse detection), the new jti and
+/// expiry replace the old, and the client fingerprint fields are refreshed. Returns `false`
+/// when no unrevoked session currently holds `current_refresh_jti` — a second use of the same
+/// token fails here.
 pub async fn rotate_refresh<C: ConnectionTrait>(
     db: &C,
     current_refresh_jti: &str,
@@ -162,6 +190,10 @@ pub async fn rotate_refresh<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Revokes a session owned by `user_id` if not revoked already.
+///
+/// Returns `true` on transition, `false` when the session is missing, foreign, or already
+/// revoked.
 pub async fn revoke_by_id_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -179,6 +211,10 @@ pub async fn revoke_by_id_for_user<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Revokes the session currently holding `refresh_jti`, used when refresh tokens are rejected
+/// or reused.
+///
+/// Returns `true` on transition, `false` when no unrevoked session matches.
 pub async fn revoke_by_refresh_jti<C: ConnectionTrait>(db: &C, refresh_jti: &str) -> Result<bool> {
     let result = AuthSession::update_many()
         .col_expr(
@@ -193,6 +229,10 @@ pub async fn revoke_by_refresh_jti<C: ConnectionTrait>(db: &C, refresh_jti: &str
     Ok(result.rows_affected == 1)
 }
 
+/// Revokes every unrevoked session of a user except `keep_session_id`, returning how many
+/// sessions were revoked.
+///
+/// Used by "sign out everywhere" flows that preserve the current session.
 pub async fn revoke_all_for_user_except_id<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -210,6 +250,11 @@ pub async fn revoke_all_for_user_except_id<C: ConnectionTrait>(
     Ok(result.rows_affected)
 }
 
+/// Deletes sessions whose refresh token expired before `now`, returning the number of rows
+/// removed.
+///
+/// Revoked sessions are only removed once their expiry passes as well, keeping them visible
+/// until then.
 pub async fn delete_expired<C: ConnectionTrait>(
     db: &C,
     now: chrono::DateTime<chrono::Utc>,

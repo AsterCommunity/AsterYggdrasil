@@ -18,6 +18,8 @@ use actix_web::{HttpResponse, web};
     ),
     security(("bearer" = [])),
 )]
+/// Returns the administrator overview dashboard: platform-wide summary
+/// counters for users, Minecraft profiles, and textures.
 pub async fn get_overview(state: web::Data<AppState>) -> Result<HttpResponse> {
     tracing::debug!("admin overview request received");
     let overview = admin::overview::overview(state.get_ref()).await?;

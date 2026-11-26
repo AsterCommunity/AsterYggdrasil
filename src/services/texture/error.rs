@@ -1,20 +1,35 @@
 use crate::errors::AsterError;
 
+/// Failure categories raised by the texture service, each mapped to a fixed
+/// HTTP status and Yggdrasil protocol error name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextureErrorKind {
+    /// Requested texture type is not one of the supported path segments.
     InvalidTextureType,
+    /// The profile's `uploadable_textures` allowlist excludes this type.
     UploadDisabled,
+    /// The account is banned from texture uploads or profile management.
     UserBanForbidden,
+    /// Authorization header missing or access token invalid.
     InvalidToken,
+    /// The targeted profile does not belong to the authenticated user.
     ForbiddenProfile,
+    /// No matching texture exists for the given hash or profile.
     NotFound,
+    /// Uploaded file is not `image/png`.
     InvalidContentType,
+    /// Multipart upload arrived without a file part.
     MissingFile,
+    /// PNG payload failed decoding or a structural validation rule.
     InvalidPng,
+    /// Decoded image dimensions do not fit the texture type's allowed sizes.
     InvalidDimensions,
+    /// Object storage or an internal dependency failed; details stay server-side.
     Storage,
 }
 
+/// Domain error for texture operations, carrying a [`TextureErrorKind`] and an
+/// optional internal detail that is never exposed to protocol clients.
 #[derive(Debug, Clone)]
 pub struct TextureError {
     kind: TextureErrorKind,
@@ -22,10 +37,13 @@ pub struct TextureError {
 }
 
 impl TextureError {
+    /// Creates an error of `kind` without extra internal detail.
     pub const fn new(kind: TextureErrorKind) -> Self {
         Self { kind, detail: None }
     }
 
+    /// Creates an error of `kind` with an internal detail string for logging;
+    /// see [`Self::protocol_message`] for the client-facing wording.
     pub fn with_detail(kind: TextureErrorKind, detail: impl Into<String>) -> Self {
         Self {
             kind,
@@ -33,10 +51,16 @@ impl TextureError {
         }
     }
 
+    /// Returns the failure category of this error.
     pub const fn kind(&self) -> TextureErrorKind {
         self.kind
     }
 
+    /// HTTP status the Yggdrasil texture endpoints must respond with.
+    ///
+    /// Note that per authlib-injector, texture upload/delete is an exception
+    /// to the common Yggdrasil invalid-token rule and returns 401 for a
+    /// missing Authorization header or invalid access token.
     pub const fn status_code(&self) -> actix_web::http::StatusCode {
         match self.kind {
             // authlib-injector texture upload/delete is an exception to the
@@ -56,6 +80,8 @@ impl TextureError {
         }
     }
 
+    /// Yggdrasil protocol `error` field name (e.g. `ForbiddenOperationException`)
+    /// paired with [`Self::status_code`] in the JSON error body.
     pub const fn protocol_error_name(&self) -> &'static str {
         match self.kind {
             TextureErrorKind::InvalidToken
@@ -72,6 +98,9 @@ impl TextureError {
         }
     }
 
+    /// Yggdrasil protocol `errorMessage` field; safe for clients — internal
+    /// details are only echoed for client-input kinds (`NotFound`,
+    /// `InvalidPng`, `InvalidDimensions`), never for `Storage`.
     pub fn protocol_message(&self) -> String {
         match self.kind {
             TextureErrorKind::InvalidTextureType => "Invalid texture type.".to_string(),

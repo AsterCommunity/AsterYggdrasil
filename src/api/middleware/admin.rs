@@ -10,14 +10,23 @@ use std::rc::Rc;
 use crate::errors::AsterError;
 use crate::services::auth::local::AuthUserInfo;
 use aster_yggdrasil_model::types::user::{OperatorScope, UserRole};
+
+/// Authorization middleware that only lets admin-role users through.
+///
+/// Reads the authenticated user placed by [`crate::api::middleware::auth::JwtAuth`]
+/// from the request extensions and rejects everyone else with the stable
+/// `auth.admin_required` error.
 pub struct RequireAdmin;
 
+/// Authorization middleware that lets admin-role users through, plus
+/// operators holding one specific operator scope.
 #[derive(Clone, Copy)]
 pub struct RequireAdminOrScope {
     scope: OperatorScope,
 }
 
 impl RequireAdminOrScope {
+    /// Builds the gate for the given operator scope.
     pub const fn new(scope: OperatorScope) -> Self {
         Self { scope }
     }
@@ -60,11 +69,15 @@ where
     }
 }
 
+/// Service produced by [`RequireAdminOrScope`]; enforces the admin-or-scope
+/// rule per request.
 pub struct RequireAdminOrScopeMiddleware<S> {
     service: Rc<S>,
     scope: OperatorScope,
 }
 
+/// Service produced by [`RequireAdmin`]; enforces the admin-only rule per
+/// request.
 pub struct RequireAdminMiddleware<S> {
     service: Rc<S>,
 }

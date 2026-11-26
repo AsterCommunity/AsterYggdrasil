@@ -12,32 +12,49 @@ pub use crate::config::definitions::{
     BRANDING_WORDMARK_DARK_URL_KEY, BRANDING_WORDMARK_LIGHT_URL_KEY,
 };
 
+/// Site title shown when `branding_title` is unset or blank.
 pub const DEFAULT_BRANDING_TITLE: &str = "AsterYggdrasil";
+/// Site description shown when `branding_description` is unset, blank, or still
+/// holds a legacy template placeholder value.
 pub const DEFAULT_BRANDING_DESCRIPTION: &str =
     "Self-hosted Minecraft skin site and Yggdrasil authentication server.";
+/// Favicon URL shown when `branding_favicon_url` is unset, blank, or invalid;
+/// points at the asset bundled with the embedded frontend.
 pub const DEFAULT_BRANDING_FAVICON_URL: &str = "/favicon.svg";
+/// Dark-theme wordmark URL shown when `branding_wordmark_dark_url` is unset,
+/// blank, or invalid; empty means the UI falls back to text-only branding.
 pub const DEFAULT_BRANDING_WORDMARK_DARK_URL: &str = "";
+/// Light-theme wordmark URL shown when `branding_wordmark_light_url` is unset,
+/// blank, or invalid; empty means the UI falls back to text-only branding.
 pub const DEFAULT_BRANDING_WORDMARK_LIGHT_URL: &str = "";
 
 const MAX_BRANDING_TITLE_LEN: usize = 120;
 const MAX_BRANDING_DESCRIPTION_LEN: usize = 300;
 const MAX_BRANDING_ASSET_URL_LEN: usize = 2048;
 
+/// Validates and trims a stored `branding_title` value, rejecting text beyond
+/// 120 characters; empty input is allowed and means "use the default".
 pub fn normalize_title_config_value(value: &str) -> Result<String> {
     normalize_bounded_display_text("branding_title", value, MAX_BRANDING_TITLE_LEN)
         .map_err(Into::into)
 }
 
+/// Validates and trims a stored `branding_description` value, rejecting text
+/// beyond 300 characters; empty input is allowed and means "use the default".
 pub fn normalize_description_config_value(value: &str) -> Result<String> {
     normalize_bounded_display_text("branding_description", value, MAX_BRANDING_DESCRIPTION_LEN)
         .map_err(Into::into)
 }
 
+/// Validates a stored `branding_favicon_url` value: absolute http(s) URLs or
+/// root-relative paths, up to 2048 characters, no whitespace or script schemes.
 pub fn normalize_favicon_url_config_value(value: &str) -> Result<String> {
     normalize_public_asset_url(BRANDING_FAVICON_URL_KEY, value, MAX_BRANDING_ASSET_URL_LEN)
         .map_err(Into::into)
 }
 
+/// Validates a stored `branding_wordmark_dark_url` value with the same rules
+/// as [`normalize_favicon_url_config_value`].
 pub fn normalize_wordmark_dark_url_config_value(value: &str) -> Result<String> {
     normalize_public_asset_url(
         BRANDING_WORDMARK_DARK_URL_KEY,
@@ -47,6 +64,8 @@ pub fn normalize_wordmark_dark_url_config_value(value: &str) -> Result<String> {
     .map_err(Into::into)
 }
 
+/// Validates a stored `branding_wordmark_light_url` value with the same rules
+/// as [`normalize_favicon_url_config_value`].
 pub fn normalize_wordmark_light_url_config_value(value: &str) -> Result<String> {
     normalize_public_asset_url(
         BRANDING_WORDMARK_LIGHT_URL_KEY,
@@ -56,6 +75,8 @@ pub fn normalize_wordmark_light_url_config_value(value: &str) -> Result<String> 
     .map_err(Into::into)
 }
 
+/// Returns the configured site title, or [`DEFAULT_BRANDING_TITLE`] when the
+/// runtime value is missing, blank, or invalid.
 pub fn title_or_default(runtime_config: &RuntimeConfig) -> String {
     string_or_default(
         runtime_config.get(BRANDING_TITLE_KEY),
@@ -65,6 +86,9 @@ pub fn title_or_default(runtime_config: &RuntimeConfig) -> String {
     )
 }
 
+/// Returns the configured site description, or [`DEFAULT_BRANDING_DESCRIPTION`]
+/// when the runtime value is missing, blank, invalid, or a legacy template
+/// placeholder left over from before this project had its own identity.
 pub fn description_or_default(runtime_config: &RuntimeConfig) -> String {
     let description = string_or_default(
         runtime_config.get(BRANDING_DESCRIPTION_KEY),
@@ -79,6 +103,8 @@ pub fn description_or_default(runtime_config: &RuntimeConfig) -> String {
     }
 }
 
+/// Returns the configured favicon URL, or [`DEFAULT_BRANDING_FAVICON_URL`]
+/// when the runtime value is missing, blank, or invalid.
 pub fn favicon_url_or_default(runtime_config: &RuntimeConfig) -> String {
     asset_url_or_default(
         runtime_config,
@@ -87,6 +113,8 @@ pub fn favicon_url_or_default(runtime_config: &RuntimeConfig) -> String {
     )
 }
 
+/// Returns the configured dark-theme wordmark URL, or
+/// [`DEFAULT_BRANDING_WORDMARK_DARK_URL`] (empty) when unset, blank, or invalid.
 pub fn wordmark_dark_url_or_default(runtime_config: &RuntimeConfig) -> String {
     asset_url_or_default(
         runtime_config,
@@ -95,6 +123,8 @@ pub fn wordmark_dark_url_or_default(runtime_config: &RuntimeConfig) -> String {
     )
 }
 
+/// Returns the configured light-theme wordmark URL, or
+/// [`DEFAULT_BRANDING_WORDMARK_LIGHT_URL`] (empty) when unset, blank, or invalid.
 pub fn wordmark_light_url_or_default(runtime_config: &RuntimeConfig) -> String {
     asset_url_or_default(
         runtime_config,

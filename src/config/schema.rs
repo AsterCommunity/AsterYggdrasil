@@ -15,7 +15,10 @@ use aster_forge_metrics::ObservabilityConfig;
 use aster_forge_utils::numbers::{non_zero_u32, non_zero_u64};
 use secrecy::SecretString;
 
+/// Default CSRF cookie name used when `auth.csrf_cookie_name` is not set.
 pub const DEFAULT_AUTH_CSRF_COOKIE_NAME: &str = "aster_yggdrasil_csrf";
+/// Default CSRF request header name used when `auth.csrf_header_name` is not
+/// set.
 pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 
 /// Default per-process limit for concurrent Argon2 password hash/verify jobs,
@@ -23,35 +26,52 @@ pub const DEFAULT_AUTH_CSRF_HEADER_NAME: &str = "X-Aster-Yggdrasil-CSRF";
 pub const DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY: usize =
     aster_forge_auth::DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY;
 
+/// Root of the static TOML configuration file. Every section defaults so a
+/// minimal file boots; only startup-time settings live here, while
+/// runtime-editable settings are served from the `system_config` table.
 #[derive(Debug, Deserialize, Serialize, Clone, Default, aster_forge_config::ValidateConfig)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// Deployment topology and its shared-dependency requirements.
     #[serde(default)]
     pub deployment: crate::config::deployment::DeploymentConfig,
+    /// HTTP bind address, worker count, and temp directory.
     #[serde(default)]
     pub server: ServerConfig,
+    /// Graceful shutdown budgets for background workers.
     #[serde(default)]
     pub worker: crate::config::worker::WorkerConfig,
+    /// Database URL, pool size, and connect retry count.
     #[serde(default)]
     pub database: DatabaseConfig,
+    /// JWT secrets, CSRF names, and password-hash concurrency.
     #[serde(default)]
     pub auth: AuthConfig,
+    /// Cache backend selection and connection settings.
     #[serde(default)]
     pub cache: CacheConfig,
+    /// Pub/sub backend used to propagate runtime config reloads between
+    /// instances; defaults to the `aster_yggdrasil.config_reload` topic.
     #[serde(default = "default_config_sync")]
     pub config_sync: ConfigSyncConfig,
+    /// Where texture files are stored (local disk or S3/MinIO).
     /// TOML/wire key remains `object_storage` for deployed configuration files.
     #[serde(default, rename = "object_storage", alias = "texture_storage")]
     pub texture_storage: TextureStorageConfig,
+    /// Log format, level, and output wiring.
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Metrics/observability exporter settings; loading tolerates a missing
+    /// or partially specified section.
     #[serde(
         default,
         deserialize_with = "crate::config::metrics::deserialize_observability"
     )]
     pub observability: ObservabilityConfig,
+    /// Trusted proxy ranges used to recover real client IPs.
     #[serde(default)]
     pub network_trust: NetworkTrustConfig,
+    /// Per-tier rate limit thresholds and global switch.
     #[serde(default)]
     pub rate_limit: RateLimitConfig,
 }
@@ -79,15 +99,22 @@ fn default_config_sync() -> ConfigSyncConfig {
     }
 }
 
+/// `[server]` section: HTTP listener and per-process scratch settings.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ServerConfig {
+    /// Bind address; defaults to `127.0.0.1` so a fresh install is not
+    /// exposed on all interfaces.
     #[serde(default = "ServerConfig::default_host")]
     pub host: String,
+    /// Bind port; defaults to 3000.
     #[serde(default = "ServerConfig::default_port")]
     pub port: u16,
     /// `0` means use the number of CPUs.
     #[serde(default)]
     pub workers: usize,
+    /// Scratch directory for uploads and other transient files; relative
+    /// values resolve against the instance root at load time. Defaults to
+    /// `<data>/.tmp`.
     #[serde(default = "ServerConfig::default_temp_dir")]
     pub temp_dir: String,
 }
@@ -121,12 +148,18 @@ impl ValidatableConfig for ServerConfig {
     }
 }
 
+/// `[database]` section: connection target and pool sizing.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatabaseConfig {
+    /// Database connection URL (SQLite by default, MySQL/PostgreSQL supported);
+    /// relative sqlite file paths resolve against the instance root. Defaults
+    /// to `sqlite://data/asteryggdrasil.db?mode=rwc`.
     #[serde(default = "DatabaseConfig::default_url")]
     pub url: aster_forge_db::DatabaseUrl,
+    /// Maximum connections in the pool; defaults to 10.
     #[serde(default = "DatabaseConfig::default_pool_size")]
     pub pool_size: u32,
+    /// Connection attempts before giving up at startup; defaults to 3.
     #[serde(default = "DatabaseConfig::default_retry_count")]
     pub retry_count: u32,
 }
@@ -159,14 +192,22 @@ impl ValidatableConfig for DatabaseConfig {
     }
 }
 
+/// `[auth]` section: secrets and auth-related naming set only at startup.
 #[derive(Debug, Deserialize, Clone)]
 pub struct AuthConfig {
+    /// HMAC secret for signing and verifying JWTs. Generated on first startup
+    /// and persisted into the config file; rotating it invalidates every
+    /// outstanding token.
     #[serde(default = "AuthConfig::default_jwt_secret")]
     pub jwt_secret: secrecy::SecretString,
+    /// Symmetric secret for MFA-related key derivation. Generated on first
+    /// startup and persisted into the config file.
     #[serde(default = "AuthConfig::default_mfa_secret_key")]
     pub mfa_secret_key: secrecy::SecretString,
+    /// CSRF cookie name; defaults to [`DEFAULT_AUTH_CSRF_COOKIE_NAME`].
     #[serde(default = "AuthConfig::default_csrf_cookie_name")]
     pub csrf_cookie_name: String,
+    /// CSRF request header name; defaults to [`DEFAULT_AUTH_CSRF_HEADER_NAME`].
     #[serde(default = "AuthConfig::default_csrf_header_name")]
     pub csrf_header_name: String,
     /// Per-process cap for concurrent Argon2 password hash/verify jobs.
@@ -256,12 +297,19 @@ impl ValidatableConfig for AuthConfig {
     }
 }
 
+/// `[object_storage]` section: where texture files are stored.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TextureStorageConfig {
+    /// Backend selector: `local` (default) for filesystem storage, `s3` or
+    /// `minio` for object storage; cluster deployments require an object
+    /// backend.
     #[serde(default = "TextureStorageConfig::default_backend")]
     pub backend: String,
+    /// Filesystem root for the `local` backend; relative values resolve
+    /// against the instance root. Defaults to `<data>/storage`.
     #[serde(default = "TextureStorageConfig::default_local_root")]
     pub local_root: String,
+    /// Connection settings for the `s3`/`minio` backends.
     #[serde(default)]
     pub s3: S3TextureStorageConfig,
 }
@@ -285,6 +333,7 @@ impl TextureStorageConfig {
         "storage".to_string()
     }
 
+    /// Returns the backend selector trimmed and lowercased for comparison.
     pub fn normalized_backend(&self) -> String {
         self.backend.trim().to_ascii_lowercase()
     }
@@ -296,22 +345,34 @@ impl ValidatableConfig for TextureStorageConfig {
     }
 }
 
+/// `[object_storage.s3]` section: object-storage connection settings.
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct S3TextureStorageConfig {
+    /// S3-compatible endpoint base URL (e.g. MinIO); required for non-AWS
+    /// providers.
     #[serde(default)]
     pub endpoint: String,
+    /// AWS region name for signature v4; required by AWS and most
+    /// S3-compatible providers.
     #[serde(default)]
     pub region: String,
+    /// Bucket texture objects are written to.
     #[serde(default)]
     pub bucket: String,
     /// Optional bucket prefix. Stored texture keys stay prefix-free in the
     /// database; the S3 backend prepends this only for object-storage calls.
     #[serde(default)]
     pub base_path: String,
+    /// Static access key ID for authentication.
     #[serde(default)]
     pub access_key_id: String,
+    /// Secret access key paired with `access_key_id`; kept redacted in debug
+    /// output.
     #[serde(default)]
     pub secret_access_key: secrecy::SecretString,
+    /// Address the bucket as `endpoint/bucket` (path style) instead of
+    /// `bucket.endpoint` (virtual-host style); required by MinIO and most
+    /// self-hosted S3-compatible stores.
     #[serde(default)]
     pub force_path_style: bool,
 }
@@ -360,14 +421,24 @@ impl ValidatableConfig for NetworkTrustConfig {
 /// - `write`: expensive write or administrative operations.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RateLimitConfig {
+    /// Master switch; defaults to true so authentication endpoints are
+    /// protected out of the box.
     #[serde(default = "RateLimitConfig::default_enabled")]
     pub enabled: bool,
+    /// Tier for authentication and password verification; defaults to 2
+    /// seconds per request with a burst of 5.
     #[serde(default = "RateLimitConfig::default_auth")]
     pub auth: RateLimitTier,
+    /// Tier for unauthenticated public endpoints; defaults to 1 second per
+    /// request with a burst of 30.
     #[serde(default = "RateLimitConfig::default_public")]
     pub public: RateLimitTier,
+    /// Tier for general authenticated reads and writes; defaults to 1 second
+    /// per request with a burst of 120.
     #[serde(default = "RateLimitConfig::default_api")]
     pub api: RateLimitTier,
+    /// Tier for expensive write or administrative operations; defaults to 2
+    /// seconds per request with a burst of 10.
     #[serde(default = "RateLimitConfig::default_write")]
     pub write: RateLimitTier,
 }
@@ -421,10 +492,15 @@ impl ValidatableConfig for RateLimitConfig {
     }
 }
 
+/// One rate limit tier: a refill interval plus a bucket depth.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RateLimitTier {
+    /// Sustained rate: at least this many seconds must pass between requests
+    /// for the bucket to fully refill. Must be non-zero.
     #[serde(default = "RateLimitTier::default_seconds")]
     pub seconds_per_request: NonZeroU64,
+    /// Allowed short-term burst on top of the sustained rate, in requests.
+    /// Must be non-zero.
     #[serde(default = "RateLimitTier::default_burst")]
     pub burst_size: NonZeroU32,
 }

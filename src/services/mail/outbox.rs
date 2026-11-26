@@ -28,6 +28,10 @@ const MAIL_OUTBOX_DISPATCH_CONFIG: MailOutboxDispatchConfig = MailOutboxDispatch
     ),
 );
 
+/// Persists a mail outbox row for `to_address` with the rendered-later
+/// template payload. Delivery is deferred to [`dispatch_due`]; the row is
+/// due immediately and typically enqueued inside the caller's transaction so
+/// the mail cannot outlive the business change that triggered it.
 pub async fn enqueue<C: ConnectionTrait>(
     db: &C,
     to_address: &str,
@@ -62,6 +66,8 @@ pub async fn enqueue<C: ConnectionTrait>(
     Ok(row)
 }
 
+/// Dispatches one batch of due outbox rows (up to 20) through the runtime's
+/// mail sender, writing send/delivery-failure audit entries per row.
 pub async fn dispatch_due(state: &impl MailRuntimeState) -> Result<DispatchStats> {
     dispatch_due_with(
         state.writer_db(),
@@ -71,6 +77,9 @@ pub async fn dispatch_due(state: &impl MailRuntimeState) -> Result<DispatchStats
     .await
 }
 
+/// [`dispatch_due`] against explicit DB/config/sender dependencies. Rows
+/// lease for 60 seconds, retry up to 6 attempts, and skip rows still being
+/// processed elsewhere.
 pub async fn dispatch_due_with(
     db: &DatabaseConnection,
     runtime_config: &Arc<RuntimeConfig>,
@@ -123,6 +132,8 @@ pub async fn dispatch_due_with(
         .await
 }
 
+/// Repeatedly dispatches due rows until the outbox is empty or the round cap
+/// (32 rounds) is reached; used on startup and shutdown to flush the queue.
 pub async fn drain(state: &impl MailRuntimeState) -> Result<DispatchStats> {
     drain_with(
         state.writer_db(),
@@ -132,6 +143,7 @@ pub async fn drain(state: &impl MailRuntimeState) -> Result<DispatchStats> {
     .await
 }
 
+/// [`drain`] against explicit DB/config/sender dependencies.
 pub async fn drain_with(
     db: &DatabaseConnection,
     runtime_config: &Arc<RuntimeConfig>,

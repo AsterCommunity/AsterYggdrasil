@@ -33,6 +33,9 @@ use crate::db::repository::minecraft_profile_repo;
 use crate::runtime::{CacheRuntimeState, DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use aster_yggdrasil_protocol::YggdrasilProfile;
 
+/// Resolves profiles for a batch of player names (the Yggdrasil
+/// `POST /api/profiles` lookup). Names are capped at 100 per request;
+/// per-name summaries are served from cache when possible.
 pub async fn profiles_by_names<S>(
     state: &S,
     names: &[String],
@@ -93,6 +96,9 @@ where
     Ok(summaries)
 }
 
+/// Resolves a profile by its UUID for the Yggdrasil profile lookup endpoint.
+/// `unsigned` selects the plain profile; signed responses attach the
+/// signature-augmented `properties` payload.
 pub async fn profile_by_uuid<S>(
     state: &S,
     uuid: &str,

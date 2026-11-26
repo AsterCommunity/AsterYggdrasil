@@ -13,16 +13,25 @@ use aster_yggdrasil_model::entities::external_auth_identity::{
     self, Entity as ExternalAuthIdentity,
 };
 
+/// Input for linking a new external identity to a local user account.
 pub struct CreateExternalAuthIdentityInput<'a> {
+    /// Local user the identity is linked to.
     pub user_id: i64,
+    /// Configured provider row the identity came from.
     pub provider_id: i64,
+    /// Stable namespace identifying the identity issuer, shared across provider reconfigurations.
     pub identity_namespace: &'a str,
+    /// Provider's opaque subject identifier for the user.
     pub subject: &'a str,
+    /// Email claimed at login time, stored as a snapshot.
     pub email_snapshot: Option<&'a str>,
+    /// Display name claimed at login time, stored as a snapshot.
     pub display_name_snapshot: Option<&'a str>,
+    /// Instant used for `created_at`, `updated_at`, and the initial `last_login_at`.
     pub now: chrono::DateTime<Utc>,
 }
 
+/// Lists all external identities linked to a user, most recently used first.
 pub async fn list_for_user(
     db: &DatabaseConnection,
     user_id: i64,
@@ -36,6 +45,12 @@ pub async fn list_for_user(
         .map_err(AsterError::from)
 }
 
+/// Paginates a user's linked identities using a keyset cursor over `(created_at, id)`, newest
+/// first.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the user's total identity count and a next cursor,
+/// which is absent on the last page.
 pub async fn list_for_user_cursor(
     db: &DatabaseConnection,
     user_id: i64,
@@ -67,6 +82,9 @@ pub async fn list_for_user_cursor(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Looks up an identity by provider row and provider subject.
+///
+/// Returns `None` when the user has not logged in through that provider yet.
 pub async fn find_by_provider_subject<C: ConnectionTrait>(
     db: &C,
     provider_id: i64,
@@ -80,6 +98,10 @@ pub async fn find_by_provider_subject<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Looks up an identity by issuer namespace and subject, independent of the provider row.
+///
+/// Used to detect the same person reappearing after a provider was reconfigured; returns
+/// `None` when no identity carries that namespace/subject pair.
 pub async fn find_by_identity_namespace_subject<C: ConnectionTrait>(
     db: &C,
     identity_namespace: &str,
@@ -93,6 +115,9 @@ pub async fn find_by_identity_namespace_subject<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Loads a linked identity by id scoped to its owner.
+///
+/// Returns `None` when the identity does not exist or belongs to a different user.
 pub async fn find_by_id_for_user<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -106,6 +131,7 @@ pub async fn find_by_id_for_user<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Inserts a new external identity row from an active model.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     model: external_auth_identity::ActiveModel,
@@ -113,6 +139,7 @@ pub async fn create<C: ConnectionTrait>(
     model.insert(db).await.map_err(AsterError::from)
 }
 
+/// Links a new external identity to a user, stamping the login time as first use.
 pub async fn create_identity<C: ConnectionTrait>(
     db: &C,
     input: CreateExternalAuthIdentityInput<'_>,
@@ -135,6 +162,10 @@ pub async fn create_identity<C: ConnectionTrait>(
     .await
 }
 
+/// Records a login through an existing identity, updating last-use time and optional snapshots.
+///
+/// Snapshot fields are only rewritten when a new value is provided, so absent claims never
+/// wipe stored ones. Returns `false` when the identity row no longer exists.
 pub async fn touch_login<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -168,6 +199,9 @@ pub async fn touch_login<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Unlinks an external identity from its owner.
+///
+/// Returns `false` when the identity does not exist or belongs to a different user.
 pub async fn delete_for_user(db: &DatabaseConnection, id: i64, user_id: i64) -> Result<bool> {
     let result = ExternalAuthIdentity::delete_many()
         .filter(external_auth_identity::Column::Id.eq(id))

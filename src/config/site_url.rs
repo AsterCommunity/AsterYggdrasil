@@ -13,14 +13,20 @@ fn map_url_error(error: aster_forge_utils::UtilsError) -> AsterError {
     AsterError::validation_error(error.to_string())
 }
 
+/// Validates a stored `public_site_url` JSON array of origins: http(s) only,
+/// no paths, wildcards, or duplicate hosts; lowercases and preserves order.
 pub fn normalize_public_site_url_config_value(value: &str) -> Result<String> {
     aster_forge_utils::url::normalize_public_site_origins_config_value(value).map_err(map_url_error)
 }
 
+/// Parses a stored `public_site_url` JSON array into normalized origins,
+/// dropping blank entries.
 pub fn parse_public_site_url_value(value: &str) -> Result<Vec<String>> {
     aster_forge_utils::url::parse_public_site_origins(value).map_err(map_url_error)
 }
 
+/// Returns the raw `public_site_url` runtime value, trimmed; `None` when unset
+/// or blank.
 pub fn public_site_url_config_value(runtime_config: &RuntimeConfig) -> Option<String> {
     runtime_config
         .get(PUBLIC_SITE_URL_KEY)
@@ -28,6 +34,8 @@ pub fn public_site_url_config_value(runtime_config: &RuntimeConfig) -> Option<St
         .filter(|value| !value.is_empty())
 }
 
+/// Returns the configured public origins, ignoring invalid entries (and
+/// warning about them) so one bad origin cannot break URL building.
 pub fn public_site_urls(runtime_config: &RuntimeConfig) -> Vec<String> {
     aster_forge_utils::url::runtime_public_site_origins_with(
         public_site_url_config_value(runtime_config).as_deref(),
@@ -51,10 +59,13 @@ pub fn public_site_urls(runtime_config: &RuntimeConfig) -> Vec<String> {
     )
 }
 
+/// Returns the first configured public origin, or `None` when none is set.
 pub fn public_site_url(runtime_config: &RuntimeConfig) -> Option<String> {
     public_site_urls(runtime_config).into_iter().next()
 }
 
+/// Picks the configured origin matching the request's scheme and host,
+/// falling back to the first configured origin when no entry matches.
 pub fn public_site_url_for_request(
     runtime_config: &RuntimeConfig,
     scheme: &str,
@@ -67,11 +78,15 @@ pub fn public_site_url_for_request(
     )
 }
 
+/// Joins the first configured public origin with `path`; `None` when no
+/// public origin is configured.
 pub fn public_app_url(runtime_config: &RuntimeConfig, path: &str) -> Option<String> {
     let base = public_site_url(runtime_config)?;
     Some(join_origin_and_path(&base, path))
 }
 
+/// Joins the request-matched public origin with `path`; `None` when no origin
+/// applies.
 pub fn public_app_url_for_request(
     runtime_config: &RuntimeConfig,
     path: &str,
@@ -82,10 +97,14 @@ pub fn public_app_url_for_request(
     Some(join_origin_and_path(&base, path))
 }
 
+/// Like [`public_app_url`] but falls back to the bare (root-relative) `path`
+/// when no public origin is configured, so links stay functional in-app.
 pub fn public_app_url_or_path(runtime_config: &RuntimeConfig, path: &str) -> String {
     public_app_url(runtime_config, path).unwrap_or_else(|| path.to_string())
 }
 
+/// Like [`public_app_url_for_request`] but falls back to the bare
+/// (root-relative) `path` when no origin matches the request.
 pub fn public_app_url_or_path_for_request(
     runtime_config: &RuntimeConfig,
     path: &str,
@@ -96,6 +115,8 @@ pub fn public_app_url_or_path_for_request(
         .unwrap_or_else(|| path.to_string())
 }
 
+/// Joins a configured origin with a root-relative path, ensuring exactly one
+/// slash between the two.
 pub fn join_origin_and_path(base: &str, path: &str) -> String {
     aster_forge_utils::url::join_origin_and_path(base, path)
 }

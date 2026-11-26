@@ -425,6 +425,8 @@ use utoipa::{Modify, OpenApi};
         (name = "health", description = "Health checks"),
     ),
 )]
+/// Root OpenAPI document aggregating every project and Yggdrasil protocol
+/// operation, schema, and tag.
 pub struct ApiDoc;
 
 struct SecurityAddon;

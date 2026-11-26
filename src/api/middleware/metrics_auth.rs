@@ -30,6 +30,9 @@ pub struct MetricsAuth {
 }
 
 impl MetricsAuth {
+    /// Creates the checker from the scrape credential snapshot; the
+    /// password hash is bound at construction, so rotating the credential
+    /// requires building a new `MetricsAuth`.
     pub fn new(config: MetricsBasicAuthConfig) -> Self {
         Self {
             config,

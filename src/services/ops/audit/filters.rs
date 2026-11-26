@@ -10,27 +10,46 @@ use aster_yggdrasil_model::types::audit::AuditEntityType;
     all(debug_assertions, feature = "openapi"),
     derive(IntoParams, ToSchema)
 )]
+/// Query-string filters for the admin audit log listing endpoint.
 pub struct AuditLogFilterQuery {
+    /// Only records authored by this user ID.
     pub user_id: Option<i64>,
+    /// Only records of this audit action (wire string).
     pub action: Option<String>,
+    /// Only records targeting this entity class.
     pub entity_type: Option<AuditEntityType>,
+    /// Only records targeting this entity row ID.
     pub entity_id: Option<i64>,
+    /// Inclusive lower time bound, RFC 3339.
     pub after: Option<String>,
+    /// Inclusive upper time bound, RFC 3339.
     pub before: Option<String>,
+    /// Cursor pagination anchor: creation timestamp of the last seen record.
     pub after_created_at: Option<DateTime<Utc>>,
+    /// Cursor pagination anchor: ID of the last seen record, breaking
+    /// creation-timestamp ties.
     pub after_id: Option<i64>,
 }
 
+/// Parsed service-layer filters consumed by the audit log repository.
 pub struct AuditLogFilters {
+    /// Only records authored by this user ID.
     pub user_id: Option<i64>,
+    /// Only records of this audit action.
     pub action: Option<String>,
+    /// Only records targeting this entity class.
     pub entity_type: Option<AuditEntityType>,
+    /// Only records targeting this entity row ID.
     pub entity_id: Option<i64>,
+    /// Inclusive lower time bound (UTC).
     pub after: Option<DateTime<Utc>>,
+    /// Inclusive upper time bound (UTC).
     pub before: Option<DateTime<Utc>>,
 }
 
 impl AuditLogFilters {
+    /// Converts query filters, parsing the RFC 3339 time bounds; unparseable
+    /// bounds are dropped rather than rejected.
     pub fn from_query(query: &AuditLogFilterQuery) -> Self {
         Self {
             user_id: query.user_id,

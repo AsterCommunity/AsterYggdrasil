@@ -10,35 +10,57 @@ use aster_yggdrasil_model::types::user::UserBanScope;
 use aster_yggdrasil_protocol::YggdrasilProfile;
 use serde::Serialize;
 
+/// Outcome of deleting a Minecraft profile: the profile snapshot plus the
+/// cleanup performed alongside it.
 #[derive(Debug, Clone)]
 pub struct DeleteMinecraftProfileResult {
+    /// The profile row as it looked right before deletion.
     pub profile: minecraft_profile::Model,
+    /// Number of texture bindings removed with the profile.
     pub deleted_texture_count: usize,
+    /// Number of tokens revoked because they selected this profile.
     pub revoked_token_count: u64,
 }
 
+/// Outcome of a profile rename, keeping the old name and the token state
+/// change triggered by it.
 #[derive(Debug, Clone)]
 pub struct RenameMinecraftProfileResult {
+    /// The profile row after the rename.
     pub profile: minecraft_profile::Model,
+    /// Name the profile had before the rename.
     pub old_name: String,
+    /// Number of bound tokens temporarily invalidated so launchers must
+    /// refresh to pick up the new name.
     pub temporarily_invalidated_token_count: u64,
 }
 
+/// Administrative/user-facing info about a Minecraft profile.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
 pub struct MinecraftProfileInfo {
+    /// Profile row id.
     pub id: i64,
+    /// Owning user's row id.
     pub user_id: i64,
+    /// Profile UUID (unhyphenated 32-char hex) used as the Yggdrasil player id.
     pub uuid: String,
+    /// Current player name.
     pub name: String,
+    /// Comma-separated texture types the profile may upload (skin/cape).
     pub uploadable_textures: String,
+    /// Default skin arm model used when no skin texture overrides it.
     pub texture_model: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel,
+    /// When the profile was created (UTC).
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When the profile was last updated (UTC).
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Projects a profile row into the minimal Yggdrasil profile shape
+/// (`id`/`name`, no properties) used in profile listings.
 pub fn profile_summary(profile: &minecraft_profile::Model) -> YggdrasilProfile {
     YggdrasilProfile {
         id: profile.uuid.clone(),
@@ -47,6 +69,7 @@ pub fn profile_summary(profile: &minecraft_profile::Model) -> YggdrasilProfile {
     }
 }
 
+/// Projects a profile row into [`MinecraftProfileInfo`]; pure mapping.
 pub fn profile_info(profile: &minecraft_profile::Model) -> MinecraftProfileInfo {
     MinecraftProfileInfo {
         id: profile.id,
@@ -60,6 +83,10 @@ pub fn profile_info(profile: &minecraft_profile::Model) -> MinecraftProfileInfo 
     }
 }
 
+/// Creates a Minecraft profile for the user: name is validated (3-16 ASCII
+/// letters/digits/underscores) and must be unique among live profiles; the
+/// UUID is a fresh random unhyphenated UUID and the texture upload allowlist
+/// comes from the runtime Yggdrasil policy.
 pub async fn create_profile<S>(
     state: &S,
     user_id: i64,
@@ -105,6 +132,9 @@ where
     Ok(profile)
 }
 
+/// Deletes one of the user's profiles by UUID: removes its texture bindings
+/// and assets, revokes tokens bound to it, then deletes the row. `None` when
+/// the UUID does not belong to this user.
 pub async fn delete_profile_for_user<S>(
     state: &S,
     user_id: i64,
@@ -156,6 +186,9 @@ where
     }))
 }
 
+/// User-facing rename: checks ban status and name validity, verifies the
+/// profile belongs to the user, then delegates to [`rename_profile`]. `None`
+/// when the UUID does not belong to this user.
 pub async fn rename_profile_for_user<S>(
     state: &S,
     user_id: i64,
@@ -186,6 +219,10 @@ where
     rename_profile(state, profile, new_name).await.map(Some)
 }
 
+/// Renames a profile inside a transaction: UUID, texture bindings, and audit
+/// trail stay intact, tokens bound to the profile are temporarily invalidated
+/// so launchers must call refresh to observe the new name. Same-name requests
+/// are a counted no-op.
 pub async fn rename_profile<S>(
     state: &S,
     profile: minecraft_profile::Model,
@@ -257,6 +294,8 @@ where
     Ok(result)
 }
 
+/// Validates a player name against the shared Yggdrasil rule: 3-16 ASCII
+/// letters, digits, or underscores.
 pub fn validate_profile_name(name: &str) -> Result<()> {
     if aster_yggdrasil_protocol::minecraft_profile_name_is_valid(name) {
         Ok(())

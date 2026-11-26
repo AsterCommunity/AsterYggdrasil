@@ -25,35 +25,64 @@ pub use crate::config::definitions::{
     TEXTURE_PREVIEW_PROFILE_KEY, TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY, TEXTURE_PREVIEW_WIDTH_KEY,
 };
 
+/// Preview engine used when `texture_preview_engine` is unset; the 3D
+/// renderer is the default product surface.
 pub const DEFAULT_TEXTURE_PREVIEW_ENGINE: TexturePreviewEngine = TexturePreviewEngine::Skin3d;
+/// Quality profile used when `texture_preview_profile` is unset; balanced
+/// between render latency and anti-aliasing.
 pub const DEFAULT_TEXTURE_PREVIEW_PROFILE: TexturePreviewQualityProfile =
     TexturePreviewQualityProfile::Default;
+/// Preview image width in pixels when `texture_preview_width` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_WIDTH: u32 = 430;
+/// Preview image height in pixels when `texture_preview_height` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_HEIGHT: u32 = 430;
+/// Preview background when `texture_preview_background` is unset; transparent
+/// so previews composite onto any page background.
 pub const DEFAULT_TEXTURE_PREVIEW_BACKGROUND: &str = "transparent";
+/// Whether the outer (hat) skin layer is rendered when
+/// `texture_preview_show_outer_layer` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_SHOW_OUTER_LAYER: bool = true;
+/// 3D model scale used when `texture_preview_3d_scale` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_SCALE: f32 = 11.5;
+/// 3D camera pitch in degrees when `texture_preview_3d_pitch` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_PITCH: f32 = 30.0;
+/// 3D front-face yaw in degrees when `texture_preview_3d_front_yaw` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_FRONT_YAW: f32 = -45.0;
+/// 3D back-face yaw in degrees when `texture_preview_3d_back_yaw` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_BACK_YAW: f32 = 135.0;
+/// 3D front/back face spacing used when `texture_preview_3d_spacing` is
+/// unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_SPACING: f32 = 35.0;
+/// 3D horizontal offset when `texture_preview_3d_x_offset` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_X_OFFSET: f32 = 0.0;
+/// 3D vertical offset when `texture_preview_3d_y_offset` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_Y_OFFSET: f32 = -24.0;
+/// 3D vertical center ratio (0 top, 1 bottom) when
+/// `texture_preview_3d_center_y` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_3D_CENTER_Y: f32 = 0.56;
+/// 3D supersampling factor used when `texture_preview_3d_supersampling` is
+/// unset (and the quality profile does not dictate one).
 pub const DEFAULT_TEXTURE_PREVIEW_3D_SUPERSAMPLING: u8 = 2;
+/// 2D layout padding in pixels when `texture_preview_2d_padding` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_2D_PADDING: u32 = 24;
+/// 2D face spacing in pixels when `texture_preview_2d_spacing` is unset.
 pub const DEFAULT_TEXTURE_PREVIEW_2D_SPACING: u32 = 35;
 
+/// Server-side renderer used to draw texture previews.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TexturePreviewEngine {
+    /// Isometric 3D render (front and back views).
     Skin3d,
+    /// Flat 2D face layout.
     Skin2d,
 }
 
 impl TexturePreviewEngine {
+    /// Every engine in canonical order, used for validation and schema docs.
     pub const ALL: [Self; 2] = [Self::Skin3d, Self::Skin2d];
 
+    /// Kebab-case name as stored in the runtime config value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Skin3d => "skin-3d",
@@ -80,17 +109,24 @@ impl FromStr for TexturePreviewEngine {
     }
 }
 
+/// Quality/latency tradeoff for the 3D preview renderer; maps onto the render
+/// crate's [`SkinPreviewProfile`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TexturePreviewQualityProfile {
+    /// Lowest latency, minimal anti-aliasing.
     Fast,
+    /// Balanced latency and smoothing (the default).
     Default,
+    /// Highest smoothing, slowest render.
     Quality,
 }
 
 impl TexturePreviewQualityProfile {
+    /// Every profile in canonical order, used for validation and schema docs.
     pub const ALL: [Self; 3] = [Self::Fast, Self::Default, Self::Quality];
 
+    /// Lowercase name as stored in the runtime config value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Fast => "fast",
@@ -121,12 +157,18 @@ impl FromStr for TexturePreviewQualityProfile {
     }
 }
 
+/// Runtime view of the texture preview settings, holding the canonical
+/// [`TexturePreviewSpec`] resolved from the config store.
 #[derive(Debug, Clone)]
 pub struct RuntimeTexturePreviewPolicy {
+    /// Fully resolved preview parameters.
     pub spec: TexturePreviewSpec,
 }
 
 impl RuntimeTexturePreviewPolicy {
+    /// Resolves every preview parameter from the runtime config store,
+    /// applying documented defaults for missing or invalid values. The
+    /// supersampling factor also honors the selected quality profile.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let engine = read_engine(runtime_config);
         let profile = read_profile(runtime_config);
@@ -213,26 +255,45 @@ impl RuntimeTexturePreviewPolicy {
 /// Canonical preview parameters used for URL fingerprints and renderer options.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TexturePreviewSpec {
+    /// Renderer selection (3D or 2D).
     pub engine: TexturePreviewEngine,
+    /// 3D quality profile.
     pub profile: TexturePreviewQualityProfile,
+    /// Output image width in pixels.
     pub width: u32,
+    /// Output image height in pixels.
     pub height: u32,
+    /// Background fill behind the rendered model.
     pub background: TexturePreviewBackground,
+    /// Whether the outer (hat) skin layer is drawn.
     pub show_outer_layer: bool,
+    /// 3D model scale.
     pub scale: f32,
+    /// 3D camera pitch, in degrees.
     pub pitch: f32,
+    /// 3D front-face yaw, in degrees.
     pub front_yaw: f32,
+    /// 3D back-face yaw, in degrees.
     pub back_yaw: f32,
+    /// 3D front/back view spacing.
     pub spacing_3d: f32,
+    /// 3D horizontal offset of the rendered group.
     pub x_offset: f32,
+    /// 3D vertical offset of the rendered group.
     pub y_offset: f32,
+    /// 3D vertical center ratio (0 top, 1 bottom).
     pub center_y: f32,
+    /// 3D supersampling factor (1 = off).
     pub supersampling: u8,
+    /// 2D layout padding, in pixels.
     pub padding_2d: u32,
+    /// 2D face spacing, in pixels.
     pub spacing_2d: u32,
 }
 
 impl TexturePreviewSpec {
+    /// Converts the resolved parameters into the render crate's options
+    /// struct for the selected engine.
     pub fn renderer_options(&self) -> TexturePreviewOptions {
         match self.engine {
             TexturePreviewEngine::Skin3d => {
@@ -268,14 +329,18 @@ impl TexturePreviewSpec {
     }
 }
 
+/// Background fill for rendered previews: transparent or a solid RGBA color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", content = "rgba", rename_all = "snake_case")]
 pub enum TexturePreviewBackground {
+    /// No background; the PNG keeps an alpha channel.
     Transparent,
+    /// Solid RGBA fill color.
     Solid([u8; 4]),
 }
 
 impl TexturePreviewBackground {
+    /// Returns the color for the renderer; `None` when transparent.
     pub fn rgba(self) -> Option<Rgba<u8>> {
         match self {
             Self::Transparent => None,
@@ -283,6 +348,8 @@ impl TexturePreviewBackground {
         }
     }
 
+    /// Canonical string form stored in the runtime config value
+    /// ("transparent" or `#rrggbbaa`).
     pub fn wire_value(self) -> String {
         match self {
             Self::Transparent => "transparent".to_string(),
@@ -293,6 +360,9 @@ impl TexturePreviewBackground {
     }
 }
 
+/// Registry normalizer for all texture preview runtime keys: routes each key
+/// to its specific validation (enums, booleans, u32/finite-f32 bounds) and
+/// passes unknown keys through unchanged.
 pub fn normalize_texture_preview_config_value(key: &str, value: &str) -> Result<String> {
     match key {
         TEXTURE_PREVIEW_ENGINE_KEY => Ok(parse_engine(value)?.as_str().to_string()),

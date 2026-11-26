@@ -17,6 +17,9 @@ use sha1::Sha1;
 
 const SIGNATURE_KEY_BITS: usize = 4096;
 
+/// Public URL a texture can be fetched from by content hash: the configured
+/// public base URL when one is set, otherwise the hash-based path under the
+/// Yggdrasil API root.
 pub fn texture_base_url(policy: &RuntimeYggdrasilPolicy, texture_hash: &str) -> String {
     tracing::debug!(
         texture_hash,
@@ -26,6 +29,10 @@ pub fn texture_base_url(policy: &RuntimeYggdrasilPolicy, texture_hash: &str) -> 
     texture_public_url(policy, texture_hash).unwrap_or_else(|| texture_path(texture_hash))
 }
 
+/// Best URL for a stored texture object: the dedicated texture public base
+/// URL when configured, otherwise the hash-based [`texture_base_url`].
+/// Embedded default skins have no storage object and always resolve to the
+/// hash-based URL.
 pub fn texture_object_url(
     policy: &RuntimeYggdrasilPolicy,
     texture_hash: &str,
@@ -35,6 +42,9 @@ pub fn texture_object_url(
         .unwrap_or_else(|| texture_base_url(policy, texture_hash))
 }
 
+/// Direct object-storage URL for a texture when a dedicated public texture
+/// base URL is configured; `None` otherwise (default skins included, since
+/// they have no S3 object).
 pub fn texture_object_public_url(
     policy: &RuntimeYggdrasilPolicy,
     storage_key: &str,
@@ -48,6 +58,8 @@ pub fn texture_object_public_url(
     ))
 }
 
+/// Hash-addressed texture URL under the first configured Yggdrasil public
+/// base URL; `None` when no public base URL is configured.
 pub fn texture_public_url(policy: &RuntimeYggdrasilPolicy, texture_hash: &str) -> Option<String> {
     if let Some(base_url) = policy.public_base_urls.first() {
         tracing::debug!(
@@ -60,6 +72,9 @@ pub fn texture_public_url(policy: &RuntimeYggdrasilPolicy, texture_hash: &str) -
     None
 }
 
+/// Like [`texture_object_url`], but fails with a configuration error instead
+/// of falling back to the API-relative path: used where serving a broken
+/// texture URL in signed properties would be worse than failing.
 pub fn required_texture_object_public_url(
     policy: &RuntimeYggdrasilPolicy,
     texture_hash: &str,
@@ -79,6 +94,8 @@ pub fn required_texture_object_public_url(
         })
 }
 
+/// Like [`texture_public_url`], but fails with a configuration error naming
+/// the missing settings instead of returning `None`.
 pub fn required_texture_public_url(
     policy: &RuntimeYggdrasilPolicy,
     texture_hash: &str,
@@ -98,6 +115,9 @@ fn texture_path(texture_hash: &str) -> String {
     format!("{DEFAULT_YGGDRASIL_API_ROOT}/textures/{texture_hash}")
 }
 
+/// Effective signature public key (PEM) published in the Yggdrasil metadata:
+/// derived from the configured private key when one is set, otherwise the
+/// configured public key value.
 pub fn signature_public_key(policy: &RuntimeYggdrasilPolicy) -> Result<String> {
     if let Some(private_key) = configured_private_key(policy)? {
         tracing::debug!("deriving yggdrasil signature public key from private key");
@@ -107,6 +127,10 @@ pub fn signature_public_key(policy: &RuntimeYggdrasilPolicy) -> Result<String> {
     Ok(policy.signature_public_key.trim().to_string())
 }
 
+/// Signs a `textures` property value with RSA-SHA1 (PKCS#1 v1.5) and returns
+/// the base64 signature, matching the Mojang/authlib-injector signature
+/// scheme clients verify against the published public key. `None` when no
+/// private key is configured, in which case properties stay unsigned.
 pub fn sign_texture_property(
     policy: &RuntimeYggdrasilPolicy,
     value: &str,
@@ -128,6 +152,10 @@ pub fn sign_texture_property(
     ))
 }
 
+/// Loads the persistent signature private key from system config, deriving
+/// and syncing its public key; when none exists, generates a 4096-bit RSA
+/// key pair and stores the private key PEM. Returns `Some` only for a newly
+/// generated key.
 pub async fn ensure_signature_key<C: ConnectionTrait>(db: &C) -> Result<Option<String>> {
     tracing::debug!("ensuring persistent yggdrasil signature key");
     let existing = system_config_repo::find_by_key(db, YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY).await?;
@@ -154,10 +182,14 @@ pub async fn ensure_signature_key<C: ConnectionTrait>(db: &C) -> Result<Option<S
     Ok(Some(saved.value))
 }
 
+/// Runtime startup hook wrapping [`ensure_signature_key`] so a signature key
+/// always exists before the server starts answering protocol requests.
 pub async fn prepare_runtime_signature_key<C: ConnectionTrait>(db: &C) -> Result<Option<String>> {
     ensure_signature_key(db).await
 }
 
+/// Generates an RSA private key of the given size and returns it as
+/// PKCS#8 PEM with LF line endings.
 pub fn generate_private_key_pem(bits: usize) -> Result<String> {
     tracing::debug!(bits, "generating yggdrasil signature private key");
     let mut rng = rand::rng();
@@ -176,12 +208,17 @@ pub fn generate_private_key_pem(bits: usize) -> Result<String> {
         })
 }
 
+/// Derives the matching public key PEM from a private key PEM (PKCS#8 or
+/// PKCS#1 accepted).
 pub fn public_key_pem_from_private_key_pem(private_key_pem: &str) -> Result<String> {
     tracing::debug!("deriving yggdrasil public key pem from private key pem");
     let private_key = parse_private_key_pem(private_key_pem.trim())?;
     public_key_pem(&private_key)
 }
 
+/// Keeps the stored signature public key config in sync with a private key:
+/// derives the public key and upserts it when it differs from the stored
+/// value. Returns the public key PEM.
 pub async fn sync_public_key_config<C: ConnectionTrait>(
     db: &C,
     private_key_pem: &str,

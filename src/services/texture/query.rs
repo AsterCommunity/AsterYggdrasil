@@ -23,6 +23,8 @@ use super::{
     default_skin, is_valid_texture_hash,
 };
 
+/// Looks up a wardrobe texture asset by its SHA-256 hash; `None` for invalid
+/// hashes or unknown content.
 pub async fn texture_by_hash<S: DatabaseRuntimeState>(
     state: &S,
     hash: &str,
@@ -36,6 +38,8 @@ pub async fn texture_by_hash<S: DatabaseRuntimeState>(
     Ok(texture)
 }
 
+/// Resolves a hash to the object-storage key of its texture blob, caching the
+/// lookup so repeated reads skip the database. Invalid hashes yield `None`.
 pub async fn texture_blob_by_hash<S>(state: &S, hash: &str) -> Result<Option<TextureBlob>>
 where
     S: CacheRuntimeState + DatabaseRuntimeState,
@@ -71,6 +75,8 @@ where
     super::cache::invalidate_texture_blob_lookup(state, hash).await;
 }
 
+/// Opens a streaming download of a bound profile texture from object storage,
+/// with the texture content type and immutable cache header attached.
 pub async fn download_texture<S: TextureStorageRuntimeState>(
     state: &S,
     texture: &minecraft_profile_texture_repo::ProfileTexture,
@@ -83,6 +89,8 @@ pub async fn download_texture<S: TextureStorageRuntimeState>(
     download_object_storage_key(state, &texture.texture.storage_key).await
 }
 
+/// Opens a streaming download of a texture blob previously resolved via
+/// [`texture_blob_by_hash`], with the same content type and cache headers.
 pub async fn download_texture_blob<S: TextureStorageRuntimeState>(
     state: &S,
     texture: &TextureBlob,
@@ -110,6 +118,7 @@ async fn download_object_storage_key<S: TextureStorageRuntimeState>(
     })
 }
 
+/// Lists every texture binding on the profile, one entry per occupied slot.
 pub async fn textures_for_profile<S: DatabaseRuntimeState>(
     state: &S,
     profile_id: i64,
@@ -124,6 +133,9 @@ pub async fn textures_for_profile<S: DatabaseRuntimeState>(
     Ok(textures)
 }
 
+/// Builds serialized metadata for every texture bound to the profile,
+/// appending the UUID-derived default skin entry when the skin slot is empty
+/// so clients always see a wearable skin.
 pub async fn texture_metadata_for_profile<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -151,6 +163,9 @@ where
     Ok(metadata)
 }
 
+/// Maps one profile texture binding into [`MinecraftTextureMetadata`],
+/// deriving the texture and preview URLs from the runtime Yggdrasil policy.
+/// Pure projection; no database access.
 pub fn texture_metadata<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -193,6 +208,8 @@ where
     }
 }
 
+/// Builds [`MinecraftTextureMetadata`] for the built-in default skin chosen
+/// from the profile UUID; used as the stand-in entry when no skin is bound.
 pub fn default_skin_metadata<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -231,6 +248,8 @@ where
     })
 }
 
+/// Maps a wardrobe texture asset into [`MinecraftWardrobeTextureMetadata`]
+/// with no library tags attached.
 pub fn wardrobe_texture_metadata<S>(
     state: &S,
     texture: &minecraft_texture::Model,
@@ -241,6 +260,8 @@ where
     wardrobe_texture_metadata_with_tags(state, texture, Vec::new())
 }
 
+/// Same as [`wardrobe_texture_metadata`], with the texture's library tags
+/// rendered into the output.
 pub fn wardrobe_texture_metadata_with_tags<S>(
     state: &S,
     texture: &minecraft_texture::Model,
@@ -293,6 +314,8 @@ fn texture_display_name(texture: &minecraft_texture::Model) -> String {
         .unwrap_or_else(|| texture.hash.chars().take(16).collect())
 }
 
+/// Batch variant of [`wardrobe_texture_metadata_with_tags`]: fetches tags for
+/// all given textures in one query before projecting each one.
 pub async fn wardrobe_texture_metadata_by_texture_ids<S>(
     state: &S,
     textures: &[minecraft_texture::Model],
@@ -318,6 +341,8 @@ where
         .collect())
 }
 
+/// Batch variant of [`public_texture_library_metadata`]; uploader avatars use
+/// the public audience rendering.
 pub async fn public_texture_library_metadata_by_texture_ids<S>(
     state: &S,
     textures: &[minecraft_texture::Model],
@@ -328,6 +353,8 @@ where
     texture_library_metadata_by_texture_ids(state, textures, None).await
 }
 
+/// Batch variant of [`admin_texture_library_metadata`]; uploader avatars point
+/// at the admin avatar API path instead of the self-service one.
 pub async fn admin_texture_library_metadata_by_texture_ids<S>(
     state: &S,
     textures: &[minecraft_texture::Model],
@@ -380,6 +407,8 @@ where
         .collect())
 }
 
+/// Builds the publicly shown [`PublicTextureLibraryTextureMetadata`] for a
+/// library texture, resolving uploader identity and avatar when available.
 pub async fn public_texture_library_metadata<S>(
     state: &S,
     texture: &minecraft_texture::Model,
@@ -390,6 +419,9 @@ where
     texture_library_metadata(state, texture, None).await
 }
 
+/// Like [`public_texture_library_metadata`], but uploader avatars point at
+/// the admin avatar API path (`/admin/avatars/...`) instead of the
+/// self-service profile path.
 pub async fn admin_texture_library_metadata<S>(
     state: &S,
     texture: &minecraft_texture::Model,
@@ -509,6 +541,7 @@ where
     }
 }
 
+/// Maps a tag row into its serialized [`MinecraftTextureTagInfo`] form.
 pub fn texture_tag_info(tag: minecraft_texture_tag::Model) -> MinecraftTextureTagInfo {
     MinecraftTextureTagInfo {
         id: tag.id,

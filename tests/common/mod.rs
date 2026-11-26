@@ -923,6 +923,7 @@ pub fn system_config_model(key: &str, value: &str) -> aster_forge_db::system_con
     }
 }
 
+/// Test helper: Builds an actix test app wired to the given app state.
 #[macro_export]
 macro_rules! create_test_app {
     ($state:expr) => {{
@@ -957,6 +958,7 @@ macro_rules! create_test_app {
     }};
 }
 
+/// Test helper: Asserts an app call ends with the expected HTTP status, covering both success and error responses.
 #[macro_export]
 macro_rules! assert_service_status {
     ($app:expr, $req:expr, $status:expr) => {{
@@ -979,6 +981,7 @@ macro_rules! assert_service_status {
     }};
 }
 
+/// Test helper: Completes first-run setup and returns the admin session token.
 #[macro_export]
 macro_rules! setup_admin {
     ($app:expr) => {{
@@ -1004,6 +1007,7 @@ macro_rules! setup_admin {
     }};
 }
 
+/// Test helper: Registers a user account and returns the activation token response.
 #[macro_export]
 macro_rules! register_user {
     ($app:expr, $username:expr, $email:expr, $password:expr) => {{
@@ -1029,6 +1033,7 @@ macro_rules! register_user {
     }};
 }
 
+/// Test helper: Logs a user in and returns the access token response.
 #[macro_export]
 macro_rules! login_user {
     ($app:expr, $identifier:expr, $password:expr) => {{
@@ -1053,6 +1058,7 @@ macro_rules! login_user {
     }};
 }
 
+/// Test helper: Registers and activates a fresh user, returning the login response.
 #[macro_export]
 macro_rules! register_and_login {
     ($app:expr) => {{
@@ -1088,6 +1094,7 @@ macro_rules! register_and_login {
     }};
 }
 
+/// Test helper: Creates a user as an admin and returns the admin API response.
 #[macro_export]
 macro_rules! admin_create_user {
     ($app:expr, $admin_token:expr, $username:expr, $email:expr, $password:expr) => {{

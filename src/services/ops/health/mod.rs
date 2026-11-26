@@ -9,6 +9,9 @@ use aster_forge_runtime::{
     RuntimeComponentRegistry, SystemHealthReport,
 };
 
+/// Readiness gate: checks database and cache and fails closed on unhealthy
+/// components. A degraded cache is tolerated only for single deployments
+/// that run their own runtime and can fall back to memory.
 pub async fn check_ready<S>(state: &S) -> Result<()>
 where
     S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState + MetricsRuntimeState,
@@ -49,6 +52,8 @@ where
     Ok(())
 }
 
+/// Runs the full diagnostics health scope over every registered component
+/// and records the report as metrics; backs health-check runtime tasks.
 pub async fn run_system_health_checks<S>(state: &S) -> SystemHealthReport
 where
     S: DatabaseRuntimeState + AppConfigRuntimeState + CacheRuntimeState + MetricsRuntimeState,
@@ -74,6 +79,9 @@ where
     report
 }
 
+/// Bundles the core component checks (database, cache) into one registration
+/// for the runtime health registry; callers can compose it with their own
+/// extra components.
 pub fn core_health_component<S>(
     state: &S,
 ) -> RuntimeComponentBundleRegistration<impl RuntimeComponentBundle + use<S>>

@@ -17,7 +17,10 @@ use serde::Deserialize;
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor pagination query for config listing, addressing entries after the
+/// given config ID.
 pub struct ConfigCursorQuery {
+    /// Config ID to start after for the next page.
     pub after_id: Option<i64>,
 }
 
@@ -41,6 +44,7 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     ),
     security(("bearer" = [])),
 )]
+/// Lists all runtime config entries with limit and ID-cursor pagination.
 pub async fn list_config(
     state: web::Data<AppState>,
     query: web::Query<LimitQuery>,
@@ -74,6 +78,8 @@ pub async fn list_config(
     ),
     security(("bearer" = [])),
 )]
+/// Returns the schema of all runtime config keys, including their types,
+/// defaults, and visibility metadata for the admin settings UI.
 pub async fn config_schema() -> Result<HttpResponse> {
     let schema = config::get_schema();
     tracing::debug!(count = schema.len(), "admin loaded config schema");
@@ -92,6 +98,8 @@ pub async fn config_schema() -> Result<HttpResponse> {
     ),
     security(("bearer" = [])),
 )]
+/// Returns the template variable groups available in config-backed templates
+/// such as mail templates.
 pub async fn config_template_variables() -> Result<HttpResponse> {
     let groups = config::list_template_variable_groups()?;
     tracing::debug!(
@@ -115,6 +123,7 @@ pub async fn config_template_variables() -> Result<HttpResponse> {
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single runtime config entry by its key.
 pub async fn get_config(
     state: web::Data<AppState>,
     path: web::Path<String>,
@@ -141,6 +150,8 @@ pub async fn get_config(
     ),
     security(("bearer" = [])),
 )]
+/// Sets the value (and optionally the visibility) of a runtime config key,
+/// validating the new value and recording the change in the audit log.
 pub async fn set_config(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -189,6 +200,8 @@ pub async fn set_config(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes a runtime config entry by key, restoring its default, with an
+/// audit record of the deletion.
 pub async fn delete_config(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -220,6 +233,8 @@ pub async fn delete_config(
     ),
     security(("bearer" = [])),
 )]
+/// Executes a key-specific config action (e.g. sending a test mail), with the
+/// result message and optional value returned to the caller.
 pub async fn execute_config_action(
     state: web::Data<AppState>,
     req: HttpRequest,

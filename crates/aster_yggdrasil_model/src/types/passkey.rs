@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 pub struct StoredPasskeyCredential(pub String);
 
 impl StoredPasskeyCredential {
+    /// Decodes the stored JSON into an inspectable value for read paths.
     pub fn parse(&self) -> serde_json::Result<serde_json::Value> {
         serde_json::from_str(&self.0)
     }
 
+    /// Serializes a credential JSON value into the stored form.
     pub fn from_json(value: &serde_json::Value) -> serde_json::Result<Self> {
         serde_json::to_string(value).map(Self)
     }

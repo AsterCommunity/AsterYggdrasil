@@ -140,6 +140,9 @@ fn callback_path(provider_kind: ExternalAuthProviderKind, provider_key: &str) ->
     )
 }
 
+/// Builds the absolute OAuth2 redirect URI for a provider callback from the
+/// request's scheme and host, falling back to the configured public site URL.
+/// Fails when the resulting URI would be relative.
 pub fn callback_redirect_uri(
     state: &impl SharedRuntimeState,
     req: &actix_web::HttpRequest,

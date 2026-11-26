@@ -13,14 +13,20 @@ impl ConfigValueLookup for RuntimeConfig {
     }
 }
 
+/// Looks up the registry definition for a runtime config key.
 pub fn get_definition(key: &str) -> Option<&'static ConfigDefinition> {
     CONFIG_REGISTRY.get(key)
 }
 
+/// Validates a stored string value against the declared config value type
+/// (boolean, number, string array, enum set, and so on).
 pub fn validate_value_type(value_type: ConfigValueType, value: &str) -> Result<()> {
     aster_forge_config::validate_storage_value(value_type, value).map_err(Into::into)
 }
 
+/// Normalizes a stored runtime config value through its registry definition,
+/// applying key-specific validation (including cross-field rules that may read
+/// sibling keys via `lookup`).
 pub fn normalize_system_value<L>(lookup: &L, key: &str, value: &str) -> Result<String>
 where
     L: ConfigValueLookup,
@@ -30,6 +36,10 @@ where
         .map_err(Into::into)
 }
 
+/// Overlays registry schema metadata (value type, visibility, category,
+/// description, and so on) onto a `system_config` row. Rows whose source is
+/// not `System` are returned untouched so operator-defined custom keys keep
+/// their own metadata.
 pub fn apply_definition(mut config: system_config::Model) -> system_config::Model {
     if config.source != ConfigSource::System {
         return config;

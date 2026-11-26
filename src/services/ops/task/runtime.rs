@@ -15,9 +15,12 @@ use crate::runtime::{DatabaseRuntimeState, RuntimeConfigRuntimeState};
 use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::{BackgroundTaskStatus, StoredTaskPayload};
 
+/// Registry entry for one system runtime task: wire name, display name, and
+/// presentation code bound to its kind.
 pub(crate) type SystemRuntimeTaskDefinition =
     aster_forge_tasks::RuntimeTaskDefinition<SystemRuntimeTaskKind, TaskPresentationCode>;
 
+/// Serializes the stored payload JSON identifying a system runtime task kind.
 pub(crate) fn system_runtime_payload_json(
     task_name: SystemRuntimeTaskKind,
 ) -> Result<StoredTaskPayload> {
@@ -26,6 +29,9 @@ pub(crate) fn system_runtime_payload_json(
     })
 }
 
+/// Finds the most recent background task record for a system runtime task
+/// kind, matching on the stored payload; backs admin views that read the
+/// last run of a maintenance task.
 pub(crate) async fn find_latest_system_runtime_by_task_name(
     state: &impl DatabaseRuntimeState,
     task_name: SystemRuntimeTaskKind,
@@ -35,17 +41,30 @@ pub(crate) async fn find_latest_system_runtime_by_task_name(
         .await
 }
 
+/// Kinds of maintenance work the product's own runtime schedules and runs
+/// through the background task table; each maps to a fixed wire name and
+/// presentation code in the registry below.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SystemRuntimeTaskKind {
+    /// Drives pending background tasks onto workers on a schedule.
     BackgroundTaskDispatch,
+    /// Periodically probes component health and records a report.
     SystemHealthCheck,
+    /// Expires stale auth sessions.
     AuthSessionCleanup,
+    /// Expires stalled external auth login/link flows.
     ExternalAuthFlowCleanup,
+    /// Hands persisted outbox mail to the SMTP sender.
     MailOutboxDispatch,
+    /// Deletes audit log rows past the retention window.
     AuditCleanup,
+    /// Deletes expired task records and their temp artifacts.
     TaskCleanup,
+    /// Expires revoked/stale Yggdrasil access tokens.
     YggdrasilTokenCleanup,
+    /// Reconciles texture records against object storage.
     YggdrasilStorageConsistencyCheck,
+    /// Removes orphaned texture objects left by failed uploads.
     YggdrasilTextureCleanup,
 }
 
@@ -109,23 +128,30 @@ aster_forge_tasks::runtime_task_registry! {
 }
 
 impl SystemRuntimeTaskKind {
+    /// Canonical wire name used in stored payloads (e.g. `system-health-check`).
     pub const fn as_str(self) -> &'static str {
         system_runtime_task_registry::as_str(self)
     }
 
+    /// Human-readable name shown in admin task listings.
     pub const fn display_name(self) -> &'static str {
         system_runtime_task_registry::display_name(self)
     }
 
+    /// Presentation code the admin UI localizes this task's title from.
     pub const fn presentation_code(self) -> TaskPresentationCode {
         system_runtime_task_registry::presentation_code(self)
     }
 
+    /// Resolves a wire name back to a kind; `None` for unknown or legacy
+    /// names from older deployments.
     pub fn from_wire_value(value: &str) -> Option<Self> {
         system_runtime_task_registry::from_wire_value(value)
     }
 }
 
+/// All registered system runtime task definitions in registry order; used by
+/// startup to schedule every known maintenance task.
 pub(crate) fn registered_system_runtime_tasks() -> &'static [SystemRuntimeTaskDefinition] {
     system_runtime_task_registry::DEFINITIONS
 }
@@ -151,24 +177,36 @@ impl std::fmt::Display for SystemRuntimeTaskKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Terminal verdict of one system runtime task run; `Quiet` runs are not
+/// recorded as task records at all.
 pub enum RuntimeTaskRunOutcome {
+    /// Nothing to do; no task record is written for this run.
     Quiet,
+    /// The run completed successfully.
     Succeeded {
+        /// Short human-readable outcome line, when produced.
         summary: Option<String>,
+        /// Health report snapshot, for tasks that check component health.
         system_health: Option<RuntimeSystemHealthResult>,
     },
+    /// The run failed; the task record stores the error.
     Failed {
+        /// Short human-readable outcome line, when produced.
         summary: Option<String>,
+        /// Failure detail stored as the task's last error.
         error: String,
+        /// Health report snapshot, for tasks that check component health.
         system_health: Option<RuntimeSystemHealthResult>,
     },
 }
 
 impl RuntimeTaskRunOutcome {
+    /// Builds the `Quiet` outcome, which suppresses task record creation.
     pub fn quiet() -> Self {
         Self::Quiet
     }
 
+    /// Builds a successful outcome without a health report.
     pub fn succeeded(summary: Option<String>) -> Self {
         Self::Succeeded {
             summary,
@@ -176,6 +214,7 @@ impl RuntimeTaskRunOutcome {
         }
     }
 
+    /// Builds a successful outcome carrying a system health report.
     pub fn succeeded_with_system_health(
         summary: Option<String>,
         system_health: RuntimeSystemHealthResult,
@@ -186,6 +225,7 @@ impl RuntimeTaskRunOutcome {
         }
     }
 
+    /// Builds a failed outcome from an error value.
     pub fn failed(summary: Option<String>, error: impl Into<String>) -> Self {
         Self::Failed {
             summary,
@@ -194,6 +234,7 @@ impl RuntimeTaskRunOutcome {
         }
     }
 
+    /// Builds a failed outcome carrying a system health report.
     pub fn failed_with_system_health(
         summary: Option<String>,
         error: impl Into<String>,
@@ -241,6 +282,11 @@ impl RuntimeTaskRunOutcome {
     }
 }
 
+/// Persists one system runtime task run as a background task record so admins
+/// can see when maintenance last ran and what it did. Quiet runs produce no
+/// record; consecutive healthy system-health-check runs refresh the latest
+/// succeeded record in place instead of stacking duplicates. Returns the
+/// stored record, or `None` for quiet runs.
 pub async fn record_runtime_task_run(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState),
     task_name: SystemRuntimeTaskKind,
@@ -259,6 +305,9 @@ pub async fn record_runtime_task_run(
     .await
 }
 
+/// [`record_runtime_task_run`] for scheduler-triggered runs: derives a dedupe
+/// key from the scheduled slot so a re-delivered schedule tick cannot create
+/// duplicate task records.
 pub async fn record_scheduled_runtime_task_run(
     state: &(impl DatabaseRuntimeState + RuntimeConfigRuntimeState),
     task_name: SystemRuntimeTaskKind,

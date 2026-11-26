@@ -45,6 +45,9 @@ where
     Ok(user)
 }
 
+/// Changes a user's password after verifying the current one: rehashes the
+/// new password, bumps the session version, and revokes all sessions so other
+/// devices must re-authenticate.
 pub async fn change_password<S>(
     state: &S,
     user_id: i64,
@@ -66,6 +69,7 @@ where
     local::auth_user_info(state, updated).await
 }
 
+/// [`change_password`] plus a user audit entry attributed to the request.
 pub async fn change_password_with_audit<S>(
     state: &S,
     req: &HttpRequest,

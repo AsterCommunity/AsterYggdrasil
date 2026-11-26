@@ -10,10 +10,13 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::MailRuntimeState;
 use aster_forge_mail::{MailDeliveryError, MailRecipient, MailSender, RenderedMail};
 
+/// SMTP sender that re-reads mail settings from the runtime config on every
+/// use, so config changes apply without rebuilding the sender.
 pub fn runtime_sender(runtime_config: Arc<RuntimeConfig>) -> Arc<dyn MailSender> {
     aster_forge_mail::smtp_sender(move || mail::runtime_mail_settings(&runtime_config))
 }
 
+/// Sends an already-rendered message through the runtime's mail sender.
 pub async fn send_rendered(
     state: &impl MailRuntimeState,
     to: MailRecipient,
@@ -22,6 +25,9 @@ pub async fn send_rendered(
     send_rendered_with(state.runtime_config(), state.mail_sender(), to, rendered).await
 }
 
+/// [`send_rendered`] against explicit config/sender dependencies; maps
+/// delivery errors onto the app error taxonomy (not configured, invalid
+/// message, config, delivery, internal).
 pub async fn send_rendered_with(
     runtime_config: &RuntimeConfig,
     mail_sender: &Arc<dyn MailSender>,
@@ -34,6 +40,8 @@ pub async fn send_rendered_with(
         .map_err(map_mail_delivery_error)
 }
 
+/// Sends the SMTP connectivity test email reporting the trigger, UTC
+/// timestamp, and configured public site URL; bypasses the outbox.
 pub async fn send_test_email(
     state: &impl MailRuntimeState,
     email: &str,
@@ -68,6 +76,8 @@ pub async fn send_test_email(
     .await
 }
 
+/// Generates a fresh `cv_`-prefixed verification token; only its SHA-256
+/// hash is ever stored server-side.
 pub fn build_verification_token() -> String {
     format!("cv_{}", aster_forge_utils::id::new_short_token())
 }

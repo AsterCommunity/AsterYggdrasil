@@ -19,6 +19,9 @@ pub use texture::{delete_texture, forwarded_texture_by_hash, texture_by_hash, up
 
 const YGGDRASIL_METADATA_CACHE_CONTROL: &str = "no-cache, no-store, must-revalidate";
 
+/// Registers the Yggdrasil/authlib-injector protocol endpoints: service
+/// metadata, authserver token lifecycle, sessionserver join/hasJoined/profile
+/// lookup, texture upload/read, and minecraftservices.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("", web::get().to(metadata))
         .route("/", web::get().to(metadata))
@@ -89,6 +92,8 @@ async fn yggdrasil_not_found(req: HttpRequest) -> HttpResponse {
         (status = 200, description = "authlib-injector Yggdrasil service metadata", body = aster_yggdrasil_protocol::YggdrasilMetaResp),
     ),
 )]
+/// Serves the authlib-injector service metadata document describing this
+/// server's endpoint URLs and capabilities, marked must-revalidate.
 pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
     tracing::debug!("serving yggdrasil metadata");
     HttpResponse::Ok()
@@ -108,6 +113,9 @@ pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
         (status = 403, description = "Invalid credentials or forbidden profile", body = YggdrasilErrorBody),
     ),
 )]
+/// Authenticates a player by name and password (`authserver/authenticate`),
+/// returning a Yggdrasil access token and the account's available profiles;
+/// per-username rate limited.
 pub async fn authenticate(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -170,6 +178,8 @@ pub async fn authenticate(
         (status = 403, description = "Invalid or forbidden token", body = YggdrasilErrorBody),
     ),
 )]
+/// Renews a Yggdrasil access token with its client token
+/// (`authserver/refresh`), optionally switching the selected profile.
 pub async fn refresh(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -220,6 +230,8 @@ pub async fn refresh(
         (status = 403, description = "Invalid token", body = YggdrasilErrorBody),
     ),
 )]
+/// Checks whether a Yggdrasil access token is still usable
+/// (`authserver/validate`), answering 204 when it is.
 pub async fn validate(
     state: web::Data<AppState>,
     body: web::Json<YggdrasilTokenReq>,
@@ -263,6 +275,8 @@ pub async fn validate(
         (status = 403, description = "Invalid token", body = YggdrasilErrorBody),
     ),
 )]
+/// Revokes one Yggdrasil access token (`authserver/invalidate`), succeeding
+/// even when the token is already unusable.
 pub async fn invalidate(
     state: web::Data<AppState>,
     body: web::Json<YggdrasilTokenReq>,
@@ -306,6 +320,8 @@ pub async fn invalidate(
         (status = 403, description = "Invalid credentials", body = YggdrasilErrorBody),
     ),
 )]
+/// Revokes all Yggdrasil tokens for an account using name and password instead
+/// of a token (`authserver/signout`); per-username rate limited.
 pub async fn signout(
     state: web::Data<AppState>,
     body: web::Json<YggdrasilSignoutReq>,
@@ -353,6 +369,8 @@ pub async fn signout(
         (status = 400, description = "Invalid profile name or too many names", body = YggdrasilErrorBody),
     ),
 )]
+/// Resolves a batch of Minecraft profile names to their Yggdrasil profiles
+/// (`api/profiles/minecraft`), rejecting invalid or oversized batches.
 pub async fn profiles_by_names(
     state: web::Data<AppState>,
     body: web::Json<Vec<String>>,
@@ -393,6 +411,8 @@ pub async fn profiles_by_names(
         (status = 403, description = "Invalid token or forbidden profile", body = YggdrasilErrorBody),
     ),
 )]
+/// Records a server join attempt for an access token and selected profile
+/// (`sessionserver/join`) so a later `hasJoined` check can verify it.
 pub async fn join(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -439,6 +459,8 @@ pub async fn join(
         (status = 400, description = "Invalid request", body = YggdrasilErrorBody),
     ),
 )]
+/// Verifies a client's join for a game server (`sessionserver/hasJoined`),
+/// returning the profile when a matching join record exists or 204 otherwise.
 pub async fn has_joined(
     state: web::Data<AppState>,
     req: actix_web::HttpRequest,
@@ -500,6 +522,9 @@ pub async fn has_joined(
         (status = 400, description = "Invalid UUID or query parameter", body = YggdrasilErrorBody),
     ),
 )]
+/// Returns a Minecraft profile with its texture properties by UUID
+/// (`sessionserver/profile/{uuid}`), omitting signatures when `unsigned=true`
+/// and answering 204 when the profile is unknown.
 pub async fn profile_by_uuid(
     state: web::Data<AppState>,
     path: web::Path<String>,

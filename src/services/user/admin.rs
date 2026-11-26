@@ -30,72 +30,127 @@ const GENERATED_PASSWORD_CHARSET: &[u8] =
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Administrator-facing view of a user account with hydrated activity
+/// summaries.
 pub struct AdminUserInfo {
+    /// User identifier.
     pub id: i64,
+    /// Account username.
     pub username: String,
+    /// Normalized account email.
     pub email: String,
+    /// Email awaiting verification before replacing the current one.
     pub pending_email: Option<String>,
+    /// Account role (`user`, `operator` or `admin`).
     pub role: UserRole,
+    /// Scoped permissions; populated only for operators.
     pub operator_scopes: Vec<OperatorScope>,
+    /// Account status (`active` or `disabled`).
     pub status: UserStatus,
+    /// Whether the next login must set a new password.
     pub must_change_password: bool,
+    /// Monotonic counter bumped to invalidate previously issued sessions.
     pub session_version: i64,
+    /// Number of Minecraft profiles owned by the user.
     pub profile_count: u64,
+    /// Number of currently active auth sessions.
     pub active_session_count: u64,
+    /// Display profile summary including the avatar for admin viewing.
     pub profile: UserProfileInfo,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
+    /// Time the email address was verified, if it has been.
     pub email_verified_at: Option<chrono::DateTime<chrono::Utc>>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Account creation time.
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Account last-update time.
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Result of creating a user; carries the one-time temporary password when
+/// the server generated one, omitted from serialization otherwise.
 pub struct CreateAdminUserOutput {
+    /// The newly created account view.
     pub user: AdminUserInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Plaintext temporary password shown exactly once, only when no
+    /// password was supplied in the request.
     pub generated_password: Option<String>,
 }
 
 #[derive(Debug, Clone)]
+/// Payload for creating a user account from the admin panel.
 pub struct AdminCreateUserInput {
+    /// Username; trimmed and validated before insert.
     pub username: String,
+    /// Email; normalized before insert.
     pub email: String,
+    /// Initial password; when blank or omitted a temporary password is
+    /// generated and `must_change_password` is forced on.
     pub password: Option<String>,
+    /// Requested role; supplying operator scopes downgrades an `admin`
+    /// request to an operator with those scopes.
     pub role: UserRole,
+    /// Requested operator scopes; ignored (cleared) for plain users.
     pub operator_scopes: Option<Vec<OperatorScope>>,
+    /// Initial account status.
     pub status: UserStatus,
+    /// Force a password change at next login; forced on when the server
+    /// generated the password.
     pub must_change_password: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Summary of everything removed alongside a deleted user account.
 pub struct DeleteAdminUserOutput {
+    /// Snapshot of the account just before deletion.
     pub user: AdminUserInfo,
+    /// Number of Minecraft profiles removed.
     pub deleted_profile_count: usize,
+    /// Number of profile-bound texture records and blobs removed.
     pub deleted_profile_texture_count: usize,
+    /// Number of wardrobe texture records and blobs removed.
     pub deleted_wardrobe_texture_count: usize,
+    /// Number of auth sessions revoked.
     pub revoked_session_count: u64,
+    /// Number of Yggdrasil access tokens revoked.
     pub revoked_yggdrasil_token_count: u64,
 }
 
 #[derive(Debug, Clone)]
+/// Payload for partially updating a user account; omitted fields keep their
+/// current value. Role, status and operator scopes of the super administrator
+/// are immutable.
 pub struct AdminUpdateUserInput {
+    /// Replacement username.
     pub username: Option<String>,
+    /// Replacement email.
     pub email: Option<String>,
+    /// Replacement password; changing it invalidates existing sessions.
     pub password: Option<String>,
+    /// Replacement role; supplying operator scopes downgrades an `admin`
+    /// request to an operator with those scopes.
     pub role: Option<UserRole>,
+    /// Replacement operator scopes applied wholesale when provided.
     pub operator_scopes: Option<Vec<OperatorScope>>,
+    /// Replacement status; disabling the account invalidates its sessions.
     pub status: Option<UserStatus>,
+    /// Force a password change at next login.
     pub must_change_password: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
+/// Optional filters narrowing the admin user listing.
 pub struct AdminUserListFilters {
+    /// Keyword matched against account identity fields.
     pub keyword: Option<String>,
+    /// Restrict the listing to this role.
     pub role: Option<UserRole>,
+    /// Restrict the listing to this status.
     pub status: Option<UserStatus>,
 }
 
@@ -189,6 +244,9 @@ fn validate_identity_input(username: &str, email: &str, password: &str) -> Resul
     Ok(email)
 }
 
+/// Returns a cursor-paged listing of accounts with optional keyword, role and
+/// status filters; each item is hydrated with profile counts, active session
+/// counts, operator scopes and profile summaries.
 pub async fn list_users<S>(
     state: &S,
     limit: u64,
@@ -238,6 +296,8 @@ where
     ))
 }
 
+/// Loads a single account by id with the same hydrated summaries as the
+/// listing.
 pub async fn get_user<S>(state: &S, id: i64) -> Result<AdminUserInfo>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
@@ -251,6 +311,10 @@ where
         .ok_or_else(|| AsterError::internal_error("admin user hydration returned no item"))
 }
 
+/// Creates an account, generating and returning a temporary password when
+/// none is supplied (forcing a password change at next login), normalizing
+/// the role against the requested operator scopes, and persisting operator
+/// scopes transactionally.
 pub async fn create_user<S>(state: &S, input: AdminCreateUserInput) -> Result<CreateAdminUserOutput>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
@@ -315,6 +379,10 @@ where
     })
 }
 
+/// Applies a partial update to an account after rejecting protected changes
+/// to the super administrator; password changes, disabling and forced password
+/// resets bump the session version so previously issued sessions stop
+/// refreshing.
 pub async fn update_user<S>(
     state: &S,
     id: i64,
@@ -404,6 +472,8 @@ where
         .ok_or_else(|| AsterError::internal_error("updated admin user hydration returned no item"))
 }
 
+/// Revokes every active auth session for the account and bumps its session
+/// version, returning the number of sessions removed.
 pub async fn revoke_user_sessions<S>(state: &S, user_id: i64) -> Result<u64>
 where
     S: DatabaseRuntimeState,
@@ -416,6 +486,10 @@ where
     Ok(removed)
 }
 
+/// Deletes an account together with all dependent state: uploaded avatar,
+/// Minecraft profiles and their textures, wardrobe textures, auth sessions
+/// and Yggdrasil tokens (with cache invalidation). The super administrator
+/// cannot be deleted.
 pub async fn delete_user<S>(state: &S, user_id: i64) -> Result<DeleteAdminUserOutput>
 where
     S: CacheRuntimeState

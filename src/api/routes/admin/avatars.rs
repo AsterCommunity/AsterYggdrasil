@@ -23,6 +23,8 @@ use actix_web::{HttpRequest, HttpResponse, web};
     ),
     security(("bearer" = [])),
 )]
+/// Serves a user's avatar image (WebP) at the requested size with
+/// conditional-request caching, for administrative inspection.
 pub async fn get_user_avatar(
     state: web::Data<AppState>,
     req: HttpRequest,

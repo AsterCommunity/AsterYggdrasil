@@ -11,22 +11,34 @@ use crate::types::audit::AuditAction;
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(as = AuditLogModel))]
 #[sea_orm(table_name = "audit_logs")]
+/// Persisted audit trail entry for security-relevant actions.
 pub struct Model {
+    /// Auto-incrementing primary key.
     #[sea_orm(primary_key)]
     pub id: i64,
+    /// Acting user id; `0` is the reserved system actor for background and startup events.
     pub user_id: i64,
+    /// What happened, from the fixed product audit action set.
     pub action: AuditAction,
+    /// Kind of object the action targeted (for example `user` or `minecraft_texture`).
     pub entity_type: String,
+    /// Numeric id of the targeted object, when it has one.
     pub entity_id: Option<i64>,
+    /// Human-readable name of the targeted object captured at action time.
     pub entity_name: Option<String>,
+    /// Action-specific detail payload stored as serialized text.
     pub details: Option<String>,
+    /// Client IP (truncated to 45 bytes) when one could be resolved.
     pub ip_address: Option<String>,
+    /// Client User-Agent header (truncated to 512 bytes) when present.
     pub user_agent: Option<String>,
+    /// When the action was recorded.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// No foreign-key relations; audit rows are standalone.
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -14,38 +14,72 @@ use crate::types::{
 #[derive(Clone, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[sea_orm(table_name = "external_auth_providers")]
+/// Administrator-defined external authentication provider (OIDC or OAuth2).
 pub struct Model {
+    /// Auto-incrementing primary key.
     #[sea_orm(primary_key)]
     pub id: i64,
+    /// URL-safe identifier used in routes and references; unique per provider kind.
     pub key: String,
+    /// Name shown on the sign-in button.
     pub display_name: String,
+    /// Logo shown next to the provider name on sign-in pages.
     pub icon_url: Option<String>,
+    /// Provider family with built-in driver support (`oidc`, `generic_oauth2`, `github`,
+    /// `google`, `microsoft`, `qq`).
     pub provider_kind: ExternalAuthProviderKind,
+    /// Protocol dialect used to talk to the provider (`oidc` or `oauth2`).
     pub protocol: ExternalAuthProtocol,
+    /// Provider-kind specific options (for example the Microsoft tenant) stored as JSON text;
+    /// redacted from debug output.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub options: StoredExternalAuthProviderOptions,
+    /// OIDC issuer used for discovery; `None` for providers configured by explicit endpoints.
     pub issuer_url: Option<String>,
+    /// Explicit authorization endpoint override; `None` to rely on discovery or provider defaults.
     pub authorization_url: Option<String>,
+    /// Explicit token endpoint override; `None` to rely on discovery or provider defaults.
     pub token_url: Option<String>,
+    /// Explicit userinfo endpoint override; `None` to rely on discovery or provider defaults.
     pub userinfo_url: Option<String>,
+    /// OAuth client id registered at the provider.
     pub client_id: String,
+    /// OAuth client secret; stored for server-side token exchange, never serialized
+    /// to clients and redacted from debug output.
     #[serde(skip_serializing)]
     pub client_secret: Option<String>,
+    /// Space-separated scope list requested during authorization.
     pub scopes: String,
+    /// Whether the provider is offered on sign-in pages.
     pub enabled: bool,
+    /// Whether a first-time sign-in creates a local account automatically.
     pub auto_provision_enabled: bool,
+    /// Whether a first-time sign-in with an email matching a verified local account
+    /// links to that account automatically.
     pub auto_link_verified_email_enabled: bool,
+    /// Whether sign-in is refused when the provider does not report the email as verified.
     pub require_email_verified: bool,
+    /// Claim name holding the stable subject id; `None` uses the protocol default.
     pub subject_claim: Option<String>,
+    /// Claim name mapped to the local username suggestion; `None` uses the default.
     pub username_claim: Option<String>,
+    /// Claim name mapped to the display name; `None` uses the default.
     pub display_name_claim: Option<String>,
+    /// Claim name mapped to the email; `None` uses the default.
     pub email_claim: Option<String>,
+    /// Claim name reporting email verification; `None` uses the default.
     pub email_verified_claim: Option<String>,
+    /// Claim name holding group memberships; `None` skips group extraction.
     pub groups_claim: Option<String>,
+    /// Claim name holding the avatar URL; `None` skips avatar extraction.
     pub avatar_url_claim: Option<String>,
+    /// Email domains allowed to sign in through this provider, stored as a JSON array
+    /// string; `None` or empty allows all domains.
     pub allowed_domains: Option<String>,
+    /// When the provider configuration was created.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: DateTimeUtc,
+    /// When the provider configuration was last modified.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub updated_at: DateTimeUtc,
 }
@@ -92,11 +126,15 @@ impl fmt::Debug for Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+/// Relations from a provider to the flows and identities it created.
 pub enum Relation {
+    /// Email verification flows started through this provider.
     #[sea_orm(has_many = "super::external_auth_email_verification_flow::Entity")]
     ExternalAuthEmailVerificationFlows,
+    /// External identities linked through this provider.
     #[sea_orm(has_many = "super::external_auth_identity::Entity")]
     ExternalAuthIdentities,
+    /// Login flows currently or previously running against this provider.
     #[sea_orm(has_many = "super::external_auth_login_flow::Entity")]
     ExternalAuthLoginFlows,
 }

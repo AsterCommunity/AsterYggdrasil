@@ -12,43 +12,70 @@ use sea_orm::DatabaseConnection;
 
 use super::state::AppState;
 
+/// Exposes the database connections carried by runtime state. Implemented by
+/// [`AppState`]; services and repositories accept this trait instead of the
+/// concrete state so tests can supply minimal stand-ins.
 pub trait DatabaseRuntimeState {
+    /// Primary database connection used for writes.
     fn writer_db(&self) -> &DatabaseConnection;
+    /// Read-preferred connection; falls back to the writer when no replica
+    /// is configured.
     fn reader_db(&self) -> &DatabaseConnection;
 }
 
+/// Exposes the static, file/CLI-loaded configuration.
 pub trait AppConfigRuntimeState {
+    /// Immutable process-lifetime configuration.
     fn config(&self) -> &Arc<Config>;
 }
 
+/// Exposes the database-backed runtime configuration.
 pub trait RuntimeConfigRuntimeState {
+    /// Hot-reloaded runtime configuration shared across processes.
     fn runtime_config(&self) -> &Arc<RuntimeConfig>;
 }
 
+/// Exposes the cross-process runtime configuration change propagation runtime.
 pub trait ConfigSyncRuntimeState {
+    /// Config sync runtime this state participates in.
     fn config_sync(&self) -> &ConfigSyncRuntime;
 }
 
+/// Exposes the selected cache backend.
 pub trait CacheRuntimeState {
+    /// Cache backend (memory, noop, or Redis per static config).
     fn cache(&self) -> &Arc<dyn CacheBackend>;
 }
 
+/// Exposes the object storage handle for Minecraft texture files.
 pub trait TextureStorageRuntimeState {
+    /// Texture object storage backend selected at startup.
     fn texture_storage(&self) -> &Arc<dyn TextureStore>;
 }
 
+/// Exposes the shared metrics recorder.
 pub trait MetricsRuntimeState {
+    /// Recorder every instrumented component reports through.
     fn metrics(&self) -> &SharedMetricsRecorder;
 }
 
+/// Exposes the buffered asynchronous audit log writer.
 pub trait AuditRuntimeState {
+    /// Audit writer all audit admissions go through.
     fn audit_writer(&self) -> &Arc<aster_forge_audit::AuditWriter>;
 }
 
+/// Capability for driving Yggdrasil session-forward upstream calls.
+/// Requires the full shared state because forwarding depends on several
+/// components at once.
 pub trait YggdrasilSessionForwardRuntimeState: SharedRuntimeState {
+    /// Outbound HTTP client dedicated to session forwarding.
     fn yggdrasil_session_forward_http_client(&self) -> &aster_forge_http::HttpClient;
 }
 
+/// Composite capability bound covering the core runtime components. Any type
+/// implementing all seven member traits implements this automatically, so
+/// services can demand "the standard runtime state" with one bound.
 pub trait SharedRuntimeState:
     DatabaseRuntimeState
     + AppConfigRuntimeState
@@ -71,11 +98,16 @@ impl<T> SharedRuntimeState for T where
 {
 }
 
+/// Capability for sending mail through the runtime-configured sender.
 pub trait MailRuntimeState: SharedRuntimeState {
+    /// Outbound mail client built from runtime SMTP configuration.
     fn mail_sender(&self) -> &Arc<dyn MailSender>;
 }
 
+/// Capability for participating in background task dispatch.
 pub trait TaskRuntimeState: SharedRuntimeState {
+    /// Wakes the dispatcher loop so freshly enqueued tasks run without
+    /// waiting for the next polling tick.
     fn wake_background_task_dispatcher(&self);
 }
 

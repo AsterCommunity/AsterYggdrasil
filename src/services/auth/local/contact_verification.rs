@@ -25,9 +25,14 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Result of consuming a contact verification link.
 pub struct ContactVerificationConfirmResult {
+    /// Purpose the consumed token was issued for (register activation or
+    /// contact change).
     pub purpose: VerificationPurpose,
+    /// Account the token was issued to.
     pub user_id: i64,
+    /// Address the token targets (current or pending email).
     pub target: String,
 }
 
@@ -57,10 +62,19 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Internal result of a password reset request; the route layer replies
+/// identically regardless of whether the account exists (anti-enumeration).
 pub struct PasswordResetRequestResult {
+    /// Account info for audit logging when a reset email was sent (or the
+    /// request hit the resend cooldown); `None` when the address is unknown,
+    /// the account is ineligible, and no email went out.
     pub user: Option<AuthUserInfo>,
 }
 
+/// Starts an email change: validates and reserves the new address
+/// (`pending_email`), issues a contact-change token for it, and enqueues the
+/// confirmation email. The address only becomes the account email after
+/// confirmation.
 pub async fn request_email_change<S>(
     state: &S,
     user_id: i64,
@@ -134,6 +148,8 @@ where
     auth_user_info(state, user).await
 }
 
+/// Re-enqueues the confirmation email for an in-flight email change. Returns
+/// `None` (without sending) when the resend cooldown has not elapsed.
 pub async fn resend_email_change<S>(state: &S, user_id: i64) -> Result<Option<AuthUserInfo>>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
@@ -190,6 +206,9 @@ where
     auth_user_info(state, user).await.map(Some)
 }
 
+/// Emails a password reset link when the address belongs to an active,
+/// verified account; honors the password reset request cooldown. Callers must
+/// present a uniform response so account existence is not revealed.
 pub async fn request_password_reset<S>(state: &S, email: &str) -> Result<PasswordResetRequestResult>
 where
     S: DatabaseRuntimeState + RuntimeConfigRuntimeState,
@@ -234,6 +253,9 @@ where
     })
 }
 
+/// Consumes a single-use password reset token, sets the new password
+/// (bumping the session version so old tokens go stale), and enqueues a
+/// reset notice to the account email.
 pub async fn confirm_password_reset<S>(
     state: &S,
     token: &str,
@@ -301,15 +323,26 @@ where
 }
 
 #[derive(Debug, Clone)]
+/// Outcome of an activation-email resend; distinguishes the reasons a resend
+/// was skipped so the route layer can pick status codes without guessing.
 pub enum RegisterActivationResendOutcome {
+    /// Activation email was queued for the pending account.
     Sent(AuthUserInfo),
+    /// No account matches the identifier.
     EmailNotFound,
+    /// The account's email is already verified; nothing to resend.
     AlreadyActive,
+    /// The account exists but is disabled.
     AccountDisabled,
+    /// A token was issued recently; the resend cooldown has not elapsed.
     Cooldown,
+    /// The account email is rejected by the local email policy.
     EmailPolicyRejected,
 }
 
+/// Resends the registration activation email for an unverified account,
+/// subject to the resend cooldown and local email policy; never creates or
+/// mutates the account.
 pub async fn resend_register_activation<S>(
     state: &S,
     identifier: &str,
@@ -367,6 +400,10 @@ where
     )))
 }
 
+/// Consumes a single-use contact verification token. Register activation
+/// marks the account email verified; contact change promotes the pending
+/// email to the account email (and notifies the old address). Password-reset
+/// tokens are rejected here; they go through [`confirm_password_reset`].
 pub async fn confirm_contact_verification<S>(
     state: &S,
     token: &str,
@@ -482,6 +519,8 @@ where
     })
 }
 
+/// Deletes consumed and expired contact verification tokens. Returns the
+/// number of rows removed; intended for the cleanup task.
 pub async fn cleanup_expired_contact_verification_tokens<S: DatabaseRuntimeState>(
     state: &S,
 ) -> Result<u64> {

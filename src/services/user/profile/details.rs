@@ -26,6 +26,8 @@ fn normalize_display_name(value: &str) -> Result<Option<String>> {
     Ok(Some(trimmed.to_string()))
 }
 
+/// Loads the display profile for one account, resolving avatar URLs for the
+/// requested audience.
 pub async fn get_profile_info<S>(
     state: &S,
     user: &user::Model,
@@ -50,6 +52,9 @@ where
     ))
 }
 
+/// Updates the display name after trimming and length validation (empty
+/// input clears it, more than 64 characters is rejected); a `None` input is
+/// a no-op that only reads the current profile.
 pub async fn update_profile<S>(
     state: &S,
     user_id: i64,

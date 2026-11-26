@@ -1,5 +1,6 @@
 //! Runtime startup assembly.
 
+/// Startup phases shared by every serve role.
 pub mod common;
 
 #[cfg(test)]

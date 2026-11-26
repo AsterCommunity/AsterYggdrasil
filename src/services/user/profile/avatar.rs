@@ -22,7 +22,10 @@ use super::shared::{
     AVATAR_SIZE_LG, AVATAR_SIZE_SM, default_profile_active_model, stored_avatar_prefix,
 };
 
+/// Cache header served with uploaded avatars; URLs embed the avatar version,
+/// so content can be treated as immutable.
 pub const AVATAR_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
+/// Content type of the processed avatar variants stored on upload.
 pub const AVATAR_CONTENT_TYPE: &str = "image/webp";
 
 async fn put_avatar_bytes<S: TextureStorageRuntimeState>(
@@ -48,6 +51,10 @@ async fn put_avatar_bytes<S: TextureStorageRuntimeState>(
     Ok(())
 }
 
+/// Stores an uploaded avatar: the image is processed into small and large
+/// WebP variants, both written to object storage, the profile is pointed at
+/// the new version, and superseded upload objects are removed; newly written
+/// objects are cleaned up when any step fails.
 pub async fn upload_avatar<S>(
     state: &S,
     user_id: i64,
@@ -133,6 +140,10 @@ where
     ))
 }
 
+/// Switches the avatar source to `none` or `gravatar`; the `upload` source
+/// is rejected here because it requires a payload through the upload
+/// endpoint. Switching away from uploads removes the stored objects and
+/// bumps the avatar version for cache busting.
 pub async fn set_avatar_source<S>(
     state: &S,
     user_id: i64,
@@ -216,6 +227,9 @@ fn validate_avatar_size(size: u32) -> Result<u32> {
     }
 }
 
+/// Reads the stored avatar bytes for one of the supported sizes (512 or
+/// 1024); errors with 404 when the account has no profile, no uploaded
+/// avatar, or the stored object is missing.
 pub async fn get_avatar_bytes<S>(state: &S, user_id: i64, size: u32) -> Result<Vec<u8>>
 where
     S: DatabaseRuntimeState + TextureStorageRuntimeState,
@@ -285,6 +299,8 @@ where
     Ok(bytes)
 }
 
+/// Removes any stored uploaded avatar objects for the account; used on
+/// account deletion and source switches that leave uploads behind.
 pub async fn delete_uploaded_avatar_for_user<S>(state: &S, user_id: i64) -> Result<()>
 where
     S: DatabaseRuntimeState + TextureStorageRuntimeState,

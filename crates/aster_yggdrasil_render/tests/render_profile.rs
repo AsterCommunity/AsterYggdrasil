@@ -1,3 +1,4 @@
+//! Integration renders of the profile preview engine against fixture skins.
 use std::time::{Duration, Instant};
 
 use aster_yggdrasil_render::{

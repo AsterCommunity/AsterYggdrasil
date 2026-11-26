@@ -40,6 +40,7 @@ pub enum Profile {
 }
 
 impl Profile {
+    /// Stable wire/config name of the outbound purpose.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SessionForward => "session_forward",
@@ -47,6 +48,8 @@ impl Profile {
     }
 }
 
+/// Builder for one outbound client bound to a purpose [`Profile`]. Defaults
+/// come from the profile; callers may only narrow the policy from there.
 pub struct ClientConfig {
     profile: Profile,
     user_agent: String,
@@ -91,56 +94,67 @@ impl ClientConfig {
         self
     }
 
+    /// Overrides the profile's connect timeout for this client.
     pub fn connect_timeout(mut self, value: Duration) -> Self {
         self.connect_timeout = value;
         self
     }
 
+    /// Overrides the profile's per-read timeout for this client.
     pub fn read_timeout(mut self, value: Duration) -> Self {
         self.read_timeout = Some(value);
         self
     }
 
+    /// Overrides the profile's whole-request timeout for this client.
     pub fn timeout(mut self, value: Duration) -> Self {
         self.timeout = Some(value);
         self
     }
 
+    /// Disables the per-read timeout, whatever the profile set.
     pub fn without_read_timeout(mut self) -> Self {
         self.read_timeout = None;
         self
     }
 
+    /// Disables the whole-request timeout, whatever the profile set.
     pub fn without_total_timeout(mut self) -> Self {
         self.timeout = None;
         self
     }
 
+    /// Forces direct connections, ignoring system proxy settings.
     pub fn no_proxy(mut self) -> Self {
         self.proxy = ProxyPolicy::Disabled;
         self
     }
 
+    /// Replaces system proxy discovery with an explicit proxy configuration.
     pub fn proxy(mut self, proxy: reqwest::Proxy) -> Self {
         self.proxy = ProxyPolicy::Explicit(Box::new(proxy));
         self
     }
 
+    /// Adds a trust-anchor certificate used in addition to the system roots.
     pub fn add_root_certificate(mut self, certificate: reqwest::Certificate) -> Self {
         self.roots.push(certificate);
         self
     }
 
+    /// Pins `host` to the given addresses, skipping DNS resolution.
     pub fn resolve_to_addrs(mut self, host: &str, addrs: &[SocketAddr]) -> Self {
         self.pinned = Some((host.to_owned(), addrs.to_vec()));
         self
     }
 
+    /// Attaches an HTTP observer for telemetry on this client's requests.
     pub fn observer(mut self, observer: Arc<dyn HttpObserver>) -> Self {
         self.observer = Some(observer);
         self
     }
 
+    /// Builds the client, validating policy before any request is sent.
     pub fn build(self) -> Result<HttpClient, reqwest::Error> {
         let mut builder = HttpClient::builder()
             .user_agent(self.user_agent)

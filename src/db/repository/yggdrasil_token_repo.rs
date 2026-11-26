@@ -9,17 +9,27 @@ use sea_orm::{
 };
 use std::collections::HashSet;
 
+/// Input for issuing a new Yggdrasil access token record.
 pub struct CreateYggdrasilToken<'a> {
+    /// Owning user account.
     pub user_id: i64,
+    /// SHA-style digest of the access token; the plaintext token is never stored.
     pub access_token_hash: &'a str,
+    /// Client token presented by the launcher for this session.
     pub client_token: &'a str,
+    /// Profile currently selected by the token, when one was chosen at authentication.
     pub selected_profile_id: Option<i64>,
+    /// Issue instant.
     pub issued_at: DateTime<Utc>,
+    /// Expiry instant after which the token is unusable.
     pub expires_at: DateTime<Utc>,
+    /// Launcher User-Agent recorded for auditing.
     pub user_agent: Option<String>,
+    /// Client IP recorded for auditing.
     pub ip_address: Option<String>,
 }
 
+/// Inserts a new Yggdrasil token row in fully valid state.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     input: CreateYggdrasilToken<'_>,
@@ -42,6 +52,10 @@ pub async fn create<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Looks up a token by its access token hash.
+///
+/// Returns `None` when no token with that hash exists; revocation and expiry are not filtered
+/// here and must be checked by the caller.
 pub async fn find_by_access_hash<C: ConnectionTrait>(
     db: &C,
     access_token_hash: &str,
@@ -53,6 +67,10 @@ pub async fn find_by_access_hash<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists access token hashes of a user's unrevoked tokens, including temporarily invalidated
+/// and expired-but-not-pruned ones.
+///
+/// Used for cache invalidation when tokens are revoked en masse.
 pub async fn list_active_hashes_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -69,6 +87,9 @@ pub async fn list_active_hashes_for_user<C: ConnectionTrait>(
         .collect())
 }
 
+/// Lists access token hashes of unrevoked tokens currently selecting a given profile.
+///
+/// Used to invalidate cached profile data bound to those tokens.
 pub async fn list_active_hashes_for_selected_profile<C: ConnectionTrait>(
     db: &C,
     selected_profile_id: i64,
@@ -85,6 +106,7 @@ pub async fn list_active_hashes_for_selected_profile<C: ConnectionTrait>(
         .collect())
 }
 
+/// Counts fully usable tokens: not revoked, not temporarily invalidated, and unexpired.
 pub async fn count_active<C: ConnectionTrait>(db: &C) -> Result<u64> {
     YggdrasilToken::find()
         .filter(yggdrasil_token::Column::RevokedAt.is_null())
@@ -95,6 +117,10 @@ pub async fn count_active<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Revokes the token with the given access hash.
+///
+/// Returns `true` on transition, `false` when the hash is unknown or the token was already
+/// revoked (idempotent).
 pub async fn revoke_by_access_hash<C: ConnectionTrait>(
     db: &C,
     access_token_hash: &str,
@@ -115,11 +141,19 @@ pub async fn revoke_by_access_hash<C: ConnectionTrait>(
     Ok(true)
 }
 
+/// Revokes every unrevoked token of a user, returning how many were revoked.
+///
+/// See [`revoke_all_for_user_returning_hashes`] for the hash-collecting variant.
 pub async fn revoke_all_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<u64> {
     let (rows_affected, _) = revoke_all_for_user_returning_hashes(db, user_id).await?;
     Ok(rows_affected)
 }
 
+/// Revokes every unrevoked token of a user and collects the affected access token hashes.
+///
+/// Returns the revoked row count plus the hashes of tokens invalidated by this call and
+/// within the preceding ten seconds, deduplicated — enough for cache eviction to cover
+/// concurrent logouts without racing.
 pub async fn revoke_all_for_user_returning_hashes<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -170,6 +204,9 @@ async fn list_recent_revoked_hashes_for_user<C: ConnectionTrait>(
         .collect())
 }
 
+/// Revokes every unrevoked token currently selecting the given profile.
+///
+/// Returns the number of tokens revoked.
 pub async fn revoke_all_for_selected_profile<C: ConnectionTrait>(
     db: &C,
     selected_profile_id: i64,
@@ -188,6 +225,11 @@ pub async fn revoke_all_for_selected_profile<C: ConnectionTrait>(
     Ok(result.rows_affected)
 }
 
+/// Temporarily invalidates tokens selecting a profile without revoking them.
+///
+/// Used during controlled renames: launchers must refresh to pick up the new name. Tokens
+/// already temporarily invalidated or revoked are skipped. Returns the number of tokens
+/// touched.
 pub async fn temporarily_invalidate_all_for_selected_profile<C: ConnectionTrait>(
     db: &C,
     selected_profile_id: i64,
@@ -207,6 +249,7 @@ pub async fn temporarily_invalidate_all_for_selected_profile<C: ConnectionTrait>
     Ok(result.rows_affected)
 }
 
+/// Deletes tokens that expired before `now`, returning the number of rows removed.
 pub async fn delete_expired<C: ConnectionTrait>(db: &C, now: DateTime<Utc>) -> Result<u64> {
     let result = YggdrasilToken::delete_many()
         .filter(yggdrasil_token::Column::ExpiresAt.lt(now))
@@ -216,6 +259,9 @@ pub async fn delete_expired<C: ConnectionTrait>(db: &C, now: DateTime<Utc>) -> R
     Ok(result.rows_affected)
 }
 
+/// Deletes tokens that either expired before `now` or were revoked at any time.
+///
+/// Revoked tokens are removed regardless of expiry since they can never be reused.
 pub async fn delete_expired_or_revoked<C: ConnectionTrait>(
     db: &C,
     now: DateTime<Utc>,
@@ -232,6 +278,10 @@ pub async fn delete_expired_or_revoked<C: ConnectionTrait>(
     Ok(result.rows_affected)
 }
 
+/// Enforces a per-user token cap by revoking the oldest unrevoked tokens beyond `keep_count`.
+///
+/// Tokens are ranked by `issued_at` descending; the surplus is revoked (not deleted) and its
+/// hashes returned for cache invalidation. An empty list means nothing needed pruning.
 pub async fn prune_oldest_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,

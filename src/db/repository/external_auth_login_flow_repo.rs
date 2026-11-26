@@ -10,6 +10,7 @@ use aster_yggdrasil_model::entities::external_auth_login_flow::{
     self, Entity as ExternalAuthLoginFlow,
 };
 
+/// Inserts a new external auth login flow row.
 pub async fn create(
     db: &DatabaseConnection,
     model: external_auth_login_flow::ActiveModel,
@@ -17,6 +18,11 @@ pub async fn create(
     model.insert(db).await.map_err(AsterError::from)
 }
 
+/// Single-use consumption of a login flow by its `state` hash.
+///
+/// Only a flow that is unconsumed and unexpired at `now` can be consumed; the matching row is
+/// marked consumed with a guarded update, so concurrent callers get at most one success.
+/// Returns `None` when no matching flow exists or another caller consumed it first.
 pub async fn consume_by_state_hash(
     db: &DatabaseConnection,
     state_hash: &str,
@@ -53,6 +59,7 @@ pub async fn consume_by_state_hash(
     }
 }
 
+/// Deletes login flows whose `expires_at` is before `now`, returning the number of rows removed.
 pub async fn cleanup_expired(db: &DatabaseConnection, now: chrono::DateTime<Utc>) -> Result<u64> {
     let result = ExternalAuthLoginFlow::delete_many()
         .filter(external_auth_login_flow::Column::ExpiresAt.lt(now))

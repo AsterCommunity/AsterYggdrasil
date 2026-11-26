@@ -17,6 +17,8 @@ use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use aster_yggdrasil_protocol::YggdrasilProfile;
 
+/// Registers the authenticated `/profiles` scope where the logged-in user manages
+/// their Minecraft profiles, names, and per-profile skin/cape bindings.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/profiles")
@@ -64,6 +66,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     ),
     security(("bearer" = [])),
 )]
+/// Binds one wardrobe texture (by ID) to the given profile's skin or cape slot and
+/// records a bind audit event.
 pub async fn bind_minecraft_profile_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -162,6 +166,8 @@ pub async fn bind_minecraft_profile_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Removes the skin or cape binding from the given profile and records an audit
+/// event; responds 204 whether or not a texture was bound.
 pub async fn unbind_minecraft_profile_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -254,6 +260,8 @@ pub async fn unbind_minecraft_profile_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the current user's Minecraft profiles with ID cursor pagination and an
+/// optional name query filter, returned as Yggdrasil profile summaries.
 pub async fn list_minecraft_profiles(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -323,6 +331,8 @@ pub async fn list_minecraft_profiles(
     ),
     security(("bearer" = [])),
 )]
+/// Creates a Minecraft profile with the requested name for the current user and
+/// records a create audit event.
 pub async fn create_minecraft_profile(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -377,6 +387,8 @@ pub async fn create_minecraft_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Renames the given profile, keeping UUID, texture bindings, and audit history intact
+/// while temporarily invalidating Yggdrasil tokens bound to it, and records a rename audit event.
 pub async fn rename_minecraft_profile(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -441,6 +453,7 @@ pub async fn rename_minecraft_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the skin and cape textures currently bound to the given profile.
 pub async fn list_minecraft_profile_textures(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -500,6 +513,8 @@ pub async fn list_minecraft_profile_textures(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes the given profile along with its bound textures and revoked Yggdrasil
+/// tokens, and records a delete audit event; responds 204 on success.
 pub async fn delete_minecraft_profile(
     state: web::Data<AppState>,
     req: HttpRequest,

@@ -1,3 +1,4 @@
+//! Integration renders of the 2D/3D skin preview engines against fixture skins.
 use aster_yggdrasil_render::{
     OutputFormat, Skin2dPreviewOptions, SkinModel, SkinPreviewOptions, TexturePreviewOptions,
     render_preview, render_skin_preview, render_skin_preview_bytes,

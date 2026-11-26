@@ -18,6 +18,10 @@ use super::token::{
     revoke_by_access_token, selected_profile_for_token,
 };
 
+/// Yggdrasil `POST /authserver/authenticate`: verifies credentials and issues
+/// a fresh access token paired with the client token (generated server-side
+/// when the request omits one). Returns the token pair, the user's available
+/// profiles, and the selected profile when a single profile is bound.
 pub async fn authenticate<S>(
     state: &S,
     body: YggdrasilAuthenticateReq,
@@ -172,6 +176,10 @@ where
     })
 }
 
+/// Yggdrasil `POST /authserver/refresh`: exchanges a still-valid access
+/// token for a new one under the same client token. A profile may be bound
+/// via `selectedProfile` only while the token has none yet; launchers use
+/// this to pick up a renamed profile.
 pub async fn refresh<S>(
     state: &S,
     body: YggdrasilRefreshReq,
@@ -301,6 +309,9 @@ where
     })
 }
 
+/// Yggdrasil `POST /authserver/validate`: checks that the access token (and,
+/// when provided, the matching client token) is still active. Produces no
+/// body on success.
 pub async fn validate<S>(
     state: &S,
     body: YggdrasilTokenReq,
@@ -324,6 +335,8 @@ where
     Ok(())
 }
 
+/// Yggdrasil `POST /authserver/invalidate`: revokes the access token without
+/// requiring it to be valid; when a client token is supplied it must match.
 pub async fn invalidate<S>(
     state: &S,
     body: YggdrasilTokenReq,
@@ -372,6 +385,8 @@ where
     Ok(())
 }
 
+/// Yggdrasil `POST /authserver/signout`: verifies username and password
+/// directly (no access token) and revokes all tokens issued to the user.
 pub async fn signout<S>(
     state: &S,
     username: &str,

@@ -17,6 +17,10 @@ use super::{
 
 const DUMMY_PASSWORD_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRmb3JkdW1teQ$uLpdZ2ciOQUUMGrye7Tyvz/vZ/saqtJiqQBvovmG6ms";
 
+/// Links the pending external identity carried by `input.flow_token` to an
+/// existing local account, authenticated by identifier + password. Uses a
+/// dummy Argon2 hash for unknown identifiers so response timing does not
+/// reveal account existence. Consumes the flow and returns the resolved login.
 pub async fn link_with_password(
     state: &impl SharedRuntimeState,
     input: ExternalAuthPasswordLinkRequest,

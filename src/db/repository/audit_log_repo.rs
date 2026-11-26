@@ -8,17 +8,30 @@ use aster_forge_api::CursorSlice;
 use aster_yggdrasil_model::entities::audit_log;
 use aster_yggdrasil_model::types::audit::AuditAction;
 
+/// Filters for paginated admin audit log queries; all filters combine with AND.
 pub struct AuditLogQuery<'a> {
+    /// Restricts results to entries created by this user id when set.
     pub user_id: Option<i64>,
+    /// Restricts results to this action's wire string when set.
     pub action: Option<&'a str>,
+    /// Restricts results to this entity type string when set.
     pub entity_type: Option<&'a str>,
+    /// Restricts results to entries targeting this entity id when set.
     pub entity_id: Option<i64>,
+    /// Excludes entries created at or after this instant when set.
     pub after: Option<DateTime<Utc>>,
+    /// Excludes entries created after this instant when set.
     pub before: Option<DateTime<Utc>>,
+    /// Page size; clamped to 1..=200 entries.
     pub limit: u64,
+    /// `(created_at, id)` cursor of the previous page's last item.
     pub cursor: Option<(DateTime<Utc>, i64)>,
 }
 
+/// Paginates audit log entries using a keyset cursor over `(created_at, id)`, newest first.
+///
+/// The returned [`CursorSlice`] carries the filtered total count and a next cursor, which is
+/// absent on the last page.
 pub async fn find_with_filters_cursor<C: ConnectionTrait>(
     db: &C,
     query: AuditLogQuery<'_>,
@@ -52,6 +65,7 @@ pub async fn find_with_filters_cursor<C: ConnectionTrait>(
     })
 }
 
+/// Counts audit entries created in the `[start, end)` interval.
 pub async fn count_created_between<C: ConnectionTrait>(
     db: &C,
     start: DateTime<Utc>,
@@ -62,6 +76,9 @@ pub async fn count_created_between<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Counts audit entries created in `[start, end)` restricted to the given actions.
+///
+/// Returns 0 when `actions` is empty.
 pub async fn count_created_between_with_actions<C: ConnectionTrait>(
     db: &C,
     start: DateTime<Utc>,
@@ -78,6 +95,10 @@ pub async fn count_created_between_with_actions<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Counts distinct acting users behind audit entries created in `[start, end)` for the given
+/// actions.
+///
+/// Returns 0 when `actions` is empty.
 pub async fn count_distinct_users_created_between_with_actions<C: ConnectionTrait>(
     db: &C,
     start: DateTime<Utc>,
@@ -96,6 +117,8 @@ pub async fn count_distinct_users_created_between_with_actions<C: ConnectionTrai
     .map_err(AsterError::from)
 }
 
+/// Deletes audit entries created before the cutoff instant, returning the number of rows
+/// removed.
 pub async fn delete_before<C: ConnectionTrait>(db: &C, before: DateTime<Utc>) -> Result<u64> {
     aster_forge_db::delete_audit_logs_before(db, before)
         .await

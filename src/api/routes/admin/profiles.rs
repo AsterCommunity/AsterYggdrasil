@@ -58,6 +58,8 @@ async fn find_profile_by_uuid(
     ),
     security(("bearer" = [])),
 )]
+/// Lists Minecraft profiles platform-wide with user/name/uuid/keyword
+/// filters and ID-cursor pagination.
 pub async fn list_minecraft_profiles(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -125,6 +127,8 @@ pub async fn list_minecraft_profiles(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the Minecraft profiles owned by a specific user in Yggdrasil profile
+/// summary form, with cursor pagination.
 pub async fn list_user_minecraft_profiles(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -196,6 +200,8 @@ pub async fn list_user_minecraft_profiles(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single Minecraft profile by its unsigned UUID, including owner
+/// and texture metadata.
 pub async fn get_minecraft_profile(
     state: web::Data<AppState>,
     path: web::Path<String>,
@@ -229,6 +235,9 @@ pub async fn get_minecraft_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Renames a Minecraft profile, temporarily invalidating Yggdrasil tokens
+/// bound to it so launchers pick up the new name via refresh, and records the
+/// rename in the audit log.
 pub async fn rename_minecraft_profile(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -274,6 +283,8 @@ pub async fn rename_minecraft_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the texture bindings attached to a Minecraft profile, with texture
+/// metadata per entry.
 pub async fn list_minecraft_profile_textures(
     state: web::Data<AppState>,
     path: web::Path<String>,
@@ -310,6 +321,8 @@ pub async fn list_minecraft_profile_textures(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes a Minecraft profile together with its textures and revoked
+/// Yggdrasil tokens, recording the deletion in the audit log.
 pub async fn delete_minecraft_profile(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -362,6 +375,8 @@ pub async fn delete_minecraft_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Removes one texture type (skin or cape) from a Minecraft profile;
+/// succeeds with 204 even when the profile has no such texture.
 pub async fn delete_minecraft_profile_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -447,6 +462,8 @@ pub async fn delete_minecraft_profile_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes every profile texture binding that references the given content
+/// hash, writing one audit entry per removed binding.
 pub async fn delete_minecraft_textures_by_hash(
     state: web::Data<AppState>,
     req: HttpRequest,

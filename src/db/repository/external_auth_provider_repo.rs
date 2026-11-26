@@ -13,6 +13,7 @@ use aster_yggdrasil_model::entities::external_auth_provider::{
 };
 use aster_yggdrasil_model::types::external_auth::ExternalAuthProviderKind;
 
+/// Lists every configured external auth provider, ordered by display name then id ascending.
 pub async fn find_all(db: &DatabaseConnection) -> Result<Vec<external_auth_provider::Model>> {
     ExternalAuthProvider::find()
         .order_by_asc(external_auth_provider::Column::DisplayName)
@@ -22,6 +23,9 @@ pub async fn find_all(db: &DatabaseConnection) -> Result<Vec<external_auth_provi
         .map_err(AsterError::from)
 }
 
+/// Batch-loads providers by id with the same ordering as [`find_all`].
+///
+/// An empty `ids` slice returns an empty list without querying; missing ids are simply absent.
 pub async fn find_by_ids(
     db: &DatabaseConnection,
     ids: &[i64],
@@ -39,6 +43,12 @@ pub async fn find_by_ids(
         .map_err(AsterError::from)
 }
 
+/// Paginates providers restricted to the registry's supported kinds, ordered by display name
+/// ascending.
+///
+/// `limit` is clamped to 1..=100; `after` is the `(display_name, id)` cursor of the last item
+/// of the previous page. The returned [`CursorSlice`] carries the filtered total and a next
+/// cursor, which is absent on the last page.
 pub async fn find_cursor(
     db: &DatabaseConnection,
     limit: u64,
@@ -85,6 +95,7 @@ async fn fetch_display_name_cursor(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Lists all providers of one kind, ordered by display name then id ascending.
 pub async fn find_all_by_kind(
     db: &DatabaseConnection,
     kind: ExternalAuthProviderKind,
@@ -98,6 +109,7 @@ pub async fn find_all_by_kind(
         .map_err(AsterError::from)
 }
 
+/// Lists providers currently enabled for login, ordered by display name then id ascending.
 pub async fn find_enabled(db: &DatabaseConnection) -> Result<Vec<external_auth_provider::Model>> {
     ExternalAuthProvider::find()
         .filter(external_auth_provider::Column::Enabled.eq(true))
@@ -108,6 +120,8 @@ pub async fn find_enabled(db: &DatabaseConnection) -> Result<Vec<external_auth_p
         .map_err(AsterError::from)
 }
 
+/// Paginates enabled providers restricted to supported kinds, with the same cursor semantics
+/// as [`find_cursor`].
 pub async fn find_enabled_cursor(
     db: &DatabaseConnection,
     limit: u64,
@@ -120,6 +134,7 @@ pub async fn find_enabled_cursor(
     fetch_display_name_cursor(db, base, limit, after).await
 }
 
+/// Lists enabled providers of one kind, ordered by display name then id ascending.
 pub async fn find_enabled_by_kind(
     db: &DatabaseConnection,
     kind: ExternalAuthProviderKind,
@@ -134,6 +149,7 @@ pub async fn find_enabled_by_kind(
         .map_err(AsterError::from)
 }
 
+/// Paginates enabled providers of one kind, with the same cursor semantics as [`find_cursor`].
 pub async fn find_enabled_by_kind_cursor(
     db: &DatabaseConnection,
     kind: ExternalAuthProviderKind,
@@ -146,6 +162,9 @@ pub async fn find_enabled_by_kind_cursor(
     fetch_display_name_cursor(db, base, limit, after).await
 }
 
+/// Loads a single provider by id.
+///
+/// Returns `Err(record_not_found)` when no provider with that id exists.
 pub async fn find_by_id(db: &DatabaseConnection, id: i64) -> Result<external_auth_provider::Model> {
     ExternalAuthProvider::find_by_id(id)
         .one(db)
@@ -154,6 +173,10 @@ pub async fn find_by_id(db: &DatabaseConnection, id: i64) -> Result<external_aut
         .ok_or_else(|| AsterError::record_not_found(format!("external auth provider #{id}")))
 }
 
+/// Loads a provider by its kind and stable key.
+///
+/// Returns `None` when no provider of that kind carries the key; the pair is unique, so at
+/// most one row matches.
 pub async fn find_by_kind_key(
     db: &DatabaseConnection,
     kind: ExternalAuthProviderKind,
@@ -167,6 +190,7 @@ pub async fn find_by_kind_key(
         .map_err(AsterError::from)
 }
 
+/// Inserts a new external auth provider row.
 pub async fn create(
     db: &DatabaseConnection,
     model: external_auth_provider::ActiveModel,
@@ -174,6 +198,7 @@ pub async fn create(
     model.insert(db).await.map_err(AsterError::from)
 }
 
+/// Persists changes on an existing external auth provider row.
 pub async fn update(
     db: &DatabaseConnection,
     model: external_auth_provider::ActiveModel,
@@ -181,6 +206,9 @@ pub async fn update(
     model.update(db).await.map_err(AsterError::from)
 }
 
+/// Deletes a provider by id.
+///
+/// Returns `Err(record_not_found)` when no provider with that id exists.
 pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<()> {
     let result = ExternalAuthProvider::delete_by_id(id)
         .exec(db)
@@ -194,6 +222,9 @@ pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Bumps `updated_at` on a provider without changing its configuration.
+///
+/// Returns `false` when the provider no longer exists.
 pub async fn touch_updated_at(
     db: &DatabaseConnection,
     id: i64,

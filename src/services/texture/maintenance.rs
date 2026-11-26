@@ -3,35 +3,55 @@ use crate::errors::Result;
 use crate::runtime::{DatabaseRuntimeState, TextureStorageRuntimeState};
 use std::collections::HashSet;
 
+/// Counters from an orphan texture-blob cleanup sweep over object storage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrphanTextureCleanupResult {
+    /// Texture-looking blobs found under the texture prefix.
     pub scanned: u64,
+    /// Blobs deleted because no `minecraft_texture` row referenced them.
     pub deleted: u64,
+    /// Blobs kept because at least one texture row still references them.
     pub skipped: u64,
 }
 
+/// One texture row whose stored object failed a consistency check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextureStoreConsistencyIssue {
+    /// The `minecraft_texture` row id whose object is inconsistent.
     pub texture_id: i64,
+    /// Object-storage key recorded on the texture row.
     pub storage_key: String,
+    /// Content hash recorded on the texture row.
     pub hash: String,
+    /// Which check the texture failed.
     pub kind: TextureStoreConsistencyIssueKind,
 }
 
+/// The two ways a texture row's stored object can be inconsistent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextureStoreConsistencyIssueKind {
+    /// No object exists at the row's storage key.
     MissingObject,
+    /// The object exists but its key does not match the row's content hash
+    /// (`<hash[..2]>/<hash>.png` layout).
     HashMismatch,
 }
 
+/// Aggregated result of a full texture-store consistency check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextureStoreConsistencyReport {
+    /// Number of `minecraft_texture` rows examined.
     pub checked: u64,
+    /// Rows whose object is missing from storage.
     pub missing: u64,
+    /// Rows whose storage key does not match their content hash.
     pub hash_mismatched: u64,
+    /// Per-row details for every inconsistency found.
     pub issues: Vec<TextureStoreConsistencyIssue>,
 }
 
+/// Deletes texture blobs in object storage that no `minecraft_texture` row
+/// references anymore, and returns per-outcome counts.
 pub async fn cleanup_orphan_texture_blobs<S>(state: &S) -> Result<OrphanTextureCleanupResult>
 where
     S: DatabaseRuntimeState + TextureStorageRuntimeState,
@@ -64,6 +84,8 @@ where
     Ok(result)
 }
 
+/// Verifies every stored texture row against object storage: each object must
+/// exist and live at the content-addressed key derived from the row's hash.
 pub async fn check_texture_storage_consistency<S>(
     state: &S,
 ) -> Result<TextureStoreConsistencyReport>

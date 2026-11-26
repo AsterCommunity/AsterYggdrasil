@@ -15,21 +15,38 @@ pub use registry::ExternalAuthProviderRegistry;
 /// Yggdrasil-facing provider descriptor using app-owned provider kind and protocol enums.
 #[derive(Clone, Debug)]
 pub struct ExternalAuthProviderDescriptor {
+    /// Provider kind this descriptor describes.
     pub kind: ExternalAuthProviderKind,
+    /// Underlying protocol (OIDC or generic OAuth 2.0).
     pub protocol: ExternalAuthProtocol,
+    /// Human-readable kind name for admin UI.
     pub display_name: &'static str,
+    /// Short explanation of the kind shown in admin UI.
     pub description: &'static str,
+    /// Space-separated OAuth scopes applied when the admin leaves scopes empty.
     pub default_scopes: &'static str,
+    /// Whether `issuer_url` must be configured for this kind.
     pub issuer_url_required: bool,
+    /// Whether authorization/token/userinfo endpoints can be set manually
+    /// instead of being derived from discovery or fixed per kind.
     pub manual_endpoint_configuration_supported: bool,
+    /// Whether `authorization_url` must be configured for this kind.
     pub authorization_url_required: bool,
+    /// Whether `token_url` must be configured for this kind.
     pub token_url_required: bool,
+    /// Whether `userinfo_url` must be configured for this kind.
     pub userinfo_url_required: bool,
+    /// Whether the driver performs OIDC discovery against `issuer_url`.
     pub supports_discovery: bool,
+    /// Whether the driver uses PKCE for the authorization code flow.
     pub supports_pkce: bool,
+    /// Whether the provider exposes an email-verified claim that can be
+    /// honored by `require_email_verified`.
     pub supports_email_verified_claim: bool,
 }
 
+/// Converts a Forge driver descriptor into the app-owned descriptor type so
+/// route/service code never touches Forge enums directly.
 pub(crate) fn map_external_auth_provider_descriptor(
     descriptor: aster_forge_external_auth::ExternalAuthProviderDescriptor,
 ) -> ExternalAuthProviderDescriptor {
@@ -50,6 +67,7 @@ pub(crate) fn map_external_auth_provider_descriptor(
     }
 }
 
+/// Converts a Forge external-auth error into the app error taxonomy.
 pub(crate) fn map_external_auth_error(
     error: aster_forge_external_auth::ExternalAuthError,
 ) -> crate::errors::AsterError {

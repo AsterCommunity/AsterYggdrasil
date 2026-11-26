@@ -27,6 +27,8 @@ const IMMUTABLE_ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable
 const STATIC_ASSET_CACHE_CONTROL: &str = "public, max-age=86400";
 const PWA_CACHE_CONTROL: &str = "no-cache";
 
+/// CSP sent as a response header on every frontend HTML response; the header variant
+/// is stricter than the meta variant because it can carry `frame-ancestors`.
 pub const FRONTEND_CSP_HEADER: &str = concat!(
     "default-src 'self'; ",
     "base-uri 'self'; ",
@@ -46,6 +48,8 @@ pub const FRONTEND_CSP_HEADER: &str = concat!(
     "manifest-src 'self'"
 );
 
+/// CSP injected into the `index.html` `<meta>` tag as defense in depth; `frame-ancestors`
+/// is not valid in meta policies and is only enforced by [`FRONTEND_CSP_HEADER`].
 pub const FRONTEND_CSP_META: &str = concat!(
     "default-src 'self'; ",
     "base-uri 'self'; ",
@@ -63,6 +67,8 @@ pub const FRONTEND_CSP_META: &str = concat!(
     "manifest-src 'self'"
 );
 
+/// Handlers serving the embedded web panel, preferring the `frontend-override`
+/// directory over compiled-in assets so deployments can ship a customized frontend.
 pub struct FrontendService;
 
 impl FrontendService {
@@ -139,10 +145,14 @@ impl FrontendService {
             .body(processed)
     }
 
+    /// Serves the panel entry page with branding, CSP, and CSRF placeholders
+    /// filled in from runtime configuration.
     pub async fn handle_index(state: web::Data<AppState>, _req: HttpRequest) -> HttpResponse {
         Self::serve_index(state.get_ref()).await
     }
 
+    /// Serves hashed Vite build assets from `/assets/` with immutable long-lived
+    /// caching; missing files return 404 rather than falling back to SPA HTML.
     pub async fn handle_assets(req: HttpRequest) -> HttpResponse {
         let path = req.match_info().query("path");
         let asset_path = format!("assets/{path}");
@@ -156,6 +166,8 @@ impl FrontendService {
         }
     }
 
+    /// Serves static panel assets from `/static/` with day-long caching and
+    /// ETag revalidation.
     pub async fn handle_static(req: HttpRequest) -> HttpResponse {
         let path = req.match_info().query("path");
         let asset_path = format!("static/{path}");
@@ -169,6 +181,8 @@ impl FrontendService {
         }
     }
 
+    /// Serves `favicon.svg`, falling back to an empty SVG body so the route
+    /// always answers with an image response.
     pub async fn handle_favicon(req: HttpRequest) -> HttpResponse {
         match Self::load_file("favicon.svg").await {
             Some(data) => {
@@ -181,6 +195,8 @@ impl FrontendService {
         }
     }
 
+    /// Catch-all route serving `index.html` so client-side SPA routes render
+    /// on direct navigation; must stay registered last.
     pub async fn handle_spa_fallback(
         state: web::Data<AppState>,
         _req: HttpRequest,
@@ -188,6 +204,8 @@ impl FrontendService {
         Self::serve_index(state.get_ref()).await
     }
 
+    /// Serves PWA files (`registerSW.js`, `sw.js`, workbox chunks, and the web manifest)
+    /// with `no-cache` so service worker updates are picked up immediately.
     pub async fn handle_pwa_file(req: HttpRequest) -> HttpResponse {
         let filename = req.uri().path().trim_start_matches('/');
         let content_type = Self::get_content_type(filename);

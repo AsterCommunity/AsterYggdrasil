@@ -32,6 +32,9 @@ use super::yggdrasil_error_response;
     ),
     security(("bearer" = [])),
 )]
+/// Stores an uploaded skin or cape for the profile named by the bearer token
+/// (`api/user/profile/{uuid}/{texture_type}`), answering 401 for a missing
+/// token as authlib-injector requires.
 pub async fn upload_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -159,6 +162,8 @@ pub async fn upload_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Removes the skin or cape bound to the token-authenticated profile,
+/// succeeding idempotently when no texture is present.
 pub async fn delete_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -264,6 +269,8 @@ pub async fn delete_texture(
         (status = 404, description = "Texture not found"),
     ),
 )]
+/// Serves a stored texture PNG by its SHA-256 hash with ETag-based conditional
+/// requests, falling back to the embedded default skin when the hash matches it.
 pub async fn texture_by_hash(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -344,6 +351,8 @@ pub async fn texture_by_hash(
         (status = 502, description = "Forwarded texture upstream failed"),
     ),
 )]
+/// Validates a signed forwarded-texture ticket and proxies the PNG bytes from
+/// the upstream server, mapping failures to 404 or 502.
 pub async fn forwarded_texture_by_hash(
     state: web::Data<AppState>,
     path: web::Path<(i64, String, String)>,

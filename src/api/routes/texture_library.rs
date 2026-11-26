@@ -25,16 +25,23 @@ const DEFAULT_TEXTURE_TAG_PAGE_SIZE: u64 = 30;
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Query parameters for browsing published textures in the public texture library.
 pub struct PublicTextureLibraryQuery {
+    /// Substring matched against the texture's display name, hash, or MIME type.
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
+    /// Restricts results to one texture type (skin or cape).
     pub texture_type: Option<MinecraftTextureType>,
+    /// Comma-separated texture tag IDs to filter by; at most 16 positive IDs.
     #[serde(default, deserialize_with = "deserialize_tag_id_sequence")]
     #[validate(length(max = 16, message = "tag_ids must not contain more than 16 items"))]
     pub tag_ids: Vec<i64>,
+    /// Whether a texture must carry all of the given tags or any of them; defaults to all.
     #[serde(default)]
     pub tag_search_method: TextureTagSearchMethod,
+    /// Updated-at timestamp of the last item on the previous page.
     pub after_updated_at: Option<DateTime<Utc>>,
+    /// ID of the last item on the previous page, paired with `after_updated_at` as the cursor.
     pub after_id: Option<i64>,
 }
 
@@ -43,11 +50,16 @@ pub struct PublicTextureLibraryQuery {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Query parameters for listing the texture library tags shown to public visitors.
 pub struct PublicTextureLibraryTagQuery {
+    /// Case-insensitive substring matched against tag names.
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
+    /// Sort order value of the last tag on the previous page, for cursor pagination.
     pub after_sort_order: Option<i32>,
+    /// Name of the last tag on the previous page, paired with `after_sort_order`.
     pub after_name: Option<String>,
+    /// ID of the last tag on the previous page, completing the sort-order cursor.
     pub after_id: Option<i64>,
 }
 
@@ -70,6 +82,8 @@ where
         .collect()
 }
 
+/// Registers the `/texture-library` scope: anonymous browsing of published textures
+/// and tags, plus authenticated copy-to-wardrobe and report endpoints.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/texture-library")
@@ -97,6 +111,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         (status = 200, description = "Public texture library tags", body = inline(ApiResponse<CursorPage<texture::MinecraftTextureTagInfo, SortOrderNameIdCursor>>)),
     ),
 )]
+/// Lists the administrator-managed texture library tags for public visitors,
+/// with keyword search and sort-order cursor pagination.
 pub async fn list_public_texture_library_tags(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -132,6 +148,8 @@ pub async fn list_public_texture_library_tags(
         (status = 400, description = "Invalid query"),
     ),
 )]
+/// Lists textures published to the public texture library with cursor pagination
+/// and optional texture type, tag, and keyword filters; no authentication required.
 pub async fn list_public_textures(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -192,6 +210,8 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
         (status = 404, description = "Public texture not found"),
     ),
 )]
+/// Returns the detail of one texture published to the public library, or 404
+/// for IDs that are not published.
 pub async fn get_public_texture(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -216,6 +236,8 @@ pub async fn get_public_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Copies a published library texture into the current user's wardrobe, optionally
+/// renaming it; the request body may be empty to accept the defaults.
 pub async fn copy_public_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -260,6 +282,8 @@ pub async fn copy_public_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Files a report against a published library texture on behalf of the current user
+/// (reason plus optional message) and records a report audit event.
 pub async fn create_texture_report(
     state: web::Data<AppState>,
     req: HttpRequest,

@@ -17,6 +17,8 @@ use actix_web::{HttpResponse, web};
     ),
     security(("bearer" = [])),
 )]
+/// Returns runtime system information (build info, components) reusing the
+/// public health probe payload, exposed to administrators.
 pub async fn get_system_info(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(ApiResponse::ok(health::system_info_response(
         state.get_ref(),

@@ -28,6 +28,9 @@ use self::maintenance::cleanup_texture_blob_if_unreferenced;
 
 use super::*;
 
+/// Updates a wardrobe texture's display name, skin model, or visibility on
+/// behalf of its owner. `NullablePatch` fields distinguish "clear the value"
+/// from "leave unchanged".
 pub async fn update_wardrobe_texture_metadata<S>(
     state: &S,
     user_id: i64,
@@ -95,6 +98,8 @@ where
     Ok(wardrobe_texture_metadata_with_tags(state, &updated, tags))
 }
 
+/// Replaces the full set of library tags on a wardrobe texture with the given
+/// ids; duplicates are collapsed and every id must exist.
 pub async fn replace_wardrobe_texture_tags<S>(
     state: &S,
     user_id: i64,
@@ -138,6 +143,8 @@ where
     Ok(wardrobe_texture_metadata_with_tags(state, &texture, tags))
 }
 
+/// Cursor page over one user's wardrobe textures with tags included;
+/// `limit` is clamped to 1-100.
 pub async fn list_wardrobe_textures_cursor<S>(
     state: &S,
     user_id: i64,
@@ -162,6 +169,8 @@ where
     Ok(CursorPage::new(textures, slice.total, limit, next_cursor))
 }
 
+/// Cursor page over the published public texture library; requires the
+/// library feature and clamps `limit` to 1-100.
 pub async fn list_public_texture_library_cursor<S>(
     state: &S,
     limit: u64,
@@ -185,6 +194,8 @@ where
     Ok(CursorPage::new(textures, slice.total, limit, next_cursor))
 }
 
+/// Fetches a single published library texture with public metadata; only
+/// textures whose library status is published are visible here.
 pub async fn get_public_texture_library_texture<S>(
     state: &S,
     texture_id: i64,
@@ -210,6 +221,9 @@ where
     public_texture_library_metadata(state, &texture).await
 }
 
+/// Copies a published library texture into the caller's wardrobe as a private
+/// asset, reusing the caller's existing asset with the same content
+/// fingerprint when one exists. Source tags are carried over.
 pub async fn copy_public_texture_to_wardrobe<S>(
     state: &S,
     user_id: i64,
@@ -297,6 +311,9 @@ where
     ))
 }
 
+/// Deletes one of the user's wardrobe textures (with blob cleanup when
+/// unreferenced); fails after the ban check if the texture is not owned by
+/// the user.
 pub async fn delete_wardrobe_texture<S>(
     state: &S,
     user_id: i64,
@@ -355,6 +372,8 @@ where
     Ok(deleted)
 }
 
+/// Deletes every wardrobe texture owned by the user, skipping textures that
+/// vanish concurrently; returns the rows that were removed.
 pub async fn delete_all_wardrobe_textures_for_user<S>(
     state: &S,
     user_id: i64,
@@ -377,6 +396,9 @@ where
     Ok(deleted)
 }
 
+/// Binds one of the user's wardrobe textures into a profile's `texture_type`
+/// slot, replacing any previous binding. The texture's type must match the
+/// slot, and caches are invalidated so launchers see the new texture.
 pub async fn bind_wardrobe_texture_to_profile<S>(
     state: &S,
     user_id: i64,

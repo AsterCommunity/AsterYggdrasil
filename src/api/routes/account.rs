@@ -19,6 +19,8 @@ const ACCOUNT_AUDIT_LOG_MAX_LIMIT: u64 = 100;
 const ACCOUNT_USER_BAN_DEFAULT_LIMIT: u64 = 20;
 const ACCOUNT_USER_BAN_MAX_LIMIT: u64 = 100;
 
+/// Registers the authenticated `/account` scope exposing the logged-in user's
+/// own overview, audit trail, and ban list.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/account")
@@ -39,6 +41,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     ),
     security(("bearer" = [])),
 )]
+/// Returns the current user's account overview: number of owned profiles and
+/// the most recent audit entries recorded against their account.
 pub async fn overview(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResponse> {
     let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(user_id = user.id, "account overview request received");
@@ -88,6 +92,8 @@ pub async fn overview(state: web::Data<AppState>, req: HttpRequest) -> Result<Ht
     ),
     security(("bearer" = [])),
 )]
+/// Lists the current user's audit log entries with cursor pagination and optional
+/// filters; the user boundary is pinned server-side so callers only see their own entries.
 pub async fn list_audit_logs(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -129,6 +135,8 @@ pub async fn list_audit_logs(
     ),
     security(("bearer" = [])),
 )]
+/// Lists capability bans recorded against the current user, optionally filtered by
+/// scope, status, and effective-only, so the panel can explain restricted features.
 pub async fn list_user_bans(
     state: web::Data<AppState>,
     req: HttpRequest,

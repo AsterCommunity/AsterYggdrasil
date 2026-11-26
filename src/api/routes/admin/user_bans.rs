@@ -27,6 +27,8 @@ use aster_forge_api::{CursorPage, DateTimeIdCursor};
     ),
     security(("bearer" = [])),
 )]
+/// Lists user capability bans with optional user, scope, and status filters,
+/// including an effective-only view of bans currently in force.
 pub async fn list_user_bans(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -63,6 +65,8 @@ pub async fn list_user_bans(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single user capability ban by ID, including its scope, status,
+/// and effective status.
 pub async fn get_user_ban(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -87,6 +91,8 @@ pub async fn get_user_ban(
     ),
     security(("bearer" = [])),
 )]
+/// Creates a capability ban for a user (optionally time-bounded), records an
+/// audit entry, and takes effect on the banned scopes.
 pub async fn create_user_ban(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -136,6 +142,8 @@ pub async fn create_user_ban(
     ),
     security(("bearer" = [])),
 )]
+/// Updates a user capability ban's scopes, reasons, or schedule, and records
+/// the change in the audit log.
 pub async fn update_user_ban(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -185,6 +193,8 @@ pub async fn update_user_ban(
     ),
     security(("bearer" = [])),
 )]
+/// Lifts a user capability ban early (before its natural expiry) with a
+/// revoke note, recording the revocation in the audit log.
 pub async fn revoke_user_ban(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -225,6 +235,8 @@ pub async fn revoke_user_ban(
     ),
     security(("bearer" = [])),
 )]
+/// Returns the event history of a user capability ban (creation, updates,
+/// and revocation) in chronological order.
 pub async fn list_user_ban_events(
     state: web::Data<AppState>,
     path: web::Path<i64>,

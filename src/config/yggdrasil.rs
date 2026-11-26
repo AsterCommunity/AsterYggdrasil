@@ -22,40 +22,100 @@ pub use crate::config::definitions::{
     YGGDRASIL_TEXTURE_PUBLIC_BASE_URL_KEY, YGGDRASIL_TOKEN_TTL_DAYS_KEY,
 };
 
+/// Server name reported in authlib-injector metadata when
+/// `yggdrasil_server_name` is unset.
 pub const DEFAULT_YGGDRASIL_SERVER_NAME: &str = "AsterYggdrasil";
+/// Canonical API root appended to public base URLs when building
+/// authlib-injector metadata links.
 pub const DEFAULT_YGGDRASIL_API_ROOT: &str = "/api/yggdrasil";
+/// Trailing-slash variant advertised in the `X-Authlib-Injector-API-Location`
+/// header, matching how launchers commonly spell the location hint.
 pub const DEFAULT_YGGDRASIL_API_ROOT_ALI: &str = "/api/yggdrasil/";
+/// Whether launcher login by Minecraft profile name (non-email login) is
+/// allowed when `yggdrasil_allow_profile_name_login` is unset; defaults to
+/// true for authlib-injector compatibility.
 pub const DEFAULT_YGGDRASIL_ALLOW_PROFILE_NAME_LOGIN: bool = true;
+/// Whether skin uploads are accepted when `yggdrasil_allow_skin_upload` is
+/// unset; defaults to true for a self-hosted skin site.
 pub const DEFAULT_YGGDRASIL_ALLOW_SKIN_UPLOAD: bool = true;
+/// Whether cape uploads are accepted when `yggdrasil_allow_cape_upload` is
+/// unset; defaults to true for a self-hosted skin site.
 pub const DEFAULT_YGGDRASIL_ALLOW_CAPE_UPLOAD: bool = true;
+/// Whether authlib-injector profile key support (Minecraft services player
+/// certificates) is advertised when `yggdrasil_enable_profile_key` is unset.
 pub const DEFAULT_YGGDRASIL_ENABLE_PROFILE_KEY: bool = true;
+/// Whether authlib-injector Mojang anti-feature policy endpoints are exposed
+/// when `yggdrasil_enable_mojang_anti_features` is unset.
 pub const DEFAULT_YGGDRASIL_ENABLE_MOJANG_ANTI_FEATURES: bool = true;
+/// Launcher access token lifetime, in days, when
+/// `yggdrasil_token_ttl_days` is unset; short enough to bound token reuse
+/// while sparing users frequent re-login.
 pub const DEFAULT_YGGDRASIL_TOKEN_TTL_DAYS: u64 = 15;
+/// Maximum active launcher tokens kept per user when
+/// `yggdrasil_max_active_tokens` is unset; oldest tokens are pruned past
+/// this cap.
 pub const DEFAULT_YGGDRASIL_MAX_ACTIVE_TOKENS: u64 = 10;
+/// Maximum uploaded texture file size in bytes when
+/// `yggdrasil_max_texture_upload_bytes` is unset (4 MiB, the size of a
+/// 64x64 skin PNG is far below this).
 pub const DEFAULT_YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES: u64 = 4 * 1024 * 1024;
+/// Maximum texture pixel count (width times height) accepted when
+/// `yggdrasil_max_texture_pixels` is unset (4096x4096), checked from PNG
+/// dimensions before full decode.
 pub const DEFAULT_YGGDRASIL_MAX_TEXTURE_PIXELS: u64 = 4096 * 4096;
+/// Built-in texture domain whitelist entries advertised in
+/// authlib-injector metadata when `yggdrasil_skin_domains` adds nothing.
 pub const DEFAULT_YGGDRASIL_SKIN_DOMAINS: &[&str] = &[".minecraft.net", ".mojang.com"];
 
+/// Snapshot of the runtime Yggdrasil/authlib-injector policy: protocol
+/// metadata flags, token budgets, texture upload limits, and signature keys,
+/// resolved from the runtime config store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeYggdrasilPolicy {
+    /// Server name exposed in authlib-injector metadata.
     pub server_name: String,
+    /// Whether launcher login by profile name is allowed.
     pub allow_profile_name_login: bool,
+    /// Whether skin uploads are accepted.
     pub allow_skin_upload: bool,
+    /// Whether cape uploads are accepted.
     pub allow_cape_upload: bool,
+    /// Whether profile key (player certificate) endpoints are enabled.
     pub enable_profile_key: bool,
+    /// Whether Mojang anti-feature policy endpoints are exposed.
     pub enable_mojang_anti_features: bool,
+    /// Launcher access token lifetime, in days.
     pub token_ttl_days: u64,
+    /// Maximum active launcher tokens retained per user; older tokens are
+    /// pruned when new ones are issued.
     pub max_active_tokens: u64,
+    /// Maximum uploaded texture file size in bytes.
     pub max_texture_upload_bytes: u64,
+    /// Maximum texture pixel count (width times height).
     pub max_texture_pixels: u64,
+    /// Texture domain whitelist entries advertised in metadata; a leading dot
+    /// matches any subdomain suffix, otherwise the entry matches the host
+    /// exactly.
     pub skin_domains: Vec<String>,
+    /// Authlib-injector API root URLs; falls back to the public site origins
+    /// joined with [`DEFAULT_YGGDRASIL_API_ROOT`] when unset.
     pub public_base_urls: Vec<String>,
+    /// Base URL prepended to public URLs for uploaded (stored) textures;
+    /// `None` means uploaded textures fall back to the API-root origin.
     pub texture_public_base_url: Option<String>,
+    /// RSA public key (PEM) advertised in metadata for verifying signed
+    /// textures; empty means it is derived from the private key (or signing
+    /// is disabled when no key is configured at all).
     pub signature_public_key: String,
+    /// RSA private key (PEM, PKCS#8 or PKCS#1) used to sign textures; empty
+    /// when texture signing is not configured.
     pub signature_private_key: String,
 }
 
 impl RuntimeYggdrasilPolicy {
+    /// Resolves the full policy from the runtime config store, applying
+    /// defaults for missing values and deriving public base URLs and skin
+    /// domains from the site configuration when not explicitly set.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let public_base_urls = read_effective_public_base_urls(runtime_config);
         let texture_public_base_url = read_texture_public_base_url(runtime_config);
@@ -117,6 +177,9 @@ impl RuntimeYggdrasilPolicy {
         }
     }
 
+    /// Builds the comma-separated `uploadable_textures` value stored on new
+    /// Minecraft profiles ("skin", "cape", or both), based on the upload
+    /// switches at creation time.
     pub fn uploadable_textures_value(&self) -> String {
         let mut values = Vec::new();
         if self.allow_skin_upload {
@@ -129,6 +192,8 @@ impl RuntimeYggdrasilPolicy {
     }
 }
 
+/// Serialized JSON value seeded into `yggdrasil_skin_domains` on first boot:
+/// the built-in [`DEFAULT_YGGDRASIL_SKIN_DOMAINS`] whitelist.
 pub fn default_skin_domains_config() -> String {
     serde_json::to_string(DEFAULT_YGGDRASIL_SKIN_DOMAINS).unwrap_or_else(|error| {
         tracing::error!(%error, "failed to serialize default Yggdrasil skin domains");
@@ -136,6 +201,9 @@ pub fn default_skin_domains_config() -> String {
     })
 }
 
+/// Registry normalizer for all Yggdrasil runtime keys: routes each key to its
+/// specific validation (URL arrays, positive integers, RSA PEM keys) and
+/// passes unknown keys through unchanged.
 pub fn normalize_yggdrasil_config_value(key: &str, value: &str) -> Result<String> {
     match key {
         YGGDRASIL_PUBLIC_BASE_URL_KEY => normalize_public_base_url_config_value(value),
@@ -161,6 +229,9 @@ pub fn normalize_yggdrasil_config_value(key: &str, value: &str) -> Result<String
     }
 }
 
+/// Validates a stored `yggdrasil_texture_public_base_url` value as an
+/// optional http(s) base URL without query string or fragment; empty input is
+/// allowed and clears the override.
 pub fn normalize_texture_public_base_url_config_value(value: &str) -> Result<String> {
     aster_forge_utils::url::normalize_http_base_url(
         value,
@@ -171,6 +242,9 @@ pub fn normalize_texture_public_base_url_config_value(value: &str) -> Result<Str
     .map(|normalized| normalized.unwrap_or_default())
 }
 
+/// Validates and canonicalizes the stored `yggdrasil_public_base_url` JSON
+/// array: each entry must be a non-empty http(s) base URL, duplicates are
+/// dropped, and order is preserved.
 pub fn normalize_public_base_url_config_value(value: &str) -> Result<String> {
     let urls = parse_string_array_config_value(value, YGGDRASIL_PUBLIC_BASE_URL_KEY)?
         .into_iter()
@@ -190,6 +264,9 @@ pub fn normalize_public_base_url_config_value(value: &str) -> Result<String> {
     })
 }
 
+/// Validates and canonicalizes the stored `yggdrasil_skin_domains` JSON
+/// array: lowercased, trimmed, non-empty, scheme-free domain entries with
+/// duplicates dropped and order preserved.
 pub fn normalize_skin_domains_config_value(value: &str) -> Result<String> {
     let domains = parse_string_array_config_value(value, YGGDRASIL_SKIN_DOMAINS_KEY)?
         .into_iter()
@@ -209,6 +286,8 @@ pub fn normalize_skin_domains_config_value(value: &str) -> Result<String> {
     })
 }
 
+/// Validates a stored `yggdrasil_signature_private_key` value as a non-empty
+/// RSA private key PEM (PKCS#8 or PKCS#1).
 pub fn validate_signature_private_key_config_value(value: &str) -> Result<()> {
     let pem = value.trim();
     if pem.is_empty() {
@@ -219,6 +298,9 @@ pub fn validate_signature_private_key_config_value(value: &str) -> Result<()> {
     parse_signature_private_key_pem(pem).map(|_| ())
 }
 
+/// Validates a stored `yggdrasil_signature_public_key` value as an RSA
+/// public key PEM (SPKI or PKCS#1); empty input is allowed and means the
+/// public key is derived from the private key instead.
 pub fn validate_signature_public_key_config_value(value: &str) -> Result<()> {
     let pem = value.trim();
     if pem.is_empty() {
@@ -227,6 +309,7 @@ pub fn validate_signature_public_key_config_value(value: &str) -> Result<()> {
     parse_signature_public_key_pem(pem).map(|_| ())
 }
 
+/// Parses an RSA private key from a PKCS#8 or PKCS#1 PEM string.
 pub fn parse_signature_private_key_pem(pem: &str) -> Result<RsaPrivateKey> {
     RsaPrivateKey::from_pkcs8_pem(pem)
         .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem))
@@ -237,6 +320,7 @@ pub fn parse_signature_private_key_pem(pem: &str) -> Result<RsaPrivateKey> {
         })
 }
 
+/// Parses an RSA public key from an SPKI or PKCS#1 PEM string.
 pub fn parse_signature_public_key_pem(pem: &str) -> Result<RsaPublicKey> {
     RsaPublicKey::from_public_key_pem(pem)
         .or_else(|_| RsaPublicKey::from_pkcs1_pem(pem))
@@ -247,6 +331,9 @@ pub fn parse_signature_public_key_pem(pem: &str) -> Result<RsaPublicKey> {
         })
 }
 
+/// Returns the hosts of `public_base_urls` that are not covered by
+/// `skin_domains`; a non-empty result means the metadata whitelist would not
+/// include the API origins themselves.
 pub fn public_base_url_hosts_missing_from_skin_domains(
     public_base_urls: &[String],
     skin_domains: &[String],

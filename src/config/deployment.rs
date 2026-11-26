@@ -4,15 +4,22 @@ use serde::{Deserialize, Serialize};
 
 use super::Config;
 
+/// Topology the server is deployed under; drives which dependencies must be
+/// shared across instances.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DeploymentProfile {
+    /// One process with local dependencies: SQLite, in-memory cache, and local
+    /// file storage are all acceptable.
     #[default]
     Single,
+    /// Multiple instances sharing state; requires PostgreSQL/MySQL, Redis
+    /// cache and config sync, and S3/MinIO object storage.
     Cluster,
 }
 
 impl DeploymentProfile {
+    /// Lowercase name as written in the config file.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Single => "single",
@@ -20,31 +27,42 @@ impl DeploymentProfile {
         }
     }
 
+    /// Whether the profile demands dependencies shared across instances.
     pub const fn requires_shared_runtime(self) -> bool {
         matches!(self, Self::Cluster)
     }
 
+    /// Whether per-instance local state (memory cache, SQLite, local files) is
+    /// acceptable for this profile.
     pub const fn allows_instance_local_state(self) -> bool {
         !self.requires_shared_runtime()
     }
 }
 
+/// `[deployment]` section of the static config file.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DeploymentConfig {
+    /// Topology profile; defaults to [`DeploymentProfile::Single`].
     #[serde(default)]
     pub profile: DeploymentProfile,
 }
 
 impl DeploymentConfig {
+    /// Whether the configured profile demands shared dependencies.
     pub const fn requires_shared_runtime(&self) -> bool {
         self.profile.requires_shared_runtime()
     }
 
+    /// Whether the configured profile permits instance-local state.
     pub const fn allows_instance_local_state(&self) -> bool {
         self.profile.allows_instance_local_state()
     }
 }
 
+/// Collects human-readable coherence problems for the configured profile:
+/// cluster deployments must point database, cache, config sync, and texture
+/// storage at shared backends. Returns an empty vector for valid single-node
+/// setups.
 pub fn static_issues(config: &Config) -> Vec<String> {
     if !config.deployment.requires_shared_runtime() {
         return Vec::new();

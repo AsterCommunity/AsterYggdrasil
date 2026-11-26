@@ -17,6 +17,8 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
+/// Capability bound for config mutation paths: besides the shared state they
+/// must propagate changes cross-process and record mutation metrics.
 pub(crate) trait SystemConfigMutationState:
     SharedRuntimeState + ConfigSyncRuntimeState + MetricsRuntimeState
 {
@@ -27,36 +29,58 @@ impl<T> SystemConfigMutationState for T where
 {
 }
 
+/// One runtime config entry as served to the admin config API, with its
+/// stored value and metadata driving editability and display.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct SystemConfig {
+    /// Config row ID.
     pub id: i64,
+    /// Stable config key used by readers.
     pub key: String,
+    /// Current stored value, typed by `value_type`.
     pub value: ConfigValue,
+    /// Value type that governs parsing and validation.
     pub value_type: ConfigValueType,
+    /// Whether changes only apply after a process restart.
     pub requires_restart: bool,
+    /// Whether the value must be redacted in listings and audit records.
     pub is_sensitive: bool,
+    /// Where the effective value came from (default, file, database).
     pub source: ConfigSource,
+    /// Who may read this entry via the admin API.
     pub visibility: ConfigVisibility,
+    /// Config sync namespace the entry belongs to.
     pub namespace: String,
+    /// Admin UI grouping category.
     pub category: String,
+    /// Human-readable description shown in the admin UI.
     pub description: String,
+    /// Last modification time (UTC).
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// Admin user who last modified the entry, when tracked.
     pub updated_by: Option<i64>,
 }
 
+/// Outcome of one runtime config update: the stored entry plus non-fatal
+/// warnings the admin should see.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct SystemConfigUpdateResult {
+    /// The entry as stored after the update.
     pub config: SystemConfig,
+    /// Non-fatal observations about the update (e.g. restart required).
     pub warnings: Vec<SystemConfigWarning>,
 }
 
+/// A non-fatal consequence of a config update, identified by a stable code.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct SystemConfigWarning {
+    /// Stable warning identifier clients can match on.
     pub code: &'static str,
+    /// Human-readable explanation of the warning.
     pub message: String,
 }
 
@@ -92,6 +116,8 @@ impl From<PresentedSystemConfig> for SystemConfig {
     }
 }
 
+/// Seeds every registered config key with its default value when missing;
+/// runs at startup and in migrations so readers never see absent rows.
 pub async fn ensure_defaults<C: ConnectionTrait>(db: &C) -> Result<()> {
     tracing::debug!("ensuring default system configs");
     system_config_repo::ensure_defaults(db).await?;
@@ -99,6 +125,9 @@ pub async fn ensure_defaults<C: ConnectionTrait>(db: &C) -> Result<()> {
     Ok(())
 }
 
+/// Opt-in bootstrap override that forces the secure-cookie flag off, so the
+/// first admin login works over plain HTTP before TLS is set up; a no-op
+/// unless explicitly enabled at startup.
 pub async fn bootstrap_insecure_cookies<C: ConnectionTrait>(
     db: &C,
     bootstrap_insecure_cookies: bool,

@@ -18,19 +18,30 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone)]
+/// Terminal state of self-service registration: a live session when email
+/// activation is disabled (or the account is the first admin), otherwise an
+/// unactivated account awaiting the emailed activation link.
 pub enum RegisterOutcome {
+    /// Registration completed with an issued session.
     Authenticated(AuthTokenBundle),
+    /// Account created but locked until the emailed activation link is
+    /// confirmed.
     PendingActivation(AuthUserInfo),
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Client-safe registration response; tokens travel in cookies.
 pub struct RegisterResponse {
+    /// Access token lifetime in seconds; `0` when activation is pending.
     pub expires_in: u64,
+    /// Whether the account must confirm the emailed activation link before
+    /// logging in.
     pub requires_activation: bool,
 }
 
 impl RegisterOutcome {
+    /// Strips tokens/user, leaving the client-safe registration response.
     pub fn response(&self) -> RegisterResponse {
         match self {
             Self::Authenticated(bundle) => RegisterResponse {
@@ -45,6 +56,9 @@ impl RegisterOutcome {
     }
 }
 
+/// One-time bootstrap: creates the first account as an Admin, optionally
+/// seeds the `public_site_url` runtime config, issues a session, and writes a
+/// system-setup audit entry. Rejected once any user exists.
 pub async fn setup_first_admin<S>(
     state: &S,
     username: &str,
@@ -120,6 +134,9 @@ where
     Ok(response)
 }
 
+/// Self-service registration. The first account becomes Admin; later ones are
+/// Users and, when `register_activation_enabled`, start unverified with an
+/// activation email queued instead of receiving a session.
 pub async fn register<S>(
     state: &S,
     username: &str,

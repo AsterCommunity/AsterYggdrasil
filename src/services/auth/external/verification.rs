@@ -81,6 +81,9 @@ pub(super) async fn create_pending_email_verification_flow(
     })
 }
 
+/// Attaches an email address to a pending external auth verification flow,
+/// validates provider/domain/registration policy, and enqueues the
+/// verification email. The flow can only request one email; repeat calls fail.
 pub async fn start_email_verification(
     state: &impl SharedRuntimeState,
     input: ExternalAuthEmailVerificationStartRequest,
@@ -187,6 +190,9 @@ pub async fn start_email_verification(
     }
 }
 
+/// Consumes the emailed verification token, marks the flow used exactly once,
+/// and resolves the login as if the provider email were verified (link,
+/// auto-link by verified email, or auto-provision).
 pub async fn confirm_email_verification(
     state: &impl SharedRuntimeState,
     token: &str,

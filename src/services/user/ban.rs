@@ -19,95 +19,152 @@ const REASON_MAX_CHARS: usize = 128;
 const NOTE_MAX_CHARS: usize = 1000;
 
 #[derive(Debug, Clone)]
+/// Payload for creating a user capability ban.
 pub struct CreateUserBanInput {
+    /// User that will be banned.
     pub target_user_id: i64,
+    /// Capability scopes the ban applies to; must be non-empty and must not
+    /// overlap any other effective ban on the same user.
     pub scopes: Vec<UserBanScope>,
+    /// Internal justification recorded in the audit trail (1-128 chars).
     pub reason: String,
+    /// Optional reason shown to the affected user.
     pub public_reason: Option<String>,
+    /// Optional note visible only to administrators.
     pub admin_note: Option<String>,
+    /// Ban start time; defaults to the current time when omitted.
     pub starts_at: Option<DateTime<Utc>>,
+    /// Ban expiry time; `None` means the ban never expires.
     pub expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Default)]
+/// Payload for patching an existing ban; omitted fields keep their value.
 pub struct UpdateUserBanInput {
+    /// Replacement scope set applied wholesale when provided.
     pub scopes: Option<Vec<UserBanScope>>,
+    /// Replacement internal reason.
     pub reason: Option<String>,
+    /// Nullable patch for the user-facing reason.
     pub public_reason: Option<NullablePatch<String>>,
+    /// Nullable patch for the administrator note.
     pub admin_note: Option<NullablePatch<String>>,
+    /// Replacement start time.
     pub starts_at: Option<DateTime<Utc>>,
+    /// Nullable patch for the expiry time; clearing it makes the ban permanent.
     pub expires_at: Option<NullablePatch<DateTime<Utc>>>,
 }
 
 #[derive(Debug, Clone, Default)]
+/// Filter and pagination parameters for the cursor-paged ban listing.
 pub struct ListUserBansInput {
+    /// Page size; clamped to at most 100 items.
     pub limit: u64,
+    /// `(created_at, id)` continuation cursor from the previous page.
     pub cursor: Option<(DateTime<Utc>, i64)>,
+    /// Restrict the page to bans against this user.
     pub user_id: Option<i64>,
+    /// Restrict the page to bans containing this scope (applied in memory).
     pub scope: Option<UserBanScope>,
+    /// Restrict the page to bans with this stored status.
     pub status: Option<UserBanStatus>,
+    /// When true, only bans effective at the current time are returned.
     pub effective_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Serializable view of a ban record for API responses.
 pub struct UserBanInfo {
+    /// Ban record identifier.
     pub id: i64,
+    /// Banned user identifier.
     pub user_id: i64,
+    /// Capability scopes the ban covers.
     pub scopes: Vec<UserBanScope>,
+    /// Status stored on the record (`active` or `revoked`).
     pub status: UserBanStatus,
+    /// Stored status folded with the time window, so an unrevoked ban past
+    /// its expiry reads as `expired`.
     pub effective_status: UserBanStatus,
+    /// Whether the ban currently blocks the user's scopes.
     pub effective: bool,
+    /// Internal justification recorded when the ban was created or updated.
     pub reason: String,
+    /// Reason surfaced to the affected user, if any.
     pub public_reason: Option<String>,
+    /// Administrator-only note, if any.
     pub admin_note: Option<String>,
+    /// Administrator who created the ban, when known.
     pub created_by_user_id: Option<i64>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Time the ban takes effect.
     pub starts_at: DateTime<Utc>,
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
         schema(value_type = Option<String>)
     )]
+    /// Expiry time; `None` marks a permanent ban.
     pub expires_at: Option<DateTime<Utc>>,
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
         schema(value_type = Option<String>)
     )]
+    /// Time the ban was lifted early, when revoked.
     pub revoked_at: Option<DateTime<Utc>>,
+    /// Administrator who revoked the ban, when revoked by a user account.
     pub revoked_by_user_id: Option<i64>,
+    /// Note recorded when the ban was revoked.
     pub revoke_note: Option<String>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Record creation time.
     pub created_at: DateTime<Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Record last-update time.
     pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Serializable audit entry describing one lifecycle transition of a ban.
 pub struct UserBanEventInfo {
+    /// Event record identifier.
     pub id: i64,
+    /// Ban the event belongs to.
     pub ban_id: i64,
+    /// Administrator who performed the transition, when known.
     pub actor_user_id: Option<i64>,
+    /// Transition kind (`created`, `updated` or `revoked`).
     pub event_type: UserBanEventType,
+    /// Status before the transition; `None` on creation.
     pub previous_status: Option<UserBanStatus>,
+    /// Status after the transition.
     pub next_status: Option<UserBanStatus>,
+    /// Scope set before the transition; `None` on creation.
     pub previous_scopes: Option<Vec<UserBanScope>>,
+    /// Scope set after the transition.
     pub next_scopes: Option<Vec<UserBanScope>>,
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
         schema(value_type = Option<String>)
     )]
+    /// Expiry time before the transition.
     pub previous_expires_at: Option<DateTime<Utc>>,
     #[cfg_attr(
         all(debug_assertions, feature = "openapi"),
         schema(value_type = Option<String>)
     )]
+    /// Expiry time after the transition.
     pub next_expires_at: Option<DateTime<Utc>>,
+    /// Free-form note recorded with the transition.
     pub note: Option<String>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Time the transition was recorded.
     pub created_at: DateTime<Utc>,
 }
 
+/// Guard rejecting the request with a 403 when the user carries an effective
+/// ban covering the given capability scope.
 pub async fn ensure_user_not_banned<S>(state: &S, user_id: i64, scope: UserBanScope) -> Result<()>
 where
     S: DatabaseRuntimeState,
@@ -127,6 +184,8 @@ where
     Ok(())
 }
 
+/// Returns whether the user currently has an effective ban on the scope,
+/// without raising an error.
 pub async fn is_user_banned<S>(state: &S, user_id: i64, scope: UserBanScope) -> Result<bool>
 where
     S: DatabaseRuntimeState,
@@ -136,6 +195,8 @@ where
         .is_some())
 }
 
+/// Returns the ban record currently effective on the scope, if any; a record
+/// is effective while it is active, unrevoked, started and not expired.
 pub async fn active_user_ban_for_scope<S>(
     state: &S,
     user_id: i64,
@@ -147,6 +208,8 @@ where
     user_ban_repo::find_effective_for_scope(state.reader_db(), user_id, scope, Utc::now()).await
 }
 
+/// Lists every ban currently effective for the user, each carrying its
+/// folded effective status.
 pub async fn active_user_bans<S>(state: &S, user_id: i64) -> Result<Vec<UserBanInfo>>
 where
     S: DatabaseRuntimeState,
@@ -156,6 +219,9 @@ where
     Ok(bans.iter().map(|ban| ban_info_at(ban, now)).collect())
 }
 
+/// Returns a cursor-paged listing of bans with optional user, status and
+/// scope filtering; scope filtering happens in memory, so the reported total
+/// reflects the filtered page only.
 pub async fn list_user_bans<S>(
     state: &S,
     input: ListUserBansInput,
@@ -203,6 +269,7 @@ where
     ))
 }
 
+/// Loads a single ban by id, mapped to its API view.
 pub async fn get_user_ban<S>(state: &S, ban_id: i64) -> Result<UserBanInfo>
 where
     S: DatabaseRuntimeState,
@@ -211,6 +278,10 @@ where
     Ok(ban_info(&ban))
 }
 
+/// Creates a ban for the target user after validating the target exists, the
+/// time range is ordered, the texts fit their limits and no other effective
+/// ban overlaps the requested scopes; records a `Created` event inside the
+/// same transaction.
 pub async fn create_user_ban<S>(
     state: &S,
     actor_user_id: i64,
@@ -282,6 +353,9 @@ where
     Ok(ban_info(&ban))
 }
 
+/// Patches an existing ban while it is still effective, replacing scopes
+/// wholesale and applying nullable patches to the optional texts and expiry;
+/// records an `Updated` event with the previous and next state.
 pub async fn update_user_ban<S>(
     state: &S,
     actor_user_id: i64,
@@ -379,6 +453,8 @@ where
     Ok(ban_info(&updated))
 }
 
+/// Lifts a still-effective ban early, stamping the revocation time, actor
+/// and optional note; records a `Revoked` event in the same transaction.
 pub async fn revoke_user_ban<S>(
     state: &S,
     actor_user_id: i64,
@@ -436,6 +512,8 @@ where
     Ok(ban_info(&updated))
 }
 
+/// Lists the audit trail of lifecycle events recorded for a ban, ordered by
+/// the repository; errors when the ban itself does not exist.
 pub async fn list_user_ban_events<S>(state: &S, ban_id: i64) -> Result<Vec<UserBanEventInfo>>
 where
     S: DatabaseRuntimeState,

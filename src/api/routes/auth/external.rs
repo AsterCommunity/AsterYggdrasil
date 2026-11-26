@@ -24,6 +24,9 @@ use serde::{Deserialize, Serialize};
 const AUTH_REDIRECT_PARAM: &str = "auth_redirect";
 const AUTH_REDIRECT_LOGIN_SUCCESS: &str = "login_success";
 
+/// Configures the external identity endpoints under `/auth/external-auth`:
+/// provider discovery, browser login flows, email verification, and
+/// link management for the signed-in user.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth/external-auth")
@@ -60,8 +63,11 @@ fn parse_kind(value: &str) -> Result<ExternalAuthProviderKind> {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor query for paginating public external auth providers.
 pub struct ExternalAuthProviderCursorQuery {
+    /// Resume listing after providers ordered at or after this display name.
     pub after_display_name: Option<String>,
+    /// Tiebreaker provider ID for entries sharing the same display name.
     pub after_id: Option<i64>,
 }
 
@@ -75,6 +81,8 @@ pub struct ExternalAuthProviderCursorQuery {
         (status = 200, description = "Enabled external auth providers", body = inline(ApiResponse<CursorPage<external::ExternalAuthPublicProvider, StringIdCursor>>)),
     ),
 )]
+/// Lists enabled external auth providers so unauthenticated clients can
+/// discover the available login options.
 pub async fn list_providers(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -102,6 +110,7 @@ pub async fn list_providers(
         (status = 404, description = "Provider kind not found"),
     ),
 )]
+/// Lists enabled external auth providers filtered to one provider kind.
 pub async fn list_providers_by_kind(
     state: web::Data<AppState>,
     path: web::Path<String>,
@@ -140,6 +149,8 @@ pub async fn list_providers_by_kind(
         (status = 404, description = "Provider not found"),
     ),
 )]
+/// Starts an external login for the given provider, returning the provider's
+/// authorization target with the flow state carried through the callback.
 pub async fn start_login(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -163,10 +174,16 @@ pub async fn start_login(
 
 #[derive(Debug, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+/// Response body describing the session state after an external-auth flow
+/// completes without a browser redirect.
 pub struct ExternalAuthFinishLoginResponse {
+    /// Login outcome, e.g. `authenticated` or `password_change_required`.
     pub status: &'static str,
+    /// Access token lifetime in seconds, when a session was established.
     pub expires_in: Option<u64>,
+    /// Pending email-verification flow token, when verification is required.
     pub flow_token: Option<String>,
+    /// Frontend path to return the user to once login completes.
     pub return_path: Option<String>,
 }
 
@@ -184,6 +201,9 @@ pub struct ExternalAuthFinishLoginResponse {
         (status = 302, description = "External auth callback completed and redirected"),
     ),
 )]
+/// Completes an external login from the provider callback: issues session
+/// cookies on success or redirects into email verification / a status-bearing
+/// login URL when the flow requires it.
 pub async fn finish_login(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -269,6 +289,8 @@ pub async fn finish_login(
         (status = 403, description = "External auth linking or registration is not allowed"),
     ),
 )]
+/// Queues the verification email for a pending external login so the address
+/// can be confirmed before the session is issued.
 pub async fn start_email_verification(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -291,6 +313,8 @@ pub async fn start_email_verification(
     params(external::ExternalAuthEmailVerificationConfirmQuery),
     responses((status = 302, description = "External auth email verification completed and redirected")),
 )]
+/// Consumes an external-login email verification token, completing the login
+/// with session cookies or redirecting to a status-bearing login URL.
 pub async fn confirm_email_verification(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -359,6 +383,8 @@ pub async fn confirm_email_verification(
         (status = 401, description = "Invalid credentials"),
     ),
 )]
+/// Links an external identity from a pending login flow to an existing account
+/// by password confirmation, issuing session cookies on success.
 pub async fn link_with_password(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -406,6 +432,8 @@ pub async fn link_with_password(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the external identities linked to the current user's account with
+/// cursor pagination.
 pub async fn list_links(
     state: web::Data<AppState>,
     user: web::ReqData<AuthUserInfo>,
@@ -436,6 +464,7 @@ pub async fn list_links(
     ),
     security(("bearer" = [])),
 )]
+/// Unlinks one external identity from the current user's account.
 pub async fn delete_link(
     state: web::Data<AppState>,
     user: web::ReqData<AuthUserInfo>,

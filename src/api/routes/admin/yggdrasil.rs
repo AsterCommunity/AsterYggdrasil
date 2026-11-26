@@ -41,6 +41,8 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     ),
     security(("bearer" = [])),
 )]
+/// Lists Yggdrasil session forwarding servers, sortable by ID or by call
+/// order (enabled/priority), with cursor pagination matching the sort mode.
 pub async fn list_session_forward_servers(
     state: web::Data<AppState>,
     page: web::Query<AdminYggdrasilSessionForwardServerListQuery>,
@@ -86,6 +88,7 @@ pub async fn list_session_forward_servers(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single Yggdrasil session forwarding server configuration by ID.
 pub async fn get_session_forward_server(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -108,6 +111,8 @@ pub async fn get_session_forward_server(
     ),
     security(("bearer" = [])),
 )]
+/// Registers a new Yggdrasil session forwarding server and records the
+/// creation in the audit log.
 pub async fn create_session_forward_server(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -146,6 +151,8 @@ pub async fn create_session_forward_server(
     ),
     security(("bearer" = [])),
 )]
+/// Updates a Yggdrasil session forwarding server's configuration and records
+/// the change in the audit log.
 pub async fn update_session_forward_server(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -184,6 +191,8 @@ pub async fn update_session_forward_server(
     ),
     security(("bearer" = [])),
 )]
+/// Removes a Yggdrasil session forwarding server; the local (built-in) server
+/// cannot be deleted. Records the deletion in the audit log.
 pub async fn delete_session_forward_server(
     state: web::Data<AppState>,
     req: HttpRequest,

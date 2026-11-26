@@ -24,6 +24,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// [`TextureStore`](super::TextureStore) implementation backed by an S3-compatible object storage service.
 pub struct S3TextureStore {
     client: aws_sdk_s3::Client,
     bucket: String,
@@ -33,6 +34,10 @@ pub struct S3TextureStore {
 }
 
 impl S3TextureStore {
+    /// Creates an S3 client from `config`, validating bucket, credentials, and endpoint first.
+    ///
+    /// Performs no network I/O; an empty `region` falls back to `us-east-1` and a missing
+    /// endpoint targets the AWS default.
     pub fn new(config: &S3TextureStorageConfig) -> Result<Self> {
         validate_config(config)?;
 

@@ -6,41 +6,92 @@ use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 use std::any::Any;
 
+/// Convenience alias for results that fail with the unified [`AsterError`].
 pub type Result<T> = std::result::Result<T, AsterError>;
 
+/// Unified application error type.
+///
+/// `Public` errors carry a caller-chosen status, API code, message and
+/// retryability hint that are exposed verbatim; every other variant maps to a
+/// fixed internal code, HTTP status, [`AsterErrorCode`] and retryability
+/// policy through the accessor methods on this type.
 #[derive(Debug, Clone)]
 pub enum AsterError {
+    /// Publicly constructed error exposing an explicit HTTP status, API
+    /// error code, client-facing message and optional retryability hint.
     Public {
+        /// Stable internal error code recorded in logs; never exposed in responses.
         internal_code: &'static str,
+        /// HTTP status returned to the client.
         status: StatusCode,
+        /// Public API error code rendered in the response body.
         code: AsterErrorCode,
+        /// Client-facing message rendered in the response body.
         message: String,
+        /// Optional hint that the client may retry the same request.
         retryable: Option<bool>,
     },
+    /// Database connection failure; internal code E001, mapped to a 500
+    /// response with `DatabaseError` and a retryable hint.
     DatabaseConnection(String),
+    /// Database operation failure after retries; internal code E002, mapped
+    /// to a 500 response with `DatabaseError` and a retryable hint.
     DatabaseOperation(String),
+    /// Database operation failure classified by a Forge `DatabaseErrorKind`;
+    /// internal code E002, mapped to a 500 response with `DatabaseError` and
+    /// a retryable hint.
     DatabaseOperationClassified {
+        /// Human-readable failure description.
         message: String,
+        /// Classified failure kind used by callers for retry decisions.
         kind: aster_forge_db::DatabaseErrorKind,
     },
+    /// Transaction commit outcome could not be observed (connection lost
+    /// mid-commit); internal code E002, mapped to a 500 response with
+    /// `DatabaseError` and marked non-retryable because replaying is unsafe.
     DatabaseCommitOutcomeUnknown {
+        /// Human-readable failure description.
         message: String,
+        /// Classified failure kind, when the driver could infer one.
         kind: Option<aster_forge_db::DatabaseErrorKind>,
     },
+    /// Configuration loading or lookup failure; internal code E003, mapped
+    /// to a 500 response with `ConfigError`.
     ConfigError(String),
+    /// Request or domain validation failure; internal code E005, mapped to a
+    /// 400 response with `BadRequest`.
     ValidationError(String),
+    /// Authentication rejected because credentials did not match; internal
+    /// code E010, mapped to a 401 response with `AuthCredentialsFailed`.
     AuthInvalidCredentials(String),
+    /// Token failed verification or parsing; internal code E012, mapped to a
+    /// 401 response with `AuthTokenInvalid`.
     AuthTokenInvalid(String),
+    /// Token is structurally valid but past its validity window; internal
+    /// code E011, mapped to a 401 response with `AuthTokenExpired`.
     AuthTokenExpired(String),
+    /// Authenticated principal lacks permission for the action; internal
+    /// code E013, mapped to a 403 response with `Forbidden`.
     AuthForbidden(String),
+    /// Requested record does not exist; internal code E006, mapped to a 404
+    /// response with `NotFound`.
     RecordNotFound(String),
+    /// External authentication provider flow failed; internal code E020,
+    /// mapped to a 400 response with `ExternalAuthError`.
     ExternalAuthError(String),
+    /// Mail subsystem has no usable SMTP configuration; internal code E030,
+    /// mapped to a 503 response with `MailNotConfigured`, non-retryable.
     MailNotConfigured(String),
+    /// Outbound SMTP delivery failed; internal code E031, mapped to a 503
+    /// response with `MailDeliveryFailed`, retryable.
     MailDeliveryFailed(String),
+    /// Unclassified internal failure; internal code E004, mapped to a 500
+    /// response with `InternalServerError`.
     InternalError(String),
 }
 
 impl AsterError {
+    /// Builds a database connection failure from a raw message.
     pub fn database_connection(message: impl Into<String>) -> Self {
         Self::DatabaseConnection(message.into())
     }
@@ -70,46 +121,65 @@ impl AsterError {
         }
     }
 
+    /// Builds a public 400 validation error carrying a specific AsterErrorCode.
     pub fn validation_error_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error(StatusCode::BAD_REQUEST, code, message)
     }
 
+    /// Builds a public 400 error with the generic `ValidationFailed` code.
     pub fn validation_failed(message: impl Into<String>) -> Self {
         Self::validation_error_code(AsterErrorCode::ValidationFailed, message)
     }
 
+    /// Builds a public 404 error carrying a specific AsterErrorCode for
+    /// missing resources.
     pub fn record_not_found_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error(StatusCode::NOT_FOUND, code, message)
     }
 
+    /// Builds a public 403 error carrying a specific AsterErrorCode for
+    /// denied actions.
     pub fn auth_forbidden_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error(StatusCode::FORBIDDEN, code, message)
     }
 
+    /// Builds a public 401 error carrying a specific AsterErrorCode for
+    /// unauthenticated requests.
     pub fn auth_unauthorized_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error(StatusCode::UNAUTHORIZED, code, message)
     }
 
+    /// Builds a public 403 error signaling that administrator privileges
+    /// are required.
     pub fn auth_admin_required(message: impl Into<String>) -> Self {
         Self::auth_forbidden_code(AsterErrorCode::AuthAdminRequired, message)
     }
 
+    /// Builds a public 403 error for requests that carry no CSRF token.
     pub fn auth_csrf_missing(message: impl Into<String>) -> Self {
         Self::auth_forbidden_code(AsterErrorCode::AuthCsrfMissing, message)
     }
 
+    /// Builds a public 403 error for requests with a mismatched or stale
+    /// CSRF token.
     pub fn auth_csrf_invalid(message: impl Into<String>) -> Self {
         Self::auth_forbidden_code(AsterErrorCode::AuthCsrfInvalid, message)
     }
 
+    /// Builds a public 500 error carrying a specific AsterErrorCode for
+    /// internal failures.
     pub fn internal_error_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error(StatusCode::INTERNAL_SERVER_ERROR, code, message)
     }
 
+    /// Builds a public 503 error carrying a specific AsterErrorCode for
+    /// temporarily unavailable services.
     pub fn service_unavailable_code(code: AsterErrorCode, message: impl Into<String>) -> Self {
         Self::public_error_with_retryable(StatusCode::SERVICE_UNAVAILABLE, code, message, None)
     }
 
+    /// Builds a public 503 `RuntimeUnavailable` error flagged retryable so
+    /// clients may poll again later.
     pub fn runtime_unavailable_retryable(message: impl Into<String>) -> Self {
         Self::public_error_with_retryable(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -119,6 +189,8 @@ impl AsterError {
         )
     }
 
+    /// Builds a public 413 error for request bodies exceeding the configured
+    /// size limit.
     pub fn request_payload_too_large(message: impl Into<String>) -> Self {
         Self::public_error(
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -127,6 +199,8 @@ impl AsterError {
         )
     }
 
+    /// Builds a public 429 error emitted when a rate limit budget is
+    /// exhausted.
     pub fn rate_limited(message: impl Into<String>) -> Self {
         Self::public_error(
             StatusCode::TOO_MANY_REQUESTS,
@@ -135,10 +209,13 @@ impl AsterError {
         )
     }
 
+    /// Builds a database operation failure from a raw message.
     pub fn database_operation(message: impl Into<String>) -> Self {
         Self::DatabaseOperation(message.into())
     }
 
+    /// Builds a database operation failure that preserves the Forge
+    /// `DatabaseErrorKind` for retry decisions.
     pub fn database_operation_classified(
         message: impl Into<String>,
         kind: aster_forge_db::DatabaseErrorKind,
@@ -149,6 +226,8 @@ impl AsterError {
         }
     }
 
+    /// Builds an unknown-commit-outcome error, optionally carrying a
+    /// classified database failure kind.
     pub fn database_commit_outcome_unknown(
         message: impl Into<String>,
         kind: Option<aster_forge_db::DatabaseErrorKind>,
@@ -159,6 +238,8 @@ impl AsterError {
         }
     }
 
+    /// Returns the classified database failure kind preserved by this error,
+    /// if any.
     pub fn database_error_kind(&self) -> Option<aster_forge_db::DatabaseErrorKind> {
         match self {
             Self::DatabaseOperationClassified { kind, .. } => Some(*kind),
@@ -167,42 +248,56 @@ impl AsterError {
         }
     }
 
+    /// Returns true when the transaction commit outcome could not be
+    /// observed, so replaying the operation is unsafe.
     pub fn database_commit_outcome_is_unknown(&self) -> bool {
         matches!(self, Self::DatabaseCommitOutcomeUnknown { .. })
     }
 
+    /// Builds a configuration loading or lookup failure from a message.
     pub fn config_error(message: impl Into<String>) -> Self {
         Self::ConfigError(message.into())
     }
 
+    /// Builds a request or domain validation failure from a message.
     pub fn validation_error(message: impl Into<String>) -> Self {
         Self::ValidationError(message.into())
     }
 
+    /// Builds a credentials-check failure for login and password flows.
     pub fn auth_invalid_credentials(message: impl Into<String>) -> Self {
         Self::AuthInvalidCredentials(message.into())
     }
 
+    /// Builds a token verification failure for malformed or unverifiable
+    /// tokens.
     pub fn auth_token_invalid(message: impl Into<String>) -> Self {
         Self::AuthTokenInvalid(message.into())
     }
 
+    /// Builds a token expiry failure for tokens past their validity window.
     pub fn auth_token_expired(message: impl Into<String>) -> Self {
         Self::AuthTokenExpired(message.into())
     }
 
+    /// Builds a permission failure for authenticated principals lacking
+    /// required privileges.
     pub fn auth_forbidden(message: impl Into<String>) -> Self {
         Self::AuthForbidden(message.into())
     }
 
+    /// Builds a public 403 error for accounts that have not completed
+    /// activation.
     pub fn auth_pending_activation(message: impl Into<String>) -> Self {
         Self::auth_forbidden_code(AsterErrorCode::AuthPendingActivation, message)
     }
 
+    /// Builds a public 400 error for an invalid contact verification code.
     pub fn contact_verification_invalid(message: impl Into<String>) -> Self {
         Self::validation_error_code(AsterErrorCode::ContactVerificationInvalid, message)
     }
 
+    /// Builds a public 410 error for an expired contact verification code.
     pub fn contact_verification_expired(message: impl Into<String>) -> Self {
         Self::public_error(
             StatusCode::GONE,
@@ -211,30 +306,38 @@ impl AsterError {
         )
     }
 
+    /// Builds a public 500 error emitted when avatar rendering fails.
     pub fn avatar_render_failed(message: impl Into<String>) -> Self {
         Self::internal_error_code(AsterErrorCode::AvatarRenderFailed, message)
     }
 
+    /// Builds a missing-record failure from a message.
     pub fn record_not_found(message: impl Into<String>) -> Self {
         Self::RecordNotFound(message.into())
     }
 
+    /// Builds an external authentication provider failure from a message.
     pub fn external_auth_error(message: impl Into<String>) -> Self {
         Self::ExternalAuthError(message.into())
     }
 
+    /// Builds a mail-subsystem failure for missing SMTP configuration.
     pub fn mail_not_configured(message: impl Into<String>) -> Self {
         Self::MailNotConfigured(message.into())
     }
 
+    /// Builds a mail-subsystem failure for failed outbound delivery.
     pub fn mail_delivery_failed(message: impl Into<String>) -> Self {
         Self::MailDeliveryFailed(message.into())
     }
 
+    /// Builds an unclassified internal failure from a message.
     pub fn internal_error(message: impl Into<String>) -> Self {
         Self::InternalError(message.into())
     }
 
+    /// Returns the stable internal error code (E0xx) used for log
+    /// correlation; never exposed in API responses.
     pub fn code(&self) -> &'static str {
         match self {
             Self::Public { internal_code, .. } => internal_code,
@@ -256,6 +359,8 @@ impl AsterError {
         }
     }
 
+    /// Maps the error to the public AsterErrorCode rendered in the Forge
+    /// response envelope.
     pub fn api_error_code(&self) -> AsterErrorCode {
         match self {
             Self::Public { code, .. } => *code,
@@ -277,6 +382,8 @@ impl AsterError {
         }
     }
 
+    /// Returns the explicit API error code for `Public` errors, or `None`
+    /// when the variant's code is derived from its fixed classification.
     pub fn api_error_code_override(&self) -> Option<AsterErrorCode> {
         match self {
             Self::Public { code, .. } => Some(*code),
@@ -284,6 +391,9 @@ impl AsterError {
         }
     }
 
+    /// Returns the retryability hint exposed to clients: database and mail
+    /// delivery failures are retryable, unknown commit outcomes and missing
+    /// mail configuration are not, and the remaining variants carry no hint.
     pub fn retryable(&self) -> Option<bool> {
         match self {
             Self::Public { retryable, .. } => *retryable,
@@ -297,6 +407,7 @@ impl AsterError {
         }
     }
 
+    /// Returns the client-facing message string carried by the error.
     pub fn message(&self) -> &str {
         match self {
             Self::Public { message, .. } => message,
@@ -318,6 +429,8 @@ impl AsterError {
         }
     }
 
+    /// Returns the HTTP status the error maps to when converted into a
+    /// response.
     pub fn status_code(&self) -> StatusCode {
         match self {
             Self::Public { status, .. } => *status,
@@ -514,13 +627,23 @@ fn map_display_error<E: std::fmt::Display + 'static>(
     mapper(message)
 }
 
+/// Extension trait mapping foreign `Display` errors into [`AsterError`].
+///
+/// The message-based helpers special-case `sea_orm::DbErr::RecordNotFound`,
+/// converting it into a `RecordNotFound` error regardless of the mapper
+/// passed, so missing rows surface as 404 responses.
 pub trait MapAsterErr<T> {
+    /// Maps the error's `Display` representation through the given
+    /// constructor.
     fn map_aster_err(self, mapper: impl FnOnce(String) -> AsterError) -> Result<T>;
+    /// Like `map_aster_err`, but prefixes the message with `context`.
     fn map_aster_err_ctx(
         self,
         context: &str,
         mapper: impl FnOnce(String) -> AsterError,
     ) -> Result<T>;
+    /// Replaces any error with a fixed [`AsterError`] built on demand,
+    /// discarding the original message.
     fn map_aster_err_with(self, mapper: impl FnOnce() -> AsterError) -> Result<T>;
 }
 
@@ -542,14 +665,17 @@ impl<T, E: std::fmt::Display + 'static> MapAsterErr<T> for std::result::Result<T
     }
 }
 
+/// Formats an arbitrary `Display` value into its string representation.
 pub fn display_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
+/// Builds a public 400 validation error carrying a specific AsterErrorCode.
 pub fn validation_error_with_code(code: AsterErrorCode, message: impl Into<String>) -> AsterError {
     AsterError::validation_error_code(code, message)
 }
 
+/// Builds a public 403 forbidden error carrying a specific AsterErrorCode.
 pub fn auth_forbidden_with_code(code: AsterErrorCode, message: impl Into<String>) -> AsterError {
     AsterError::auth_forbidden_code(code, message)
 }

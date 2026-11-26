@@ -11,6 +11,7 @@ use sea_orm::{
     sea_query::Expr,
 };
 
+/// Inserts a new contact verification token row.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     model: contact_verification_token::ActiveModel,
@@ -21,6 +22,10 @@ pub async fn create<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Looks up a verification token by its hash.
+///
+/// Returns `None` when no token with that hash exists; consumption state and expiry are not
+/// filtered here and must be checked by the caller.
 pub async fn find_by_token_hash<C: ConnectionTrait>(
     db: &C,
     token_hash: &str,
@@ -32,6 +37,10 @@ pub async fn find_by_token_hash<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Finds the newest still-active token for a user, channel, and purpose combination.
+///
+/// "Active" means unconsumed and not expired at the current instant; ordering is by
+/// `created_at` descending. Returns `None` when no such token exists.
 pub async fn find_latest_active_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -50,6 +59,10 @@ pub async fn find_latest_active_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Deletes all unconsumed tokens for a user, channel, and purpose combination, invalidating
+/// codes issued earlier.
+///
+/// Already consumed tokens are kept for audit purposes.
 pub async fn delete_active_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -67,6 +80,10 @@ pub async fn delete_active_for_user<C: ConnectionTrait>(
     Ok(())
 }
 
+/// Marks a token as consumed with a guarded single-use update.
+///
+/// Returns `true` only when the token was still unconsumed; returns `false` when it was
+/// already consumed, so concurrent verifications yield exactly one winner.
 pub async fn mark_consumed_if_unused<C: ConnectionTrait>(db: &C, token_id: i64) -> Result<bool> {
     let result = ContactVerificationToken::update_many()
         .col_expr(
@@ -81,6 +98,7 @@ pub async fn mark_consumed_if_unused<C: ConnectionTrait>(db: &C, token_id: i64) 
     Ok(result.rows_affected == 1)
 }
 
+/// Deletes tokens whose `expires_at` is in the past, returning the number of rows removed.
 pub async fn delete_expired<C: ConnectionTrait>(db: &C) -> Result<u64> {
     let result = ContactVerificationToken::delete_many()
         .filter(contact_verification_token::Column::ExpiresAt.lt(Utc::now()))

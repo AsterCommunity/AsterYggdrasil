@@ -423,6 +423,9 @@ pub(super) fn normalize_texture_tag_color(value: &str) -> Result<String> {
     Ok(color.to_ascii_lowercase())
 }
 
+/// Streams a multipart upload field into a temp file, enforcing
+/// `max_upload_bytes` while writing so oversized payloads fail before hitting
+/// the sanitizer.
 pub async fn write_multipart_texture_field_to_file(
     field: &mut actix_multipart::Field,
     path: &Path,
@@ -486,6 +489,9 @@ pub async fn write_multipart_texture_field_to_file(
     })
 }
 
+/// Authenticates a Yggdrasil texture upload/delete request: the access token
+/// must be active and have a selected profile, and that profile's UUID must
+/// match the requested one. Returns the token and profile on success.
 pub async fn authenticate_texture_access<S>(
     state: &S,
     access_token: &str,
@@ -530,6 +536,9 @@ where
     Ok((token, profile))
 }
 
+/// Sanitizes, deduplicates, and binds an uploaded texture to the profile's
+/// `texture_type` slot, replacing any previous binding and cleaning up the
+/// orphaned asset. Checks ban status and the profile's upload allowlist first.
 pub async fn store_texture<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -626,6 +635,9 @@ where
     })
 }
 
+/// Sanitizes and stores an uploaded texture as a wardrobe asset owned by
+/// `user_id` without binding it to any profile, deduplicating by content
+/// fingerprint when an identical asset already exists.
 pub async fn store_wardrobe_texture<S>(
     state: &S,
     user_id: i64,
@@ -668,6 +680,9 @@ where
     Ok(StoredWardrobeTexture { texture })
 }
 
+/// Migrates legacy texture rows that predate the wardrobe model: converts
+/// still-bound rows into wardrobe assets, re-points duplicates onto the
+/// surviving asset, and removes duplicate rows. Returns per-outcome counts.
 pub async fn register_bound_textures_in_wardrobe<S>(
     state: &S,
 ) -> std::result::Result<WardrobeRegistrationResult, TextureError>

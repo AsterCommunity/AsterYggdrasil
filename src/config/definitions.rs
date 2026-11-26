@@ -11,29 +11,53 @@ use crate::config::{
     texture_preview, yggdrasil,
 };
 
+/// Settings category for publicly visible site origins.
 pub const CONFIG_CATEGORY_SITE_PUBLIC: &str = "site.public";
+/// Settings category for branding (title, description, favicon, wordmarks).
 pub const CONFIG_CATEGORY_SITE_BRANDING: &str = "site.branding";
+/// Settings category for session/cookie and token lifetime controls.
 pub const CONFIG_CATEGORY_AUTH_SESSION: &str = "auth.session";
+/// Settings category for registration and activation controls.
 pub const CONFIG_CATEGORY_AUTH_REGISTRATION: &str = "auth.registration";
+/// Settings category for password reset and account recovery controls.
 pub const CONFIG_CATEGORY_AUTH_RECOVERY: &str = "auth.recovery";
+/// Settings category for login method switches (email code, passkey).
 pub const CONFIG_CATEGORY_AUTH_LOGIN: &str = "auth.login";
+/// Settings category for CAPTCHA challenge controls.
 pub const CONFIG_CATEGORY_AUTH_CAPTCHA: &str = "auth.captcha";
+/// Settings category for email allow/block policy lists.
 pub const CONFIG_CATEGORY_AUTH_EMAIL_POLICY: &str = "auth.email_policy";
+/// Settings category for avatar (Gravatar) configuration.
 pub const CONFIG_CATEGORY_USER_AVATAR: &str = "user.avatar";
+/// Settings category for CORS policy controls.
 pub const CONFIG_CATEGORY_NETWORK_CORS: &str = "network.cors";
+/// Settings category for audit log switches and scope.
 pub const CONFIG_CATEGORY_AUDIT_LOG: &str = "audit.log";
+/// Settings category for background task execution tuning.
 pub const CONFIG_CATEGORY_RUNTIME_TASKS: &str = "runtime.tasks";
+/// Settings category for mail outbox dispatch tuning.
 pub const CONFIG_CATEGORY_RUNTIME_MAIL: &str = "runtime.mail";
+/// Settings category for periodic maintenance sweep tuning.
 pub const CONFIG_CATEGORY_RUNTIME_MAINTENANCE: &str = "runtime.maintenance";
+/// Settings category for SMTP connection settings.
 pub const CONFIG_CATEGORY_MAIL_CONFIG: &str = "mail.config";
+/// Settings category for editable mail template overrides.
 pub const CONFIG_CATEGORY_MAIL_TEMPLATE: &str = "mail.template";
+/// Settings category for authlib-injector metadata controls.
 pub const CONFIG_CATEGORY_YGGDRASIL_METADATA: &str = "yggdrasil.metadata";
+/// Settings category for Yggdrasil token/login controls.
 pub const CONFIG_CATEGORY_YGGDRASIL_AUTH: &str = "yggdrasil.auth";
+/// Settings category for texture upload limits and whitelists.
 pub const CONFIG_CATEGORY_YGGDRASIL_TEXTURES: &str = "yggdrasil.textures";
+/// Settings category for texture signature key material.
 pub const CONFIG_CATEGORY_YGGDRASIL_SIGNING: &str = "yggdrasil.signing";
+/// Settings category for public texture library policy.
 pub const CONFIG_CATEGORY_TEXTURE_LIBRARY: &str = "texture.library";
+/// Settings category for server-side texture preview rendering controls.
 pub const CONFIG_CATEGORY_TEXTURE_PREVIEW: &str = "texture.preview";
 
+/// Categories a `system_config` row may declare; guards against typos when
+/// operators add custom rows.
 pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_SITE_PUBLIC,
     CONFIG_CATEGORY_SITE_BRANDING,
@@ -59,142 +83,257 @@ pub const SYSTEM_CONFIG_ALLOWED_CATEGORIES: &[&str] = &[
     CONFIG_CATEGORY_TEXTURE_PREVIEW,
 ];
 
+/// Runtime key: JSON array of public origins used to build externally visible
+/// application URLs.
 pub const PUBLIC_SITE_URL_KEY: &str = "public_site_url";
+/// Runtime key: site title shown in the page header and metadata.
 pub const BRANDING_TITLE_KEY: &str = "branding_title";
+/// Runtime key: site description shown in metadata and directory listings.
 pub const BRANDING_DESCRIPTION_KEY: &str = "branding_description";
+/// Runtime key: favicon URL (absolute http(s) or root-relative path).
 pub const BRANDING_FAVICON_URL_KEY: &str = "branding_favicon_url";
+/// Runtime key: dark-theme wordmark image URL.
 pub const BRANDING_WORDMARK_DARK_URL_KEY: &str = "branding_wordmark_dark_url";
+/// Runtime key: light-theme wordmark image URL.
 pub const BRANDING_WORDMARK_LIGHT_URL_KEY: &str = "branding_wordmark_light_url";
 
+/// Runtime key: whether session cookies carry the `Secure` flag.
 pub const AUTH_COOKIE_SECURE_KEY: &str = "auth_cookie_secure";
+/// Runtime key: access token lifetime in seconds.
 pub const AUTH_ACCESS_TOKEN_TTL_SECS_KEY: &str = "auth_access_token_ttl_secs";
+/// Runtime key: refresh token lifetime in seconds.
 pub const AUTH_REFRESH_TOKEN_TTL_SECS_KEY: &str = "auth_refresh_token_ttl_secs";
+/// Runtime key: whether self-registration is open.
 pub const AUTH_ALLOW_USER_REGISTRATION_KEY: &str = "auth_allow_user_registration";
+/// Runtime key: whether new accounts must activate via emailed link.
 pub const AUTH_REGISTER_ACTIVATION_ENABLED_KEY: &str = "auth_register_activation_enabled";
+/// Runtime key: register activation link lifetime in seconds.
 pub const AUTH_REGISTER_ACTIVATION_TTL_SECS_KEY: &str = "auth_register_activation_ttl_secs";
+/// Runtime key: invitation acceptance link lifetime in seconds.
 pub const AUTH_USER_INVITATION_TTL_SECS_KEY: &str = "auth_user_invitation_ttl_secs";
+/// Runtime key: contact (email) change verification link lifetime in seconds.
 pub const AUTH_CONTACT_CHANGE_TTL_SECS_KEY: &str = "auth_contact_change_ttl_secs";
+/// Runtime key: password reset link lifetime in seconds.
 pub const AUTH_PASSWORD_RESET_TTL_SECS_KEY: &str = "auth_password_reset_ttl_secs";
+/// Runtime key: minimum resend interval for contact verification mail, in
+/// seconds.
 pub const AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS_KEY: &str =
     "auth_contact_verification_resend_cooldown_secs";
+/// Runtime key: minimum interval between password reset requests, in seconds.
 pub const AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS_KEY: &str =
     "auth_password_reset_request_cooldown_secs";
+/// Runtime key: whether email-code login is enabled.
 pub const AUTH_EMAIL_CODE_LOGIN_ENABLED_KEY: &str = "auth_email_code_login_enabled";
+/// Runtime key: whether passkey (WebAuthn) login is enabled.
 pub const AUTH_PASSKEY_LOGIN_ENABLED_KEY: &str = "auth_passkey_login_enabled";
+/// Runtime key: CAPTCHA master switch.
 pub const AUTH_CAPTCHA_ENABLED_KEY: &str = "auth_captcha_enabled";
+/// Runtime key: whether login requires a CAPTCHA.
 pub const AUTH_CAPTCHA_LOGIN_REQUIRED_KEY: &str = "auth_captcha_login_required";
+/// Runtime key: whether registration requires a CAPTCHA.
 pub const AUTH_CAPTCHA_REGISTER_REQUIRED_KEY: &str = "auth_captcha_register_required";
+/// Runtime key: whether accepting a user invitation requires a CAPTCHA.
 pub const AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED_KEY: &str =
     "auth_captcha_invitation_accept_required";
+/// Runtime key: whether resending register activation mail requires a CAPTCHA.
 pub const AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED_KEY: &str =
     "auth_captcha_register_activation_resend_required";
+/// Runtime key: CAPTCHA image difficulty preset (readable/balanced/hardened).
 pub const AUTH_CAPTCHA_PRESET_KEY: &str = "auth_captcha_preset";
+/// Runtime key: CAPTCHA answer lifetime in seconds.
 pub const AUTH_CAPTCHA_TTL_SECS_KEY: &str = "auth_captcha_ttl_secs";
+/// Runtime key: CAPTCHA code length in characters.
 pub const AUTH_CAPTCHA_LENGTH_KEY: &str = "auth_captcha_length";
+/// Runtime key: CAPTCHA attempts allowed per challenge.
 pub const AUTH_CAPTCHA_MAX_ATTEMPTS_KEY: &str = "auth_captcha_max_attempts";
+/// Runtime key: whether TOTP may substitute when email-code login cannot
+/// deliver a code.
 pub const AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK_KEY: &str =
     "auth_email_code_login_allow_totp_fallback";
+/// Runtime key: email login code lifetime in seconds.
 pub const AUTH_EMAIL_CODE_LOGIN_TTL_SECS_KEY: &str = "auth_email_code_login_ttl_secs";
+/// Runtime key: minimum interval between email login code resends, in seconds.
 pub const AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS_KEY: &str =
     "auth_email_code_login_resend_cooldown_secs";
+/// Runtime key: JSON array of emails/domains allowed to hold local accounts.
 pub const AUTH_LOCAL_EMAIL_ALLOWLIST_KEY: &str = "auth_local_email_allowlist";
+/// Runtime key: JSON array of emails/domains barred from local accounts.
 pub const AUTH_LOCAL_EMAIL_BLOCKLIST_KEY: &str = "auth_local_email_blocklist";
 
+/// Runtime key: Gravatar-compatible avatar base URL.
 pub const GRAVATAR_BASE_URL_KEY: &str = "gravatar_base_url";
 
+/// Runtime key: CORS enforcement master switch.
 pub const CORS_ENABLED_KEY: &str = "cors_enabled";
+/// Runtime key: comma-separated list of allowed CORS origins (`*` for any).
 pub const CORS_ALLOWED_ORIGINS_KEY: &str = "cors_allowed_origins";
+/// Runtime key: whether cross-origin requests may carry credentials.
 pub const CORS_ALLOW_CREDENTIALS_KEY: &str = "cors_allow_credentials";
+/// Runtime key: `Access-Control-Max-Age` value in seconds.
 pub const CORS_MAX_AGE_SECS_KEY: &str = "cors_max_age_secs";
 
+/// Runtime key: audit logging master switch.
 pub const AUDIT_LOG_ENABLED_KEY: &str = "audit_log_enabled";
+/// Runtime key: how many days audit entries are retained.
 pub const AUDIT_LOG_RETENTION_DAYS_KEY: &str = "audit_log_retention_days";
+/// Runtime key: JSON array of audit actions that are recorded.
 pub const AUDIT_LOG_RECORDED_ACTIONS_KEY: &str = "audit_log_recorded_actions";
 
+/// Runtime key: SMTP server hostname or IP.
 pub const MAIL_SMTP_HOST_KEY: &str = "mail_smtp_host";
+/// Runtime key: SMTP server port.
 pub const MAIL_SMTP_PORT_KEY: &str = "mail_smtp_port";
+/// Runtime key: SMTP authentication username.
 pub const MAIL_SMTP_USERNAME_KEY: &str = "mail_smtp_username";
+/// Runtime key: SMTP authentication password.
 pub const MAIL_SMTP_PASSWORD_KEY: &str = "mail_smtp_password";
+/// Runtime key: sender email address for outgoing mail.
 pub const MAIL_FROM_ADDRESS_KEY: &str = "mail_from_address";
+/// Runtime key: sender display name for outgoing mail.
 pub const MAIL_FROM_NAME_KEY: &str = "mail_from_name";
+/// Runtime key: whether SMTP transport encryption is enabled.
 pub const MAIL_SECURITY_KEY: &str = "mail_security";
+/// Runtime key: subject line override for register activation mail.
 pub const MAIL_TEMPLATE_REGISTER_ACTIVATION_SUBJECT_KEY: &str =
     "mail_template_register_activation_subject";
+/// Runtime key: HTML body override for register activation mail.
 pub const MAIL_TEMPLATE_REGISTER_ACTIVATION_HTML_KEY: &str =
     "mail_template_register_activation_html";
+/// Runtime key: subject line override for contact change confirmation mail.
 pub const MAIL_TEMPLATE_CONTACT_CHANGE_CONFIRMATION_SUBJECT_KEY: &str =
     "mail_template_contact_change_confirmation_subject";
+/// Runtime key: HTML body override for contact change confirmation mail.
 pub const MAIL_TEMPLATE_CONTACT_CHANGE_CONFIRMATION_HTML_KEY: &str =
     "mail_template_contact_change_confirmation_html";
+/// Runtime key: subject line override for password reset mail.
 pub const MAIL_TEMPLATE_PASSWORD_RESET_SUBJECT_KEY: &str = "mail_template_password_reset_subject";
+/// Runtime key: HTML body override for password reset mail.
 pub const MAIL_TEMPLATE_PASSWORD_RESET_HTML_KEY: &str = "mail_template_password_reset_html";
+/// Runtime key: subject line override for the password reset notice sent to
+/// the old address.
 pub const MAIL_TEMPLATE_PASSWORD_RESET_NOTICE_SUBJECT_KEY: &str =
     "mail_template_password_reset_notice_subject";
+/// Runtime key: HTML body override for the password reset notice.
 pub const MAIL_TEMPLATE_PASSWORD_RESET_NOTICE_HTML_KEY: &str =
     "mail_template_password_reset_notice_html";
+/// Runtime key: subject line override for the contact change notice sent to
+/// the old address.
 pub const MAIL_TEMPLATE_CONTACT_CHANGE_NOTICE_SUBJECT_KEY: &str =
     "mail_template_contact_change_notice_subject";
+/// Runtime key: HTML body override for the contact change notice.
 pub const MAIL_TEMPLATE_CONTACT_CHANGE_NOTICE_HTML_KEY: &str =
     "mail_template_contact_change_notice_html";
+/// Runtime key: subject line override for external-auth email verification
+/// mail.
 pub const MAIL_TEMPLATE_EXTERNAL_AUTH_EMAIL_VERIFICATION_SUBJECT_KEY: &str =
     "mail_template_external_auth_email_verification_subject";
+/// Runtime key: HTML body override for external-auth email verification mail.
 pub const MAIL_TEMPLATE_EXTERNAL_AUTH_EMAIL_VERIFICATION_HTML_KEY: &str =
     "mail_template_external_auth_email_verification_html";
+/// Runtime key: subject line override for email-code login mail.
 pub const MAIL_TEMPLATE_LOGIN_EMAIL_CODE_SUBJECT_KEY: &str =
     "mail_template_login_email_code_subject";
+/// Runtime key: HTML body override for email-code login mail.
 pub const MAIL_TEMPLATE_LOGIN_EMAIL_CODE_HTML_KEY: &str = "mail_template_login_email_code_html";
+/// Runtime key: subject line override for user invitation mail.
 pub const MAIL_TEMPLATE_USER_INVITATION_SUBJECT_KEY: &str = "mail_template_user_invitation_subject";
+/// Runtime key: HTML body override for user invitation mail.
 pub const MAIL_TEMPLATE_USER_INVITATION_HTML_KEY: &str = "mail_template_user_invitation_html";
 
+/// Runtime key: mail outbox dispatch poll interval in seconds.
 pub const MAIL_OUTBOX_DISPATCH_INTERVAL_SECS_KEY: &str = "mail_outbox_dispatch_interval_secs";
+/// Runtime key: background task poll interval in seconds.
 pub const BACKGROUND_TASK_DISPATCH_INTERVAL_SECS_KEY: &str =
     "background_task_dispatch_interval_secs";
+/// Runtime key: maximum dispatcher idle backoff interval in seconds.
 pub const BACKGROUND_TASK_DISPATCH_IDLE_MAX_INTERVAL_SECS_KEY: &str =
     "background_task_dispatch_idle_max_interval_secs";
+/// Runtime key: how many background tasks may run concurrently.
 pub const BACKGROUND_TASK_MAX_CONCURRENCY_KEY: &str = "background_task_max_concurrency";
+/// Runtime key: attempts allowed per background task before failure.
 pub const BACKGROUND_TASK_MAX_ATTEMPTS_KEY: &str = "background_task_max_attempts";
+/// Runtime key: how many hours finished task records are retained.
 pub const TASK_RETENTION_HOURS_KEY: &str = "task_retention_hours";
+/// Runtime key: page-size cap for admin task list queries.
 pub const TASK_LIST_MAX_LIMIT_KEY: &str = "task_list_max_limit";
+/// Runtime key: maintenance cleanup sweep interval in seconds.
 pub const MAINTENANCE_CLEANUP_INTERVAL_SECS_KEY: &str = "maintenance_cleanup_interval_secs";
 
+/// Runtime key: server name exposed in authlib-injector metadata.
 pub const YGGDRASIL_SERVER_NAME_KEY: &str = "yggdrasil_server_name";
+/// Runtime key: whether launcher login by profile name is allowed.
 pub const YGGDRASIL_ALLOW_PROFILE_NAME_LOGIN_KEY: &str = "yggdrasil_allow_profile_name_login";
+/// Runtime key: whether skin uploads are accepted.
 pub const YGGDRASIL_ALLOW_SKIN_UPLOAD_KEY: &str = "yggdrasil_allow_skin_upload";
+/// Runtime key: whether cape uploads are accepted.
 pub const YGGDRASIL_ALLOW_CAPE_UPLOAD_KEY: &str = "yggdrasil_allow_cape_upload";
+/// Runtime key: whether authlib-injector profile key support is exposed.
 pub const YGGDRASIL_ENABLE_PROFILE_KEY_KEY: &str = "yggdrasil_enable_profile_key";
+/// Runtime key: whether Mojang anti-feature policy endpoints are exposed.
 pub const YGGDRASIL_ENABLE_MOJANG_ANTI_FEATURES_KEY: &str = "yggdrasil_enable_mojang_anti_features";
+/// Runtime key: launcher access token lifetime in days.
 pub const YGGDRASIL_TOKEN_TTL_DAYS_KEY: &str = "yggdrasil_token_ttl_days";
+/// Runtime key: maximum active launcher tokens retained per user.
 pub const YGGDRASIL_MAX_ACTIVE_TOKENS_KEY: &str = "yggdrasil_max_active_tokens";
+/// Runtime key: maximum uploaded texture file size in bytes.
 pub const YGGDRASIL_MAX_TEXTURE_UPLOAD_BYTES_KEY: &str = "yggdrasil_max_texture_upload_bytes";
+/// Runtime key: maximum texture pixel count (width times height).
 pub const YGGDRASIL_MAX_TEXTURE_PIXELS_KEY: &str = "yggdrasil_max_texture_pixels";
+/// Runtime key: JSON array texture domain whitelist exposed in metadata.
 pub const YGGDRASIL_SKIN_DOMAINS_KEY: &str = "yggdrasil_skin_domains";
+/// Runtime key: JSON array of authlib-injector API root base URLs.
 pub const YGGDRASIL_PUBLIC_BASE_URL_KEY: &str = "yggdrasil_public_base_url";
+/// Runtime key: base URL prepended to public uploaded-texture URLs.
 pub const YGGDRASIL_TEXTURE_PUBLIC_BASE_URL_KEY: &str = "yggdrasil_texture_public_base_url";
+/// Runtime key: RSA public key PEM advertised for verifying signed textures.
 pub const YGGDRASIL_SIGNATURE_PUBLIC_KEY_KEY: &str = "yggdrasil_signature_public_key";
+/// Runtime key: RSA private key PEM used to sign textures.
 pub const YGGDRASIL_SIGNATURE_PRIVATE_KEY_KEY: &str = "yggdrasil_signature_private_key";
 
+/// Runtime key: whether the public texture library is open for browsing.
 pub const TEXTURE_LIBRARY_ENABLED_KEY: &str = "texture_library_enabled";
+/// Runtime key: whether library entries require review before listing.
 pub const TEXTURE_LIBRARY_REVIEW_REQUIRED_KEY: &str = "texture_library_review_required";
+/// Runtime key: texture preview render engine selector.
 pub const TEXTURE_PREVIEW_ENGINE_KEY: &str = "texture_preview_engine";
+/// Runtime key: texture preview render profile selector.
 pub const TEXTURE_PREVIEW_PROFILE_KEY: &str = "texture_preview_profile";
+/// Runtime key: texture preview image width in pixels.
 pub const TEXTURE_PREVIEW_WIDTH_KEY: &str = "texture_preview_width";
+/// Runtime key: texture preview image height in pixels.
 pub const TEXTURE_PREVIEW_HEIGHT_KEY: &str = "texture_preview_height";
+/// Runtime key: texture preview background color.
 pub const TEXTURE_PREVIEW_BACKGROUND_KEY: &str = "texture_preview_background";
+/// Runtime key: whether the outer (hat) layer is rendered on previews.
 pub const TEXTURE_PREVIEW_SHOW_OUTER_LAYER_KEY: &str = "texture_preview_show_outer_layer";
+/// Runtime key: 3D preview model scale.
 pub const TEXTURE_PREVIEW_3D_SCALE_KEY: &str = "texture_preview_3d_scale";
+/// Runtime key: 3D preview camera pitch.
 pub const TEXTURE_PREVIEW_3D_PITCH_KEY: &str = "texture_preview_3d_pitch";
+/// Runtime key: 3D preview front-face yaw.
 pub const TEXTURE_PREVIEW_3D_FRONT_YAW_KEY: &str = "texture_preview_3d_front_yaw";
+/// Runtime key: 3D preview back-face yaw.
 pub const TEXTURE_PREVIEW_3D_BACK_YAW_KEY: &str = "texture_preview_3d_back_yaw";
+/// Runtime key: 3D preview spacing between the front and back faces.
 pub const TEXTURE_PREVIEW_3D_SPACING_KEY: &str = "texture_preview_3d_spacing";
+/// Runtime key: 3D preview horizontal offset of the rendered group.
 pub const TEXTURE_PREVIEW_3D_X_OFFSET_KEY: &str = "texture_preview_3d_x_offset";
+/// Runtime key: 3D preview vertical offset of the rendered group.
 pub const TEXTURE_PREVIEW_3D_Y_OFFSET_KEY: &str = "texture_preview_3d_y_offset";
+/// Runtime key: 3D preview vertical centering anchor.
 pub const TEXTURE_PREVIEW_3D_CENTER_Y_KEY: &str = "texture_preview_3d_center_y";
+/// Runtime key: 3D preview supersampling factor.
 pub const TEXTURE_PREVIEW_3D_SUPERSAMPLING_KEY: &str = "texture_preview_3d_supersampling";
+/// Runtime key: 2D preview padding around rendered faces, in pixels.
 pub const TEXTURE_PREVIEW_2D_PADDING_KEY: &str = "texture_preview_2d_padding";
+/// Runtime key: 2D preview spacing between rendered faces, in pixels.
 pub const TEXTURE_PREVIEW_2D_SPACING_KEY: &str = "texture_preview_2d_spacing";
 
+/// Deprecated legacy key mapping to per-instance avatar storage; kept so
+/// startup can warn operators instead of silently ignoring the setting.
 pub const DEPRECATED_AVATAR_DIR_KEY: &str = "avatar_dir";
 
+/// Runtime keys that are no longer read; startup surfaces them to operators.
 pub const DEPRECATED_SYSTEM_CONFIG_KEYS: &[&str] = &[DEPRECATED_AVATAR_DIR_KEY];
 
 fn empty_origin_list_default() -> String {
@@ -497,6 +636,8 @@ fn normalize_branding_wordmark_light_url(
     map_normalizer_result(branding::normalize_wordmark_light_url_config_value(value))
 }
 
+/// Every runtime config definition seeded by `ensure_defaults()` and served
+/// through the admin config API.
 pub static ALL_CONFIGS: &[ConfigDefinition] = &[
     ConfigDefinition {
         key: PUBLIC_SITE_URL_KEY,
@@ -1958,6 +2099,8 @@ pub static ALL_CONFIGS: &[ConfigDefinition] = &[
     },
 ];
 
+/// Static lookup structure over [`ALL_CONFIGS`] used for normalization,
+/// validation, and metadata overlay of runtime config values.
 pub static CONFIG_REGISTRY: ConfigRegistry = ConfigRegistry::new(ALL_CONFIGS);
 
 #[cfg(test)]

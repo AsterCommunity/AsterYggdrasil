@@ -14,57 +14,99 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select, Set,
 };
 
+/// Input for registering an uploaded texture file as a texture record.
 #[derive(Debug, Clone)]
 pub struct CreateMinecraftTexture<'a> {
+    /// Owning user.
     pub user_id: i64,
+    /// Texture slot type (skin, cape, ...).
     pub texture_type: MinecraftTextureType,
+    /// Content hash of the file; identical files share a hash.
     pub hash: &'a str,
+    /// Key the file was stored under in object storage.
     pub storage_key: &'a str,
+    /// Validated MIME type of the file.
     pub mime_type: &'a str,
+    /// File size in bytes.
     pub file_size: i64,
+    /// Image width in pixels.
     pub width: i32,
+    /// Image height in pixels.
     pub height: i32,
+    /// Player model the texture targets (default or slim arms).
     pub texture_model: MinecraftTextureModel,
+    /// Who may read the texture.
     pub visibility: MinecraftTextureVisibility,
+    /// Whether the texture participates in the wardrobe/library flows.
     pub is_wardrobe_item: bool,
+    /// Optional user-facing name for wardrobe display.
     pub display_name: Option<&'a str>,
 }
 
+/// Optional filters for wardrobe texture listings; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct WardrobeTextureListFilter {
+    /// Restricts results to one texture slot type when set.
     pub texture_type: Option<MinecraftTextureType>,
+    /// Tag ids the results must be bound to (meaning depends on `tag_search_method`).
     pub tag_ids: Vec<i64>,
+    /// Whether the texture must carry all of `tag_ids` or any of them.
     pub tag_search_method: TextureTagSearchMethod,
+    /// Case-insensitive substring match against hash, MIME type, display name, and enum names
+    /// when non-empty.
     pub keyword: Option<String>,
 }
 
+/// Optional filters for the admin texture library listing; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct AdminTextureLibraryListFilter {
+    /// Restricts results to one texture slot type when set.
     pub texture_type: Option<MinecraftTextureType>,
+    /// Restricts results to one visibility when set.
     pub visibility: Option<MinecraftTextureVisibility>,
+    /// Restricts results to one library review status when set.
     pub library_status: Option<MinecraftTextureLibraryStatus>,
+    /// When true, only library-published public textures; when false, everything else.
     pub published: Option<bool>,
+    /// Tag ids the results must be bound to (meaning depends on `tag_search_method`).
     pub tag_ids: Vec<i64>,
+    /// Whether the texture must carry all of `tag_ids` or any of them.
     pub tag_search_method: TextureTagSearchMethod,
+    /// Case-insensitive substring match against hash, MIME type, display name, and enum names
+    /// when non-empty.
     pub keyword: Option<String>,
 }
 
+/// Partial wardrobe metadata update; `None` fields are left unchanged.
+///
+/// Double-`Option` fields distinguish clearing a value (`Some(None)`) from leaving it alone
+/// (`None`).
 #[derive(Debug, Clone)]
 pub struct UpdateWardrobeTextureMetadata {
+    /// Replaces or clears the wardrobe display name when set.
     pub display_name: Option<Option<String>>,
+    /// Replaces the player model when set.
     pub texture_model: Option<MinecraftTextureModel>,
+    /// Replaces the visibility when set; switching to private also resets library review state.
     pub visibility: Option<MinecraftTextureVisibility>,
 }
 
+/// Library review decision applied by an admin.
 #[derive(Debug, Clone)]
 pub struct UpdateTextureLibraryReview {
+    /// New library review status.
     pub library_status: MinecraftTextureLibraryStatus,
+    /// Replaces or clears the submission timestamp when set.
     pub library_submitted_at: Option<Option<DateTime<Utc>>>,
+    /// Replaces or clears the review timestamp when set.
     pub library_reviewed_at: Option<Option<DateTime<Utc>>>,
+    /// Replaces or clears the reviewing admin when set.
     pub library_reviewer_user_id: Option<Option<i64>>,
+    /// Replaces or clears the review note when set.
     pub library_review_note: Option<Option<String>>,
 }
 
+/// Inserts a new texture record with `Private` library status.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     input: CreateMinecraftTexture<'_>,
@@ -93,6 +135,7 @@ pub async fn create<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Counts all texture records.
 pub async fn count_all<C: ConnectionTrait>(db: &C) -> Result<u64> {
     MinecraftTexture::find()
         .count(db)
@@ -100,6 +143,7 @@ pub async fn count_all<C: ConnectionTrait>(db: &C) -> Result<u64> {
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Counts textures uploaded in the `[start, end)` interval.
 pub async fn count_created_between<C: ConnectionTrait>(
     db: &C,
     start: DateTime<Utc>,
@@ -113,6 +157,9 @@ pub async fn count_created_between<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a texture by id scoped to its owner.
+///
+/// Returns `None` when the texture does not exist or belongs to a different user.
 pub async fn find_by_id_for_user<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -126,6 +173,9 @@ pub async fn find_by_id_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a texture by id, regardless of owner or visibility.
+///
+/// Returns `None` when no texture with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -136,6 +186,9 @@ pub async fn find_by_id<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Batch-loads textures by id, ordered by id ascending.
+///
+/// An empty `ids` slice returns an empty list without querying; unknown ids are simply absent.
 pub async fn find_by_ids<C: ConnectionTrait>(
     db: &C,
     ids: &[i64],
@@ -151,6 +204,10 @@ pub async fn find_by_ids<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a texture readable through the public wardrobe: wardrobe item, public visibility,
+/// and published library status must all hold.
+///
+/// Returns `None` when any of those conditions fails.
 pub async fn find_public_wardrobe_by_id<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -167,6 +224,7 @@ pub async fn find_public_wardrobe_by_id<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists all wardrobe textures owned by a user, most recently updated first.
 pub async fn list_by_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -181,6 +239,11 @@ pub async fn list_by_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates a user's wardrobe textures with filters, using the shared `(updated_at, id)`
+/// keyset cursor, newest first.
+///
+/// See [`WardrobeTextureListFilter`] for filter semantics and [`fetch_updated_at_cursor_slice`]
+/// for pagination behavior.
 pub async fn list_by_user_cursor<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -192,6 +255,8 @@ pub async fn list_by_user_cursor<C: ConnectionTrait>(
     fetch_updated_at_cursor_slice(db, base, limit, after).await
 }
 
+/// Paginates publicly readable wardrobe textures (public visibility plus published library
+/// status) with the same cursor semantics as [`list_by_user_cursor`].
 pub async fn list_public_wardrobe_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -202,6 +267,8 @@ pub async fn list_public_wardrobe_cursor<C: ConnectionTrait>(
     fetch_updated_at_cursor_slice(db, base, limit, after).await
 }
 
+/// Paginates wardrobe textures across all owners for the admin library view, with the same
+/// cursor semantics as [`list_by_user_cursor`].
 pub async fn list_admin_library_textures_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -395,6 +462,11 @@ fn texture_has_tag_condition(tag_id: i64) -> Condition {
         .into()
 }
 
+/// Finds the user's wardrobe texture matching an upload fingerprint: owner, slot type, content
+/// hash, and player model must all match.
+///
+/// Used to deduplicate re-uploads of the same file; returns `None` on first upload or any
+/// mismatch.
 pub async fn find_wardrobe_by_fingerprint<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -414,6 +486,10 @@ pub async fn find_wardrobe_by_fingerprint<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Finds a user's wardrobe texture by exact display name.
+///
+/// Display names are unique per user; returns `None` when the user has no wardrobe texture
+/// under that name.
 pub async fn find_wardrobe_by_display_name<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -429,6 +505,7 @@ pub async fn find_wardrobe_by_display_name<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists every texture record across all owners, ordered by id ascending.
 pub async fn list_all<C: ConnectionTrait>(db: &C) -> Result<Vec<minecraft_texture::Model>> {
     MinecraftTexture::find()
         .order_by_asc(minecraft_texture::Column::Id)
@@ -437,6 +514,9 @@ pub async fn list_all<C: ConnectionTrait>(db: &C) -> Result<Vec<minecraft_textur
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists every texture record sharing a content hash, ordered by id ascending.
+///
+/// Multiple records can share one stored file when users upload identical content.
 pub async fn list_by_hash<C: ConnectionTrait>(
     db: &C,
     hash: &str,
@@ -449,6 +529,10 @@ pub async fn list_by_hash<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads an arbitrary texture record with the given content hash.
+///
+/// Returns `None` when the hash is unknown; used mainly to check whether a file was already
+/// uploaded by anyone.
 pub async fn find_by_hash<C: ConnectionTrait>(
     db: &C,
     hash: &str,
@@ -460,6 +544,7 @@ pub async fn find_by_hash<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Flags a texture as a wardrobe item, stamping `updated_at`.
 pub async fn mark_as_wardrobe_item<C: ConnectionTrait>(
     db: &C,
     texture: minecraft_texture::Model,
@@ -474,6 +559,11 @@ pub async fn mark_as_wardrobe_item<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Creates a wardrobe record for another user pointing at the same stored file.
+///
+/// Copies file metadata (hash, storage key, size, dimensions) from the source texture while
+/// giving the copy its own owner, visibility, name, and `Private` library status. Used when a
+/// user picks a public library texture into their own wardrobe.
 pub async fn create_wardrobe_copy<C: ConnectionTrait>(
     db: &C,
     texture: &minecraft_texture::Model,
@@ -505,6 +595,11 @@ pub async fn create_wardrobe_copy<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Updates wardrobe metadata on a texture owned by `user_id`.
+///
+/// Returns `None` without modifying anything when the texture belongs to another user or is
+/// not a wardrobe item. Switching visibility to `Private` also resets the library review
+/// state (status back to `Private`, timestamps, reviewer, and note cleared).
 pub async fn update_wardrobe_metadata_for_user<C: ConnectionTrait>(
     db: &C,
     texture: minecraft_texture::Model,
@@ -540,6 +635,10 @@ pub async fn update_wardrobe_metadata_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Applies a library review decision to a texture, stamping `updated_at`.
+///
+/// Double-`Option` fields in [`UpdateTextureLibraryReview`] control whether review timestamps,
+/// reviewer, and note are kept, replaced, or cleared.
 pub async fn update_library_review<C: ConnectionTrait>(
     db: &C,
     texture: minecraft_texture::Model,
@@ -567,6 +666,8 @@ pub async fn update_library_review<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Counts texture records referencing a storage key; zero means the stored file is unreferenced
+/// and safe to delete from object storage.
 pub async fn count_by_storage_key<C: ConnectionTrait>(db: &C, storage_key: &str) -> Result<u64> {
     MinecraftTexture::find()
         .filter(minecraft_texture::Column::StorageKey.eq(storage_key))
@@ -575,6 +676,9 @@ pub async fn count_by_storage_key<C: ConnectionTrait>(db: &C, storage_key: &str)
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Deletes every texture record sharing a content hash, returning the removed records.
+///
+/// Callers must check [`count_by_storage_key`] afterwards before removing the stored file.
 pub async fn delete_by_hash<C: ConnectionTrait>(
     db: &C,
     hash: &str,
@@ -590,6 +694,9 @@ pub async fn delete_by_hash<C: ConnectionTrait>(
     Ok(textures)
 }
 
+/// Deletes a texture owned by `user_id`, returning the removed record.
+///
+/// Returns `None` when the texture does not exist or belongs to a different user.
 pub async fn delete_by_id_for_user<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -606,6 +713,10 @@ pub async fn delete_by_id_for_user<C: ConnectionTrait>(
     Ok(Some(texture))
 }
 
+/// Deletes a wardrobe texture by id, returning the removed record.
+///
+/// Returns `None` when the id is unknown or the texture is not a wardrobe item (profile-bound
+/// textures are protected from this path).
 pub async fn delete_wardrobe_by_id<C: ConnectionTrait>(
     db: &C,
     id: i64,

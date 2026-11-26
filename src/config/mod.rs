@@ -10,26 +10,47 @@
 /// from the static configuration file instead.
 pub const TEST_JWT_SECRET: &str = "aster-yggdrasil-test-jwt-secret-0123456789abcdef";
 
+/// Runtime-editable audit log settings helpers.
 pub mod audit;
+/// Startup-time authentication budgets and derived runtime auth settings.
 pub mod auth_runtime;
+/// Avatar (Gravatar) base URL runtime configuration binding.
 pub mod avatar;
+/// Branding and site appearance runtime configuration helpers.
 pub mod branding;
+/// CORS origin policy runtime configuration helpers.
 pub mod cors;
+/// Central registry of runtime config keys, defaults, and schema entries.
 pub mod definitions;
+/// Deployment profile handling for the static config file.
 pub mod deployment;
+/// Static config file discovery, loading, and default generation.
 pub mod loader;
+/// Local SMTP delivery policy for outbound mail.
 pub mod local_email_policy;
+/// SMTP and mail-sending runtime configuration helpers.
 pub mod mail;
+/// Prometheus metrics runtime configuration helpers.
 pub mod metrics;
+/// Operations/maintenance mode runtime configuration helpers.
 pub mod operations;
+/// Static boot configuration handle shared by the whole process.
 pub mod runtime;
+/// Global runtime config store and JWT issuer/audience constants.
 mod runtime_config;
+/// Typed schema of the static TOML configuration file.
 mod schema;
+/// Site URL derivation and normalization helpers.
 pub mod site_url;
+/// Typed access to the `system_config` table model.
 pub mod system_config;
+/// Texture storage library root directory configuration.
 pub mod texture_library;
+/// Server-side texture rendering/preview configuration helpers.
 pub mod texture_preview;
+/// Static per-process shutdown budgets for background workers.
 pub mod worker;
+/// Yggdrasil/authlib-injector protocol runtime configuration helpers.
 pub mod yggdrasil;
 
 pub use deployment::{DeploymentConfig, DeploymentProfile};
@@ -46,6 +67,8 @@ use std::sync::OnceLock;
 
 static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
+/// Ensures a default config file exists for the current working directory and
+/// returns its path, without loading it into the global config.
 pub fn ensure_default_config_for_current_dir(
     default: &Config,
 ) -> crate::errors::Result<std::path::PathBuf> {
@@ -62,6 +85,10 @@ pub fn init_config_at(location: &loader::ConfigLocation) -> crate::errors::Resul
     Ok(cfg)
 }
 
+/// Returns the globally initialized [`Config`].
+///
+/// Panics if `init_config`/`init_config_at` has not run yet; only call this
+/// after startup has completed.
 #[expect(
     clippy::expect_used,
     reason = "route registration is only reached after init_config() succeeds during process startup"

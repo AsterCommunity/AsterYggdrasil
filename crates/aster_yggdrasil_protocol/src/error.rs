@@ -8,19 +8,35 @@
 
 use http::StatusCode;
 
+/// The stable protocol failure kinds served by authserver and sessionserver.
+///
+/// Each kind maps to a fixed wire error name and HTTP status through the
+/// accessors on [`YggdrasilError`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum YggdrasilErrorKind {
+    /// Access token is unknown, expired, or revoked for the operation.
     InvalidToken,
+    /// Credentials were rejected (wrong password, or client token mismatch).
     InvalidCredentials,
+    /// The access token already has a profile assigned to it.
     AccessTokenAlreadyHasProfile,
+    /// The targeted profile is not owned by the authenticated user.
     ForbiddenProfile,
+    /// Request arguments are invalid; [`YggdrasilError::with_detail`] supplies
+    /// the client-facing message.
     BadRequest,
+    /// The `agent` product in an authenticate request is not supported.
     UnsupportedAgent,
+    /// More profile names were requested in one batch than allowed.
     TooManyProfilesRequested,
+    /// No profile matches the requested identifier; served as 204 No Content.
     ProfileNotFound,
+    /// Unexpected server-side failure; the detail never carries secrets to clients.
     Internal,
 }
 
+/// A protocol error carrying a [`YggdrasilErrorKind`] plus an optional
+/// host-provided detail used as the client-facing message.
 #[derive(Debug, Clone)]
 pub struct YggdrasilError {
     kind: YggdrasilErrorKind,
@@ -28,10 +44,14 @@ pub struct YggdrasilError {
 }
 
 impl YggdrasilError {
+    /// Creates an error of `kind` without an extra protocol message detail.
     pub const fn new(kind: YggdrasilErrorKind) -> Self {
         Self { kind, detail: None }
     }
 
+    /// Creates an error whose detail overrides the default protocol message
+    /// (used by kinds like [`YggdrasilErrorKind::BadRequest`] and
+    /// [`YggdrasilErrorKind::Internal`]).
     pub fn with_detail(kind: YggdrasilErrorKind, detail: impl Into<String>) -> Self {
         Self {
             kind,
@@ -39,10 +59,13 @@ impl YggdrasilError {
         }
     }
 
+    /// Returns the stable error kind.
     pub const fn kind(&self) -> YggdrasilErrorKind {
         self.kind
     }
 
+    /// Returns the HTTP status the protocol assigns to this kind
+    /// (403, 400, 204, or 500); a 204 body stays empty.
     pub const fn status_code(&self) -> StatusCode {
         match self.kind {
             YggdrasilErrorKind::InvalidToken
@@ -57,6 +80,8 @@ impl YggdrasilError {
         }
     }
 
+    /// Returns the wire `error` name (`ForbiddenOperationException`,
+    /// `IllegalArgumentException`, `NotFound`, or `InternalServerError`).
     pub const fn protocol_error_name(&self) -> &'static str {
         match self.kind {
             YggdrasilErrorKind::AccessTokenAlreadyHasProfile
@@ -71,6 +96,8 @@ impl YggdrasilError {
         }
     }
 
+    /// Returns the wire `errorMessage`: the kind's canonical protocol text,
+    /// or the stored detail when the kind echoes host context.
     pub fn protocol_message(&self) -> String {
         match self.kind {
             YggdrasilErrorKind::InvalidToken => "Invalid token.".to_string(),

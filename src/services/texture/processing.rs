@@ -6,14 +6,22 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
+/// Result of re-encoding an uploaded PNG through the texture sanitizer.
 #[derive(Debug, Clone)]
 pub struct TextureProcessingResult {
+    /// Decoded image width in pixels.
     pub width: u32,
+    /// Decoded image height in pixels.
     pub height: u32,
+    /// Size of the sanitized PNG written to `output_path`, in bytes.
     pub file_size: u64,
+    /// SHA-256 of the sanitized PNG bytes, lowercase hex (64 chars).
     pub hash: String,
 }
 
+/// Runs [`sanitize_png_texture`] on the blocking thread pool: reads the
+/// uploaded file at `source_path` and writes the sanitized PNG to
+/// `output_path`, enforcing `max_pixels` as the decoded-dimension budget.
 pub async fn process_texture_file(
     source_path: &Path,
     output_path: &Path,
@@ -38,6 +46,10 @@ pub async fn process_texture_file(
     .map_aster_err_ctx("process texture task", AsterError::internal_error)?
 }
 
+/// Decodes an uploaded PNG, validates it as a texture of `texture_type`
+/// (dimensions must be multiples of the vanilla texture size and stay within
+/// `max_pixels`), strips ancillary metadata by re-encoding the raw pixels, and
+/// returns the sanitized image's dimensions, size, and hash.
 pub fn sanitize_png_texture<R, W>(
     reader: R,
     writer: W,

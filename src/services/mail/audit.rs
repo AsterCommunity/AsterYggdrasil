@@ -8,19 +8,32 @@ const MAIL_ENTITY_NAME: &str = "mail";
 const MAX_AUDIT_FIELD_LEN: usize = 1024;
 
 #[derive(Debug, Clone, Copy)]
+/// Fields recorded in a mail audit entry. Variable-length strings are
+/// truncated before serialization so oversized content cannot bloat the log.
 pub struct MailAuditInput<'a> {
+    /// Account that triggered the send (requester or affected user).
     pub actor_user_id: i64,
+    /// Requester IP at trigger time, when known.
     pub ip_address: Option<&'a str>,
+    /// Requester user agent at trigger time, when known.
     pub user_agent: Option<&'a str>,
+    /// Recipient address.
     pub to_address: &'a str,
+    /// Recipient display name, when the template carried one.
     pub to_name: Option<&'a str>,
+    /// Mail template code that produced the message.
     pub template_code: &'a str,
+    /// Subject line, when the sender supplied one.
     pub subject: Option<&'a str>,
+    /// Outbox row the send/delivery attempt belongs to, when persisted.
     pub outbox_id: Option<i64>,
+    /// Delivery attempt number for failure records.
     pub attempt_count: Option<i32>,
+    /// Failure detail for delivery-failure records.
     pub error: Option<&'a str>,
 }
 
+/// Records a mail-send audit entry via the shared runtime state.
 pub async fn log_send(state: &impl SharedRuntimeState, input: MailAuditInput<'_>) {
     let ctx = AuditContext {
         user_id: input.actor_user_id,
@@ -39,6 +52,8 @@ pub async fn log_send(state: &impl SharedRuntimeState, input: MailAuditInput<'_>
     .await;
 }
 
+/// Records a mail-send audit entry against an explicit DB connection and
+/// runtime config, for callers inside a transaction or runtime swap.
 pub async fn log_send_with_db(
     db: &DatabaseConnection,
     runtime_config: &RuntimeConfig,
@@ -64,6 +79,8 @@ pub async fn log_send_with_db(
     .await;
 }
 
+/// Records a mail-delivery-failure audit entry against an explicit DB
+/// connection and runtime config; `input.error` carries the cause.
 pub async fn log_delivery_failed_with_db(
     db: &DatabaseConnection,
     runtime_config: &RuntimeConfig,

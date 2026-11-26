@@ -10,6 +10,8 @@ const READY_DB_UNAVAILABLE_MESSAGE: &str = "Database unavailable";
 const READY_RUNTIME_UNAVAILABLE_MESSAGE: &str = "Runtime unavailable";
 const READY_ROLE_NOT_READY_MESSAGE: &str = "Process role is initializing or draining";
 
+/// Builds the `/health` scope with liveness and readiness probes (GET and HEAD),
+/// plus the Prometheus scrape route when the metrics feature and exporter are enabled.
 pub fn routes(observability: &aster_forge_metrics::ObservabilityConfig) -> actix_web::Scope {
     let scope = web::scope("/health")
         .route("", web::get().to(health))
@@ -30,6 +32,8 @@ pub fn routes(observability: &aster_forge_metrics::ObservabilityConfig) -> actix
         (status = 503, description = "Role is initializing or a local task worker stopped", body = inline(HealthResponse)),
     ),
 )]
+/// Liveness probe: 200 while the process role is live, 503 during initialization,
+/// draining, or when a local task worker has stopped.
 pub async fn health(role: Option<web::Data<crate::runtime::role::RoleHealth>>) -> HttpResponse {
     tracing::debug!("serving health probe");
     if role.as_ref().is_some_and(|role| !role.live()) {
@@ -49,6 +53,8 @@ pub async fn health(role: Option<web::Data<crate::runtime::role::RoleHealth>>) -
         (status = 503, description = "Database is unavailable or the process role is not ready"),
     ),
 )]
+/// Readiness probe: 200 only when the process role is ready and the database and runtime
+/// checks pass; otherwise 503 with a stable error code so orchestrators can gate traffic.
 pub async fn ready(
     state: web::Data<AppState>,
     role: Option<web::Data<crate::runtime::role::RoleHealth>>,
@@ -92,6 +98,7 @@ fn status_response(status: &str) -> HealthResponse {
     }
 }
 
+/// Builds the system info payload from the crate version, configured build time, and process uptime.
 pub fn system_info_response(state: &AppState) -> crate::api::response::SystemInfoResponse {
     crate::api::response::SystemInfoResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),

@@ -8,10 +8,17 @@ use aster_yggdrasil_model::types::auth::TokenType;
 /// Product view over Forge [`aster_forge_auth::TokenClaims`].
 #[derive(Debug, Clone)]
 pub struct AuthenticatedClaims {
+    /// Local user id parsed from the JWT subject.
     pub user_id: i64,
+    /// Session version embedded at issuance; must match the user row or the
+    /// token is treated as stale.
     pub session_version: i64,
+    /// JWT id, present on refresh tokens and matched against the session row
+    /// during rotation.
     pub jti: Option<String>,
+    /// Whether the token carries the must-change-password restriction.
     pub password_change: bool,
+    /// Access or refresh; verified against the token's declared type.
     pub token_type: TokenType,
 }
 
@@ -76,6 +83,9 @@ pub(super) fn decode_claims<S: SharedRuntimeState>(
     claims_from_forge(verified.into_claims())
 }
 
+/// Verifies an access token against an ad-hoc HMAC secret. Test and tooling
+/// entry point; production verification goes through the runtime config
+/// verifier.
 pub fn verify_token(token: &str, jwt_secret: &str) -> Result<AuthenticatedClaims> {
     verify_typed_token(token, jwt_secret, aster_forge_auth::AuthTokenType::Access)
 }

@@ -5,6 +5,9 @@ use aster_yggdrasil_model::entities::user_profile::{self, Entity as UserProfile}
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
+/// Loads a user profile by user id; the profile id is the user id.
+///
+/// Returns `None` when the user has no profile row yet.
 pub async fn find_by_user_id<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -15,6 +18,10 @@ pub async fn find_by_user_id<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Batch-loads profiles for several users into a map keyed by user id.
+///
+/// An empty `user_ids` slice returns an empty map without querying; users without a profile
+/// row are simply absent from the map.
 pub async fn find_by_user_ids<C: ConnectionTrait>(
     db: &C,
     user_ids: &[i64],
@@ -32,6 +39,7 @@ pub async fn find_by_user_ids<C: ConnectionTrait>(
     Ok(rows.into_iter().map(|row| (row.user_id, row)).collect())
 }
 
+/// Inserts a new user profile row.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     model: user_profile::ActiveModel,
@@ -42,6 +50,7 @@ pub async fn create<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Persists changes on an existing user profile row.
 pub async fn update<C: ConnectionTrait>(
     db: &C,
     model: user_profile::ActiveModel,

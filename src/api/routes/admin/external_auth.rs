@@ -23,8 +23,12 @@ use serde::Deserialize;
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor pagination query for external auth provider listing, addressing
+/// entries after the given display name and ID.
 pub struct AdminExternalAuthProviderCursorQuery {
+    /// Display name to start after for the next page.
     pub after_display_name: Option<String>,
+    /// Provider ID to start after for the next page.
     pub after_id: Option<i64>,
 }
 
@@ -63,6 +67,8 @@ fn external_auth_provider_audit_details(
     ),
     security(("bearer" = [])),
 )]
+/// Lists configured external auth providers with limit and display-name/ID
+/// cursor pagination.
 pub async fn list_external_auth_providers(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -90,6 +96,8 @@ pub async fn list_external_auth_providers(
     ),
     security(("bearer" = [])),
 )]
+/// Returns the external auth provider kinds supported by this deployment,
+/// for building the provider creation form.
 pub async fn list_external_auth_provider_kinds() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(ApiResponse::ok(external::list_provider_kinds())))
 }
@@ -108,6 +116,8 @@ pub async fn list_external_auth_provider_kinds() -> Result<HttpResponse> {
     ),
     security(("bearer" = [])),
 )]
+/// Creates an external auth provider configuration (issuer, enabled flags,
+/// auto-provision/auto-link behavior) and records it in the audit log.
 pub async fn create_external_auth_provider(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -144,6 +154,7 @@ pub async fn create_external_auth_provider(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single external auth provider configuration by ID.
 pub async fn get_external_auth_provider(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -168,6 +179,8 @@ pub async fn get_external_auth_provider(
     ),
     security(("bearer" = [])),
 )]
+/// Updates an external auth provider's configuration and records the change
+/// in the audit log.
 pub async fn update_external_auth_provider(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -205,6 +218,8 @@ pub async fn update_external_auth_provider(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes an external auth provider configuration and records the removed
+/// provider details in the audit log.
 pub async fn delete_external_auth_provider(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -240,6 +255,8 @@ pub async fn delete_external_auth_provider(
     ),
     security(("bearer" = [])),
 )]
+/// Tests a draft external auth provider configuration (before it is saved)
+/// by probing its endpoints, auditing the attempt without persisting it.
 pub async fn test_external_auth_provider_params(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -284,6 +301,8 @@ pub async fn test_external_auth_provider_params(
     ),
     security(("bearer" = [])),
 )]
+/// Tests a saved external auth provider by probing its endpoints and
+/// auditing the result.
 pub async fn test_external_auth_provider(
     state: web::Data<AppState>,
     req: HttpRequest,

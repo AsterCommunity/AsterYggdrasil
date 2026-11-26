@@ -29,6 +29,9 @@ pub use crate::config::definitions::{
     MAIL_TEMPLATE_USER_INVITATION_HTML_KEY, MAIL_TEMPLATE_USER_INVITATION_SUBJECT_KEY,
 };
 
+/// Assembles the effective SMTP settings (host, port, credentials, sender,
+/// and STARTTLS switch) from the runtime config store, applying Forge defaults
+/// for missing or invalid values so mail always has a usable configuration.
 pub fn runtime_mail_settings(runtime_config: &RuntimeConfig) -> MailRuntimeSettings {
     let smtp_port = runtime_config
         .get(MAIL_SMTP_PORT_KEY)
@@ -54,6 +57,7 @@ pub fn runtime_mail_settings(runtime_config: &RuntimeConfig) -> MailRuntimeSetti
     }
 }
 
+/// Returns the runtime config key holding the subject line for `code`.
 pub fn template_subject_key(code: MailTemplateCode) -> &'static str {
     match code {
         MailTemplateCode::RegisterActivation => MAIL_TEMPLATE_REGISTER_ACTIVATION_SUBJECT_KEY,
@@ -71,6 +75,7 @@ pub fn template_subject_key(code: MailTemplateCode) -> &'static str {
     }
 }
 
+/// Returns the runtime config key holding the HTML body for `code`.
 pub fn template_html_key(code: MailTemplateCode) -> &'static str {
     match code {
         MailTemplateCode::RegisterActivation => MAIL_TEMPLATE_REGISTER_ACTIVATION_HTML_KEY,
@@ -88,6 +93,8 @@ pub fn template_html_key(code: MailTemplateCode) -> &'static str {
     }
 }
 
+/// Returns the bundled default subject line for `code`, compiled in from the
+/// `mail_templates/` directory.
 pub fn default_template_subject(code: MailTemplateCode) -> &'static str {
     match code {
         MailTemplateCode::RegisterActivation => {
@@ -124,6 +131,8 @@ pub fn default_template_subject(code: MailTemplateCode) -> &'static str {
     }
 }
 
+/// Returns the bundled default HTML body for `code`, compiled in from the
+/// `mail_templates/` directory.
 pub fn default_template_html(code: MailTemplateCode) -> &'static str {
     match code {
         MailTemplateCode::RegisterActivation => {
@@ -155,6 +164,8 @@ pub fn default_template_html(code: MailTemplateCode) -> &'static str {
     }
 }
 
+/// Returns the configured subject for `code`, falling back to the bundled
+/// default when the runtime value is missing or blank.
 pub fn template_subject(runtime_config: &RuntimeConfig, code: MailTemplateCode) -> String {
     runtime_config
         .get(template_subject_key(code))
@@ -162,6 +173,8 @@ pub fn template_subject(runtime_config: &RuntimeConfig, code: MailTemplateCode) 
         .unwrap_or_else(|| default_template_subject(code).to_string())
 }
 
+/// Returns the configured HTML body for `code`, falling back to the bundled
+/// default when the runtime value is missing or blank.
 pub fn template_html(runtime_config: &RuntimeConfig, code: MailTemplateCode) -> String {
     runtime_config
         .get(template_html_key(code))
@@ -169,30 +182,41 @@ pub fn template_html(runtime_config: &RuntimeConfig, code: MailTemplateCode) -> 
         .unwrap_or_else(|| default_template_html(code).to_string())
 }
 
+/// Validates a stored SMTP host value (hostname or IP, no scheme or port).
 pub fn normalize_smtp_host_config_value(value: &str) -> Result<String> {
     forge_normalize_smtp_host_config_value(value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored SMTP port value as a number in the valid port range.
 pub fn normalize_smtp_port_config_value(value: &str) -> Result<String> {
     forge_normalize_smtp_port_config_value(value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored sender address value as a syntactically valid email.
 pub fn normalize_mail_address_config_value(value: &str) -> Result<String> {
     forge_normalize_mail_address_config_value(value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored sender display-name value (no control characters or
+/// line breaks).
 pub fn normalize_mail_name_config_value(value: &str) -> Result<String> {
     forge_normalize_mail_name_config_value(value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored `mail_security` value as a boolean switch that controls
+/// whether SMTP transport encryption is enabled.
 pub fn normalize_mail_security_config_value(value: &str) -> Result<String> {
     forge_normalize_mail_security_config_value(value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored template subject value: single line, no newlines, so it
+/// cannot inject extra SMTP headers.
 pub fn normalize_mail_template_subject_config_value(key: &str, value: &str) -> Result<String> {
     forge_normalize_mail_template_subject_config_value(key, value).map_err(map_mail_config_error)
 }
 
+/// Validates a stored template HTML body value and normalizes CRLF line
+/// endings to plain LF.
 pub fn normalize_mail_template_body_config_value(key: &str, value: &str) -> Result<String> {
     forge_normalize_mail_template_body_config_value(key, value).map_err(map_mail_config_error)
 }

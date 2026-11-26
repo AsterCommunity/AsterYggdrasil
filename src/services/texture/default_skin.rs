@@ -6,16 +6,25 @@ pub const ALEX_HASH: &str = "394b483392052fb28d6271c736ba0df0394223c93b6348f1f1d
 const STEVE_BYTES: &[u8] = include_bytes!("../../assets/default_skins/steve.png");
 const ALEX_BYTES: &[u8] = include_bytes!("../../assets/default_skins/alex.png");
 
+/// A built-in default skin served when a profile has no texture bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DefaultSkin {
+    /// SHA-256 hex hash of [`Self::bytes`]; doubles as the stored asset hash.
     pub hash: &'static str,
+    /// Embedded PNG payload compiled into the binary.
     pub bytes: &'static [u8],
+    /// Whether this skin renders the `default` (Steve) or `slim` (Alex) model.
     pub model: MinecraftTextureModel,
+    /// Texture width in pixels (always 64).
     pub width: i32,
+    /// Texture height in pixels (always 64).
     pub height: i32,
+    /// Encoded PNG size in bytes; equals `bytes.len()`.
     pub file_size: i64,
 }
 
+/// Picks the default skin for a profile UUID: odd UUIDs get the slim (Alex)
+/// skin, even UUIDs get the classic (Steve) skin, mirroring vanilla behavior.
 pub fn for_profile_uuid(uuid: &str) -> DefaultSkin {
     if default_skin_model(uuid) == MinecraftTextureModel::Slim {
         return alex();
@@ -23,6 +32,8 @@ pub fn for_profile_uuid(uuid: &str) -> DefaultSkin {
     steve()
 }
 
+/// Looks up an embedded default skin by its SHA-256 hash; `None` for any hash
+/// that is not one of the built-in skins.
 pub fn by_hash(hash: &str) -> Option<DefaultSkin> {
     match hash {
         STEVE_HASH => Some(steve()),

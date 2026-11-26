@@ -3,6 +3,9 @@ use crate::runtime::RuntimeConfigRuntimeState;
 use crate::services::yggdrasil::signature;
 use aster_yggdrasil_protocol::{YggdrasilMeta, YggdrasilMetaLinks, YggdrasilMetaResp};
 
+/// Builds the authlib-injector server metadata response (`GET /`): server
+/// name, implementation info, feature flags, skin domains, and the signature
+/// public key used to verify signed texture responses.
 pub fn metadata<S: RuntimeConfigRuntimeState>(state: &S) -> YggdrasilMetaResp {
     let runtime_config = state.runtime_config();
     let policy = RuntimeYggdrasilPolicy::from_runtime_config(runtime_config);

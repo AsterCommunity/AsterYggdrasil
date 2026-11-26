@@ -14,10 +14,14 @@ use aster_forge_config::avatar::{
 
 pub use crate::config::definitions::GRAVATAR_BASE_URL_KEY;
 
+/// Validates a stored `gravatar_base_url` value, accepting only http(s) URLs
+/// without query strings or fragments.
 pub fn normalize_gravatar_base_url_config_value(value: &str) -> Result<String> {
     forge_normalize_gravatar_base_url_config_value(value).map_err(Into::into)
 }
 
+/// Returns the configured Gravatar base URL, or the Forge default
+/// (`https://www.gravatar.com/avatar`) when the runtime value is blank.
 pub fn gravatar_base_url_or_default(runtime_config: &RuntimeConfig) -> String {
     let configured = runtime_config.get(GRAVATAR_BASE_URL_KEY);
     forge_gravatar_base_url_or_default(configured.as_deref())

@@ -44,8 +44,11 @@ use self::cookies::{
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor query for paginating the current user's auth sessions.
 pub struct AuthSessionCursorQuery {
+    /// Resume listing after sessions last seen at or before this timestamp.
     pub after_last_seen_at: Option<DateTime<Utc>>,
+    /// Tiebreaker session ID for entries sharing the same `last_seen_at`.
     pub after_id: Option<String>,
 }
 
@@ -54,11 +57,16 @@ pub struct AuthSessionCursorQuery {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor query for paginating the current user's passkeys.
 pub struct AuthCreatedAtCursorQuery {
+    /// Resume listing after passkeys created at or before this timestamp.
     pub after_created_at: Option<DateTime<Utc>>,
+    /// Tiebreaker passkey ID for entries sharing the same `after_created_at`.
     pub after_id: Option<i64>,
 }
 
+/// Configures the user-facing account endpoints under `/auth`: registration and
+/// login, password and email flows, profile/avatar, sessions, and passkeys.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
@@ -139,6 +147,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         (status = 200, description = "Authentication bootstrap state", body = inline(ApiResponse<CheckResp>)),
     ),
 )]
+/// Reports the auth bootstrap state: whether any user exists, so the frontend
+/// can choose between first-time setup and the normal login flow.
 pub async fn check(state: web::Data<AppState>) -> Result<HttpResponse> {
     tracing::debug!("auth check request received");
     let initialized =
@@ -156,6 +166,8 @@ pub async fn check(state: web::Data<AppState>) -> Result<HttpResponse> {
         (status = 200, description = "Public captcha requirement policy", body = inline(ApiResponse<crate::api::dto::PublicCaptchaPolicyResp>)),
     ),
 )]
+/// Returns which flows currently require a captcha challenge, letting clients
+/// render the captcha UI before login, registration, or invitation acceptance.
 pub async fn captcha_policy(state: web::Data<AppState>) -> Result<HttpResponse> {
     let policy = captcha::policy(state.get_ref());
     Ok(
@@ -178,6 +190,8 @@ pub async fn captcha_policy(state: web::Data<AppState>) -> Result<HttpResponse> 
         (status = 200, description = "Captcha challenge issued", body = inline(ApiResponse<captcha::CaptchaChallengeResponse>)),
     ),
 )]
+/// Issues a captcha challenge to be answered by a subsequent
+/// captcha-protected request.
 pub async fn issue_captcha(state: web::Data<AppState>) -> Result<HttpResponse> {
     let challenge = captcha::issue_challenge(state.get_ref()).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::ok(challenge)))
@@ -285,6 +299,8 @@ fn ensure_cookie_write_allowed(state: &AppState, req: &HttpRequest) -> Result<()
         (status = 400, description = "System is already initialized or input is invalid"),
     ),
 )]
+/// Creates the first admin account on an uninitialized instance and issues
+/// session cookies; rejected once any user account already exists.
 pub async fn setup(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -321,6 +337,8 @@ pub async fn setup(
         (status = 403, description = "Registration is disabled"),
     ),
 )]
+/// Registers a new account, issuing session cookies immediately when activation
+/// is not required and otherwise leaving the account pending email activation.
 pub async fn register(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -377,6 +395,8 @@ pub async fn register(
         (status = 200, description = "Activation resend request accepted", body = inline(ApiResponse<ActionMessageResp>)),
     ),
 )]
+/// Re-sends the registration activation email for a pending account; the
+/// response does not reveal whether the identifier matches a real account.
 pub async fn resend_register_activation(
     state: web::Data<AppState>,
     body: web::Json<ResendRegisterActivationReq>,
@@ -454,6 +474,9 @@ fn contact_verification_redirect_response(
     params(ContactVerificationConfirmQuery),
     responses((status = 302, description = "Verification consumed and browser redirected")),
 )]
+/// Consumes a contact verification token (registration activation, email
+/// change, or password reset) and redirects the browser to a frontend page that
+/// reflects the verification outcome.
 pub async fn confirm_contact_verification(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -556,6 +579,8 @@ pub async fn confirm_contact_verification(
         (status = 400, description = "Invalid email input"),
     ),
 )]
+/// Accepts a password reset request and emails a reset link when the address
+/// belongs to an eligible account; the response does not reveal whether it does.
 pub async fn request_password_reset(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -593,6 +618,8 @@ pub async fn request_password_reset(
         (status = 410, description = "Reset token expired"),
     ),
 )]
+/// Completes a password reset with the emailed token, setting the new password
+/// and writing a password-reset audit record.
 pub async fn confirm_password_reset(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -630,6 +657,8 @@ pub async fn confirm_password_reset(
     ),
     security(("bearer" = [])),
 )]
+/// Changes the current user's password after verifying the existing one and
+/// issues a fresh session with new auth cookies.
 pub async fn change_password(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -663,6 +692,8 @@ pub async fn change_password(
         (status = 400, description = "Invalid invitation"),
     ),
 )]
+/// Validates an invitation token and returns its public info for the
+/// invitation acceptance page.
 pub async fn verify_user_invitation(
     state: web::Data<AppState>,
     path: web::Path<String>,
@@ -683,6 +714,8 @@ pub async fn verify_user_invitation(
         (status = 400, description = "Invalid invitation or validation error"),
     ),
 )]
+/// Consumes an invitation token to create the invited account with the
+/// supplied username and password, returning the new user's info.
 pub async fn accept_user_invitation(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -727,6 +760,8 @@ pub async fn accept_user_invitation(
         (status = 403, description = "User is disabled"),
     ),
 )]
+/// Authenticates a user by username/email and password, issuing access and
+/// refresh session cookies on success.
 pub async fn login(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -760,6 +795,8 @@ pub async fn login(
         (status = 401, description = "Refresh token is invalid, expired, or stale"),
     ),
 )]
+/// Exchanges a valid refresh token (from cookie or body) for a fresh session
+/// and re-issues the auth cookies.
 pub async fn refresh(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -791,6 +828,8 @@ pub async fn refresh(
         (status = 200, description = "Refresh token revocation result and auth cookies cleared", body = inline(ApiResponse<LogoutResp>)),
     ),
 )]
+/// Revokes the presented refresh token when one is present and clears the auth
+/// cookies regardless of revocation outcome.
 pub async fn logout(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -836,6 +875,8 @@ pub async fn logout(
     ),
     security(("bearer" = [])),
 )]
+/// Returns the authenticated user's account info, resolving the caller from
+/// the access cookie or bearer token.
 pub async fn me(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResponse> {
     tracing::debug!(
         has_access_cookie = access_cookie_token(&req).is_some(),
@@ -862,6 +903,8 @@ pub async fn me(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResp
     ),
     security(("bearer" = [])),
 )]
+/// Starts an email change for the current user by sending a confirmation
+/// email to the new address.
 pub async fn request_email_change(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -899,6 +942,8 @@ pub async fn request_email_change(
     ),
     security(("bearer" = [])),
 )]
+/// Re-sends the confirmation email for a pending email change; the response
+/// does not reveal whether a change is actually pending.
 pub async fn resend_email_change(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -939,6 +984,7 @@ pub async fn resend_email_change(
     ),
     security(("bearer" = [])),
 )]
+/// Updates the current user's profile fields, currently the display name.
 pub async fn patch_profile(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -972,6 +1018,7 @@ pub async fn patch_profile(
     ),
     security(("bearer" = [])),
 )]
+/// Replaces the current user's avatar with the image in a multipart upload.
 pub async fn upload_avatar(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1000,6 +1047,8 @@ pub async fn upload_avatar(
     ),
     security(("bearer" = [])),
 )]
+/// Sets the current user's avatar source preference and returns the updated
+/// profile.
 pub async fn put_avatar_source(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1029,6 +1078,8 @@ pub async fn put_avatar_source(
     ),
     security(("bearer" = [])),
 )]
+/// Serves the current user's own avatar image at the requested size with
+/// conditional-request caching headers.
 pub async fn get_self_avatar(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1068,6 +1119,8 @@ pub async fn get_self_avatar(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the current user's login sessions with cursor pagination, flagging
+/// the session that matches the presented refresh cookie.
 pub async fn sessions(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1118,6 +1171,8 @@ pub async fn sessions(
     ),
     security(("bearer" = [])),
 )]
+/// Revokes every session of the current user except the one presenting the
+/// refresh cookie, returning the number of sessions removed.
 pub async fn delete_other_sessions(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1157,6 +1212,8 @@ pub async fn delete_other_sessions(
     ),
     security(("bearer" = [])),
 )]
+/// Revokes one of the current user's sessions by ID; when it is the caller's
+/// own session the auth cookies are cleared in the response.
 pub async fn delete_session(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1212,6 +1269,7 @@ pub async fn delete_session(
     ),
     security(("bearer" = [])),
 )]
+/// Lists the current user's registered passkeys with cursor pagination.
 pub async fn list_passkeys(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1252,6 +1310,8 @@ pub async fn list_passkeys(
     ),
     security(("bearer" = [])),
 )]
+/// Begins passkey registration for the current user, returning a WebAuthn
+/// creation challenge bound to a flow ID.
 pub async fn start_passkey_registration(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1281,6 +1341,8 @@ pub async fn start_passkey_registration(
     ),
     security(("bearer" = [])),
 )]
+/// Verifies the authenticator response for a registration flow, stores the new
+/// passkey, and writes a registration audit record.
 pub async fn finish_passkey_registration(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1332,6 +1394,8 @@ pub async fn finish_passkey_registration(
     ),
     security(("bearer" = [])),
 )]
+/// Renames one of the current user's passkeys and audits the previous and new
+/// names.
 pub async fn rename_passkey(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1394,6 +1458,8 @@ pub async fn rename_passkey(
     ),
     security(("bearer" = [])),
 )]
+/// Removes one of the current user's passkeys and writes a deletion audit
+/// record.
 pub async fn delete_passkey(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1456,6 +1522,8 @@ pub async fn delete_passkey(
         (status = 401, description = "Invalid credentials"),
     ),
 )]
+/// Begins a passkey login, returning a WebAuthn assertion challenge scoped to
+/// the optional identifier and conditional-mediation mode.
 pub async fn start_passkey_login(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -1492,6 +1560,8 @@ pub async fn start_passkey_login(
         (status = 401, description = "Invalid credentials"),
     ),
 )]
+/// Verifies a passkey assertion, issues the session cookies, and writes a
+/// login audit record.
 pub async fn finish_passkey_login(
     state: web::Data<AppState>,
     req: HttpRequest,

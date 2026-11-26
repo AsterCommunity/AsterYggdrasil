@@ -3,16 +3,23 @@ use sea_orm::{ColumnTrait, Condition, QueryFilter, Select};
 
 use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
+/// Optional kind/status filters applied to admin background-task list queries.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AdminTaskFilters {
+    /// Restricts results to a single task kind when set.
     pub kind: Option<BackgroundTaskKind>,
+    /// Restricts results to a single task status when set.
     pub status: Option<BackgroundTaskStatus>,
 }
 
+/// Filters for terminal-task cleanup sweeps.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalTaskCleanupFilters {
+    /// Cutoff instant: only tasks finished (or last updated) before this time are deleted.
     pub finished_before: DateTime<Utc>,
+    /// Restricts the sweep to a single task kind when set.
     pub kind: Option<BackgroundTaskKind>,
+    /// Restricts the sweep to a single terminal status when set; otherwise covers all terminal statuses.
     pub status: Option<BackgroundTaskStatus>,
 }
 

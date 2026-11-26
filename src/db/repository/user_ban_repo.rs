@@ -13,49 +13,84 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
+/// Input for creating a capability ban against a user.
 #[derive(Debug, Clone)]
 pub struct CreateUserBan {
+    /// Banned user.
     pub user_id: i64,
+    /// Capability scopes the ban removes.
     pub scopes: UserBanScopes,
+    /// Internal reason shown to admins.
     pub reason: String,
+    /// Reason shown to the affected user when set.
     pub public_reason: Option<String>,
+    /// Free-form note for admin bookkeeping.
     pub admin_note: Option<String>,
+    /// Admin or system actor issuing the ban; `None` means automated.
     pub created_by_user_id: Option<i64>,
+    /// Instant the ban becomes effective (may be in the future).
     pub starts_at: DateTime<Utc>,
+    /// Expiry instant for temporary bans; `None` makes the ban permanent.
     pub expires_at: Option<DateTime<Utc>>,
 }
 
+/// Partial update for a ban; `None` fields are left unchanged.
+///
+/// Double-`Option` fields distinguish clearing a value (`Some(None)`) from leaving it alone
+/// (`None`).
 #[derive(Debug, Clone, Default)]
 pub struct UpdateUserBan {
+    /// Replaces the banned scopes when set.
     pub scopes: Option<UserBanScopes>,
+    /// Replaces the internal reason when set.
     pub reason: Option<String>,
+    /// Replaces or clears the public reason when set.
     pub public_reason: Option<Option<String>>,
+    /// Replaces or clears the admin note when set.
     pub admin_note: Option<Option<String>>,
+    /// Replaces the effective start instant when set.
     pub starts_at: Option<DateTime<Utc>>,
+    /// Replaces or clears the expiry (clearing makes the ban permanent) when set.
     pub expires_at: Option<Option<DateTime<Utc>>>,
 }
 
+/// Audit trail entry describing a state change on a ban.
 #[derive(Debug, Clone)]
 pub struct CreateUserBanEvent {
+    /// Ban the event belongs to.
     pub ban_id: i64,
+    /// Admin or system actor causing the change; `None` means automated.
     pub actor_user_id: Option<i64>,
+    /// Kind of change (created, updated, revoked, expired, ...).
     pub event_type: UserBanEventType,
+    /// Status before the change when it transitioned.
     pub previous_status: Option<UserBanStatus>,
+    /// Status after the change when it transitioned.
     pub next_status: Option<UserBanStatus>,
+    /// Scopes before the change when they changed.
     pub previous_scopes: Option<UserBanScopes>,
+    /// Scopes after the change when they changed.
     pub next_scopes: Option<UserBanScopes>,
+    /// Expiry before the change when it changed.
     pub previous_expires_at: Option<DateTime<Utc>>,
+    /// Expiry after the change when it changed.
     pub next_expires_at: Option<DateTime<Utc>>,
+    /// Free-form note attached to the event.
     pub note: Option<String>,
 }
 
+/// Optional filters for the admin ban list; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct UserBanListFilter {
+    /// Restricts results to bans against this user when set.
     pub user_id: Option<i64>,
+    /// Restricts results to one ban status when set.
     pub status: Option<UserBanStatus>,
+    /// When true, only returns bans currently in force (active window at query time).
     pub effective_only: bool,
 }
 
+/// Inserts a new ban in `Active` status.
 pub async fn create<C: ConnectionTrait>(db: &C, input: CreateUserBan) -> Result<user_ban::Model> {
     let now = Utc::now();
     user_ban::ActiveModel {
@@ -80,6 +115,9 @@ pub async fn create<C: ConnectionTrait>(db: &C, input: CreateUserBan) -> Result<
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a ban by id.
+///
+/// Returns `None` when no ban with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<user_ban::Model>> {
     UserBan::find_by_id(id)
         .one(db)
@@ -87,6 +125,10 @@ pub async fn find_by_id<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<us
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Finds a ban against a user currently in force for one capability scope.
+///
+/// "Effective" means active status with `starts_at` reached and expiry not passed at `now`.
+/// The newest effective ban covering the scope wins; returns `None` when the scope is clean.
 pub async fn find_effective_for_scope<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -103,6 +145,7 @@ pub async fn find_effective_for_scope<C: ConnectionTrait>(
     Ok(bans.into_iter().find(|ban| ban.scopes.contains(scope)))
 }
 
+/// Lists a user's bans currently in force at `now`, newest created first.
 pub async fn list_effective_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,
@@ -117,6 +160,12 @@ pub async fn list_effective_for_user<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates bans using a keyset cursor over `(created_at, id)`, newest first, with the given
+/// filters.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the filtered total and a next cursor, which is absent
+/// on the last page.
 pub async fn list_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -153,6 +202,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Applies the set fields of the update to a ban row, stamping `updated_at`.
 pub async fn update<C: ConnectionTrait>(
     db: &C,
     ban: user_ban::Model,
@@ -184,6 +234,7 @@ pub async fn update<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Transitions a ban to `Revoked`, recording who revoked it, when, and why.
 pub async fn revoke<C: ConnectionTrait>(
     db: &C,
     ban: user_ban::Model,
@@ -203,6 +254,7 @@ pub async fn revoke<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Appends an audit event to a ban's history.
 pub async fn create_event<C: ConnectionTrait>(
     db: &C,
     input: CreateUserBanEvent,
@@ -226,6 +278,7 @@ pub async fn create_event<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists a ban's audit events, newest first.
 pub async fn list_events<C: ConnectionTrait>(
     db: &C,
     ban_id: i64,

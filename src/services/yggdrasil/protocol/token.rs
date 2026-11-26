@@ -190,6 +190,9 @@ where
     }
 }
 
+/// Resolves an access token for a protocol endpoint without a client-token
+/// match requirement; fails with the Yggdrasil invalid-token error when the
+/// token is revoked, expired, or unknown.
 pub async fn active_token_for_protocol<S>(
     state: &S,
     access_token: &str,
@@ -200,6 +203,9 @@ where
     active_token(state, access_token, None).await
 }
 
+/// Background-task helper: deletes expired and revoked token rows past their
+/// validity window and flushes the token cache so stale entries do not
+/// outlive the cleanup. Returns the number of rows removed.
 pub async fn cleanup_expired_or_revoked_tokens<S>(state: &S) -> Result<u64>
 where
     S: CacheRuntimeState + DatabaseRuntimeState,

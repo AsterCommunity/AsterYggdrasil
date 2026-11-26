@@ -8,6 +8,7 @@ use sea_orm::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Lists all operator scopes granted to a user, sorted by scope value ascending.
 pub async fn list_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<Vec<OperatorScope>> {
     let rows = UserOperatorScope::find()
         .filter(user_operator_scope::Column::UserId.eq(user_id))
@@ -18,6 +19,10 @@ pub async fn list_for_user<C: ConnectionTrait>(db: &C, user_id: i64) -> Result<V
     Ok(rows.into_iter().map(|row| row.scope).collect())
 }
 
+/// Batch-loads operator scopes for several users into a map keyed by user id.
+///
+/// An empty `user_ids` slice returns an empty map without querying; each value list is sorted
+/// by scope ascending, and users without any scope are absent from the map.
 pub async fn list_for_user_ids<C: ConnectionTrait>(
     db: &C,
     user_ids: &[i64],
@@ -41,6 +46,11 @@ pub async fn list_for_user_ids<C: ConnectionTrait>(
     Ok(map)
 }
 
+/// Replaces the full scope set of a user: deletes all existing rows, then inserts the
+/// deduplicated `scopes` in sorted order.
+///
+/// Callers running against a non-transactional connection must wrap this in a transaction;
+/// each insert commits independently otherwise.
 pub async fn replace_for_user<C: ConnectionTrait>(
     db: &C,
     user_id: i64,

@@ -5,25 +5,33 @@ use std::str::FromStr;
 
 macro_rules! define_error_codes {
     ($($variant:ident => $value:literal),+ $(,)?) => {
+        /// Stable public API error codes carried in the envelope `code` field.
+        ///
+        /// Wire values are dot-separated snake_case strings; new codes may be
+        /// added but existing values never change.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
         pub enum AsterErrorCode {
             $(
+                #[doc = concat!("Stable wire code: `", $value, "`.")]
                 #[serde(rename = $value)]
                 $variant,
             )+
         }
 
         impl AsterErrorCode {
+            /// Every defined error code in declaration order.
             pub const ALL: &'static [Self] = &[
                 $(Self::$variant,)+
             ];
 
+            /// Returns the stable wire value of this code.
             pub const fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$variant => $value,)+
                 }
             }
 
+            /// Parses a stable wire value back into a code.
             pub fn parse(value: &str) -> Option<Self> {
                 match value {
                     $($value => Some(Self::$variant),)+
@@ -220,6 +228,7 @@ impl std::fmt::Display for AsterErrorCode {
     }
 }
 
+/// Error returned when a string is not a known stable error code wire value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseAsterErrorCodeError;
 

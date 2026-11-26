@@ -21,10 +21,16 @@ const CAPTCHA_CHARSET: &[char] = &[
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Visual captcha challenge handed to the client.
 pub struct CaptchaChallengeResponse {
+    /// Opaque id the client must echo back with its answer; answers are only
+    /// stored as SHA-256 hashes server-side.
     pub challenge_id: String,
+    /// Rendered challenge image as a base64 data payload.
     pub image_base64: String,
+    /// MIME type of `image_base64` (currently `image/jpeg`).
     pub mime: String,
+    /// Challenge validity in seconds; verification after that fails as expired.
     pub expires_in: u64,
 }
 
@@ -37,10 +43,16 @@ struct CaptchaChallengeState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Flow that may demand a captcha; resolves against the matching toggle in
+/// the runtime captcha policy.
 pub enum CaptchaRequirement {
+    /// Password login.
     Login,
+    /// Self-service registration.
     Register,
+    /// Accepting an invitation.
     InvitationAccept,
+    /// Resending a registration activation email.
     RegisterActivationResend,
 }
 
@@ -60,14 +72,19 @@ struct RenderedCaptchaChallenge {
     image_base64: String,
 }
 
+/// Current captcha policy from the runtime config (presets, toggles, limits).
 pub fn policy(state: &impl RuntimeConfigRuntimeState) -> RuntimeCaptchaPolicy {
     RuntimeCaptchaPolicy::from_runtime_config(state.runtime_config())
 }
 
+/// Renders a throwaway captcha image for admin previews of the active
+/// preset; no challenge state is stored.
 pub fn preview_image(policy: &RuntimeCaptchaPolicy) -> Result<String> {
     Ok(render_challenge(policy)?.image_base64)
 }
 
+/// Issues a fresh captcha challenge: renders it with the active policy preset
+/// and caches the answer hash with the policy TTL and attempt limit.
 pub async fn issue_challenge<S>(state: &S) -> Result<CaptchaChallengeResponse>
 where
     S: CacheRuntimeState + RuntimeConfigRuntimeState,
@@ -128,6 +145,9 @@ fn render_challenge(policy: &RuntimeCaptchaPolicy) -> Result<RenderedCaptchaChal
     })
 }
 
+/// Enforces the captcha for `requirement` when the runtime policy enables it;
+/// a no-op when the flow does not require one. Missing or empty
+/// challenge/answer values fail as "captcha required".
 pub async fn verify_if_required<S>(
     state: &S,
     requirement: CaptchaRequirement,

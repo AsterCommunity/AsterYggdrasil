@@ -1,20 +1,31 @@
 const MAX_AUDIT_IP_ADDRESS_LEN: usize = 45;
 const MAX_AUDIT_USER_AGENT_LEN: usize = 512;
 
+/// Actor identity plus request metadata captured at the audit call site.
+/// `user_id` 0 is the reserved system actor for background and startup events.
 #[derive(Clone)]
 pub struct AuditContext {
+    /// Acting user, or 0 for the reserved system actor.
     pub user_id: i64,
+    /// Client IP truncated to 45 bytes, when one could be resolved.
     pub ip_address: Option<String>,
+    /// User-Agent header truncated to 512 bytes, when present.
     pub user_agent: Option<String>,
 }
 
+/// Request metadata without an actor, extracted before authentication decides
+/// who the acting user is.
 #[derive(Clone)]
 pub struct AuditRequestInfo {
+    /// Client IP truncated to 45 bytes, when one could be resolved.
     pub ip_address: Option<String>,
+    /// User-Agent header truncated to 512 bytes, when present.
     pub user_agent: Option<String>,
 }
 
 impl AuditContext {
+    /// Context attributed to the reserved system actor (user 0) with no
+    /// request metadata; used for background task and startup audit records.
     pub fn system() -> Self {
         Self {
             user_id: 0,
@@ -23,12 +34,16 @@ impl AuditContext {
         }
     }
 
+    /// Captures request metadata from the HTTP request and attributes it to
+    /// the given acting user.
     pub fn from_request(req: &actix_web::HttpRequest, user_id: i64) -> Self {
         AuditRequestInfo::from_request(req).to_context(user_id)
     }
 }
 
 impl AuditRequestInfo {
+    /// Reads the client IP (forwarded header preferred, peer address as
+    /// fallback) and User-Agent, truncating each to its audit length limit.
     pub fn from_request(req: &actix_web::HttpRequest) -> Self {
         Self {
             ip_address: req
@@ -43,6 +58,7 @@ impl AuditRequestInfo {
         }
     }
 
+    /// Attaches an acting user to the captured request metadata.
     pub fn to_context(&self, user_id: i64) -> AuditContext {
         AuditContext {
             user_id,

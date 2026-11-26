@@ -74,6 +74,9 @@ async fn build_audit_entries<S: DatabaseRuntimeState>(
     Ok(items)
 }
 
+/// Runs the admin audit log query: flushes the buffered writer first so
+/// just-admitted records are observable, then pages through the repository
+/// with a (created_at, id) cursor and joins actor summaries.
 pub async fn query<S: SharedRuntimeState>(
     state: &S,
     filters: AuditLogFilters,
@@ -108,6 +111,8 @@ pub async fn query<S: SharedRuntimeState>(
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
+/// Returns the most recent audit entries matching the filters, without
+/// pagination; backs the admin overview activity feed.
 pub async fn recent<S: SharedRuntimeState>(
     state: &S,
     filters: AuditLogFilters,
@@ -116,6 +121,8 @@ pub async fn recent<S: SharedRuntimeState>(
     Ok(query(state, filters, limit, None).await?.items)
 }
 
+/// Deletes audit records older than the runtime-configured retention window
+/// (`audit_log_retention_days`, defaulting to 90); returns the rows removed.
 pub async fn cleanup_expired<S>(state: &S) -> crate::errors::Result<u64>
 where
     S: SharedRuntimeState,

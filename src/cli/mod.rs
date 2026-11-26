@@ -13,10 +13,15 @@ use common::help;
 
 /// CLI result consumed by the process entry point.
 pub enum CommandOutcome {
+    /// Hand control back to the process entry so it starts the server with
+    /// the resolved role and config location.
     Serve {
+        /// Process role to boot (api, worker, or combined serve).
         role: crate::runtime::role::ServeRole,
+        /// Where the effective configuration was loaded from.
         location: crate::config::loader::ConfigLocation,
     },
+    /// Leave the process immediately with the given exit code.
     Exit(i32),
 }
 

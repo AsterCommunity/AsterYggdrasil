@@ -10,13 +10,19 @@ pub use crate::config::definitions::{
     AUTH_LOCAL_EMAIL_ALLOWLIST_KEY, AUTH_LOCAL_EMAIL_BLOCKLIST_KEY,
 };
 
+/// Runtime email policy for local accounts, combining the
+/// `auth_local_email_allowlist` and `auth_local_email_blocklist` arrays.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalEmailPolicy {
+    /// Allowed emails/domains; empty means "no allowlist restriction".
     allowlist: EmailPolicyList,
+    /// Blocked emails/domains, checked before the allowlist.
     blocklist: EmailPolicyList,
 }
 
 impl LocalEmailPolicy {
+    /// Loads both lists from the runtime config store; invalid stored items are
+    /// dropped (with redacted warnings) instead of failing the whole policy.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let allowlist = read_policy_list(runtime_config, AUTH_LOCAL_EMAIL_ALLOWLIST_KEY);
         let blocklist = read_policy_list(runtime_config, AUTH_LOCAL_EMAIL_BLOCKLIST_KEY);
@@ -26,6 +32,9 @@ impl LocalEmailPolicy {
         }
     }
 
+    /// Checks `email` against the blocklist and then the allowlist, as applied
+    /// to local account sign-up/login. An empty allowlist permits everything
+    /// not blocked.
     pub fn check(&self, email: &str) -> Result<()> {
         let (normalized, domain) = normalized_email_and_domain(email)?;
 
@@ -43,6 +52,9 @@ impl LocalEmailPolicy {
         Ok(())
     }
 
+    /// Checks `email` against the blocklist only, ignoring the allowlist; used
+    /// for flows (e.g. password reset to an existing account) where the
+    /// address is already registered.
     pub fn check_not_blocked(&self, email: &str) -> Result<()> {
         let (normalized, domain) = normalized_email_and_domain(email)?;
 
@@ -61,6 +73,9 @@ fn email_blocked_error() -> AsterError {
     )
 }
 
+/// Validates and canonicalizes a stored allowlist/blocklist JSON array:
+/// lowercases emails and domains, trims, dedupes, sorts, and rejects invalid
+/// entries such as bare hostnames or unicode domains (punycode accepted).
 pub fn normalize_local_email_policy_config_value(key: &str, value: &str) -> Result<String> {
     let raw_items = parse_string_array_config_value(value, key)?;
     let normalized = normalize_email_policy_items(raw_items)?;

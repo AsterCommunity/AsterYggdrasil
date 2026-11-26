@@ -12,7 +12,9 @@ use crate::db::repository::system_config_repo;
 use crate::errors::{AsterError, Result};
 use aster_forge_db::system_config;
 
+/// Fixed `iss` claim stamped into every JWT issued by this service.
 pub const JWT_ISSUER: &str = "aster_yggdrasil";
+/// Fixed `aud` claim stamped into every JWT issued by this service.
 pub const JWT_AUDIENCE: &str = "aster_yggdrasil";
 
 /// Forge auth runtimes built from the static JWT secret, the startup runtime
@@ -87,6 +89,9 @@ impl AuthRuntimes {
     }
 }
 
+/// Process-wide cache of the `system_config` table plus the auth runtimes and
+/// precompiled audit settings derived from it. Values are refreshed by
+/// [`RuntimeConfig::reload`] or updated in place via [`RuntimeConfig::apply`].
 pub struct RuntimeConfig {
     snapshot: SyncRuntimeConfig<system_config::Model>,
     audit_log_settings: RwLock<AuditLogRuntimeSettings>,
@@ -94,6 +99,9 @@ pub struct RuntimeConfig {
 }
 
 impl RuntimeConfig {
+    /// Creates an empty store holding only defaults; call
+    /// [`RuntimeConfig::reload`] (server path) or [`RuntimeConfig::apply`]
+    /// (tests) to populate it.
     pub fn new() -> Self {
         Self {
             snapshot: SyncRuntimeConfig::new(),
@@ -152,10 +160,14 @@ impl RuntimeConfig {
         })
     }
 
+    /// Convenience accessor returning the installed auth runtimes, which own
+    /// the JWT signer. See [`RuntimeConfig::auth_runtimes`] for error cases.
     pub fn jwt_signer(&self) -> Result<Arc<AuthRuntimes>> {
         self.auth_runtimes()
     }
 
+    /// Replaces the whole snapshot with the current `system_config` rows and
+    /// rebuilds the precompiled audit settings.
     pub async fn reload<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
         let configs = system_config_repo::find_all(db).await?;
         let next_snapshot = SyncConfigSnapshot::from_configs(configs.clone());
@@ -165,34 +177,47 @@ impl RuntimeConfig {
         Ok(())
     }
 
+    /// Returns the full stored row for `key`, including metadata such as
+    /// value type and source.
     pub fn get_model(&self, key: &str) -> Option<system_config::Model> {
         self.snapshot.get_model(key)
     }
 
+    /// Returns the stored string value for `key`.
     pub fn get(&self, key: &str) -> Option<String> {
         self.snapshot.get(key)
     }
 
+    /// Returns the stored boolean value for `key`, or `None` when the key is
+    /// missing or does not parse as a boolean.
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.snapshot.get_bool(key)
     }
 
+    /// Returns the stored numeric value for `key` as `i64`, or `None` when the
+    /// key is missing or does not parse as a number.
     pub fn get_i64(&self, key: &str) -> Option<i64> {
         self.snapshot.get_i64(key)
     }
 
+    /// Returns the stored numeric value for `key` as `u64`, or `None` when the
+    /// key is missing, does not parse as a number, or is negative.
     pub fn get_u64(&self, key: &str) -> Option<u64> {
         self.snapshot.get_u64(key)
     }
 
+    /// Returns the stored string value for `key`, or `default` when missing.
     pub fn get_string_or(&self, key: &str, default: &str) -> String {
         self.snapshot.get_string_or(key, default)
     }
 
+    /// Returns the stored boolean value for `key`, or `default` when missing
+    /// or not a valid boolean.
     pub fn get_bool_or(&self, key: &str, default: bool) -> bool {
         self.snapshot.get_bool_or(key, default)
     }
 
+    /// Returns whether the precompiled audit settings record `action`.
     pub fn should_record_audit_action(
         &self,
         action: aster_yggdrasil_model::types::audit::AuditAction,
@@ -200,14 +225,21 @@ impl RuntimeConfig {
         self.audit_log_settings.read().should_record(action)
     }
 
+    /// Returns the stored numeric value for `key` as `i64`, or `default` when
+    /// missing or not a valid number.
     pub fn get_i64_or(&self, key: &str, default: i64) -> i64 {
         self.snapshot.get_i64_or(key, default)
     }
 
+    /// Returns the stored numeric value for `key` as `u64`, or `default` when
+    /// missing, invalid, or negative.
     pub fn get_u64_or(&self, key: &str, default: u64) -> u64 {
         self.snapshot.get_u64_or(key, default)
     }
 
+    /// Applies a single stored row to the snapshot. Rows flagged
+    /// `requires_restart` keep their previous value until restart; audit keys
+    /// additionally rebuild the precompiled audit settings.
     pub fn apply(&self, config: system_config::Model) {
         let is_audit_runtime_key = audit::is_audit_runtime_key(&config.key);
         let changed = self.snapshot.apply(config).is_some();
@@ -216,6 +248,8 @@ impl RuntimeConfig {
         }
     }
 
+    /// Removes `key` from the snapshot so reads fall back to defaults; audit
+    /// keys additionally rebuild the precompiled audit settings.
     pub fn remove(&self, key: &str) {
         let removed = self.snapshot.remove(key).is_some();
         if removed && audit::is_audit_runtime_key(key) {

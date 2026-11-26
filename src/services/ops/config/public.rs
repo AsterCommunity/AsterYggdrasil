@@ -4,61 +4,101 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
+/// Cache-Control header served with public config responses; values may lag
+/// up to a minute behind admin changes.
 pub const PUBLIC_CONFIG_CACHE_CONTROL: &str = "public, max-age=60";
 
+/// Site branding and registration entry points exposed to unauthenticated
+/// visitors; every value falls back to its default when unset.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicBranding {
+    /// Site title shown in the UI.
     pub title: String,
+    /// Site description text.
     pub description: String,
+    /// URL of the favicon image.
     pub favicon_url: String,
+    /// URL of the dark-theme wordmark image.
     pub wordmark_dark_url: String,
+    /// URL of the light-theme wordmark image.
     pub wordmark_light_url: String,
+    /// Public site URLs advertised to visitors.
     pub site_urls: Vec<String>,
+    /// Whether open registration is currently allowed.
     pub allow_user_registration: bool,
+    /// Whether passkey login is offered on sign-in surfaces.
     pub passkey_login_enabled: bool,
 }
 
+/// Captcha policy as applied to each unauthenticated flow.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicCaptchaConfig {
+    /// Whether any captcha backend is configured at all.
     pub enabled: bool,
+    /// Whether the login flow requires a captcha token.
     pub login_required: bool,
+    /// Whether the registration flow requires a captcha token.
     pub register_required: bool,
+    /// Whether accepting an invitation requires a captcha token.
     pub invitation_accept_required: bool,
+    /// Whether resending a registration activation email requires a captcha.
     pub register_activation_resend_required: bool,
 }
 
+/// Yggdrasil server metadata that is safe to expose publicly; drives
+/// launcher-facing defaults and upload form limits.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicYggdrasilConfig {
+    /// Display name of the authentication server.
     pub server_name: String,
+    /// Domains whose owners may use the skin host, per Yggdrasil metadata.
     pub skin_domains: Vec<String>,
+    /// Public API root URLs advertised by the server.
     pub public_base_urls: Vec<String>,
+    /// Whether profile-name login is allowed alongside account login.
     pub allow_profile_name_login: bool,
+    /// Whether users may upload skins through the service.
     pub allow_skin_upload: bool,
+    /// Whether users may upload capes through the service.
     pub allow_cape_upload: bool,
+    /// Maximum accepted texture upload size in bytes.
     pub max_texture_upload_bytes: u64,
+    /// Maximum accepted texture image area in pixels.
     pub max_texture_pixels: u64,
 }
 
+/// Texture library visibility policy as seen by visitors.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicTextureLibraryConfig {
+    /// Whether the public texture library exists at all.
     pub enabled: bool,
+    /// Whether submissions appear only after moderator approval.
     pub review_required: bool,
 }
 
+/// The full public runtime configuration payload served to the frontend;
+/// `version` lets clients detect schema changes.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct PublicFrontendConfig {
+    /// Payload schema version; bumped on breaking shape changes.
     pub version: i32,
+    /// Site branding and registration policy.
     pub branding: PublicBranding,
+    /// Captcha requirements per flow.
     pub captcha: PublicCaptchaConfig,
+    /// Yggdrasil server metadata and upload limits.
     pub yggdrasil: PublicYggdrasilConfig,
+    /// Texture library visibility policy.
     pub texture_library: PublicTextureLibraryConfig,
 }
 
+/// Projects the runtime config into the public branding view, applying
+/// defaults for unset values.
 pub fn get_public_branding(state: &impl RuntimeConfigRuntimeState) -> PublicBranding {
     let runtime_config = state.runtime_config();
     let auth_policy = auth_runtime::RuntimeAuthPolicy::from_runtime_config(runtime_config);
@@ -74,6 +114,7 @@ pub fn get_public_branding(state: &impl RuntimeConfigRuntimeState) -> PublicBran
     }
 }
 
+/// Projects the runtime config into the per-flow captcha requirements.
 pub fn get_public_captcha_config(state: &impl RuntimeConfigRuntimeState) -> PublicCaptchaConfig {
     let policy = auth_runtime::RuntimeCaptchaPolicy::from_runtime_config(state.runtime_config());
     PublicCaptchaConfig {
@@ -85,6 +126,8 @@ pub fn get_public_captcha_config(state: &impl RuntimeConfigRuntimeState) -> Publ
     }
 }
 
+/// Projects the runtime config into the public Yggdrasil metadata and
+/// upload limits.
 pub fn get_public_yggdrasil_config(
     state: &impl RuntimeConfigRuntimeState,
 ) -> PublicYggdrasilConfig {
@@ -101,6 +144,7 @@ pub fn get_public_yggdrasil_config(
     }
 }
 
+/// Projects the runtime config into the public texture library policy.
 pub fn get_public_texture_library_config(
     state: &impl RuntimeConfigRuntimeState,
 ) -> PublicTextureLibraryConfig {
@@ -112,6 +156,7 @@ pub fn get_public_texture_library_config(
     }
 }
 
+/// Assembles the complete public config payload served to the frontend.
 pub fn get_public_frontend_config(state: &impl SharedRuntimeState) -> PublicFrontendConfig {
     PublicFrontendConfig {
         version: 1,

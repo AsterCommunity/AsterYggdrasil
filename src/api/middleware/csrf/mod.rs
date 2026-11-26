@@ -92,11 +92,15 @@ fn map_csrf_error(error: CsrfError) -> AsterError {
     }
 }
 
+/// Validates the CSRF double-submit cookie/header pair on a plain request,
+/// mapping Forge CSRF failures to `AsterError` with stable API error codes.
 pub fn ensure_double_submit_token(req: &HttpRequest) -> Result<()> {
     aster_forge_middleware::actix::csrf::ensure_double_submit_token_with_names(req, token_names())
         .map_err(map_csrf_error)
 }
 
+/// Service-request variant of [`ensure_double_submit_token`] for middleware
+/// call chains.
 pub fn ensure_service_double_submit_token(req: &ServiceRequest) -> Result<()> {
     aster_forge_middleware::actix::csrf::ensure_service_double_submit_token_with_names(
         req,
@@ -105,6 +109,8 @@ pub fn ensure_service_double_submit_token(req: &ServiceRequest) -> Result<()> {
     .map_err(map_csrf_error)
 }
 
+/// Validates the request source (`Origin`/`Referer`/`Sec-Fetch-Site`) against
+/// the runtime public site URLs, mapping Forge CSRF failures to `AsterError`.
 pub fn ensure_request_source_allowed(
     req: &HttpRequest,
     runtime_config: &RuntimeConfig,
@@ -118,6 +124,8 @@ pub fn ensure_request_source_allowed(
     .map_err(map_csrf_error)
 }
 
+/// Service-request variant of [`ensure_request_source_allowed`] for middleware
+/// call chains.
 pub fn ensure_service_request_source_allowed(
     req: &ServiceRequest,
     runtime_config: &RuntimeConfig,

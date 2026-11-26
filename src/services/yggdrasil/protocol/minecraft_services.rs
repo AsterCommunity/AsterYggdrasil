@@ -19,6 +19,11 @@ use super::{YggdrasilError, YggdrasilErrorKind, active_token_for_protocol};
 const PROFILE_KEY_BITS: usize = 2048;
 const DUMMY_PUBLIC_KEY_SIGNATURE: &str = "AA==";
 
+/// Issues a profile-key certificate response for the authenticated token's
+/// selected profile: a freshly generated 2048-bit RSA key pair with 48h
+/// expiry (36h refresh point). The Mojang-style CA signatures are fixed
+/// placeholder values because this server does not implement real profile-key
+/// signing.
 pub async fn profile_key_certificate<S>(
     state: &S,
     access_token: &str,
@@ -55,6 +60,8 @@ where
     })
 }
 
+/// Returns the Minecraft-services style privilege flags (online chat, sword
+/// ban state, etc.) for the authenticated token's user.
 pub async fn minecraft_services_privileges<S>(
     state: &S,
     access_token: &str,
@@ -68,6 +75,8 @@ where
     })
 }
 
+/// Returns player attributes for the authenticated token, mapping the user's
+/// Yggdrasil-join ban scope onto the `bannedScopes.multiplayer` flag.
 pub async fn minecraft_services_player_attributes<S>(
     state: &S,
     access_token: &str,
@@ -99,6 +108,8 @@ where
     })
 }
 
+/// Returns the privacy blocklist for the authenticated token; this server
+/// publishes no blocked profiles, so the list is always empty.
 pub async fn minecraft_services_privacy_blocklist<S>(
     state: &S,
     access_token: &str,

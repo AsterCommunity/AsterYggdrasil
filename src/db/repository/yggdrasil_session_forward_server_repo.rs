@@ -15,6 +15,9 @@ use aster_yggdrasil_model::types::{
     yggdrasil::YggdrasilSessionForwardProviderKind, yggdrasil::YggdrasilSessionForwardServerSortBy,
 };
 
+/// Lists upstream servers eligible for session forwarding: enabled with positive weight.
+///
+/// Ordered by priority ascending then id ascending — the order in which upstreams are tried.
 pub async fn list_enabled_ordered(
     db: &DatabaseConnection,
 ) -> Result<Vec<yggdrasil_session_forward_server::Model>> {
@@ -28,16 +31,27 @@ pub async fn list_enabled_ordered(
         .map_err(AsterError::from)
 }
 
+/// Keyset cursor for forward-server pagination, matching the chosen sort order.
 #[derive(Debug, Clone)]
 pub enum SessionForwardServerCursor {
+    /// Cursor for call-order sorting: last item's enabled flag, priority, and id.
     CallOrder {
+        /// Enabled flag of the page's last row.
         enabled: bool,
+        /// Priority of the page's last row.
         priority: i32,
+        /// Id of the page's last row.
         id: i64,
     },
+    /// Cursor for id sorting: last item's id.
     Id(i64),
 }
 
+/// Paginates forward servers using a keyset cursor, returning the filtered total.
+///
+/// `CallOrder` sorting puts enabled servers first, then ascending priority and id — the order
+/// upstreams are consulted in. `Id` sorting is a plain id-ascending listing. `limit` is clamped
+/// to 1..=100; a mismatched `after`/`sort_by` pair starts from the first page.
 pub async fn find_cursor(
     db: &DatabaseConnection,
     limit: u64,
@@ -101,6 +115,9 @@ pub async fn find_cursor(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Loads a forward server by id.
+///
+/// Returns `Err(record_not_found)` when no server with that id exists.
 pub async fn find_by_id(
     db: &DatabaseConnection,
     id: i64,
@@ -114,6 +131,9 @@ pub async fn find_by_id(
         })
 }
 
+/// Loads a forward server by its base URL.
+///
+/// Returns `None` when no server is registered under that URL.
 pub async fn find_by_base_url(
     db: &DatabaseConnection,
     base_url: &str,
@@ -125,6 +145,9 @@ pub async fn find_by_base_url(
         .map_err(AsterError::from)
 }
 
+/// Loads the row representing this deployment itself (`Local` provider kind).
+///
+/// Returns `None` when the local server record has not been created yet.
 pub async fn find_local(
     db: &DatabaseConnection,
 ) -> Result<Option<yggdrasil_session_forward_server::Model>> {
@@ -139,6 +162,7 @@ pub async fn find_local(
         .map_err(AsterError::from)
 }
 
+/// Inserts a new upstream forward server row.
 pub async fn create(
     db: &DatabaseConnection,
     model: yggdrasil_session_forward_server::ActiveModel,
@@ -146,6 +170,7 @@ pub async fn create(
     model.insert(db).await.map_err(AsterError::from)
 }
 
+/// Persists changes on an existing forward server row.
 pub async fn update(
     db: &DatabaseConnection,
     model: yggdrasil_session_forward_server::ActiveModel,
@@ -153,6 +178,9 @@ pub async fn update(
     model.update(db).await.map_err(AsterError::from)
 }
 
+/// Deletes a forward server by id.
+///
+/// Returns `Err(record_not_found)` when no server with that id exists.
 pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<()> {
     let result = YggdrasilSessionForwardServer::delete_by_id(id)
         .exec(db)
@@ -166,6 +194,9 @@ pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Records a successful upstream health check, clearing any previous failure message.
+///
+/// Returns `false` when the server row no longer exists.
 pub async fn mark_success(
     db: &DatabaseConnection,
     id: i64,
@@ -195,6 +226,9 @@ pub async fn mark_success(
     Ok(result.rows_affected == 1)
 }
 
+/// Records a failed upstream health check with the failure message truncated to 512 chars.
+///
+/// Returns `false` when the server row no longer exists.
 pub async fn mark_failure(
     db: &DatabaseConnection,
     id: i64,

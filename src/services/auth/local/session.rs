@@ -24,40 +24,64 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[serde(rename_all = "snake_case")]
+/// Session state carried by a token pair: normal authentication or a
+/// restricted session that may only change the password.
 pub enum AuthTokenStatus {
+    /// Full access session.
     Authenticated,
+    /// Restricted session issued when `must_change_password` is set; only
+    /// password-change routes accept it.
     PasswordChangeRequired,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Client-safe subset of a token bundle; tokens themselves travel in cookies.
 pub struct AuthTokenResponse {
+    /// Access token lifetime in seconds.
     pub expires_in: u64,
+    /// Whether this is a full session or restricted to password change.
     pub status: AuthTokenStatus,
 }
 
 #[derive(Debug, Clone)]
+/// A freshly issued access/refresh token pair plus the session metadata the
+/// route layer needs to respond and audit.
 pub struct AuthTokenBundle {
+    /// Signed JWT access token.
     pub access_token: String,
+    /// Signed JWT refresh token; its jti is tracked on the session row.
     pub refresh_token: String,
+    /// Access token lifetime in seconds.
     pub expires_in: u64,
+    /// Whether this is a full session or restricted to password change.
     pub status: AuthTokenStatus,
+    /// Authenticated user snapshot returned alongside the tokens.
     pub user: AuthUserInfo,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// One user session as shown in the account "active sessions" list.
 pub struct AuthSessionInfo {
+    /// Session id (UUID) used when revoking this session.
     pub id: String,
+    /// Whether this session matches the refresh token the request presented.
     pub is_current: bool,
+    /// Client user agent captured at session creation/refresh.
     pub user_agent: Option<String>,
+    /// Peer IP captured at session creation/refresh.
     pub ip_address: Option<String>,
+    /// When the session was created.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Last time this session refreshed its tokens or was seen.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub last_seen_at: chrono::DateTime<chrono::Utc>,
+    /// When the session's current refresh token expires.
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
     pub refresh_expires_at: chrono::DateTime<chrono::Utc>,
+    /// Whether the session has been revoked (explicitly or by revoking others).
     pub revoked: bool,
 }
 
@@ -94,6 +118,7 @@ impl AuthSessionInfo {
 }
 
 impl AuthTokenBundle {
+    /// Strips the token values and user, leaving the client-safe response.
     pub fn response(&self) -> AuthTokenResponse {
         AuthTokenResponse {
             expires_in: self.expires_in,
@@ -102,7 +127,9 @@ impl AuthTokenBundle {
     }
 }
 
-/// Product view over Forge [`aster_forge_auth::TokenClaims`].
+/// Revokes one of the user's sessions by id and writes a user audit entry.
+/// Returns whether the revoked session was the one that presented
+/// `current_refresh_token`, so the route layer can clear cookies.
 pub async fn revoke_session<S>(
     state: &S,
     user_id: i64,
@@ -160,6 +187,9 @@ where
     Ok(revoked_current)
 }
 
+/// Revokes every session of the user except the one that presented
+/// `current_refresh_token` and writes a user audit entry. Returns the number
+/// of sessions revoked. Fails when the current token has no live session.
 pub async fn revoke_other_sessions<S>(
     state: &S,
     user_id: i64,
@@ -216,6 +246,9 @@ where
     Ok(removed)
 }
 
+/// Resolves the authenticated user from the request's access token. Enforces
+/// user status, session version, and password-change restrictions; a
+/// restricted token is only accepted on password-change routes.
 pub async fn current_user<S>(state: &S, req: &HttpRequest) -> Result<user::Model>
 where
     S: SharedRuntimeState,
@@ -232,6 +265,8 @@ where
     Ok(user)
 }
 
+/// Same checks as [`current_user`], but against a raw access token instead of
+/// the request's Authorization header/cookie.
 pub async fn current_user_from_token<S>(state: &S, token: &str) -> Result<user::Model>
 where
     S: SharedRuntimeState,
@@ -283,6 +318,8 @@ where
     Ok((user, claims))
 }
 
+/// Lists all of the user's sessions (revoked ones included), flagging which
+/// one matches `current_refresh_token`.
 pub async fn list_sessions<S>(
     state: &S,
     user_id: i64,
@@ -305,6 +342,8 @@ where
         .collect())
 }
 
+/// Cursor-paginated variant of [`list_sessions`], ordered by
+/// `(last_seen_at, id)`; `limit` is clamped to 1..=100.
 pub async fn list_sessions_cursor<S>(
     state: &S,
     user_id: i64,
@@ -350,6 +389,8 @@ where
     ))
 }
 
+/// Deletes sessions whose refresh tokens have expired. Returns the number of
+/// rows removed; intended for the cleanup task.
 pub async fn cleanup_expired_auth_sessions<S: DatabaseRuntimeState>(state: &S) -> Result<u64> {
     auth_session_repo::delete_expired(state.writer_db(), Utc::now()).await
 }
@@ -391,6 +432,8 @@ where
     })
 }
 
+/// Issues a fresh session (token pair) for an already-authenticated user;
+/// entry point for flows such as passkey login completion.
 pub async fn issue_tokens_for_authenticated_user<S>(
     state: &S,
     user: user::Model,
@@ -402,6 +445,8 @@ where
     issue_tokens(state, user, req).await
 }
 
+/// Issues a fresh session (token pair) for an already-authenticated user;
+/// entry point for flows such as external auth login completion.
 pub async fn issue_tokens_for_user<S>(
     state: &S,
     user: user::Model,
@@ -413,6 +458,8 @@ where
     issue_tokens(state, user, req).await
 }
 
+/// Loads the user by id and issues a fresh session (token pair); entry point
+/// for flows that authenticate by user id, e.g. after a password change.
 pub async fn issue_tokens_for_user_id<S>(
     state: &S,
     user_id: i64,

@@ -11,6 +11,8 @@ use aster_yggdrasil_model::entities::{external_auth_identity, external_auth_prov
 
 use super::ExternalAuthLinkInfo;
 
+/// Lists every external identity linked to the given user, oldest first.
+/// Links whose provider row was deleted are skipped.
 pub async fn list_links(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -30,6 +32,9 @@ pub async fn list_links(
         .collect())
 }
 
+/// Cursor-paginated variant of [`list_links`], ordered by `(created_at, id)`.
+/// `limit` is clamped to 1..=100; `cursor` is the previous page's
+/// `next_cursor` value.
 pub async fn list_links_paginated(
     state: &impl SharedRuntimeState,
     user_id: i64,
@@ -96,10 +101,14 @@ fn link_to_info(
     }
 }
 
+/// Deletes the identity link with `id` only when it belongs to `user_id`.
+/// Returns `false` when no matching row exists.
 pub async fn delete_link(state: &impl SharedRuntimeState, user_id: i64, id: i64) -> Result<bool> {
     external_auth_identity_repo::delete_for_user(state.writer_db(), id, user_id).await
 }
 
+/// Removes expired external auth login flows and email verification flows.
+/// Returns the total number of rows deleted; intended for the cleanup task.
 pub async fn cleanup_expired_flows(state: &impl SharedRuntimeState) -> Result<u64> {
     let now = Utc::now();
     let login_flows =

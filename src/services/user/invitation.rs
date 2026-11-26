@@ -23,35 +23,56 @@ use aster_yggdrasil_model::types::user::{UserInvitationStatus, UserRole, UserSta
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Administrator-facing view of an invitation.
 pub struct AdminUserInvitationInfo {
+    /// Invitation record identifier.
     pub id: i64,
+    /// Invited email address.
     pub email: String,
+    /// Lifecycle status (`pending`, `accepted`, `expired` or `revoked`).
     pub status: UserInvitationStatus,
+    /// Administrator who issued the invitation.
     pub invited_by: i64,
+    /// Account created by accepting the invitation, once accepted.
     pub accepted_user_id: Option<i64>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Time the invitation stops being usable.
     pub expires_at: DateTime<Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Invitation creation time.
     pub created_at: DateTime<Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Invitation last-update time.
     pub updated_at: DateTime<Utc>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
+    /// Time the invitation was accepted, if accepted.
     pub accepted_at: Option<DateTime<Utc>>,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = Option<String>))]
+    /// Time the invitation was revoked, if revoked.
     pub revoked_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Registration URL embedding the plaintext token; returned only by the
+    /// create call, never from listings.
     pub invitation_url: Option<String>,
+    /// Whether the invitation mail was enqueued for delivery.
     pub mail_queued: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Minimal invitation details shown to the token holder before registering.
 pub struct PublicUserInvitationInfo {
+    /// Email address the invitation was issued for; fixed at registration.
     pub email: String,
     #[cfg_attr(all(debug_assertions, feature = "openapi"), schema(value_type = String))]
+    /// Time the invitation stops being usable.
     pub expires_at: DateTime<Utc>,
 }
 
+/// Issues an invitation for an email address after local email policy
+/// checks: revokes any still-pending invitations for the same address,
+/// stores a new pending invitation whose TTL comes from the runtime config,
+/// and enqueues the invitation mail, returning the one-time invitation URL.
 pub async fn create_invitation<S>(
     state: &S,
     email: &str,
@@ -114,6 +135,9 @@ where
     Ok(to_admin_info(invitation, Some(invitation_url), true))
 }
 
+/// Returns a cursor-paged listing of invitations, newest first, with pending
+/// invitations past their expiry displayed as expired; the listing never
+/// carries invitation URLs.
 pub async fn list_invitations<S>(
     state: &S,
     limit: u64,
@@ -141,6 +165,9 @@ where
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
+/// Revokes a still-pending invitation so its token can no longer register an
+/// account; invitations that were already accepted, expired or revoked are
+/// rejected with their current status.
 pub async fn revoke_invitation<S>(state: &S, id: i64) -> Result<AdminUserInvitationInfo>
 where
     S: DatabaseRuntimeState,
@@ -159,6 +186,9 @@ where
     Ok(to_admin_info(invitation, None, false))
 }
 
+/// Validates an invitation token and returns the invited email and expiry so
+/// the registration page can preview the invitation; errors for invalid,
+/// non-pending or expired tokens.
 pub async fn verify_public_invitation<S>(state: &S, token: &str) -> Result<PublicUserInvitationInfo>
 where
     S: DatabaseRuntimeState,
@@ -170,6 +200,11 @@ where
     })
 }
 
+/// Consumes a valid pending invitation to create the invited account: the
+/// token must resolve to a pending, unexpired invitation whose email still
+/// passes policy and is not registered; the created user starts active with
+/// the email pre-verified, and the invitation is marked accepted in the same
+/// transaction.
 pub async fn accept_invitation<S>(
     state: &S,
     token: &str,

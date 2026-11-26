@@ -4,6 +4,8 @@ pub(crate) mod cache;
 mod common;
 pub mod dto;
 pub mod error_code;
+/// Alias surface re-exporting [`error_code`] under the `ApiErrorCode` name
+/// alongside the original path.
 pub mod api_error_code {
     pub use super::error_code::AsterErrorCode as ApiErrorCode;
     pub use super::error_code::*;
@@ -19,6 +21,9 @@ pub mod routes;
 use crate::config::yggdrasil::DEFAULT_YGGDRASIL_API_ROOT;
 use actix_web::web;
 
+/// Registers every HTTP service: the Yggdrasil protocol scope, the `/api/v1`
+/// project scope, health routes, and (in debug openapi builds) the API docs
+/// and embedded frontend.
 pub fn configure(
     cfg: &mut web::ServiceConfig,
     observability: &aster_forge_metrics::ObservabilityConfig,

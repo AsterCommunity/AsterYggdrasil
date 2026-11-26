@@ -59,6 +59,9 @@ pub use yggdrasil::{
     list_session_forward_servers, update_session_forward_server,
 };
 
+/// Builds the `/admin` API scope: JWT-authenticated administration endpoints
+/// grouped per operator scope (overview, config, audit logs, tasks, texture
+/// library, users and bans, Minecraft profiles, external auth, session forward).
 pub fn routes(
     rl: &RateLimitConfig,
     network_trust: &NetworkTrustConfig,

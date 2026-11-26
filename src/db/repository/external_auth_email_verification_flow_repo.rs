@@ -11,6 +11,7 @@ use aster_yggdrasil_model::entities::external_auth_email_verification_flow::{
     self, Entity as ExternalAuthEmailVerificationFlow,
 };
 
+/// Inserts a new external auth email verification flow row.
 pub async fn create(
     db: &DatabaseConnection,
     model: external_auth_email_verification_flow::ActiveModel,
@@ -18,6 +19,9 @@ pub async fn create(
     model.insert(db).await.map_err(AsterError::from)
 }
 
+/// Finds a still-active flow by its flow token hash.
+///
+/// "Active" means unconsumed and unexpired at `now`; returns `None` otherwise.
 pub async fn find_active_by_flow_token_hash(
     db: &DatabaseConnection,
     flow_token_hash: &str,
@@ -32,6 +36,9 @@ pub async fn find_active_by_flow_token_hash(
         .map_err(AsterError::from)
 }
 
+/// Finds a still-active flow by the hash of the emailed verification token.
+///
+/// "Active" means unconsumed and unexpired at `now`; returns `None` otherwise.
 pub async fn find_active_by_verification_token_hash(
     db: &DatabaseConnection,
     verification_token_hash: &str,
@@ -49,6 +56,11 @@ pub async fn find_active_by_verification_token_hash(
         .map_err(AsterError::from)
 }
 
+/// Records an email verification request on a flow: target email, token hash, and request time.
+///
+/// The guarded update only applies to flows that have no verification token yet (one email
+/// request per flow), are unconsumed, and are unexpired at `now`. Returns `false` when those
+/// conditions are not met; nothing is modified in that case.
 pub async fn update_email_request<C: ConnectionTrait>(
     db: &C,
     flow: external_auth_email_verification_flow::Model,
@@ -79,6 +91,11 @@ pub async fn update_email_request<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Marks a flow as consumed with a guarded single-use update.
+///
+/// Returns `true` only when the flow was still unconsumed and unexpired at `now`; returns
+/// `false` when it was already consumed or expired, so concurrent callbacks yield exactly one
+/// winner.
 pub async fn mark_consumed_if_unused<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -98,6 +115,8 @@ pub async fn mark_consumed_if_unused<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Deletes email verification flows whose `expires_at` is before `now`, returning the number
+/// of rows removed.
 pub async fn cleanup_expired(db: &DatabaseConnection, now: chrono::DateTime<Utc>) -> Result<u64> {
     let result = ExternalAuthEmailVerificationFlow::delete_many()
         .filter(external_auth_email_verification_flow::Column::ExpiresAt.lt(now))

@@ -13,27 +13,40 @@ use sea_orm::{
 };
 use std::collections::BTreeMap;
 
+/// Input for creating a texture library tag.
 #[derive(Debug, Clone)]
 pub struct CreateMinecraftTextureTag<'a> {
+    /// Display name shown in the admin panel.
     pub name: &'a str,
+    /// Canonicalized name used for uniqueness checks and lookups.
     pub normalized_name: &'a str,
+    /// Tag color, e.g. a hex string; format is validated upstream.
     pub color: &'a str,
+    /// Manual ordering weight; lower values sort first.
     pub sort_order: i32,
 }
 
+/// Partial update for a texture tag; `None` fields are left unchanged.
 #[derive(Debug, Clone, Default)]
 pub struct UpdateMinecraftTextureTag {
+    /// Replaces the display name when set.
     pub name: Option<String>,
+    /// Replaces the canonicalized name when set.
     pub normalized_name: Option<String>,
+    /// Replaces the tag color when set.
     pub color: Option<String>,
+    /// Replaces the ordering weight when set.
     pub sort_order: Option<i32>,
 }
 
+/// Optional filters for the tag list; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct MinecraftTextureTagListFilter {
+    /// Case-insensitive substring match against display and normalized names when non-empty.
     pub keyword: Option<String>,
 }
 
+/// Inserts a new texture tag row.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     input: CreateMinecraftTextureTag<'_>,
@@ -53,6 +66,7 @@ pub async fn create<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Lists every tag ordered by sort order then display name ascending.
 pub async fn list<C: ConnectionTrait>(db: &C) -> Result<Vec<minecraft_texture_tag::Model>> {
     MinecraftTextureTag::find()
         .order_by_asc(minecraft_texture_tag::Column::SortOrder)
@@ -62,6 +76,11 @@ pub async fn list<C: ConnectionTrait>(db: &C) -> Result<Vec<minecraft_texture_ta
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates tags using a keyset cursor over `(sort_order, name, id)` ascending.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the filtered total and a next cursor, which is absent
+/// on the last page.
 pub async fn list_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -134,6 +153,9 @@ fn texture_tag_list_query(filter: MinecraftTextureTagListFilter) -> Select<Minec
     query
 }
 
+/// Loads a tag by id.
+///
+/// Returns `None` when no tag with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -144,6 +166,10 @@ pub async fn find_by_id<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a tag by its canonicalized name.
+///
+/// Returns `None` when no tag normalizes to that value; normalized names are unique, so at
+/// most one row matches.
 pub async fn find_by_normalized_name<C: ConnectionTrait>(
     db: &C,
     normalized_name: &str,
@@ -155,6 +181,9 @@ pub async fn find_by_normalized_name<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Batch-loads tags by id with list ordering (sort order, then name).
+///
+/// An empty `ids` slice returns an empty list without querying; unknown ids are simply absent.
 pub async fn find_by_ids<C: ConnectionTrait>(
     db: &C,
     ids: &[i64],
@@ -171,6 +200,7 @@ pub async fn find_by_ids<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Applies the set fields of the update to a tag row, stamping `updated_at`.
 pub async fn update<C: ConnectionTrait>(
     db: &C,
     tag: minecraft_texture_tag::Model,
@@ -196,6 +226,10 @@ pub async fn update<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Deletes a tag by id.
+///
+/// Returns `false` when no tag with that id exists; bindings referencing the tag are not
+/// cleaned up here.
 pub async fn delete<C: ConnectionTrait>(db: &C, id: i64) -> Result<bool> {
     let result = MinecraftTextureTag::delete_by_id(id)
         .exec(db)
@@ -204,6 +238,11 @@ pub async fn delete<C: ConnectionTrait>(db: &C, id: i64) -> Result<bool> {
     Ok(result.rows_affected > 0)
 }
 
+/// Replaces a texture's full tag set: deletes all existing bindings, then inserts `tag_ids`
+/// in order.
+///
+/// Not transactional — callers must wrap in a transaction when atomicity matters, since each
+/// insert commits independently otherwise.
 pub async fn replace_texture_tags<C: ConnectionTrait>(
     db: &C,
     texture_id: i64,
@@ -230,6 +269,7 @@ pub async fn replace_texture_tags<C: ConnectionTrait>(
     Ok(())
 }
 
+/// Lists the tags bound to one texture, in list ordering (sort order, then name).
 pub async fn list_for_texture<C: ConnectionTrait>(
     db: &C,
     texture_id: i64,
@@ -254,6 +294,10 @@ pub async fn list_for_texture<C: ConnectionTrait>(
         .collect()
 }
 
+/// Batch-loads tags for several textures into a map keyed by texture id.
+///
+/// An empty `texture_ids` slice returns an empty map without querying; each value list keeps
+/// list ordering, and textures without tags are absent from the map.
 pub async fn list_for_texture_ids<C: ConnectionTrait>(
     db: &C,
     texture_ids: &[i64],

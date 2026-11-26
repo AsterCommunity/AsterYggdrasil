@@ -6,20 +6,31 @@ use crate::config::RuntimeConfig;
 use crate::runtime::{AuditRuntimeState, RuntimeConfigRuntimeState, SharedRuntimeState};
 use aster_yggdrasil_model::types::audit::{AuditAction, AuditEntityType};
 
+/// Checks the runtime configuration's audit recording allowlist for one
+/// action; unlisted actions are dropped before any write work happens.
 pub fn should_record<S: RuntimeConfigRuntimeState>(state: &S, action: AuditAction) -> bool {
     state.runtime_config().should_record_audit_action(action)
 }
 
+/// [`should_record`] variant taking the runtime configuration explicitly, for
+/// call sites that hold a config reference instead of full runtime state.
 pub fn should_record_with_config(runtime_config: &RuntimeConfig, action: AuditAction) -> bool {
     runtime_config.should_record_audit_action(action)
 }
 
+/// Audit record skeleton for the lazy-details entry points; details JSON is
+/// built only after the allowlist check passes.
 #[derive(Clone, Copy)]
 pub struct AuditLogInput<'a> {
+    /// Actor identity and request metadata.
     pub ctx: &'a AuditContext,
+    /// Audited action kind.
     pub action: AuditAction,
+    /// Entity class the action targeted.
     pub entity_type: AuditEntityType,
+    /// ID of the targeted entity row, when the action addresses one.
     pub entity_id: Option<i64>,
+    /// Human-readable entity name captured at write time.
     pub entity_name: Option<&'a str>,
 }
 
@@ -85,6 +96,8 @@ async fn record_prechecked_with_db(
     }
 }
 
+/// Records one audit entry through the buffered writer after the allowlist
+/// check; details JSON is passed pre-built.
 pub async fn log<S>(
     state: &S,
     ctx: &AuditContext,
@@ -112,6 +125,10 @@ pub async fn log<S>(
     .await;
 }
 
+/// Writes one audit entry directly to the given database connection, skipping
+/// the buffered writer. Intended for in-transaction paths that must not lose
+/// the record when the writer queue is unavailable; details JSON is built
+/// lazily only after the allowlist check passes.
 pub async fn log_with_db_and_config<F>(
     db: &DatabaseConnection,
     runtime_config: &RuntimeConfig,
@@ -137,6 +154,8 @@ pub async fn log_with_db_and_config<F>(
     .await;
 }
 
+/// [`log`] variant building the details JSON lazily, so serialization cost is
+/// only paid for actions the allowlist admits.
 pub async fn log_with_details<S, F>(
     state: &S,
     ctx: &AuditContext,

@@ -5,6 +5,12 @@ use aster_forge_middleware::actix::rate_limit::{NormalizedStringRateLimiter, Rat
 use aster_yggdrasil_protocol::YggdrasilErrorBody;
 use std::sync::Arc;
 
+/// Per-username rate limiter for Yggdrasil protocol endpoints that accept a
+/// plain-text account identifier.
+///
+/// Keeps separate buckets for authenticate and signout so one exhausted flow
+/// cannot lock the other out; usernames are normalized before bucketing so
+/// case and whitespace variants share a quota.
 #[derive(Clone)]
 pub struct YggdrasilRateLimiter {
     authenticate: Arc<NormalizedStringRateLimiter>,
@@ -12,6 +18,8 @@ pub struct YggdrasilRateLimiter {
 }
 
 impl YggdrasilRateLimiter {
+    /// Builds both bucket families from the runtime rate limit config; when
+    /// the feature is disabled every check passes.
     pub fn from_config(config: &RateLimitConfig) -> Self {
         Self {
             authenticate: Arc::new(build_keyed_limiter(config.enabled, &config.auth)),
@@ -19,10 +27,14 @@ impl YggdrasilRateLimiter {
         }
     }
 
+    /// Consumes one authenticate slot for the given username, returning a
+    /// rejection when the bucket is exhausted.
     pub fn check_authenticate(&self, username: &str) -> Option<YggdrasilRateLimitRejection> {
         self.check(&self.authenticate, username)
     }
 
+    /// Consumes one signout slot for the given username, returning a
+    /// rejection when the bucket is exhausted.
     pub fn check_signout(&self, username: &str) -> Option<YggdrasilRateLimitRejection> {
         self.check(&self.signout, username)
     }
@@ -36,15 +48,20 @@ impl YggdrasilRateLimiter {
 
 type KeyedLimiter = NormalizedStringRateLimiter;
 
+/// A rejected Yggdrasil protocol request; carries the wait time and renders
+/// the protocol error body.
 pub struct YggdrasilRateLimitRejection {
     inner: RateLimitRejection,
 }
 
 impl YggdrasilRateLimitRejection {
+    /// Whole seconds the client should wait before retrying.
     pub const fn retry_after_seconds(&self) -> u64 {
         self.inner.retry_after_seconds()
     }
 
+    /// Builds the `429` protocol response with a `Retry-After` header and the
+    /// Yggdrasil error body.
     pub fn into_response(self) -> actix_web::HttpResponse {
         let message = format!(
             "Too many requests. Retry after {} seconds.",

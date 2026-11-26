@@ -33,6 +33,8 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
     ),
     security(("bearer" = [])),
 )]
+/// Lists background tasks with optional kind/status filters and cursor
+/// pagination, for administrator inspection of task records.
 pub async fn list_tasks(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -79,6 +81,8 @@ pub async fn list_tasks(
     ),
     security(("bearer" = [])),
 )]
+/// Resets a failed background task so it can be dispatched again, and records
+/// the administrative retry in the audit log.
 pub async fn retry_task(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -111,6 +115,8 @@ pub async fn retry_task(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes finished background tasks matching the given cutoff and filters,
+/// returning the removed count and writing an audit entry for the cleanup.
 pub async fn cleanup_tasks(
     state: web::Data<AppState>,
     req: HttpRequest,

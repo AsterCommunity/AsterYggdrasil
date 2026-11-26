@@ -22,8 +22,11 @@ use utoipa::ToSchema;
 
 use aster_forge_config::ConfigValue;
 
+/// Config key whose actions operate on the mail subsystem.
 pub const MAIL_CONFIG_ACTION_KEY: &str = "mail";
+/// Config key whose actions operate on the auth captcha subsystem.
 pub const AUTH_CAPTCHA_CONFIG_ACTION_KEY: &str = "auth_captcha";
+/// Config key whose actions operate on the Yggdrasil signature subsystem.
 pub const YGGDRASIL_CONFIG_ACTION_KEY: &str = "yggdrasil";
 
 pub(crate) trait ConfigActionRuntimeState:
@@ -36,16 +39,22 @@ impl<T> ConfigActionRuntimeState for T where
 {
 }
 
+/// Side-effecting admin operations executable against a config group,
+/// beyond plain value edits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub enum ConfigActionType {
+    /// Sends a test email through the currently configured SMTP settings.
     SendTestEmail,
+    /// Renders a captcha preview with the current captcha settings.
     PreviewCaptcha,
+    /// Rotates the Yggdrasil signature key pair and republishes the public key.
     RotateYggdrasilSignatureKey,
 }
 
 impl ConfigActionType {
+    /// Canonical snake_case name used on the wire and in audit records.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SendTestEmail => "send_test_email",
@@ -63,17 +72,28 @@ impl ConfigActionType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Result payload returned to the admin after a config action executes.
 pub struct ConfigActionResult {
+    /// Human-readable outcome line for the admin UI.
     pub message: String,
+    /// Recipient of a test email, when the action sent one.
     pub target_email: Option<String>,
+    /// Rendered preview value (e.g. captcha SVG/URL), when the action
+    /// produces one.
     pub value: Option<String>,
 }
 
+/// Admin request to execute one config action against a config group.
 #[derive(Debug, Clone, Copy)]
 pub struct ExecuteConfigActionInput<'a> {
+    /// Config group to run the action against (mail, auth_captcha, yggdrasil).
     pub key: &'a str,
+    /// Which operation to execute.
     pub action: ConfigActionType,
+    /// Admin user the action is attributed to for audit.
     pub actor_user_id: i64,
+    /// Draft values the action should use instead of the stored config, when
+    /// the admin wants to test unsaved settings.
     pub values: Option<&'a BTreeMap<String, ConfigValue>>,
 }
 

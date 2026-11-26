@@ -17,27 +17,40 @@ use aster_yggdrasil_model::types::user::AvatarSource;
 use super::shared::{AVATAR_SIZE_LG, AVATAR_SIZE_SM, stored_avatar_prefix};
 
 #[derive(Debug, Clone, Copy)]
+/// Selects which avatar endpoint the generated URLs point at.
 pub enum AvatarAudience {
+    /// The account owner, served through the profile avatar endpoint.
     SelfUser,
+    /// Administrators, served through the admin avatars endpoint.
     AdminUser,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Avatar presentation resolved from the stored profile avatar.
 pub struct AvatarInfo {
+    /// Avatar source (`none`, `gravatar` or `upload`).
     pub source: AvatarSource,
+    /// Small avatar URL; `None` when no avatar is available.
     pub url_512: Option<String>,
+    /// Large avatar URL; `None` when no avatar is available.
     pub url_1024: Option<String>,
+    /// Avatar version used for cache busting; 0 when unset.
     pub version: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
+/// Display profile attached to user views.
 pub struct UserProfileInfo {
+    /// Optional user-chosen display name.
     pub display_name: Option<String>,
+    /// Resolved avatar presentation.
     pub avatar: AvatarInfo,
 }
 
+/// Returns the configured Gravatar base URL, falling back to the default
+/// mirror when unset.
 pub fn resolve_gravatar_base_url(state: &impl RuntimeConfigRuntimeState) -> String {
     avatar::gravatar_base_url_or_default(state.runtime_config())
 }
@@ -88,6 +101,8 @@ fn build_avatar_info(
     }
 }
 
+/// Assembles the display profile (display name plus avatar URLs for the
+/// audience) from an account and its optional profile record.
 pub fn build_profile_info(
     user: &user::Model,
     profile: Option<&user_profile::Model>,
@@ -100,6 +115,8 @@ pub fn build_profile_info(
     }
 }
 
+/// Batch-loads profile records for the given accounts and returns a map of
+/// user id to display profile, suitable for hydrating listings.
 pub async fn get_profile_info_map<S>(
     state: &S,
     users: &[user::Model],

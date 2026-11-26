@@ -14,6 +14,8 @@ pub mod yggdrasil;
 
 use actix_web::web;
 
+/// Registers the `/api` service tree: shared query config, every route group
+/// (auth, account, profiles, wardrobe, texture library, public, admin), and the API 404 fallback.
 pub fn configure_api(cfg: &mut web::ServiceConfig) {
     cfg.app_data(crate::api::common::project_query_config())
         .configure(auth::external::configure)

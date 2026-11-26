@@ -11,6 +11,9 @@ use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureReportStatus;
 
 use super::*;
 
+/// Marks a pending public-library texture report as rejected on behalf of the
+/// given admin user, returning the handled report. Fails if the texture
+/// library feature is disabled or the report is not pending.
 pub async fn reject_texture_library_report<S>(
     state: &S,
     handler_user_id: i64,

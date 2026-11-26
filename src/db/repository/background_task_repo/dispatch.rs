@@ -8,6 +8,10 @@ use super::common::claimable_condition;
 use crate::errors::{AsterError, Result};
 use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
+/// Lists tasks ready to be dispatched, regardless of kind.
+///
+/// A task is claimable when it is pending/retry with `next_run_at` due, or processing with an
+/// expired lease (stale takeover). Ordered by `created_at` then `id` ascending, at most `limit` rows.
 pub async fn list_claimable<C: ConnectionTrait>(
     db: &C,
     now: DateTime<Utc>,
@@ -20,6 +24,9 @@ pub async fn list_claimable<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Lists claimable tasks restricted to `kinds`, with the same ordering as [`list_claimable`].
+///
+/// Returns an empty list when `kinds` is empty or `limit` is 0.
 pub async fn list_claimable_by_kinds<C: ConnectionTrait>(
     db: &C,
     now: DateTime<Utc>,
@@ -38,6 +45,12 @@ pub async fn list_claimable_by_kinds<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Atomically claims one pending task by CAS-ing its `processing_token`.
+///
+/// The task moves to `Processing` only when the id matches, `expected_processing_token` still
+/// matches, and the task is still claimable at `now`; on success the token is advanced to
+/// `next_processing_token` and the lease is set to `lease_expires_at`. Returns `false` when
+/// another dispatcher won the race or the task is no longer claimable.
 pub async fn try_claim<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -89,6 +102,10 @@ pub async fn try_claim<C: ConnectionTrait>(
     Ok(result.rows_affected == 1)
 }
 
+/// Renews a processing task's heartbeat and lease.
+///
+/// The update only applies when the task is `Processing` and still owned by `processing_token`;
+/// returns `false` when the lease has been lost (the row still exists but is owned elsewhere).
 pub async fn touch_heartbeat<C: ConnectionTrait>(
     db: &C,
     id: i64,

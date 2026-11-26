@@ -379,6 +379,8 @@ fn default_require_email_verified(provider_kind: ExternalAuthProviderKind) -> bo
     )
 }
 
+/// Lists all enabled providers for the public login page. Providers whose
+/// kind has no registered driver are hidden.
 pub async fn list_public_providers(
     state: &impl SharedRuntimeState,
 ) -> Result<Vec<ExternalAuthPublicProvider>> {
@@ -390,6 +392,8 @@ pub async fn list_public_providers(
         .collect())
 }
 
+/// Cursor-paginated variant of [`list_public_providers`], ordered by
+/// `(display_name, id)`; `limit` is clamped to 1..=100.
 pub async fn list_public_providers_paginated(
     state: &impl SharedRuntimeState,
     limit: u64,
@@ -408,6 +412,7 @@ pub async fn list_public_providers_paginated(
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
+/// Lists enabled public providers restricted to one kind (e.g. only OIDC).
 pub async fn list_public_providers_by_kind(
     state: &impl SharedRuntimeState,
     provider_kind: ExternalAuthProviderKind,
@@ -422,6 +427,8 @@ pub async fn list_public_providers_by_kind(
     )
 }
 
+/// Cursor-paginated variant of [`list_public_providers_by_kind`], ordered by
+/// `(display_name, id)`; `limit` is clamped to 1..=100.
 pub async fn list_public_providers_by_kind_paginated(
     state: &impl SharedRuntimeState,
     provider_kind: ExternalAuthProviderKind,
@@ -446,6 +453,9 @@ pub async fn list_public_providers_by_kind_paginated(
     Ok(CursorPage::new(items, page.total, limit, next_cursor))
 }
 
+/// Cursor-paginated admin listing of every configured provider, including
+/// disabled ones, ordered by `(display_name, id)`; `limit` is clamped to
+/// 1..=100. Kinds without a registered driver are excluded.
 pub async fn list_admin_providers(
     state: &impl SharedRuntimeState,
     limit: u64,
@@ -481,6 +491,8 @@ fn provider_next_cursor(
     })
 }
 
+/// Returns capability metadata for every provider kind registered in the
+/// default external auth registry; backs the admin "new provider" form.
 pub fn list_provider_kinds() -> Vec<ExternalAuthProviderKindInfo> {
     registry::default_registry()
         .descriptors()
@@ -489,6 +501,8 @@ pub fn list_provider_kinds() -> Vec<ExternalAuthProviderKindInfo> {
         .collect()
 }
 
+/// Returns one provider in admin form; reports not found when the provider
+/// uses a kind that has no registered driver.
 pub async fn get_admin_provider(
     state: &impl SharedRuntimeState,
     id: i64,
@@ -502,6 +516,9 @@ pub async fn get_admin_provider(
     provider_to_admin(provider)
 }
 
+/// Creates a provider row from the admin input: generates a unique random
+/// key, normalizes endpoints/claims/scopes, applies per-kind defaults for
+/// optional flags, and returns the stored provider in admin form.
 pub async fn create_provider(
     state: &impl SharedRuntimeState,
     input: CreateExternalAuthProviderInput,
@@ -613,6 +630,9 @@ pub async fn create_provider(
     provider_to_admin(provider)
 }
 
+/// Applies a partial update to a provider. Absent fields keep their stored
+/// value; `NullablePatch` fields additionally distinguish clearing (`null`)
+/// from omission. Secret updates honor the redacted placeholder.
 pub async fn update_provider(
     state: &impl SharedRuntimeState,
     id: i64,
@@ -728,6 +748,8 @@ pub async fn update_provider(
     provider_to_admin(provider)
 }
 
+/// Deletes the provider row; reports not found when its kind has no
+/// registered driver.
 pub async fn delete_provider(state: &impl SharedRuntimeState, id: i64) -> Result<()> {
     let provider = external_auth_provider_repo::find_by_id(state.writer_db(), id).await?;
     if !registry::default_registry().contains(provider.provider_kind) {
@@ -738,6 +760,9 @@ pub async fn delete_provider(state: &impl SharedRuntimeState, id: i64) -> Result
     external_auth_provider_repo::delete(state.writer_db(), id).await
 }
 
+/// Runs the provider driver's connectivity test against the stored
+/// configuration (discovery, endpoints, JWKS) and records `updated_at` for
+/// the provider row to track the last successful admin interaction.
 pub async fn test_provider(
     state: &impl SharedRuntimeState,
     id: i64,
@@ -752,6 +777,8 @@ pub async fn test_provider(
     Ok(map_driver_test_result(result))
 }
 
+/// Runs the same connectivity test as [`test_provider`], but against an
+/// unsaved draft configuration supplied by the admin; nothing is persisted.
 pub async fn test_provider_params(
     _state: &impl SharedRuntimeState,
     input: ExternalAuthProviderTestParamsInput,

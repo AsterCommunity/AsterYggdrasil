@@ -14,9 +14,12 @@ use crate::profile::{YggdrasilProfile, YggdrasilUser};
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilErrorBody {
+    /// Stable protocol error name, for example `ForbiddenOperationException`.
     pub error: &'static str,
+    /// Human-readable protocol message for the error.
     #[serde(rename = "errorMessage")]
     pub error_message: String,
+    /// Optional machine-readable cause string (legacy Mojang extension).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
 }
@@ -25,14 +28,20 @@ pub struct YggdrasilErrorBody {
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilAuthenticateResp {
+    /// Session access token; launchers send it back on refresh/validate/join.
     #[serde(rename = "accessToken")]
     pub access_token: String,
+    /// Client token echoed from the request, or newly generated when absent.
     #[serde(rename = "clientToken")]
     pub client_token: String,
+    /// All game profiles owned by the account.
     #[serde(rename = "availableProfiles")]
     pub available_profiles: Vec<YggdrasilProfile>,
+    /// Profile bound to this token; present only when exactly one profile is
+    /// available (or the request forced a specific profile).
     #[serde(rename = "selectedProfile", skip_serializing_if = "Option::is_none")]
     pub selected_profile: Option<YggdrasilProfile>,
+    /// Authenticated account, present when the request set `requestUser`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<YggdrasilUser>,
 }
@@ -41,12 +50,17 @@ pub struct YggdrasilAuthenticateResp {
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilRefreshResp {
+    /// Replacement access token; the old token no longer validates.
     #[serde(rename = "accessToken")]
     pub access_token: String,
+    /// Client token carried over from the token being refreshed.
     #[serde(rename = "clientToken")]
     pub client_token: String,
+    /// Profile bound to the refreshed token; omitted when the token is not
+    /// bound to any profile yet.
     #[serde(rename = "selectedProfile", skip_serializing_if = "Option::is_none")]
     pub selected_profile: Option<YggdrasilProfile>,
+    /// Authenticated account, present when the request set `requestUser`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<YggdrasilUser>,
 }
@@ -55,40 +69,56 @@ pub struct YggdrasilRefreshResp {
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilMetaResp {
+    /// Metadata block describing this server and its feature flags.
     pub meta: YggdrasilMeta,
+    /// Domain suffixes the client may accept texture URLs from.
     #[serde(rename = "skinDomains")]
     pub skin_domains: Vec<String>,
+    /// PEM public key used to verify signed `textures` properties.
     #[serde(rename = "signaturePublickey")]
     pub signature_publickey: String,
 }
 
+/// Authlib-injector metadata block served under `meta`.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilMeta {
+    /// Display name of this server shown by launchers.
     #[serde(rename = "serverName")]
     pub server_name: String,
+    /// Server implementation identifier, for example `AsterYggdrasil`.
     #[serde(rename = "implementationName")]
     pub implementation_name: String,
+    /// Server implementation version string.
     #[serde(rename = "implementationVersion")]
     pub implementation_version: String,
+    /// Homepage and registration links; omitted when unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<YggdrasilMetaLinks>,
     // authlib-injector's metadata feature flags are dotted keys inside `meta`,
     // not nested objects. Keep this wire shape to match the third-party protocol.
+    /// `feature.non_email_login`: accounts can log in with a non-email name.
     #[serde(rename = "feature.non_email_login")]
     pub feature_non_email_login: bool,
+    /// `feature.enable_profile_key`: profile key signing is supported.
     #[serde(rename = "feature.enable_profile_key")]
     pub feature_enable_profile_key: bool,
+    /// `feature.enable_mojang_anti_features`: Mojang-services compatibility
+    /// endpoints (privileges, profanity filter, blocklist, bans) are served.
     #[serde(rename = "feature.enable_mojang_anti_features")]
     pub feature_enable_mojang_anti_features: bool,
+    /// `feature.username_check`: the server enforces the profile name charset.
     #[serde(rename = "feature.username_check")]
     pub feature_username_check: bool,
 }
 
+/// Server links advertised inside the metadata `links` object.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilMetaLinks {
+    /// Public homepage URL of this server.
     pub homepage: String,
+    /// Registration page URL; omitted when self-registration is closed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub register: Option<String>,
 }
@@ -114,6 +144,7 @@ pub struct MinecraftServicesCertificateResp {
     pub refreshed_after: String,
 }
 
+/// Key-pair payload body for the Mojang Minecraft-services certificate flow.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesKeyPair {
@@ -133,6 +164,7 @@ pub struct MinecraftServicesPathError {
     pub path: String,
 }
 
+/// Privileges body for the Mojang Minecraft-services privilege check.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPrivilegesResp {
@@ -140,6 +172,7 @@ pub struct MinecraftServicesPrivilegesResp {
     pub privileges: MinecraftServicesPrivileges,
 }
 
+/// Player attributes body combining privileges and client feature preferences.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPlayerAttributesResp {
@@ -159,6 +192,7 @@ pub struct MinecraftServicesPlayerAttributesResp {
     pub ban_status: MinecraftServicesBanStatus,
 }
 
+/// Per-service privilege flags for the authenticated account/profile.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPrivileges {
@@ -178,6 +212,7 @@ pub struct MinecraftServicesPrivileges {
     pub optional_telemetry: MinecraftServicesPrivilege,
 }
 
+/// Single Mojang Minecraft-services privilege flag.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPrivilege {
@@ -185,6 +220,7 @@ pub struct MinecraftServicesPrivilege {
     pub enabled: bool,
 }
 
+/// Profanity filter preference served through the player-attributes endpoint.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesProfanityFilterPreferences {
@@ -193,6 +229,7 @@ pub struct MinecraftServicesProfanityFilterPreferences {
     pub profanity_filter_on: bool,
 }
 
+/// Social (friends) feature preferences served through player attributes.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesFriendsPreferences {
@@ -203,6 +240,7 @@ pub struct MinecraftServicesFriendsPreferences {
     pub accept_invites: MinecraftServicesPreferenceState,
 }
 
+/// Chat feature preferences served through player attributes.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesChatPreferences {
@@ -211,6 +249,7 @@ pub struct MinecraftServicesChatPreferences {
     pub text_communication: MinecraftServicesPreferenceState,
 }
 
+/// Wire state string for a client-side feature preference.
 #[derive(Debug, Clone, Copy, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub enum MinecraftServicesPreferenceState {
@@ -222,6 +261,7 @@ pub enum MinecraftServicesPreferenceState {
     Disabled,
 }
 
+/// Ban status body served through the Mojang compatibility endpoints.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesBanStatus {
@@ -230,6 +270,7 @@ pub struct MinecraftServicesBanStatus {
     pub banned_scopes: MinecraftServicesBannedScopes,
 }
 
+/// Banned service scopes; an empty object means no active ban.
 #[derive(Debug, Clone, Default, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesBannedScopes {
@@ -238,6 +279,7 @@ pub struct MinecraftServicesBannedScopes {
     pub multiplayer: bool,
 }
 
+/// Privacy blocklist body for the Mojang blocklist compatibility endpoint.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct MinecraftServicesPrivacyBlocklistResp {

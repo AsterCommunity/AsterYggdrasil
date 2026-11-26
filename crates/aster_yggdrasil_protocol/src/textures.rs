@@ -18,23 +18,32 @@ use crate::error::{YggdrasilError, YggdrasilErrorKind};
 /// a `BTreeMap` keeps the serialized key order deterministic.
 #[derive(Debug, Serialize)]
 pub struct TexturesPropertyValue<'a> {
+    /// Unix epoch milliseconds embedded in the property for cache freshness.
     pub timestamp: i64,
+    /// UUID of the profile owning these textures, in unsigned (dash-less) form.
     #[serde(rename = "profileId")]
     pub profile_id: &'a str,
+    /// Player name recorded at signing time.
     #[serde(rename = "profileName")]
     pub profile_name: &'a str,
+    /// Texture slots keyed by slot name (`skin`, `cape`, `elytra`).
     pub textures: BTreeMap<&'static str, TexturesPropertyValueItem<'a>>,
 }
 
+/// One texture slot entry inside the `textures` object.
 #[derive(Debug, Serialize)]
 pub struct TexturesPropertyValueItem<'a> {
+    /// Texture image URL the client downloads and caches.
     pub url: String,
+    /// Slot metadata; present only when the skin model is not the default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<TexturesPropertyValueMetadata<'a>>,
 }
 
+/// Metadata block attached to a texture slot.
 #[derive(Debug, Serialize)]
 pub struct TexturesPropertyValueMetadata<'a> {
+    /// Skin model name, for example `slim`; the default model omits metadata.
     pub model: &'a str,
 }
 

@@ -27,54 +27,99 @@ const LOCAL_DISPLAY_NAME: &str = "AsterYggdrasil";
 const MOJANG_DISPLAY_NAME: &str = "Mojang";
 const MOJANG_SESSION_SERVER_BASE_URL: &str = "https://sessionserver.mojang.com";
 
+/// Admin view of one configured session forward server.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct AdminYggdrasilSessionForwardServerInfo {
+    /// Server row id.
     pub id: i64,
+    /// Human-readable name shown in the admin UI.
     pub display_name: String,
+    /// Whether the entry is the built-in local server or a remote upstream.
     pub provider_kind: YggdrasilSessionForwardProviderKind,
+    /// Which session protocol the upstream speaks (authlib-injector or
+    /// Mojang session server).
     pub endpoint_kind: YggdrasilSessionForwardEndpointKind,
+    /// Upstream API root; `None` for the local provider.
     pub base_url: Option<String>,
+    /// Built-in entries (local and Mojang) cannot be deleted or retargeted.
     pub builtin: bool,
+    /// Whether the server takes part in session forwarding.
     pub enabled: bool,
+    /// Call-order rank; servers are tried in ascending priority groups
+    /// (range -10000..=10000).
     pub priority: i32,
+    /// Weighted-random position within its priority group (range 1..=1000).
     pub weight: i32,
+    /// Per-request upstream timeout in milliseconds (range 100..=10000).
     pub timeout_ms: i32,
+    /// Whether textures from this upstream are proxied to clients.
     pub texture_forward_enabled: bool,
+    /// `true` only for the local AsterYggdrasil provider.
     pub local: bool,
+    /// Whether this server can be deleted (`false` for built-ins).
     pub deletable: bool,
+    /// Last health check time (UTC), if one has run.
     pub last_checked_at: Option<DateTime<Utc>>,
+    /// Last time a forwarded request to this server succeeded (UTC).
     pub last_success_at: Option<DateTime<Utc>>,
+    /// Last time a forwarded request to this server failed (UTC).
     pub last_failure_at: Option<DateTime<Utc>>,
+    /// Error message from the most recent failure.
     pub last_failure_message: Option<String>,
+    /// When the server entry was created (UTC).
     pub created_at: DateTime<Utc>,
+    /// When the server entry was last updated (UTC).
     pub updated_at: DateTime<Utc>,
 }
 
+/// Payload for registering a new remote session forward server; unset
+/// optional fields fall back to the defaults applied in [`create_server`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateYggdrasilSessionForwardServerInput {
+    /// Human-readable name, trimmed, 1-128 bytes.
     pub display_name: String,
+    /// Upstream API root URL (http/https, no query or fragment).
     pub base_url: String,
+    /// Upstream protocol; defaults to authlib-injector.
     pub endpoint_kind: Option<YggdrasilSessionForwardEndpointKind>,
+    /// Defaults to enabled.
     pub enabled: Option<bool>,
+    /// Call-order rank; defaults to 100.
     pub priority: Option<i32>,
+    /// Weight within the priority group; defaults to 1.
     pub weight: Option<i32>,
+    /// Upstream timeout in milliseconds; defaults to 1500.
     pub timeout_ms: Option<i32>,
+    /// Whether to proxy textures from this upstream; defaults to off.
     pub texture_forward_enabled: Option<bool>,
 }
 
+/// Patch payload for an existing forward server; `None` fields are left
+/// unchanged. Built-in servers reject `base_url` and `endpoint_kind` changes.
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateYggdrasilSessionForwardServerInput {
+    /// New display name, if changing.
     pub display_name: Option<String>,
+    /// New upstream API root, if changing.
     pub base_url: Option<String>,
+    /// New upstream protocol, if changing.
     pub endpoint_kind: Option<YggdrasilSessionForwardEndpointKind>,
+    /// Toggle participation in session forwarding.
     pub enabled: Option<bool>,
+    /// New call-order rank.
     pub priority: Option<i32>,
+    /// New weight within the priority group.
     pub weight: Option<i32>,
+    /// New upstream timeout in milliseconds.
     pub timeout_ms: Option<i32>,
+    /// Toggle texture proxying; the local provider cannot enable it.
     pub texture_forward_enabled: Option<bool>,
 }
 
+/// Seeds the built-in forward servers (local AsterYggdrasil plus the disabled
+/// Mojang session server) if missing; idempotent, returns how many rows were
+/// inserted.
 pub async fn ensure_builtin_servers(db: &sea_orm::DatabaseConnection) -> Result<usize> {
     let mut inserted = 0;
 
@@ -97,12 +142,16 @@ pub async fn ensure_builtin_servers(db: &sea_orm::DatabaseConnection) -> Result<
     Ok(inserted)
 }
 
+/// Runtime startup hook that guarantees the built-in forward servers exist
+/// before session forwarding is first used.
 pub async fn prepare_runtime_session_forward_servers(
     db: &sea_orm::DatabaseConnection,
 ) -> Result<usize> {
     ensure_builtin_servers(db).await
 }
 
+/// Admin cursor listing of forward servers, ordered either by call order
+/// (enabled/priority/id) or by id; `limit` is clamped to 1-100.
 pub async fn list_servers<S>(
     state: &S,
     limit: u64,
@@ -159,14 +208,18 @@ where
     ))
 }
 
+/// Opaque pagination cursor matching the sort order of a server listing.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SessionForwardServerCursor {
+    /// Cursor for call-order listings (enabled, priority, id).
     CallOrder(EnabledPriorityIdCursor),
+    /// Cursor for id-ordered listings.
     Id(IdCursor),
 }
 
+/// Loads a single forward server by id for the admin detail view.
 pub async fn get_server<S>(state: &S, id: i64) -> Result<AdminYggdrasilSessionForwardServerInfo>
 where
     S: DatabaseRuntimeState,
@@ -175,6 +228,9 @@ where
     Ok(server_to_admin(server))
 }
 
+/// Registers a new remote forward server: normalizes name/URL/bounds,
+/// rejects duplicate base URLs, and invalidates the runtime server cache so
+/// the new upstream is picked up immediately.
 pub async fn create_server<S>(
     state: &S,
     input: CreateYggdrasilSessionForwardServerInput,
@@ -218,6 +274,9 @@ where
     Ok(server_to_admin(server))
 }
 
+/// Applies a partial update to a forward server, enforcing built-in
+/// protections (base URL and endpoint kind are immutable for built-ins) and
+/// refreshing the runtime server cache afterwards.
 pub async fn update_server<S>(
     state: &S,
     id: i64,
@@ -279,6 +338,8 @@ where
     Ok(server_to_admin(server))
 }
 
+/// Deletes a forward server; built-in servers are protected and the runtime
+/// cache is invalidated after removal. Returns the deleted entry's info.
 pub async fn delete_server<S>(state: &S, id: i64) -> Result<AdminYggdrasilSessionForwardServerInfo>
 where
     S: CacheRuntimeState + DatabaseRuntimeState,
@@ -387,6 +448,8 @@ fn mojang_builtin_server() -> yggdrasil_session_forward_server::ActiveModel {
     }
 }
 
+/// Serializes the non-identifying fields of a forward server into the audit
+/// detail payload recorded on create/update/delete operations.
 pub fn server_audit_details(
     server: &AdminYggdrasilSessionForwardServerInfo,
 ) -> Option<serde_json::Value> {

@@ -14,29 +14,44 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
+/// Input for submitting a report against a public texture library entry.
 #[derive(Debug, Clone)]
 pub struct CreateTextureReport {
+    /// Texture being reported.
     pub texture_id: i64,
+    /// User submitting the report.
     pub reporter_user_id: i64,
+    /// Reported violation category.
     pub reason: MinecraftTextureReportReason,
+    /// Free-form explanation supplied by the reporter.
     pub message: Option<String>,
 }
 
+/// Optional filters for the admin report list; all set filters combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct AdminTextureReportListFilter {
+    /// Restricts results to one handling status when set.
     pub status: Option<MinecraftTextureReportStatus>,
+    /// Restricts results to one report reason when set.
     pub reason: Option<MinecraftTextureReportReason>,
+    /// Restricts results to reports against this texture when set.
     pub texture_id: Option<i64>,
 }
 
+/// Resolution applied when an admin handles a report.
 #[derive(Debug, Clone)]
 pub struct HandleTextureReport {
+    /// Outcome status (e.g. resolved, dismissed) replacing the pending state.
     pub status: MinecraftTextureReportStatus,
+    /// Note the admin attaches to the resolution.
     pub admin_note: Option<String>,
+    /// Admin user applying the resolution.
     pub handled_by_user_id: i64,
+    /// Instant recorded as the resolution time.
     pub handled_at: DateTime<Utc>,
 }
 
+/// Inserts a new texture report in `Pending` status.
 pub async fn create<C: ConnectionTrait>(
     db: &C,
     input: CreateTextureReport,
@@ -57,6 +72,9 @@ pub async fn create<C: ConnectionTrait>(
     .map_aster_err(AsterError::database_operation)
 }
 
+/// Loads a report by id.
+///
+/// Returns `None` when no report with that id exists.
 pub async fn find_by_id<C: ConnectionTrait>(
     db: &C,
     id: i64,
@@ -67,6 +85,10 @@ pub async fn find_by_id<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Finds the reporter's still-pending report against a texture.
+///
+/// Used to prevent duplicate open reports; returns `None` when the reporter has no pending
+/// report for that texture.
 pub async fn find_pending_for_reporter_and_texture<C: ConnectionTrait>(
     db: &C,
     reporter_user_id: i64,
@@ -81,6 +103,12 @@ pub async fn find_pending_for_reporter_and_texture<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Paginates reports using a keyset cursor over `(created_at, id)`, newest first, with the
+/// given filters.
+///
+/// `limit` is clamped to 1..=100; `after` is the cursor of the last item of the previous page.
+/// The returned [`CursorSlice`] carries the filtered total and a next cursor, which is absent
+/// on the last page.
 pub async fn list_cursor<C: ConnectionTrait>(
     db: &C,
     limit: u64,
@@ -117,6 +145,7 @@ pub async fn list_cursor<C: ConnectionTrait>(
     Ok(CursorSlice::from_overfetch(items, total, limit)?)
 }
 
+/// Applies an admin resolution to a single report row and returns the updated model.
 pub async fn handle<C: ConnectionTrait>(
     db: &C,
     report: minecraft_texture_report::Model,
@@ -134,6 +163,10 @@ pub async fn handle<C: ConnectionTrait>(
         .map_aster_err(AsterError::database_operation)
 }
 
+/// Resolves every pending report against a texture at once, returning the updated rows.
+///
+/// Used when a texture decision (e.g. removal) closes all open reports. Not transactional —
+/// each row updates in its own statement, so wrap in a transaction when atomicity matters.
 pub async fn handle_pending_for_texture<C: ConnectionTrait>(
     db: &C,
     texture_id: i64,

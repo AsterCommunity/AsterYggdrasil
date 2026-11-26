@@ -32,6 +32,11 @@ const DEFAULT_FORWARD_TIMEOUT_MS: u64 = 1500;
 const MIN_FORWARD_TIMEOUT_MS: u64 = 100;
 const MAX_FORWARD_TIMEOUT_MS: u64 = 10_000;
 
+/// Yggdrasil `POST /sessionserver/session/minecraft/join`: binds the token's
+/// selected profile to the server id for the subsequent `hasJoined` check.
+/// Rejects tokens without a selected profile, users banned from joining, and
+/// profiles that do not match the token; stores the join session in cache and
+/// writes an audit entry.
 pub async fn join<S>(
     state: &S,
     body: YggdrasilJoinReq,
@@ -133,6 +138,11 @@ fn real_join_client_ip<S: AppConfigRuntimeState>(state: &S, req: &HttpRequest) -
     )
 }
 
+/// Yggdrasil `GET /sessionserver/session/minecraft/hasJoined`: verifies a
+/// client that joined a server under the given server id. When forward
+/// servers are configured the check is orchestrated across them (own cache
+/// first, then upstreams); otherwise the local join-session cache decides.
+/// Returns the profile, or `None` when no matching join session exists.
 pub async fn has_joined<S>(
     state: &S,
     username: &str,
@@ -703,6 +713,11 @@ fn session_forward_has_joined_path(kind: YggdrasilSessionForwardEndpointKind) ->
     }
 }
 
+/// Resolves a forwarded texture request to the upstream texture URL recorded
+/// in the signed ticket: the hash must look valid and the ticket (HMAC-signed
+/// with the instance JWT secret) must match the requested upstream id, hash,
+/// and an http(s) URL. `None` on any mismatch, so invalid tickets never
+/// become open redirects.
 pub async fn forwarded_texture_url<S>(
     state: &S,
     upstream_id: i64,

@@ -5,6 +5,10 @@ use crate::errors::{AsterError, Result};
 use crate::runtime::{AppState, AppStateParts};
 use crate::texture_storage;
 
+/// Builds the [`AppState`] shared by every serve role: prepares the runtime
+/// temp dir, re-runs config validation at the runtime entry, then wires
+/// database handles, runtime config, cache, texture storage, mail, audit,
+/// metrics, and config sync into one assembled state.
 pub async fn prepare_common_state(config: Arc<Config>) -> Result<AppState> {
     aster_forge_runtime::ensure_runtime_temp_dir(&config.server.temp_dir)
         .await

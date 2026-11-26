@@ -24,6 +24,12 @@ use crate::config::cors;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
 
+/// Runtime-configured CORS middleware for Yggdrasil's API.
+///
+/// Wraps the Forge runtime CORS implementation with Yggdrasil policy: origins
+/// come from runtime config at request time, allowed headers include the
+/// configured CSRF header name, static-asset paths are exempt, and CORS
+/// failures map to `AsterError`.
 pub struct RuntimeCors;
 
 impl<S, B> Transform<S, ServiceRequest> for RuntimeCors

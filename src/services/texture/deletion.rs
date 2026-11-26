@@ -17,6 +17,10 @@ use self::maintenance::cleanup_texture_blob_if_unreferenced;
 
 use super::*;
 
+/// Removes a texture binding of `texture_type` from the profile after checking
+/// the user's ban status and the profile's `uploadable_textures` allowlist.
+/// Returns the deleted binding, or `None` when the profile has no such
+/// texture. Unreferenced blob storage and caches are cleaned up on deletion.
 pub async fn delete_texture<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -60,6 +64,8 @@ where
     Ok(deleted)
 }
 
+/// Same as [`delete_texture`], but wraps the deleted binding together with the
+/// owning profile into a [`DeletedMinecraftTexture`].
 pub async fn delete_texture_for_profile<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -75,6 +81,8 @@ where
     }))
 }
 
+/// Deletes a profile texture without enforcing the ban checks and the
+/// `uploadable_textures` allowlist; intended for administrative deletion paths.
 pub async fn delete_texture_for_profile_unchecked<S>(
     state: &S,
     profile: &minecraft_profile::Model,
@@ -115,6 +123,10 @@ where
     }))
 }
 
+/// Deletes every profile texture binding that references the given SHA-256
+/// hash, plus the underlying texture assets with that hash. Invalid hashes
+/// return an empty result without touching storage. Used for hash-level admin
+/// cleanup (e.g. after a library texture is removed).
 pub async fn delete_textures_by_hash<S>(
     state: &S,
     hash: &str,
@@ -175,6 +187,8 @@ where
     Ok(deleted)
 }
 
+/// Deletes every texture binding on the profile (all texture types), cleaning
+/// up unreferenced blobs and caches. Returns the bindings that were removed.
 pub async fn delete_all_textures_for_profile<S>(
     state: &S,
     profile: &minecraft_profile::Model,

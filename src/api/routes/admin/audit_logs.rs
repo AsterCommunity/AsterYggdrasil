@@ -22,6 +22,8 @@ use aster_forge_api::{LimitQuery, parse_datetime_id_cursor};
     ),
     security(("bearer" = [])),
 )]
+/// Lists audit log entries with optional filters (actor, action, entity type)
+/// and datetime-id cursor pagination.
 pub async fn list_audit_logs(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,

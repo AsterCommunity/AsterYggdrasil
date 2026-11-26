@@ -4,11 +4,17 @@ use aster_forge_config::{normalize_string_enum_set_selection, parse_string_enum_
 use aster_forge_utils::bool_like::parse_bool_like;
 use aster_yggdrasil_model::types::audit::AuditAction;
 
+/// Whether audit logging is on when no runtime value is configured; defaults
+/// to true so security-relevant actions are recorded out of the box.
 pub const DEFAULT_AUDIT_LOG_ENABLED: bool = true;
 // Ceiling division: AuditAction::COUNT is the number of action bits, and
 // u64::BITS is each word's capacity, yielding the required u64 word count.
+/// Number of `u64` words needed to hold one bitmask bit per [`AuditAction`]
+/// variant (`AuditAction::COUNT` divided by `u64::BITS`, rounded up).
 pub const AUDIT_ACTION_MASK_WORDS: usize = AuditAction::COUNT.div_ceil(u64::BITS as usize);
 
+/// Runtime view of the audit log settings: a master switch plus a precompiled
+/// per-action bitmask derived from `audit_log_recorded_actions`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditLogRuntimeSettings {
     enabled: bool,
@@ -17,6 +23,9 @@ pub struct AuditLogRuntimeSettings {
 
 impl AuditLogRuntimeSettings {
     // Precompute the scope once so the audit hot path only does a bitmask check.
+    /// Builds settings from raw runtime config strings, falling back to
+    /// [`DEFAULT_AUDIT_LOG_ENABLED`] and "record everything" for missing or
+    /// invalid values so the audit hot path only performs a bitmask check.
     pub fn from_raw_values(enabled_raw: Option<&str>, actions_raw: Option<&str>) -> Self {
         let enabled = enabled_raw
             .and_then(parse_bool_like)
@@ -31,6 +40,8 @@ impl AuditLogRuntimeSettings {
         }
     }
 
+    /// Returns whether an audit entry for `action` should be recorded, i.e.
+    /// logging is enabled and the action passes the configured action mask.
     pub fn should_record(&self, action: AuditAction) -> bool {
         self.enabled && mask_contains(self.action_mask, action)
     }
@@ -45,6 +56,8 @@ impl Default for AuditLogRuntimeSettings {
     }
 }
 
+/// Serialized JSON value seeded into `audit_log_recorded_actions` on first
+/// boot: every known audit action in authoritative [`AuditAction::ALL`] order.
 pub fn default_recorded_actions_value() -> String {
     // Keep the stored default in authoritative action order so schema and storage stay stable.
     let values: Vec<&'static str> = AuditAction::ALL
@@ -68,6 +81,9 @@ fn full_recorded_actions_json_fallback() -> String {
     serde_json::json!(values).to_string()
 }
 
+/// Validates and canonicalizes a stored `audit_log_recorded_actions` value,
+/// rejecting unknown or duplicate actions and re-emitting the JSON array in
+/// authoritative [`AuditAction::ALL`] order.
 pub fn normalize_recorded_actions_config_value(value: &str) -> Result<String> {
     let normalized = normalize_string_enum_set_selection(
         value,
@@ -84,6 +100,8 @@ pub fn normalize_recorded_actions_config_value(value: &str) -> Result<String> {
     })
 }
 
+/// Parses a stored `audit_log_recorded_actions` JSON array into audit actions,
+/// failing on unknown action names.
 pub fn parse_recorded_actions_config_value(value: &str) -> Result<Vec<AuditAction>> {
     parse_string_enum_set_selection(
         value,
@@ -94,6 +112,8 @@ pub fn parse_recorded_actions_config_value(value: &str) -> Result<Vec<AuditActio
     .map_err(Into::into)
 }
 
+/// Returns whether `key` is an audit setting that can be edited at runtime
+/// and therefore needs a cache refresh when it changes.
 pub fn is_audit_runtime_key(key: &str) -> bool {
     matches!(key, AUDIT_LOG_ENABLED_KEY | AUDIT_LOG_RECORDED_ACTIONS_KEY)
 }

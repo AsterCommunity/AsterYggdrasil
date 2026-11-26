@@ -9,10 +9,15 @@ use validator::Validate;
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilProfileProperty {
+    /// Property name, for example `textures`.
     #[validate(custom(function = "crate::validation::validate_non_blank"))]
     pub name: String,
+    /// Property payload interpreted by the client per `name` (base64 JSON for
+    /// `textures`).
     #[validate(custom(function = "crate::validation::validate_non_blank"))]
     pub value: String,
+    /// Yggdrasil signature over `name` and `value` (base64); omitted when the
+    /// property is served unsigned.
     #[validate(custom(function = "crate::validation::validate_optional_non_blank"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -25,10 +30,13 @@ pub struct YggdrasilProfileProperty {
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilProfile {
+    /// Unsigned (dash-less) lowercase profile UUID, 32 hex characters.
     #[validate(custom(function = "crate::validation::validate_unsigned_uuid"))]
     pub id: String,
+    /// Player name, 3-16 ASCII letters, numbers, or underscores.
     #[validate(custom(function = "crate::validation::validate_minecraft_profile_name"))]
     pub name: String,
+    /// Signed profile properties; omitted when the lookup was made unsigned.
     #[validate(nested)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<Vec<YggdrasilProfileProperty>>,
@@ -38,7 +46,9 @@ pub struct YggdrasilProfile {
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct YggdrasilUser {
+    /// Account identifier in unhyphenated UUID form, distinct from profile ids.
     pub id: String,
+    /// Account-level properties; hosts that keep none serialize an empty list.
     pub properties: Vec<YggdrasilProfileProperty>,
 }
 

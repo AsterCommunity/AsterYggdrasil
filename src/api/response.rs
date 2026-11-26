@@ -22,6 +22,8 @@ impl ApiResponseCode for AsterErrorCode {
     }
 }
 
+/// Error metadata block of the API envelope; carries the retryability flag
+/// and no per-error diagnostic payload.
 pub type ApiErrorInfo = ForgeApiErrorInfo<()>;
 
 /// AsterYggdrasil's REST adapter binds the product error code to Forge's
@@ -95,39 +97,50 @@ pub fn failure_with_retryability(
     adapt_envelope(ForgeApiResponse::error_with_details(code, message, error))
 }
 
+/// Liveness probe response.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct HealthResponse {
+    /// Static liveness marker reported by the process.
     pub status: String,
 }
 
+/// System information shown to authenticated admin clients.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct SystemInfoResponse {
+    /// Crate version of the running build.
     pub version: String,
+    /// Build timestamp of the running binary.
     pub build_time: String,
+    /// Seconds the current process has been serving.
     pub uptime_seconds: u64,
 }
 
 impl<T: Serialize> ApiResponse<T> {
+    /// Builds a success envelope wrapping `data`.
     pub fn ok(data: T) -> Self {
         success(data)
     }
 
+    /// Serializes the envelope as an HTTP 200 JSON response.
     pub fn into_response(self) -> HttpResponse {
         HttpResponse::Ok().json(self)
     }
 }
 
 impl ApiResponse<()> {
+    /// Builds a success envelope without a `data` field.
     pub fn ok_empty() -> Self {
         empty_success()
     }
 
+    /// Builds a failure envelope with `retryable: false`.
     pub fn error(code: AsterErrorCode, message: impl Into<String>) -> Self {
         failure(code, message)
     }
 
+    /// Builds a failure envelope with an explicit retryability flag.
     pub fn error_with_details(
         code: AsterErrorCode,
         message: impl Into<String>,
@@ -136,6 +149,8 @@ impl ApiResponse<()> {
         failure_with_retryability(code, message, retryable)
     }
 
+    /// Builds a failure envelope directly from raw fields, for callers that
+    /// serialize the body themselves instead of returning a handler error.
     pub fn error_body(
         code: AsterErrorCode,
         message: impl Into<String>,

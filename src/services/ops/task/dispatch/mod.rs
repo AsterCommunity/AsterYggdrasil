@@ -27,6 +27,9 @@ use super::{
 
 pub use maintenance::{cleanup_expired, drain};
 
+/// One dispatch pass: claims due background tasks across all lanes and runs
+/// them under lane concurrency limits, without a shutdown token (runs to
+/// completion; used by wakeup-triggered and scheduled dispatch).
 pub async fn dispatch_due(state: &AppState) -> Result<DispatchStats> {
     tracing::debug!("dispatching due background tasks");
     dispatch_due_with_shutdown(state, CancellationToken::new()).await

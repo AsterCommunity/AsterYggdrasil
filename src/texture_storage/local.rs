@@ -9,11 +9,13 @@ use tokio::io::AsyncRead;
 
 const DEFAULT_CONTENT_TYPE: &str = "image/png";
 
+/// [`TextureStore`] implementation that stores texture files under a local filesystem root.
 pub struct LocalTextureStore {
     base_path: PathBuf,
 }
 
 impl LocalTextureStore {
+    /// Creates a store that keeps objects under `local_root`, creating parent directories on write.
     pub fn new(local_root: &str) -> Self {
         let base_path = Path::new(local_root).to_path_buf();
         Self { base_path }

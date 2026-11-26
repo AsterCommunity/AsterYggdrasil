@@ -7,6 +7,7 @@
 
 use validator::ValidationError;
 
+/// Rejects strings that are empty or contain only whitespace.
 pub fn validate_non_blank(value: &str) -> Result<(), ValidationError> {
     if value.trim().is_empty() {
         return Err(message_validation_error("value cannot be empty"));
@@ -14,10 +15,14 @@ pub fn validate_non_blank(value: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Optional-field form of [`validate_non_blank`] for `Option<String>` values
+/// that are flattened to strings before validation.
 pub fn validate_optional_non_blank(value: &str) -> Result<(), ValidationError> {
     validate_non_blank(value)
 }
 
+/// Accepts only unsigned (dash-less) UUIDs: exactly 32 hexadecimal characters,
+/// matching the protocol's on-wire profile/account id shape.
 pub fn validate_unsigned_uuid(value: &str) -> Result<(), ValidationError> {
     if value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Ok(());
@@ -27,10 +32,12 @@ pub fn validate_unsigned_uuid(value: &str) -> Result<(), ValidationError> {
     ))
 }
 
+/// Optional-field form of [`validate_unsigned_uuid`].
 pub fn validate_optional_unsigned_uuid(value: &str) -> Result<(), ValidationError> {
     validate_unsigned_uuid(value)
 }
 
+/// Accepts only the single protocol agent name `Minecraft` (case-sensitive).
 pub fn validate_yggdrasil_agent_name(value: &str) -> Result<(), ValidationError> {
     if value == "Minecraft" {
         return Ok(());
@@ -47,6 +54,7 @@ pub fn minecraft_profile_name_is_valid(name: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
+/// Validator form of [`minecraft_profile_name_is_valid`].
 pub fn validate_minecraft_profile_name(value: &str) -> Result<(), ValidationError> {
     if minecraft_profile_name_is_valid(value) {
         return Ok(());
@@ -56,10 +64,12 @@ pub fn validate_minecraft_profile_name(value: &str) -> Result<(), ValidationErro
     ))
 }
 
+/// Optional-field form of [`validate_minecraft_profile_name`].
 pub fn validate_optional_minecraft_profile_name(value: &str) -> Result<(), ValidationError> {
     validate_minecraft_profile_name(value)
 }
 
+/// Builds a `validator` error carrying `message` as the client-facing text.
 pub fn message_validation_error(message: impl Into<String>) -> ValidationError {
     let mut validation_error = ValidationError::new("invalid");
     validation_error.message = Some(std::borrow::Cow::Owned(message.into()));

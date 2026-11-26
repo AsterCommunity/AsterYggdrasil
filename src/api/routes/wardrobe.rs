@@ -34,16 +34,23 @@ const DEFAULT_TEXTURE_TAG_PAGE_SIZE: u64 = 30;
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Query parameters for listing the current user's wardrobe textures with cursor pagination.
 pub struct WardrobeTextureListQuery {
+    /// Substring matched against the texture's display name, hash, or MIME type.
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
+    /// Restricts results to one texture type (skin or cape).
     pub texture_type: Option<MinecraftTextureType>,
+    /// Comma-separated texture tag IDs to filter by; at most 16 positive IDs.
     #[serde(default, deserialize_with = "deserialize_tag_id_sequence")]
     #[validate(length(max = 16, message = "tag_ids must not contain more than 16 items"))]
     pub tag_ids: Vec<i64>,
+    /// Whether a texture must carry all of the given tags or any of them; defaults to all.
     #[serde(default)]
     pub tag_search_method: TextureTagSearchMethod,
+    /// Updated-at timestamp of the last item on the previous page.
     pub after_updated_at: Option<DateTime<Utc>>,
+    /// ID of the last item on the previous page, paired with `after_updated_at` as the cursor.
     pub after_id: Option<i64>,
 }
 
@@ -52,11 +59,16 @@ pub struct WardrobeTextureListQuery {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Query parameters for listing administrator-managed texture library tags.
 pub struct TextureLibraryTagListQuery {
+    /// Case-insensitive substring matched against tag names.
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
+    /// Sort order value of the last tag on the previous page, for cursor pagination.
     pub after_sort_order: Option<i32>,
+    /// Name of the last tag on the previous page, paired with `after_sort_order`.
     pub after_name: Option<String>,
+    /// ID of the last tag on the previous page, completing the sort-order cursor.
     pub after_id: Option<i64>,
 }
 
@@ -79,6 +91,8 @@ where
         .collect()
 }
 
+/// Registers the authenticated `/wardrobe` scope where the logged-in user manages
+/// their own skins and capes, their tags, and their texture library submissions.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/wardrobe")
@@ -123,6 +137,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     ),
     security(("bearer" = [])),
 )]
+/// Lists the current user's wardrobe textures with cursor pagination and optional
+/// texture type, tag, and keyword filters.
 pub async fn list_wardrobe_textures(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -206,6 +222,8 @@ fn normalize_tag_filter_ids(tag_ids: &[i64]) -> Result<Vec<i64>> {
     ),
     security(("bearer" = [])),
 )]
+/// Lists the administrator-managed texture library tags so users can discover
+/// available labels before tagging their wardrobe textures.
 pub async fn list_texture_library_tags(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -254,6 +272,8 @@ pub async fn list_texture_library_tags(
     ),
     security(("bearer" = [])),
 )]
+/// Updates metadata (display name, skin model, visibility) of one wardrobe texture
+/// owned by the current user.
 pub async fn update_wardrobe_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -298,6 +318,7 @@ pub async fn update_wardrobe_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Replaces the full tag set on one of the current user's wardrobe textures.
 pub async fn replace_wardrobe_texture_tags(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -333,6 +354,9 @@ pub async fn replace_wardrobe_texture_tags(
     ),
     security(("bearer" = [])),
 )]
+/// Submits one of the user's wardrobe textures for texture library review, moving it
+/// into the pending state (or publishing directly when review is not required), and
+/// records a submit audit event.
 pub async fn submit_texture_library_review(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -382,6 +406,8 @@ pub async fn submit_texture_library_review(
     ),
     security(("bearer" = [])),
 )]
+/// Withdraws one of the user's pending texture library submissions, returning the
+/// texture to private, and records a withdraw audit event.
 pub async fn withdraw_texture_library_submission(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -436,6 +462,9 @@ pub async fn withdraw_texture_library_submission(
     ),
     security(("bearer" = [])),
 )]
+/// Uploads a PNG skin or cape into the current user's wardrobe from a multipart form.
+/// Enforces the texture-upload ban scope and runtime upload policy, stores the texture
+/// by content hash, and records an upload audit event.
 pub async fn upload_wardrobe_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -534,6 +563,8 @@ pub async fn upload_wardrobe_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes one of the current user's wardrobe textures (detaching it from profiles
+/// that use it) and records a delete audit event; responds 204 on success.
 pub async fn delete_wardrobe_texture(
     state: web::Data<AppState>,
     req: HttpRequest,

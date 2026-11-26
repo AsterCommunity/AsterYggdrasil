@@ -26,46 +26,112 @@ pub use crate::config::definitions::{
     AUTH_USER_INVITATION_TTL_SECS_KEY,
 };
 
+/// Whether session cookies get the `Secure` flag when `auth_cookie_secure` is
+/// unset; defaults to true so production deployments do not ship insecure
+/// cookies.
 pub const DEFAULT_AUTH_COOKIE_SECURE: bool = true;
+/// Whether self-registration is open when `auth_allow_user_registration` is
+/// unset; defaults to true for self-hosted single-tenant setups.
 pub const DEFAULT_AUTH_ALLOW_USER_REGISTRATION: bool = true;
+/// Whether new accounts must activate via emailed link when
+/// `auth_register_activation_enabled` is unset; defaults to true so
+/// sign-ups prove email ownership out of the box.
 pub const DEFAULT_AUTH_REGISTER_ACTIVATION_ENABLED: bool = true;
+/// Access token lifetime, in seconds, when `auth_access_token_ttl_secs` is
+/// unset; short lived (15 minutes) so stolen access tokens expire quickly.
 pub const DEFAULT_AUTH_ACCESS_TOKEN_TTL_SECS: u64 = 900;
+/// Refresh token lifetime, in seconds, when `auth_refresh_token_ttl_secs` is
+/// unset; one week, balancing convenience against long-lived credentials.
 pub const DEFAULT_AUTH_REFRESH_TOKEN_TTL_SECS: u64 = 604800;
+/// Register activation link lifetime, in seconds, when
+/// `auth_register_activation_ttl_secs` is unset; one day.
 pub const DEFAULT_AUTH_REGISTER_ACTIVATION_TTL_SECS: u64 = 86_400;
+/// User invitation acceptance link lifetime, in seconds, when
+/// `auth_user_invitation_ttl_secs` is unset; one week so invited users are
+/// not rushed.
 pub const DEFAULT_AUTH_USER_INVITATION_TTL_SECS: u64 = 7 * 86_400;
+/// Contact (email) change verification link lifetime, in seconds, when
+/// `auth_contact_change_ttl_secs` is unset; one day.
 pub const DEFAULT_AUTH_CONTACT_CHANGE_TTL_SECS: u64 = 86_400;
+/// Password reset link lifetime, in seconds, when
+/// `auth_password_reset_ttl_secs` is unset; one hour.
 pub const DEFAULT_AUTH_PASSWORD_RESET_TTL_SECS: u64 = 3_600;
+/// Minimum interval, in seconds, between resends of contact-change/register
+/// activation verification mail when the corresponding key is unset.
 pub const DEFAULT_AUTH_CONTACT_VERIFICATION_RESEND_COOLDOWN_SECS: u64 = 60;
+/// Minimum interval, in seconds, between password reset requests for the
+/// same account when `auth_password_reset_request_cooldown_secs` is unset.
 pub const DEFAULT_AUTH_PASSWORD_RESET_REQUEST_COOLDOWN_SECS: u64 = 60;
+/// Whether email-code login is available when `auth_email_code_login_enabled`
+/// is unset; defaults to false so password login remains the only path until
+/// the operator opts in.
 pub const DEFAULT_AUTH_EMAIL_CODE_LOGIN_ENABLED: bool = false;
+/// Whether passkey (WebAuthn) login is available when
+/// `auth_passkey_login_enabled` is unset; defaults to true.
 pub const DEFAULT_AUTH_PASSKEY_LOGIN_ENABLED: bool = true;
+/// Whether users with TOTP may sign in with a TOTP code when email-code login
+/// cannot be used and `auth_email_code_login_allow_totp_fallback` is unset;
+/// defaults to false.
 pub const DEFAULT_AUTH_EMAIL_CODE_LOGIN_ALLOW_TOTP_FALLBACK: bool = false;
+/// Email login code lifetime, in seconds, when
+/// `auth_email_code_login_ttl_secs` is unset; ten minutes.
 pub const DEFAULT_AUTH_EMAIL_CODE_LOGIN_TTL_SECS: u64 = 600;
+/// Minimum interval, in seconds, between email login code resends when
+/// `auth_email_code_login_resend_cooldown_secs` is unset.
 pub const DEFAULT_AUTH_EMAIL_CODE_LOGIN_RESEND_COOLDOWN_SECS: u64 = 60;
+/// Whether the CAPTCHA challenge is enabled at all when
+/// `auth_captcha_enabled` is unset; defaults to false so fresh installs work
+/// without image rendering configured.
 pub const DEFAULT_AUTH_CAPTCHA_ENABLED: bool = false;
+/// Whether login requires a CAPTCHA when the master switch is on and
+/// `auth_captcha_login_required` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_LOGIN_REQUIRED: bool = true;
+/// Whether registration requires a CAPTCHA when the master switch is on and
+/// `auth_captcha_register_required` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_REGISTER_REQUIRED: bool = true;
+/// Whether accepting a user invitation requires a CAPTCHA when the master
+/// switch is on and `auth_captcha_invitation_accept_required` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_INVITATION_ACCEPT_REQUIRED: bool = true;
+/// Whether resending a register activation mail requires a CAPTCHA when the
+/// master switch is on and the matching key is unset.
 pub const DEFAULT_AUTH_CAPTCHA_REGISTER_ACTIVATION_RESEND_REQUIRED: bool = true;
+/// CAPTCHA answer lifetime, in seconds, when `auth_captcha_ttl_secs` is
+/// unset; two minutes.
 pub const DEFAULT_AUTH_CAPTCHA_TTL_SECS: u64 = 120;
+/// CAPTCHA image difficulty preset used when `auth_captcha_preset` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_PRESET: CaptchaRenderPreset = CaptchaRenderPreset::Balanced;
+/// CAPTCHA code length, in characters, when `auth_captcha_length` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_LENGTH: u64 = 5;
+/// CAPTCHA verification attempts allowed per challenge when
+/// `auth_captcha_max_attempts` is unset.
 pub const DEFAULT_AUTH_CAPTCHA_MAX_ATTEMPTS: u64 = 3;
+/// Minimum accepted CAPTCHA code length; shorter codes are too easy to guess.
 pub const MIN_AUTH_CAPTCHA_LENGTH: u64 = 4;
+/// Maximum accepted CAPTCHA code length; longer codes hurt usability without
+/// meaningfully slowing automated solving.
 pub const MAX_AUTH_CAPTCHA_LENGTH: u64 = 8;
+/// Minimum accepted CAPTCHA attempts per challenge.
 pub const MIN_AUTH_CAPTCHA_MAX_ATTEMPTS: u64 = 1;
+/// Maximum accepted CAPTCHA attempts per challenge.
 pub const MAX_AUTH_CAPTCHA_MAX_ATTEMPTS: u64 = 10;
 
+/// Difficulty preset for CAPTCHA image rendering; maps to concrete render
+/// parameters via [`CaptchaRenderPreset::render_params`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaptchaRenderPreset {
+    /// Low distortion, generous letter spacing: easiest for humans.
     Readable,
+    /// Middle ground between readability and bot resistance (the default).
     Balanced,
+    /// Heavy distortion, noise, and compression: hardest to solve.
     Hardened,
 }
 
 impl CaptchaRenderPreset {
+    /// Every preset in canonical order, used for validation and schema docs.
     pub const ALL: [Self; 3] = [Self::Readable, Self::Balanced, Self::Hardened];
 
+    /// Lowercase name as stored in the runtime config value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Readable => "readable",
@@ -83,6 +149,8 @@ impl CaptchaRenderPreset {
         }
     }
 
+    /// Concrete image render parameters (height, noise, distortion, JPEG
+    /// compression) for this preset.
     pub const fn render_params(self) -> CaptchaRenderParams {
         match self {
             Self::Readable => CaptchaRenderParams {
@@ -125,57 +193,97 @@ impl FromStr for CaptchaRenderPreset {
     }
 }
 
+/// Concrete CAPTCHA image render parameters selected by a preset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CaptchaRenderParams {
+    /// Captcha image height in pixels.
     pub height: u32,
+    /// Text complexity level (letter style/overlap) used by the renderer.
     pub complexity: u32,
+    /// JPEG compression quality (0-100); lower quality adds noise.
     pub compression: u32,
+    /// Number of interference lines drawn across the image.
     pub interference_lines: u32,
+    /// Number of interference ellipses drawn across the image.
     pub interference_ellipses: u32,
+    /// Text distortion intensity level applied by the renderer.
     pub distortion: u32,
 }
 
+/// Core account/token auth switches resolved from the runtime config store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeAuthPolicy {
+    /// Whether session cookies carry the `Secure` flag.
     pub cookie_secure: bool,
+    /// Whether self-registration is open.
     pub allow_user_registration: bool,
+    /// Whether passkey (WebAuthn) login is available.
     pub passkey_login_enabled: bool,
+    /// Whether new accounts must activate via emailed link.
     pub register_activation_enabled: bool,
+    /// Access token lifetime, in seconds.
     pub access_token_ttl_secs: u64,
+    /// Refresh token lifetime, in seconds.
     pub refresh_token_ttl_secs: u64,
 }
 
+/// Email verification budgets for contact-change, register activation, and
+/// password reset flows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeContactVerificationPolicy {
+    /// Register activation link lifetime, in seconds.
     pub register_activation_ttl_secs: u64,
+    /// Contact (email) change verification link lifetime, in seconds.
     pub contact_change_ttl_secs: u64,
+    /// Minimum interval between verification mail resends, in seconds.
     pub resend_cooldown_secs: u64,
+    /// Password reset link lifetime, in seconds.
     pub password_reset_ttl_secs: u64,
+    /// Minimum interval between password reset requests, in seconds.
     pub password_reset_request_cooldown_secs: u64,
 }
 
+/// Email-code login settings resolved from the runtime config store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeEmailCodeLoginPolicy {
+    /// Whether email-code login is available at all.
     pub enabled: bool,
+    /// Whether users with TOTP may fall back to a TOTP code when email
+    /// delivery is unavailable.
     pub allow_totp_fallback: bool,
+    /// Login code lifetime, in seconds.
     pub ttl_secs: u64,
+    /// Minimum interval between code resends, in seconds.
     pub resend_cooldown_secs: u64,
 }
 
+/// CAPTCHA challenge settings resolved from the runtime config store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeCaptchaPolicy {
+    /// Whether the CAPTCHA master switch is on.
     pub enabled: bool,
+    /// Whether login should require a CAPTCHA (when enabled).
     pub login_required: bool,
+    /// Whether registration should require a CAPTCHA (when enabled).
     pub register_required: bool,
+    /// Whether invitation acceptance should require a CAPTCHA (when enabled).
     pub invitation_accept_required: bool,
+    /// Whether resending register activation mail should require a CAPTCHA
+    /// (when enabled).
     pub register_activation_resend_required: bool,
+    /// CAPTCHA answer lifetime, in seconds.
     pub ttl_secs: u64,
+    /// Image difficulty preset.
     pub preset: CaptchaRenderPreset,
+    /// CAPTCHA code length, in characters.
     pub length: u64,
+    /// Verification attempts allowed per challenge.
     pub max_attempts: u64,
 }
 
 impl RuntimeAuthPolicy {
+    /// Resolves the core auth switches and token TTLs from the runtime config
+    /// store, applying documented defaults for missing or invalid values.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let cookie_secure = forge_read_bool(
             runtime_config,
@@ -222,6 +330,8 @@ impl RuntimeAuthPolicy {
 }
 
 impl RuntimeContactVerificationPolicy {
+    /// Resolves the email verification budgets from the runtime config store,
+    /// applying documented defaults for missing or non-positive values.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let register_activation_ttl_secs = forge_read_positive_u64(
             runtime_config,
@@ -260,6 +370,8 @@ impl RuntimeContactVerificationPolicy {
 }
 
 impl RuntimeEmailCodeLoginPolicy {
+    /// Resolves the email-code login settings from the runtime config store,
+    /// applying documented defaults for missing or invalid values.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         let enabled = forge_read_bool(
             runtime_config,
@@ -292,10 +404,14 @@ impl RuntimeEmailCodeLoginPolicy {
 }
 
 impl RuntimeCaptchaPolicy {
+    /// Resolves the CAPTCHA settings from the runtime config store.
     pub fn from_runtime_config(runtime_config: &RuntimeConfig) -> Self {
         Self::from_runtime_config_with_overrides(runtime_config, &BTreeMap::new())
     }
 
+    /// Like [`RuntimeCaptchaPolicy::from_runtime_config`], but values in
+    /// `overrides` (pending edits being previewed) take precedence over the
+    /// stored snapshot.
     pub fn from_runtime_config_with_overrides(
         runtime_config: &RuntimeConfig,
         overrides: &BTreeMap<String, String>,
@@ -361,47 +477,62 @@ impl RuntimeCaptchaPolicy {
         }
     }
 
+    /// Whether login should present a CAPTCHA: requires the master switch.
     pub fn login_required(&self) -> bool {
         self.enabled && self.login_required
     }
 
+    /// Whether registration should present a CAPTCHA: requires the master
+    /// switch.
     pub fn register_required(&self) -> bool {
         self.enabled && self.register_required
     }
 
+    /// Whether accepting a user invitation should present a CAPTCHA: requires
+    /// the master switch.
     pub fn invitation_accept_required(&self) -> bool {
         self.enabled && self.invitation_accept_required
     }
 
+    /// Whether resending register activation mail should present a CAPTCHA:
+    /// requires the master switch.
     pub fn register_activation_resend_required(&self) -> bool {
         self.enabled && self.register_activation_resend_required
     }
 }
 
+/// Validates the stored `auth_cookie_secure` boolean value.
 pub fn normalize_cookie_secure_config_value(value: &str) -> Result<String> {
     normalize_auth_bool_config_value(AUTH_COOKIE_SECURE_KEY, value)
 }
 
+/// Validates the stored `auth_allow_user_registration` boolean value.
 pub fn normalize_allow_user_registration_config_value(value: &str) -> Result<String> {
     normalize_auth_bool_config_value(AUTH_ALLOW_USER_REGISTRATION_KEY, value)
 }
 
+/// Validates the stored `auth_register_activation_enabled` boolean value.
 pub fn normalize_register_activation_enabled_config_value(value: &str) -> Result<String> {
     normalize_auth_bool_config_value(AUTH_REGISTER_ACTIVATION_ENABLED_KEY, value)
 }
 
+/// Validates a stored email-code-login boolean value for the given config key.
 pub fn normalize_email_code_login_bool_config_value(key: &str, value: &str) -> Result<String> {
     normalize_auth_bool_config_value(key, value)
 }
 
+/// Validates a stored auth boolean value ("true"/"false" and common aliases).
 pub fn normalize_auth_bool_config_value(key: &str, value: &str) -> Result<String> {
     normalize_bool_config_value(key, value).map_err(Into::into)
 }
 
+/// Validates a stored auth TTL value as a positive integer number of seconds.
 pub fn normalize_token_ttl_config_value(key: &str, value: &str) -> Result<String> {
     normalize_positive_u64_config_value(key, value).map_err(Into::into)
 }
 
+/// Validates a stored `auth_captcha_length` value within
+/// [`MIN_AUTH_CAPTCHA_LENGTH`]..=[`MAX_AUTH_CAPTCHA_LENGTH`].
 pub fn normalize_captcha_length_config_value(value: &str) -> Result<String> {
     normalize_bounded_u64_config_value(
         AUTH_CAPTCHA_LENGTH_KEY,
@@ -412,11 +543,15 @@ pub fn normalize_captcha_length_config_value(value: &str) -> Result<String> {
     .map_err(Into::into)
 }
 
+/// Validates a stored `auth_captcha_preset` value against
+/// [`CaptchaRenderPreset::ALL`], normalizing to the canonical lowercase name.
 pub fn normalize_captcha_preset_config_value(value: &str) -> Result<String> {
     let selected = parse_captcha_preset_selection(value)?;
     Ok(selected.as_str().to_string())
 }
 
+/// Validates a stored `auth_captcha_max_attempts` value within
+/// [`MIN_AUTH_CAPTCHA_MAX_ATTEMPTS`]..=[`MAX_AUTH_CAPTCHA_MAX_ATTEMPTS`].
 pub fn normalize_captcha_max_attempts_config_value(value: &str) -> Result<String> {
     normalize_bounded_u64_config_value(
         AUTH_CAPTCHA_MAX_ATTEMPTS_KEY,
@@ -427,6 +562,9 @@ pub fn normalize_captcha_max_attempts_config_value(value: &str) -> Result<String
     .map_err(Into::into)
 }
 
+/// Returns the invitation acceptance link lifetime in seconds, falling back to
+/// [`DEFAULT_AUTH_USER_INVITATION_TTL_SECS`] for missing or non-positive
+/// values.
 pub fn user_invitation_ttl_secs(runtime_config: &RuntimeConfig) -> u64 {
     forge_read_positive_u64(
         runtime_config,

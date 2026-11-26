@@ -15,6 +15,13 @@ use crate::runtime::AppState;
 use crate::services::auth::local;
 use aster_forge_middleware::actix::csrf::{RequestSourceMode, is_unsafe_method};
 
+/// Authentication middleware that resolves the JWT access cookie into an
+/// authenticated user for the wrapped routes.
+///
+/// For unsafe methods with an access cookie present it additionally enforces
+/// CSRF source and double-submit token checks before resolving the user. The
+/// resolved user is stored in the request extensions; routes without a valid
+/// session fail with the mapped auth error.
 pub struct JwtAuth;
 
 impl<S, B> Transform<S, ServiceRequest> for JwtAuth
@@ -35,6 +42,7 @@ where
     }
 }
 
+/// Service produced by [`JwtAuth`]; performs the per-request authentication.
 pub struct JwtAuthMiddleware<S> {
     service: Rc<S>,
 }

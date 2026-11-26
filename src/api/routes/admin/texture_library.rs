@@ -34,19 +34,29 @@ use aster_forge_api::{CursorPage, DateTimeIdCursor, SortOrderNameIdCursor};
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Filter and cursor query for the admin texture library listing.
 pub struct AdminTextureLibraryTextureQuery {
+    /// Free-text search keyword (max 96 characters).
     #[validate(length(max = 96, message = "keyword must not exceed 96 characters"))]
     pub keyword: Option<String>,
+    /// Restrict results to one texture type (e.g. skin, cape).
     pub texture_type: Option<MinecraftTextureType>,
+    /// Restrict results to one texture visibility.
     pub visibility: Option<MinecraftTextureVisibility>,
+    /// Restrict results to one library review status.
     pub library_status: Option<MinecraftTextureLibraryStatus>,
+    /// Restrict results to published or unpublished textures.
     pub published: Option<bool>,
+    /// Comma-separated texture tag IDs (max 16) to filter by.
     #[serde(default, deserialize_with = "deserialize_tag_id_sequence")]
     #[validate(length(max = 16, message = "tag_ids must not contain more than 16 items"))]
     pub tag_ids: Vec<i64>,
+    /// How the tag filters combine (any or all).
     #[serde(default)]
     pub tag_search_method: TextureTagSearchMethod,
+    /// Datetime-id cursor: last updated timestamp of the previous page.
     pub after_updated_at: Option<DateTime<Utc>>,
+    /// Datetime-id cursor: ID of the last item on the previous page.
     pub after_id: Option<i64>,
 }
 
@@ -55,12 +65,18 @@ pub struct AdminTextureLibraryTextureQuery {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Filter and cursor query for the admin texture report listing.
 pub struct AdminTextureReportQuery {
+    /// Restrict results to one report handling status.
     pub status: Option<MinecraftTextureReportStatus>,
+    /// Restrict results to one report reason.
     pub reason: Option<MinecraftTextureReportReason>,
+    /// Restrict results to reports of a single texture.
     #[validate(range(min = 1, message = "texture_id must be positive"))]
     pub texture_id: Option<i64>,
+    /// Datetime-id cursor: created timestamp of the previous page.
     pub after_created_at: Option<DateTime<Utc>>,
+    /// Datetime-id cursor: ID of the last item on the previous page.
     pub after_id: Option<i64>,
 }
 
@@ -69,9 +85,14 @@ pub struct AdminTextureReportQuery {
     all(debug_assertions, feature = "openapi"),
     derive(utoipa::IntoParams, utoipa::ToSchema)
 )]
+/// Cursor query for the admin texture tag listing, ordered by sort order,
+/// name, then ID.
 pub struct AdminTextureLibraryTagQuery {
+    /// Sort-order value of the last item on the previous page.
     pub after_sort_order: Option<i32>,
+    /// Name of the last item on the previous page.
     pub after_name: Option<String>,
+    /// ID of the last item on the previous page.
     pub after_id: Option<i64>,
 }
 
@@ -107,6 +128,8 @@ where
     ),
     security(("bearer" = [])),
 )]
+/// Lists texture library reports with status/reason/texture filters and
+/// datetime-id cursor pagination, for moderation triage.
 pub async fn list_texture_library_reports(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -143,6 +166,8 @@ pub async fn list_texture_library_reports(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single texture library report, including the reported texture
+/// metadata.
 pub async fn get_texture_library_report(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -168,6 +193,8 @@ pub async fn get_texture_library_report(
     ),
     security(("bearer" = [])),
 )]
+/// Accepts a texture report as valid (the reported content is upheld),
+/// recording the moderator decision in the audit log.
 pub async fn accept_texture_library_report(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -210,6 +237,8 @@ pub async fn accept_texture_library_report(
     ),
     security(("bearer" = [])),
 )]
+/// Dismisses a texture report as invalid, recording the moderator decision
+/// in the audit log.
 pub async fn reject_texture_library_report(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -249,6 +278,8 @@ pub async fn reject_texture_library_report(
     ),
     security(("bearer" = [])),
 )]
+/// Lists library textures for moderation with type/visibility/status/published
+/// tag, and keyword filters, using datetime-id cursor pagination.
 pub async fn list_texture_library_textures(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -293,6 +324,7 @@ pub async fn list_texture_library_textures(
     ),
     security(("bearer" = [])),
 )]
+/// Returns a single library texture's metadata for the moderation view.
 pub async fn get_texture_library_texture(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -318,6 +350,8 @@ pub async fn get_texture_library_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Approves a library texture with an optional review note and tag
+/// assignments, recording the reviewer decision in the audit log.
 pub async fn approve_texture_library_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -361,6 +395,8 @@ pub async fn approve_texture_library_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Rejects a library texture with a required review note, recording the
+/// reviewer decision in the audit log.
 pub async fn reject_texture_library_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -403,6 +439,8 @@ pub async fn reject_texture_library_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Withdraws an already published library texture from public availability
+/// with a review note, recording the action in the audit log.
 pub async fn unpublish_texture_library_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -443,6 +481,8 @@ pub async fn unpublish_texture_library_texture(
     ),
     security(("bearer" = [])),
 )]
+/// Permanently removes a library texture and its profile bindings, recording
+/// the removed binding count in the audit log.
 pub async fn delete_texture_library_texture(
     state: web::Data<AppState>,
     req: HttpRequest,
@@ -580,6 +620,8 @@ async fn log_texture_report_audit(
     ),
     security(("bearer" = [])),
 )]
+/// Lists texture library tags ordered by sort order then name, using a
+/// composite cursor pagination.
 pub async fn list_texture_library_tags(
     state: web::Data<AppState>,
     page: web::Query<LimitQuery>,
@@ -611,6 +653,8 @@ pub async fn list_texture_library_tags(
     ),
     security(("bearer" = [])),
 )]
+/// Creates a texture library tag with name, color, and sort order; duplicate
+/// names are rejected.
 pub async fn create_texture_library_tag(
     state: web::Data<AppState>,
     body: web::Json<CreateMinecraftTextureTagReq>,
@@ -642,6 +686,8 @@ pub async fn create_texture_library_tag(
     ),
     security(("bearer" = [])),
 )]
+/// Updates a texture library tag's name, color, or sort order; fields left
+/// absent keep their current value.
 pub async fn update_texture_library_tag(
     state: web::Data<AppState>,
     path: web::Path<i64>,
@@ -673,6 +719,8 @@ pub async fn update_texture_library_tag(
     ),
     security(("bearer" = [])),
 )]
+/// Deletes a texture library tag, detaching it from the textures that
+/// reference it.
 pub async fn delete_texture_library_tag(
     state: web::Data<AppState>,
     path: web::Path<i64>,

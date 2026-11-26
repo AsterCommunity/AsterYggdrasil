@@ -43,6 +43,8 @@ impl aster_forge_config::ValidatableConfig for WorkerConfig {
 }
 
 impl WorkerConfig {
+    /// Converts the seconds-based budgets into the Forge task consumer
+    /// configuration used during graceful shutdown.
     pub fn consumer_config(&self) -> aster_forge_tasks::TaskConsumerConfig {
         aster_forge_tasks::TaskConsumerConfig {
             drain_timeout: Duration::from_secs(self.drain_timeout_secs),

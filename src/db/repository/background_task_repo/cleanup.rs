@@ -6,6 +6,9 @@ use crate::errors::{AsterError, Result};
 use aster_yggdrasil_model::entities::background_task::{self, Entity as BackgroundTask};
 use aster_yggdrasil_model::types::task::BackgroundTaskStatus;
 
+/// Lists terminal (succeeded/failed/canceled) tasks whose retention window has expired.
+///
+/// Rows are returned ordered by `expires_at` ascending, oldest first, at most `limit` rows.
 pub async fn list_expired_terminal<C: ConnectionTrait>(
     db: &C,
     now: DateTime<Utc>,
@@ -25,6 +28,9 @@ pub async fn list_expired_terminal<C: ConnectionTrait>(
         .map_err(AsterError::from)
 }
 
+/// Deletes tasks by id, returning the number of rows removed.
+///
+/// An empty `ids` slice is a no-op that returns 0 without touching the database.
 pub async fn delete_many<C: ConnectionTrait>(db: &C, ids: &[i64]) -> Result<u64> {
     if ids.is_empty() {
         return Ok(0);
@@ -37,6 +43,11 @@ pub async fn delete_many<C: ConnectionTrait>(db: &C, ids: &[i64]) -> Result<u64>
         .rows_affected)
 }
 
+/// Deletes terminal tasks matching the cleanup filters, returning the number of rows removed.
+///
+/// A task qualifies when its status matches (or it is any terminal status when no status filter
+/// is given) and it finished before the filter cutoff — falling back to `updated_at` when
+/// `finished_at` is null.
 pub async fn delete_terminal_by_filters<C: ConnectionTrait>(
     db: &C,
     filters: &TerminalTaskCleanupFilters,

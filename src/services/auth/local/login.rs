@@ -12,6 +12,9 @@ use actix_web::HttpRequest;
 use aster_yggdrasil_model::types::auth::TokenType;
 use chrono::Utc;
 
+/// Password login with a username or email identifier. Unknown identifiers
+/// burn a dummy Argon2 verification so timing does not reveal account
+/// existence; on success issues a fresh session and writes a login audit.
 pub async fn login<S>(
     state: &S,
     identifier: &str,
@@ -85,6 +88,10 @@ where
     Ok(response)
 }
 
+/// Rotates a refresh token into a new token pair. Detects reuse of an
+/// already-rotated token, enforces session liveness, expiry, user status,
+/// session version, and the password-change restriction, then rotates the
+/// session's refresh jti and writes a refresh audit entry.
 pub async fn refresh<S>(
     state: &S,
     refresh_token: &str,
@@ -186,6 +193,9 @@ where
     Ok(response)
 }
 
+/// Revokes the session identified by the presented refresh token and writes
+/// a logout audit entry. Invalid or expired tokens are tolerated and simply
+/// report `false` instead of failing the request.
 pub async fn logout<S>(state: &S, refresh_token: &str, req: &HttpRequest) -> Result<bool>
 where
     S: SharedRuntimeState,

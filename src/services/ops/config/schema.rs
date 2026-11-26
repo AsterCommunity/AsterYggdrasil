@@ -10,29 +10,46 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
+/// Schema descriptor for one runtime config key, letting the admin UI render
+/// forms without hardcoding the registry.
 #[derive(Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct ConfigSchemaItem {
+    /// Stable config key this descriptor describes.
     pub key: String,
+    /// I18n key for the field label.
     pub label_i18n_key: String,
+    /// I18n key for the field description.
     pub description_i18n_key: String,
+    /// Value type that governs parsing and validation.
     pub value_type: ConfigValueType,
+    /// Admin UI grouping category.
     pub category: String,
+    /// Human-readable English description.
     pub description: String,
+    /// Whether changes only apply after a process restart.
     pub requires_restart: bool,
+    /// Whether the value must be redacted in listings and audit records.
     pub is_sensitive: bool,
+    /// Enumerated value choices for enum-typed keys; empty otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<ConfigSchemaOption>,
 }
 
+/// One selectable choice for an enum-typed config key.
 #[derive(Serialize)]
 #[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
 pub struct ConfigSchemaOption {
+    /// Wire value to store when this option is chosen.
     pub value: String,
+    /// I18n key for the option label.
     pub label_i18n_key: String,
+    /// Sub-group the option renders under in the admin UI.
     pub group: String,
 }
 
+/// Renders the full config registry into schema descriptors for the admin
+/// config UI, attaching backend-authored enum options where they exist.
 pub fn get_schema() -> Vec<ConfigSchemaItem> {
     ALL_CONFIGS
         .iter()
