@@ -125,6 +125,29 @@ mod tests {
     };
 
     #[test]
+    fn texture_preview_task_gets_stable_title_code_with_hash_param() {
+        use crate::services::ops::task::types::TexturePreviewGenerateTaskPayload;
+
+        let presentation = build_task_presentation(
+            &TaskPayload::TexturePreviewGenerate(TexturePreviewGenerateTaskPayload {
+                texture_hash: "a".repeat(64),
+                texture_model: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel::Slim,
+            }),
+            None,
+            BackgroundTaskStatus::Pending,
+            None,
+        )
+        .expect("presentation should be built");
+
+        let title = presentation.title.expect("title should be present");
+        assert_eq!(title.code, TaskPresentationCode::TexturePreviewGenerateHash);
+        assert_eq!(
+            title.params.get("texture_hash").and_then(|v| v.as_str()),
+            Some("a".repeat(64).as_str())
+        );
+    }
+
+    #[test]
     fn system_runtime_task_gets_stable_title_code() {
         let presentation = build_task_presentation(
             &TaskPayload::SystemRuntime(RuntimeTaskPayload {

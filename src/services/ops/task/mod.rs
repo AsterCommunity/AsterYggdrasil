@@ -19,6 +19,9 @@ mod tests;
 pub(crate) mod texture_preview;
 pub mod types;
 
+#[cfg(test)]
+pub(crate) use spec::TexturePreviewGenerateTask;
+
 use chrono::{Duration, Utc};
 use sea_orm::DatabaseConnection;
 

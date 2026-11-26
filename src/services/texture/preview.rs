@@ -708,3 +708,203 @@ mod variant_identity_tests {
         assert_eq!(tasks.len(), 2, "variant B must get its own task record");
     }
 }
+
+#[cfg(test)]
+mod execution_paths_tests {
+    use super::*;
+    use crate::runtime::{AppState, AppStateParts, test_support};
+    use crate::services::ops::task::types::TexturePreviewGenerateTaskPayload;
+    use aster_forge_tasks::TaskRetryClass;
+    use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureModel;
+    use std::path::Path as StdPath;
+
+    const STEVE_HASH: &str = "082fdbe1403d09fcf030464bf754439ee79e9287bb15efbe2f54d02f60108133";
+
+    async fn isolated_state() -> AppState {
+        let root = std::env::temp_dir().join(format!(
+            "asteryggdrasil-preview-exec-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).expect("execution test root should create");
+        let mut config = crate::config::Config::default();
+        config.texture_storage.local_root = root.join("storage").to_string_lossy().into_owned();
+        config.server.temp_dir = root.join("tmp").to_string_lossy().into_owned();
+        let db = test_support::connect_in_memory().await;
+        test_support::setup_state_with_config(db, std::sync::Arc::new(config)).await
+    }
+
+    struct FailingUploadStorage;
+
+    #[async_trait::async_trait]
+    impl crate::texture_storage::TextureStore for FailingUploadStorage {
+        fn backend_name(&self) -> &'static str {
+            "failing-upload"
+        }
+
+        async fn put_file(&self, _storage_key: &str, _local_path: &StdPath) -> Result<String> {
+            Err(AsterError::internal_error(
+                "S3 object upload failed: endpoint=https://s3.internal, bucket=private, source=connection refused",
+            ))
+        }
+
+        async fn get_stream(
+            &self,
+            _storage_key: &str,
+        ) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send>> {
+            Err(AsterError::internal_error("failing upload storage"))
+        }
+
+        async fn delete(&self, _storage_key: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn exists(&self, _storage_key: &str) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn metadata(
+            &self,
+            _storage_key: &str,
+        ) -> Result<crate::texture_storage::ObjectBlobMetadata> {
+            Err(AsterError::internal_error("failing upload storage"))
+        }
+
+        async fn list_keys(&self, _prefix: &str) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn preview_payload() -> TexturePreviewGenerateTaskPayload {
+        TexturePreviewGenerateTaskPayload {
+            texture_hash: STEVE_HASH.to_string(),
+            texture_model: MinecraftTextureModel::Default,
+        }
+    }
+
+    fn retry_class_for(error: &AsterError) -> TaskRetryClass {
+        <crate::services::ops::task::TexturePreviewGenerateTask as aster_forge_tasks::BackgroundTaskSpec<
+            AppState,
+            aster_yggdrasil_model::entities::background_task::Model,
+            crate::config::RuntimeConfig,
+            aster_forge_tasks::TaskExecutionContext,
+            AsterError,
+        >>::retry_class(error)
+    }
+
+    #[tokio::test]
+    async fn storage_upload_failure_is_retryable_internal_error() {
+        let state = isolated_state().await;
+        let rebuilt = AppState::from_parts(AppStateParts {
+            db_handles: state.db_handles.clone(),
+            config: state.config().clone(),
+            runtime_config: state.runtime_config().clone(),
+            cache: state.cache().clone(),
+            texture_storage: std::sync::Arc::new(FailingUploadStorage),
+            mail_sender: state.mail_sender().clone(),
+            config_sync: state.config_sync().clone(),
+            metrics: state.metrics().clone(),
+            audit_writer: state.audit_writer().clone(),
+        })
+        .expect("failing-upload AppState should build");
+
+        let outcome = generate_preview_object(&rebuilt, &preview_payload()).await;
+        let error = outcome.expect_err("upload failure must surface as an error");
+        assert!(
+            error.to_string().contains("upload failed"),
+            "error should carry the storage failure: {error}"
+        );
+        assert!(
+            matches!(error, AsterError::InternalError(_)),
+            "storage upload maps to InternalError, got {error:?}"
+        );
+        assert_eq!(
+            retry_class_for(&error),
+            TaskRetryClass::Auto,
+            "transient storage IO must be retryable"
+        );
+    }
+
+    #[tokio::test]
+    async fn corrupt_source_png_maps_to_never_retry_validation_error() {
+        let state = isolated_state().await;
+        let corrupt_key = "textures/corrupt-source.png";
+        let temp_png =
+            std::env::temp_dir().join(format!("corrupt-source-{}.png", uuid::Uuid::new_v4()));
+        std::fs::write(&temp_png, b"definitely not a png payload")
+            .expect("corrupt fixture should write");
+        state
+            .texture_storage()
+            .put_file(corrupt_key, &temp_png)
+            .await
+            .expect("corrupt object should store");
+        let _ = std::fs::remove_file(&temp_png);
+
+        let hash = "aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aabb7788ccdd99ee";
+        // minecraft_texture.user_id -> users.id (FK): seed the owner row.
+        use aster_yggdrasil_model::entities::user;
+        use sea_orm::{ActiveModelTrait as UserActive, Set as UserSet, Unchanged as UserUnchanged};
+        user::ActiveModel {
+            id: UserUnchanged(1),
+            public_uuid: UserSet("exec-paths-owner-uuid".to_string()),
+            username: UserSet("exec-paths-owner".to_string()),
+            email: UserSet("exec-paths-owner@example.test".to_string()),
+            password_hash: UserSet("not-a-real-hash".to_string()),
+            role: UserSet(aster_yggdrasil_model::types::user::UserRole::Admin),
+            status: UserSet(aster_yggdrasil_model::types::user::UserStatus::Active),
+            must_change_password: UserSet(false),
+            session_version: UserSet(1),
+            email_verified_at: UserSet(None),
+            pending_email: UserSet(None),
+            created_at: UserSet(chrono::Utc::now()),
+            updated_at: UserSet(chrono::Utc::now()),
+        }
+        .insert(state.writer_db())
+        .await
+        .expect("owner user should insert");
+        crate::db::repository::minecraft_texture_repo::create(
+            state.writer_db(),
+            crate::db::repository::minecraft_texture_repo::CreateMinecraftTexture {
+                user_id: 1,
+                texture_type: aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType::Skin,
+                hash,
+                storage_key: corrupt_key,
+                mime_type: "image/png",
+                file_size: 28,
+                width: 64,
+                height: 64,
+                texture_model: MinecraftTextureModel::Default,
+                visibility:
+                    aster_yggdrasil_model::types::yggdrasil::MinecraftTextureVisibility::Private,
+                is_wardrobe_item: false,
+                display_name: None,
+            },
+        )
+        .await
+        .expect("corrupt texture row should insert");
+
+        let outcome = generate_preview_object(
+            &state,
+            &TexturePreviewGenerateTaskPayload {
+                texture_hash: hash.to_string(),
+                texture_model: MinecraftTextureModel::Default,
+            },
+        )
+        .await;
+        let error = outcome.expect_err("corrupt source must fail the render");
+        assert!(
+            matches!(
+                error,
+                AsterError::Public {
+                    code: crate::api::error_code::AsterErrorCode::MinecraftTextureInvalidPng,
+                    ..
+                }
+            ),
+            "corrupt source maps to the invalid-png validation error, got {error:?}"
+        );
+        assert_eq!(
+            retry_class_for(&error),
+            TaskRetryClass::Never,
+            "deterministic render failure must never retry"
+        );
+    }
+}
