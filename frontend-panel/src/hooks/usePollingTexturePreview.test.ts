@@ -251,9 +251,14 @@ describe("usePollingTexturePreview", () => {
 		},
 	);
 
-	it("falls back to the source texture on a network failure without retrying", async () => {
+	it("retries a transient network failure within the budget and recovers", async () => {
+		let calls = 0;
 		const fetchSpy = stubFetch((_url) => {
-			throw new TypeError("network down");
+			calls += 1;
+			if (calls === 1) {
+				throw new TypeError("network down");
+			}
+			return jsonResponse(200);
 		});
 		const { result } = renderHook(() =>
 			usePollingTexturePreview(
@@ -268,10 +273,47 @@ describe("usePollingTexturePreview", () => {
 			src: "/textures/skin.png",
 		});
 		expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(2000);
+		});
+		await act(async () => {});
+		expect(result.current.kind).toBe("preview");
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("stops polling entirely once the cross-round budget is exhausted", async () => {
+		stubFetch(() => jsonResponse(202, { retryAfter: "1" }));
+		const { result } = renderHook(() =>
+			usePollingTexturePreview(
+				"/api/v1/texture-previews/hash/a.png",
+				"/textures/skin.png",
+				{ maxAttempts: 2, maxTotalAttempts: 3 },
+			),
+		);
+
+		await act(async () => {});
+		expect(fetch).toHaveBeenCalledTimes(1);
+		// Refresh rounds keep running until the shared budget is spent.
+		for (const _ of [0, 1]) {
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+		}
+		expect(fetch).toHaveBeenCalledTimes(3);
+		expect(result.current).toEqual({
+			kind: "source",
+			src: "/textures/skin.png",
+		});
+
+		// Budget spent: no more fetches, no more refresh rounds.
 		await act(async () => {
 			await vi.advanceTimersByTimeAsync(60_000);
 		});
-		expect(fetchSpy).toHaveBeenCalledTimes(1);
+		expect(fetch).toHaveBeenCalledTimes(3);
 	});
 
 	it("shows texture B's source during its 202 round and never texture A's preview", async () => {

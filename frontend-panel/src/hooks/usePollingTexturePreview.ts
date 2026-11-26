@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Resolved source for a texture preview slot.
@@ -17,14 +17,20 @@ export type PollingPreviewState =
 type UsePollingTexturePreviewOptions = {
 	/**
 	 * 202 retries within one round before scheduling a delayed refresh round,
-	 * mirroring the AsterDrive thumbnail contract. The refresh round itself
-	 * retries again, so a long render still converges; only a terminal `404`
-	 * or a network failure stops the loop.
+	 * mirroring the AsterDrive thumbnail contract.
 	 */
 	maxAttempts?: number;
+	/**
+	 * Cross-round budget: after this many total attempts (202 polling across
+	 * refresh rounds plus network retries) the hook stops and keeps showing
+	 * the raw texture. Guards against a worker that never runs serving `202`
+	 * forever (issue #40 retry ceiling).
+	 */
+	maxTotalAttempts?: number;
 };
 
 const DEFAULT_MAX_ATTEMPTS = 5;
+const DEFAULT_MAX_TOTAL_ATTEMPTS = 25;
 const DEFAULT_RETRY_AFTER_SECS = 2;
 const MAX_RETRY_AFTER_SECS = 30;
 
@@ -43,11 +49,11 @@ function retryDelayMs(response: Response): number {
  * A plain `<img src>` cannot distinguish a `202` (generation still running)
  * from a `404` (terminal), so this hook fetches the preview URL itself: `200`
  * resolves to a blob object URL; `202` sleeps for `Retry-After` and retries
- * within the round, then schedules a delayed refresh round instead of giving
- * up; `404` and network failures are terminal for the URL and fall back to
- * the raw texture. When no preview URL is provided the hook reports the
- * texture URL directly and never fetches, preserving plain-image behavior for
- * textures without previews.
+ * within the round, then schedules a delayed refresh round; transient network
+ * failures retry within the same shared budget. `404` and an exhausted budget
+ * are terminal, falling back to the raw texture. When no preview URL is
+ * provided the hook reports the texture URL directly and never fetches,
+ * preserving plain-image behavior for textures without previews.
  */
 export function usePollingTexturePreview(
 	previewUrl: string | null | undefined,
@@ -55,18 +61,30 @@ export function usePollingTexturePreview(
 	options: UsePollingTexturePreviewOptions = {},
 ): PollingPreviewState {
 	const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+	const maxTotalAttempts =
+		options.maxTotalAttempts ?? DEFAULT_MAX_TOTAL_ATTEMPTS;
 	const [refreshTick, setRefreshTick] = useState(0);
-	const [state, setState] = useState<PollingPreviewState>(() =>
-		previewUrl
-			? { kind: "source", src: textureUrl }
-			: { kind: "source", src: textureUrl },
-	);
+	const [state, setState] = useState<PollingPreviewState>(() => ({
+		kind: "source",
+		src: textureUrl,
+	}));
+	// Shared across refresh rounds: the budget belongs to the preview URL,
+	// not to a single round, so a never-ending 202 stream still terminates.
+	const totalAttemptsRef = useRef(0);
+	const attemptedUrlRef = useRef<string | null>(null);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick is an intentional re-fetch trigger
 	useEffect(() => {
 		if (!previewUrl) {
+			attemptedUrlRef.current = null;
+			totalAttemptsRef.current = 0;
 			setState({ kind: "source", src: textureUrl });
 			return;
+		}
+		if (attemptedUrlRef.current !== previewUrl) {
+			// New preview URL: the budget restarts with it.
+			attemptedUrlRef.current = previewUrl;
+			totalAttemptsRef.current = 0;
 		}
 
 		// A texture switch must not keep showing the previous texture's
@@ -80,6 +98,7 @@ export function usePollingTexturePreview(
 
 		const attempt = async (round: number): Promise<void> => {
 			try {
+				totalAttemptsRef.current += 1;
 				const response = await fetch(previewUrl, {
 					signal: controller.signal,
 					headers: { Accept: "image/png" },
@@ -99,6 +118,12 @@ export function usePollingTexturePreview(
 
 				if (response.status === 202) {
 					const delay = retryDelayMs(response);
+					if (totalAttemptsRef.current >= maxTotalAttempts) {
+						// Cross-round budget exhausted: stop polling and keep
+						// the raw texture (issue #40 retry ceiling).
+						setState({ kind: "source", src: textureUrl });
+						return;
+					}
 					if (round >= maxAttempts) {
 						// Round exhausted: schedule a fresh round after one more
 						// Retry-After instead of giving up, and keep showing the
@@ -119,9 +144,18 @@ export function usePollingTexturePreview(
 				// other non-200 are terminal for this preview URL.
 				setState({ kind: "source", src: textureUrl });
 			} catch (error) {
-				// Network failure (or our own abort): terminal for this URL,
-				// matching the Drive thumbnail contract.
-				if (!cancelled) setState({ kind: "source", src: textureUrl });
+				// Our own abort: nothing to recover.
+				if (cancelled || controller.signal.aborted) return;
+				// Transient network failure: retry within the shared budget so
+				// a flaky connection does not hide a preview that already
+				// rendered (issue #40 limited retry).
+				if (totalAttemptsRef.current >= maxTotalAttempts) {
+					setState({ kind: "source", src: textureUrl });
+					return;
+				}
+				timer = setTimeout(() => {
+					void attempt(round);
+				}, DEFAULT_RETRY_AFTER_SECS * 1000);
 				void error;
 			}
 		};
@@ -134,7 +168,7 @@ export function usePollingTexturePreview(
 			if (timer !== undefined) clearTimeout(timer);
 			if (objectUrl !== undefined) URL.revokeObjectURL(objectUrl);
 		};
-	}, [previewUrl, textureUrl, maxAttempts, refreshTick]);
+	}, [previewUrl, textureUrl, maxAttempts, maxTotalAttempts, refreshTick]);
 
 	return state;
 }

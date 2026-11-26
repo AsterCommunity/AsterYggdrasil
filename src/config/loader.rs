@@ -297,6 +297,11 @@ fn absolutize_sqlite_url(base_dir: &Path, url: String) -> String {
     let (raw_path, query) = path_and_query
         .split_once('?')
         .map_or((path_and_query, None), |(p, q)| (p, Some(q)));
+    if raw_path.is_empty() || raw_path == ":memory:" {
+        // Memory databases have no file to anchor; joining them to the
+        // instance root would silently turn them into on-disk files.
+        return url;
+    }
     let absolute = absolutize_against_instance_root(base_dir, raw_path.to_string());
     match query {
         Some(query) => format!("sqlite://{absolute}?{query}"),

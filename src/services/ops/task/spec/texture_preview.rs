@@ -88,16 +88,18 @@ impl
 
     fn retry_class(error: &AsterError) -> aster_forge_tasks::TaskRetryClass {
         match error {
-            // Transient infrastructure failures may resolve on a later attempt;
-            // a deterministic render failure (corrupt source, invalid PNG) will
-            // fail again and must not burn retries. The classified variant is
-            // what SeaORM transaction paths raise for ordinary operation
-            // failures, so it retries like its DatabaseOperation sibling.
+            // Transient infrastructure failures may resolve on a later attempt.
+            // The classified variant is what SeaORM transaction paths raise for
+            // ordinary operation failures; InternalError covers storage IO
+            // (S3/local upload, read) where a transient outage or a flaky
+            // upstream must not permanently kill the task.
             AsterError::DatabaseConnection(_)
             | AsterError::DatabaseOperation(_)
-            | AsterError::DatabaseOperationClassified { .. } => {
-                aster_forge_tasks::TaskRetryClass::Auto
-            }
+            | AsterError::DatabaseOperationClassified { .. }
+            | AsterError::InternalError(_) => aster_forge_tasks::TaskRetryClass::Auto,
+            // A deterministic render failure (corrupt source, invalid PNG —
+            // mapped to ValidationError by render_error) will fail again and
+            // must not burn retries.
             _ => aster_forge_tasks::TaskRetryClass::Never,
         }
     }
@@ -159,8 +161,9 @@ mod tests {
                 RuntimeConfig,
                 TaskExecutionContext,
                 AsterError,
-            >>::retry_class(&AsterError::internal_error("corrupt png")),
-            aster_forge_tasks::TaskRetryClass::Never
+            >>::retry_class(&AsterError::internal_error("s3 upload timed out")),
+            aster_forge_tasks::TaskRetryClass::Auto,
+            "storage IO surfaces as InternalError and must retry"
         );
         assert_eq!(
             <TexturePreviewGenerateTask as aster_forge_tasks::BackgroundTaskSpec<

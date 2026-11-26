@@ -81,6 +81,7 @@
 				"runtime_task_yggdrasil_storage_consistency_check": "Yggdrasil storage consistency check",
 				"runtime_task_yggdrasil_token_cleanup": "Yggdrasil token cleanup",
 				"runtime_task_yggdrasil_texture_cleanup": "Yggdrasil texture cleanup",
+				"texture_preview_generate_hash": "Texture preview generation",
 				"status_text_failed": "Failed: {{error}}",
 				"status_text_quiet": "No changes",
 				"status_text_succeeded": "Succeeded",

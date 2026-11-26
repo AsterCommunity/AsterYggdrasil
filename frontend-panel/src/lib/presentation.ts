@@ -26,6 +26,7 @@ const TASK_TITLE_LABELS = {
 	status_text_succeeded: "Succeeded",
 	status_text_system_healthy: "System healthy",
 	runtime_system_health_issue_detail: "System health issue",
+	texture_preview_generate_hash: "Texture preview generation",
 } as const satisfies Record<TaskPresentationCode, string>;
 
 const TASK_STATUS_LABELS = {

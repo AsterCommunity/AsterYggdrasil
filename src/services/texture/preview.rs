@@ -268,7 +268,10 @@ async fn render_preview_png(
 }
 
 fn render_error(error: aster_yggdrasil_render::RenderError) -> AsterError {
-    AsterError::internal_error_code(
+    // A render failure is deterministic (the source PNG is corrupt or
+    // unsupported): mapping it to validation keeps the background task's
+    // retry policy from burning attempts on data that will fail again.
+    AsterError::validation_error_code(
         AsterErrorCode::MinecraftTextureInvalidPng,
         format!("failed to render texture preview: {error}"),
     )

@@ -67,13 +67,25 @@ pub fn mail_outbox_component(
     } else {
         &[aster_forge_tasks::BACKGROUND_TASKS_COMPONENT]
     };
+    // The outbox rows are shared cluster state; only roles that consume tasks
+    // may drain them on shutdown. An api-only process must not claim and send
+    // mail as a side effect of stopping, so its drain is a no-op that keeps
+    // the component (and the shutdown dependency anchor) registered.
+    type MailDrainFuture = std::pin::Pin<
+        Box<dyn std::future::Future<Output = std::result::Result<(), String>> + Send>,
+    >;
+    let drain: fn(MailOutboxRuntimeResources) -> MailDrainFuture = if role.consumes_tasks() {
+        |resources| Box::pin(drain_mail_outbox_on_shutdown(resources))
+    } else {
+        |_resources| Box::pin(async { Ok(()) })
+    };
     aster_forge_runtime::shutdown_resource_component_after(
         aster_forge_mail::MAIL_OUTBOX_COMPONENT,
         aster_forge_runtime::RuntimeComponentKind::Mail,
         aster_forge_mail::MAIL_OUTBOX_DRAIN_SHUTDOWN_PHASE,
         dependencies,
         resources,
-        drain_mail_outbox_on_shutdown,
+        drain,
     )
 }
 

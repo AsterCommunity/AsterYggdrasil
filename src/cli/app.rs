@@ -24,7 +24,7 @@ pub(super) struct RootCli {
         conflicts_with = "data_dir"
     )]
     pub(super) config_file: Option<PathBuf>,
-    /// Instance data directory
+    /// Instance root directory (contains the data/ directory)
     #[arg(
         long,
         global = true,

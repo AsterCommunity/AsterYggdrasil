@@ -481,20 +481,23 @@ pub async fn setup() -> AppState {
 /// Like [`setup`], but with storage and temp roots isolated to a fresh temp
 /// directory, so tests that touch preview caches never see objects written by
 /// other tests (or by a developer's local instance running in this directory).
-pub async fn setup_with_isolated_storage() -> AppState {
+pub async fn setup_with_isolated_storage() -> (AppState, aster_forge_utils::raii::TempDirGuard) {
     let base = setup().await;
     let root = std::env::temp_dir().join(format!(
         "asteryggdrasil-isolated-storage-{}",
         uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(root.join("tmp")).expect("isolated storage root should create");
+    // The guard cleans up even when an assertion panics mid-test.
+    let guard = aster_forge_utils::raii::TempDirGuard::new(root, "isolated storage test");
 
     let mut config = (*base.config).clone();
+    let root = guard.path().to_path_buf();
     config.texture_storage.local_root = root.join("storage").to_string_lossy().into_owned();
     config.server.temp_dir = root.join("tmp").to_string_lossy().into_owned();
     let config = std::sync::Arc::new(config);
 
-    AppState::from_parts(AppStateParts {
+    let state = AppState::from_parts(AppStateParts {
         db_handles: base.db_handles,
         config: config.clone(),
         runtime_config: base.runtime_config,
@@ -508,7 +511,9 @@ pub async fn setup_with_isolated_storage() -> AppState {
         metrics: base.metrics,
         audit_writer: base.audit_writer,
     })
-    .expect("isolated-storage test AppState should build")
+    .expect("isolated-storage test AppState should build");
+
+    (state, guard)
 }
 
 pub async fn setup_with_memory_cache() -> AppState {

@@ -35,7 +35,7 @@ async fn pending_preview_tasks(
 
 #[actix_web::test]
 async fn preview_cache_miss_enqueues_task_and_answers_202() {
-    let state = common::setup_with_isolated_storage().await;
+    let (state, _storage_guard) = common::setup_with_isolated_storage().await;
     let app = create_test_app!(state.clone());
     let url = preview_url(&state, STEVE_HASH);
 
@@ -68,7 +68,7 @@ async fn preview_cache_miss_enqueues_task_and_answers_202() {
 
 #[actix_web::test]
 async fn worker_dispatch_renders_and_the_next_request_is_200_immutable() {
-    let state = common::setup_with_isolated_storage().await;
+    let (state, _storage_guard) = common::setup_with_isolated_storage().await;
     let app = create_test_app!(state.clone());
     let url = preview_url(&state, STEVE_HASH);
 
@@ -108,7 +108,7 @@ async fn worker_dispatch_renders_and_the_next_request_is_200_immutable() {
 
 #[actix_web::test]
 async fn unknown_hash_and_stale_file_name_return_404_without_enqueueing() {
-    let state = common::setup_with_isolated_storage().await;
+    let (state, _storage_guard) = common::setup_with_isolated_storage().await;
     let app = create_test_app!(state.clone());
 
     let unknown = format!(
@@ -132,7 +132,7 @@ async fn unknown_hash_and_stale_file_name_return_404_without_enqueueing() {
 
 #[actix_web::test]
 async fn failed_generation_answers_404_instead_of_202() {
-    let state = common::setup_with_isolated_storage().await;
+    let (state, _storage_guard) = common::setup_with_isolated_storage().await;
     let app = create_test_app!(state.clone());
     let url = preview_url(&state, STEVE_HASH);
 

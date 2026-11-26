@@ -38,6 +38,11 @@ fn run_in_dir(args: &[&str], dir: &std::path::Path) -> Output {
     Command::new(aster_yggdrasil_bin())
         .args(args)
         .current_dir(dir)
+        // CLI location env vars must not leak from the invoking shell: a test
+        // that relies on the temp dir's config would silently read an
+        // external instance instead (and `serve` could hang on it).
+        .env_remove("ASTER_CLI_CONFIG_FILE")
+        .env_remove("ASTER_CLI_DATA_DIR")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -49,6 +54,8 @@ fn run_hash_password_in_dir(input: &[u8], dir: &std::path::Path) -> Output {
     let mut child = Command::new(aster_yggdrasil_bin())
         .arg("hash-password")
         .current_dir(dir)
+        .env_remove("ASTER_CLI_CONFIG_FILE")
+        .env_remove("ASTER_CLI_DATA_DIR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
