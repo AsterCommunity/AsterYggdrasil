@@ -3551,7 +3551,7 @@ async fn texture_preview_responses_support_etag_revalidation() {
         Some("2")
     );
 
-    aster_yggdrasil::services::ops::task::dispatch_due(&state)
+    common::run_pending_tasks_once(&state, 8)
         .await
         .expect("preview dispatch should run");
 

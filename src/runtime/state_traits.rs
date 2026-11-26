@@ -177,6 +177,6 @@ impl MailRuntimeState for AppState {
 
 impl TaskRuntimeState for AppState {
     fn wake_background_task_dispatcher(&self) {
-        self.background_task_dispatch_wakeup.notify_one();
+        self.background_task_dispatch_wakeup.notify();
     }
 }

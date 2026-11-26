@@ -37,7 +37,9 @@ pub(crate) use admin::{
     list_tasks_paginated_for_admin, retry_task_for_admin_with_audit,
 };
 pub(in crate::services::ops::task) use create::{TypedTaskCreate, insert_typed_task_record};
-pub use dispatch::{cleanup_expired, dispatch_due, drain};
+pub use dispatch::cleanup_expired;
+pub use dispatch::spawn_consumers;
+pub use dispatch::{FallbackTaskConsumer, consumer_statuses};
 use lease::{
     is_task_lease_lost, is_task_lease_renewal_timed_out, is_task_worker_shutdown_requested,
 };
@@ -58,7 +60,6 @@ pub(super) const TASK_PROCESSING_STALE_SECS: i64 = 60;
 pub(super) const TASK_DISPLAY_NAME_MAX_LEN: usize = 512;
 pub(super) const TASK_LAST_ERROR_MAX_LEN: usize = 1024;
 pub(super) const TASK_STATUS_TEXT_MAX_LEN: usize = 255;
-pub(super) const TASK_DRAIN_MAX_ROUNDS: usize = 32;
 
 pub(in crate::services::ops::task) async fn mark_task_progress(
     state: &impl DatabaseRuntimeState,

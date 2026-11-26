@@ -12,7 +12,6 @@ use aster_forge_metrics::SharedMetricsRecorder;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Notify;
 
 const YGGDRASIL_SESSION_FORWARD_USER_AGENT: &str = concat!(
     "AsterYggdrasil/",
@@ -50,9 +49,9 @@ pub struct AppState {
     pub yggdrasil_rate_limiter: YggdrasilRateLimiter,
     /// Outbound HTTP client dedicated to Yggdrasil session forwarding.
     pub yggdrasil_session_forward_http_client: aster_forge_http::HttpClient,
-    /// Notified to wake the background task dispatcher when a task is
-    /// enqueued outside the regular polling interval.
-    pub background_task_dispatch_wakeup: Arc<Notify>,
+    /// Coalescing broadcast signal woken when a task is enqueued or task
+    /// configuration changes; every queue consumer subscribes independently.
+    pub background_task_dispatch_wakeup: aster_forge_tasks::TaskWakeup,
 }
 
 /// Injectable subset of [`AppState`]: the components built during startup
@@ -112,8 +111,8 @@ impl AppState {
 
     /// Creates a fresh dispatcher wakeup handle; tests use this to build
     /// isolated states without sharing wake signals.
-    pub fn new_background_task_dispatch_wakeup() -> Arc<Notify> {
-        Arc::new(Notify::new())
+    pub fn new_background_task_dispatch_wakeup() -> aster_forge_tasks::TaskWakeup {
+        aster_forge_tasks::TaskWakeup::default()
     }
 
     /// Builds the Yggdrasil rate limiter from the static rate-limit config.
@@ -202,8 +201,8 @@ impl AppState {
         &self.yggdrasil_session_forward_http_client
     }
 
-    /// Wake handle that pokes the background task dispatcher loop.
-    pub fn background_task_dispatch_wakeup(&self) -> &Arc<Notify> {
+    /// Wake signal broadcast to all background task queue consumers.
+    pub fn background_task_dispatch_wakeup(&self) -> &aster_forge_tasks::TaskWakeup {
         &self.background_task_dispatch_wakeup
     }
 }

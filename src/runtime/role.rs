@@ -43,15 +43,19 @@ impl ServeRole {
 ///
 /// `initialized` flips once every component startup phase has completed, so a
 /// probe hitting the process during startup reports not-ready instead of
-/// success. Task consumer statuses track the leased scheduled runtime group;
-/// an empty list is only valid for roles that do not consume tasks.
+/// success. Queue consumer statuses track the per-instance fallback lane
+/// consumers; the scheduled statuses track the leased maintenance group. An
+/// empty pair is only valid for roles that do not consume tasks.
 #[derive(Clone)]
 pub struct RoleHealth {
     /// Responsibility this process carries; decides which probe conditions apply.
     pub role: ServeRole,
-    /// One status per scheduled runtime task consumer group this process runs.
-    /// Empty lists are only valid for roles that do not consume tasks.
+    /// Per-instance queue consumer statuses (one per configured lane). Empty
+    /// lists are only valid for roles that do not consume tasks.
     pub consumers: Vec<aster_forge_tasks::TaskRuntimeStatus>,
+    /// Leased scheduled maintenance group statuses; only the runtime-lease
+    /// holder's runner reports progress for these tasks.
+    pub scheduled: Vec<aster_forge_tasks::TaskRuntimeStatus>,
     /// Cancellation token fired when graceful shutdown begins; draining
     /// processes report not-ready but stay live while it is cancelled.
     pub shutdown: tokio_util::sync::CancellationToken,
@@ -61,15 +65,17 @@ pub struct RoleHealth {
 }
 
 impl RoleHealth {
-    /// Ready means fully initialized, every task consumer claiming normally,
-    /// and shutdown not yet requested.
+    /// Ready means fully initialized, every queue consumer claiming normally,
+    /// the scheduled group healthy, and shutdown not yet requested.
     pub fn ready(&self) -> bool {
         self.initialized.load(std::sync::atomic::Ordering::Acquire)
-            && (!self.role.consumes_tasks() || !self.consumers.is_empty())
+            && (!self.role.consumes_tasks()
+                || (!self.consumers.is_empty() && !self.scheduled.is_empty()))
             && !self.shutdown.is_cancelled()
             && self
                 .consumers
                 .iter()
+                .chain(self.scheduled.iter())
                 .all(aster_forge_tasks::TaskRuntimeStatus::ready)
     }
 
@@ -79,10 +85,12 @@ impl RoleHealth {
     pub fn live(&self) -> bool {
         self.initialized.load(std::sync::atomic::Ordering::Acquire)
             && (self.shutdown.is_cancelled()
-                || ((!self.role.consumes_tasks() || !self.consumers.is_empty())
+                || ((!self.role.consumes_tasks()
+                    || (!self.consumers.is_empty() && !self.scheduled.is_empty()))
                     && self
                         .consumers
                         .iter()
+                        .chain(self.scheduled.iter())
                         .all(aster_forge_tasks::TaskRuntimeStatus::is_running)))
     }
 }
@@ -97,7 +105,8 @@ mod tests {
     fn health(role: ServeRole, consumers: Vec<TaskRuntimeStatus>) -> RoleHealth {
         RoleHealth {
             role,
-            consumers,
+            consumers: consumers.clone(),
+            scheduled: consumers,
             shutdown: Default::default(),
             initialized: Arc::new(AtomicBool::new(true)),
         }
@@ -184,6 +193,41 @@ mod tests {
     #[test]
     fn all_role_requires_consumers_like_worker() {
         let candidate = health(ServeRole::All, Vec::new());
+        assert!(!candidate.ready());
+        assert!(!candidate.live());
+    }
+
+    #[test]
+    fn missing_scheduled_group_blocks_consuming_roles_independently() {
+        let mut candidate = health(ServeRole::Worker, vec![TaskRuntimeStatus::default()]);
+        candidate.scheduled.clear();
+        assert!(
+            !candidate.ready(),
+            "a consuming role without the leased scheduled group is misconfigured"
+        );
+        assert!(!candidate.live());
+
+        candidate.scheduled.push(TaskRuntimeStatus::default());
+        assert!(
+            !candidate.ready(),
+            "an unstarted scheduled runner must still block readiness"
+        );
+    }
+
+    #[test]
+    fn queue_and_scheduled_statuses_are_judged_independently() {
+        let queue = TaskRuntimeStatus::default();
+        let scheduled = TaskRuntimeStatus::default();
+        let mut candidate = health(ServeRole::Worker, vec![queue.clone()]);
+        candidate.scheduled = vec![scheduled.clone()];
+        assert!(
+            !candidate.ready(),
+            "fresh statuses have never claimed, so the process is not ready yet"
+        );
+
+        // Simulate the queue lane claiming while the lease-holder's scheduled
+        // runner stays unstarted: readiness must stay off either way.
+        candidate.consumers.clear();
         assert!(!candidate.ready());
         assert!(!candidate.live());
     }

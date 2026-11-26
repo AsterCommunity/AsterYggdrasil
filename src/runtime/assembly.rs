@@ -38,11 +38,19 @@ pub async fn run(state: crate::runtime::AppState, role: ServeRole) -> io::Result
         web::Data::from(state.get_ref().metrics.clone());
     let app_state = state.get_ref();
 
-    // One shared consumer status per process: the HTTP component reads it for
-    // probes, the task-consumer component drives it while claiming work.
-    let consumer_status = aster_forge_tasks::TaskRuntimeStatus::default();
-    let consumers = if role.consumes_tasks() {
-        vec![consumer_status.clone()]
+    // Queue consumer statuses drive the per-instance consumer component and
+    // the HTTP probes; the scheduled group reports through its own status.
+    let consumer_statuses = if role.consumes_tasks() {
+        crate::services::ops::task::consumer_statuses()
+    } else {
+        Vec::new()
+    };
+    let scheduled_status = aster_forge_tasks::TaskRuntimeStatus::default();
+    // Only consuming roles mount the leased scheduled group; an api process
+    // must report an empty list so probes do not wait on a runner that never
+    // starts.
+    let scheduled_consumers = if role.consumes_tasks() {
+        vec![scheduled_status.clone()]
     } else {
         Vec::new()
     };
@@ -60,17 +68,23 @@ pub async fn run(state: crate::runtime::AppState, role: ServeRole) -> io::Result
             metrics_data,
             RoleHealth {
                 role,
-                consumers,
+                consumers: consumer_statuses.clone(),
+                scheduled: scheduled_consumers,
                 shutdown: Default::default(),
                 initialized,
             },
         ))?
         .component(crate::runtime::tasks::maintenance_component(state.clone()));
     let runtime = if role.consumes_tasks() {
-        runtime.component(crate::runtime::tasks::task_consumers_component(
-            state.clone(),
-            consumer_status,
-        ))
+        runtime
+            .component(crate::runtime::tasks::task_consumers_component(
+                state.clone(),
+                consumer_statuses,
+            ))
+            .component(crate::runtime::tasks::scheduled_tasks_component(
+                state.clone(),
+                scheduled_status,
+            ))
     } else {
         runtime
     };
@@ -161,6 +175,7 @@ mod tests {
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
                 crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT,
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT,
                 aster_forge_audit::AUDIT_LOGS_COMPONENT,
@@ -173,6 +188,7 @@ mod tests {
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT.to_string(),
                 crate::runtime::tasks::TASK_CONSUMERS_COMPONENT.to_string(),
+                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT.to_string(),
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT.to_string(),
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT.to_string(),
             ],
@@ -186,10 +202,15 @@ mod tests {
             .validate()
             .expect("api-role runtime component graph should validate");
         let names = component_names(&registry);
-        assert!(
-            !names.contains(&crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
-            "api role must not register task consumers: {names:?}"
-        );
+        for component in [
+            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+        ] {
+            assert!(
+                !names.contains(&component),
+                "api role must not register {component}: {names:?}"
+            );
+        }
         assert_database_dependencies(
             &registry,
             vec![
@@ -207,56 +228,24 @@ mod tests {
             .validate()
             .expect("worker-role runtime component graph should validate");
         let names = component_names(&registry);
-        assert!(
-            names.contains(&crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
-            "worker role must consume tasks: {names:?}"
-        );
+        for component in [
+            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+        ] {
+            assert!(
+                names.contains(&component),
+                "worker role must consume tasks: {names:?}"
+            );
+        }
         assert_database_dependencies(
             &registry,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT.to_string(),
                 crate::runtime::tasks::TASK_CONSUMERS_COMPONENT.to_string(),
+                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT.to_string(),
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT.to_string(),
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT.to_string(),
             ],
-        );
-    }
-
-    #[tokio::test]
-    async fn consumer_component_registers_background_task_definitions_and_shutdown() {
-        let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            aster_forge_runtime::runtime_component(
-                aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent::new(
-                    aster_forge_tasks::BackgroundTasks::new(),
-                    crate::services::ops::task::registered_system_runtime_tasks(),
-                )
-                .named(crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
-            )
-            .register(registry);
-        });
-
-        let descriptor = registry
-            .descriptor(crate::runtime::tasks::TASK_CONSUMERS_COMPONENT)
-            .expect("task consumers component should be registered");
-        assert_eq!(
-            descriptor.kind,
-            aster_forge_runtime::RuntimeComponentKind::Tasks
-        );
-        assert_eq!(descriptor.shutdown.len(), 1);
-        assert_eq!(
-            descriptor.shutdown[0].phase_name,
-            aster_forge_tasks::BACKGROUND_TASKS_SHUTDOWN_PHASE
-        );
-        assert_eq!(
-            descriptor
-                .tasks
-                .iter()
-                .map(|task| task.task_name)
-                .collect::<Vec<_>>(),
-            crate::services::ops::task::registered_system_runtime_tasks()
-                .iter()
-                .map(|task| task.wire_value)
-                .collect::<Vec<_>>()
         );
     }
 
@@ -292,12 +281,21 @@ mod tests {
             aster_forge_tasks::background_task_component(aster_forge_tasks::BackgroundTasks::new())
                 .register(registry);
             if role.consumes_tasks() {
+                // Mirrors production wiring: queue consumers mount without
+                // definitions; the scheduled group carries them.
+                aster_forge_runtime::runtime_component(
+                    aster_forge_tasks::BackgroundTaskRuntimeComponent::new(
+                        aster_forge_tasks::BackgroundTasks::new(),
+                    )
+                    .named(crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
+                )
+                .register(registry);
                 aster_forge_runtime::runtime_component(
                     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponent::new(
                         aster_forge_tasks::BackgroundTasks::new(),
                         crate::services::ops::task::registered_system_runtime_tasks(),
                     )
-                    .named(crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
+                    .named(crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT),
                 )
                 .register(registry);
             }

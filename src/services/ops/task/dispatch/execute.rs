@@ -1,11 +1,6 @@
-use std::time::Duration as StdDuration;
-
 use chrono::Utc;
-use tokio_util::sync::CancellationToken;
 
-use super::{
-    TASK_HEARTBEAT_INTERVAL_SECS, task_expiration_from, task_lease_expires_at, truncate_error,
-};
+use super::super::{task_expiration_from, truncate_error};
 use crate::db::repository::background_task_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::{AppState, TaskRuntimeState};
@@ -13,38 +8,13 @@ use crate::services::ops::task::{
     registry,
     steps::{parse_task_steps_json, serialize_task_steps},
 };
-use aster_forge_tasks::{DispatchStats, TaskHeartbeatOutcome, TaskLease, mark_active_step_failed};
+use aster_forge_tasks::{TaskHeartbeatOutcome, TaskLease, mark_active_step_failed};
 use aster_yggdrasil_model::entities::background_task;
 use aster_yggdrasil_model::types::task::{BackgroundTaskKind, BackgroundTaskStatus};
 
-pub(super) async fn run_claimed_tasks(
-    state: &AppState,
-    claimed_tasks: Vec<(background_task::Model, TaskLease)>,
-    shutdown_token: CancellationToken,
-) -> Result<DispatchStats> {
-    aster_forge_tasks::run_claimed_task_batch_with_store(
-        BackgroundTaskExecutionStore {
-            state: state.clone(),
-        },
-        claimed_tasks,
-        |(task, _)| (task.created_at, task.id),
-        shutdown_token,
-        aster_forge_tasks::ClaimedTaskExecutionConfig {
-            renewal_timeout: aster_forge_tasks::task_lease_renewal_timeout(
-                super::super::TASK_PROCESSING_STALE_SECS,
-                TASK_HEARTBEAT_INTERVAL_SECS,
-            ),
-            heartbeat_interval: StdDuration::from_secs(TASK_HEARTBEAT_INTERVAL_SECS),
-            lease_expires_at: task_lease_expires_at,
-            retry_delay_secs: aster_forge_tasks::default_task_retry_delay_secs,
-        },
-    )
-    .await
-}
-
 #[derive(Clone)]
-struct BackgroundTaskExecutionStore {
-    state: AppState,
+pub(super) struct BackgroundTaskExecutionStore {
+    pub state: AppState,
 }
 
 #[async_trait::async_trait]

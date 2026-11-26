@@ -1122,3 +1122,30 @@ macro_rules! admin_create_user {
         body["data"]["user"]["id"].as_i64().unwrap()
     }};
 }
+
+/// Drives one queue-consumer pass against the real claim/execute path: the
+/// fallback lane consumer claims up to `limit` due tasks and executes each to
+/// terminal state. Mirrors what a worker process does per poll tick.
+pub async fn run_pending_tasks_once(
+    state: &AppState,
+    limit: usize,
+) -> Result<Vec<aster_forge_tasks::TaskDispatchOutcome>, aster_yggdrasil::errors::AsterError> {
+    use aster_forge_tasks::TaskConsumer;
+
+    let consumer = aster_yggdrasil::services::ops::task::FallbackTaskConsumer::new(
+        actix_web::web::Data::new(state.clone()),
+    );
+    let claimed = TaskConsumer::claim(&consumer, limit).await?;
+    let mut outcomes = Vec::with_capacity(claimed.len());
+    for (task, lease) in claimed {
+        outcomes.push(
+            TaskConsumer::execute(
+                &consumer,
+                (task, lease),
+                tokio_util::sync::CancellationToken::new(),
+            )
+            .await?,
+        );
+    }
+    Ok(outcomes)
+}

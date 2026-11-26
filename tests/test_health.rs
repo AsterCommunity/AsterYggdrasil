@@ -39,6 +39,7 @@ fn role_health(role: ServeRole, initialized: bool) -> RoleHealth {
     };
     RoleHealth {
         role,
+        scheduled: consumers.clone(),
         consumers,
         shutdown: Default::default(),
         initialized: Arc::new(AtomicBool::new(initialized)),

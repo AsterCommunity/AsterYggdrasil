@@ -1,89 +1,34 @@
-//! Background task dispatcher.
+//! Background task queue dispatch.
 //!
-//! This layer claims executable tasks from the database, drives execution under
-//! lane concurrency limits, and prevents an old worker from writing terminal
-//! state after its lease has been lost.
+//! Queue tasks are consumed by independently scalable lane consumers
+//! ([`consumer::FallbackTaskConsumer`]) driven by Forge's `run_task_consumer`:
+//! every consuming `serve` role instance claims due tasks in parallel, and the
+//! claim transaction's config-row lock plus per-row processing-token CAS keep
+//! ownership exclusive across instances. No dispatcher holds the runtime
+//! lease; the leased scheduled maintenance group lives in
+//! `crate::runtime::tasks` and stays cluster-singleton.
 
 mod claim;
+mod consumer;
 mod execute;
 mod lane;
 mod maintenance;
-use futures::stream::{self, StreamExt};
-use tokio_util::sync::CancellationToken;
 
-use crate::errors::Result;
-use crate::runtime::{AppState, DatabaseRuntimeState, MetricsRuntimeState};
-use aster_forge_tasks::DispatchStats;
+use chrono::{DateTime, Utc};
 
-use claim::claim_due_for_lane;
-use execute::run_claimed_tasks;
+pub use consumer::{FallbackTaskConsumer, consumer_statuses, spawn_consumers};
 pub(in crate::services::ops::task) use lane::TaskLane;
-use lane::{TASK_LANES, TaskLaneConfig, task_lane_configs};
+pub use maintenance::cleanup_expired;
 
-use super::{
-    TASK_DRAIN_MAX_ROUNDS, TASK_HEARTBEAT_INTERVAL_SECS, TASK_PROCESSING_STALE_SECS,
-    task_expiration_from, task_lease_expires_at, truncate_error,
-};
+use crate::runtime::{DatabaseRuntimeState, MetricsRuntimeState};
 
-pub use maintenance::{cleanup_expired, drain};
+use super::{TASK_HEARTBEAT_INTERVAL_SECS, TASK_PROCESSING_STALE_SECS, task_lease_expires_at};
 
-/// One dispatch pass: claims due background tasks across all lanes and runs
-/// them under lane concurrency limits, without a shutdown token (runs to
-/// completion; used by wakeup-triggered and scheduled dispatch).
-pub async fn dispatch_due(state: &AppState) -> Result<DispatchStats> {
-    tracing::debug!("dispatching due background tasks");
-    dispatch_due_with_shutdown(state, CancellationToken::new()).await
-}
-
-pub(crate) async fn dispatch_due_with_shutdown(
-    state: &AppState,
-    shutdown_token: CancellationToken,
-) -> Result<DispatchStats> {
-    let mut stats = DispatchStats::default();
-    tracing::debug!("dispatching due background tasks across lanes");
-    let lane_results = stream::iter(
-        task_lane_configs(state)
-            .into_iter()
-            .map(|lane_config| dispatch_lane(state, lane_config, shutdown_token.clone())),
-    )
-    .buffer_unordered(TASK_LANES.len())
-    .collect::<Vec<_>>()
-    .await;
-    let mut first_error = None;
-
-    for result in lane_results {
-        match result {
-            Ok(lane_stats) => stats.add(lane_stats),
-            Err(error) => {
-                if first_error.is_none() {
-                    first_error = Some(error);
-                }
-            }
-        }
-    }
-
-    refresh_pending_metric(state).await;
-
-    if let Some(first_error) = first_error {
-        tracing::warn!(
-            stats = ?stats,
-            error = %first_error,
-            "partial background task dispatch results due to lane error"
-        );
-        return Err(first_error);
-    }
-
-    tracing::debug!(
-        claimed = stats.claimed,
-        succeeded = stats.succeeded,
-        retried = stats.retried,
-        failed = stats.failed,
-        "finished dispatching due background tasks"
-    );
-    Ok(stats)
-}
-
-async fn refresh_pending_metric(state: &(impl DatabaseRuntimeState + MetricsRuntimeState)) {
+/// Refreshes the pending/retry gauge after claim activity so dashboards track
+/// backlog movement without polling the table directly.
+pub(super) async fn refresh_pending_metric(
+    state: &(impl DatabaseRuntimeState + MetricsRuntimeState),
+) {
     match crate::db::repository::background_task_repo::count_pending_or_retry(state.writer_db())
         .await
     {
@@ -95,41 +40,23 @@ async fn refresh_pending_metric(state: &(impl DatabaseRuntimeState + MetricsRunt
     }
 }
 
-async fn dispatch_lane(
-    state: &AppState,
-    lane_config: TaskLaneConfig,
-    shutdown_token: CancellationToken,
-) -> Result<DispatchStats> {
-    let mut total = DispatchStats::default();
-    tracing::debug!(
-        lane = ?lane_config.lane,
-        limit = lane_config.limit,
-        "dispatching background task lane"
-    );
+/// Function-pointer shapes of the claimed-task execution hooks, so the
+/// shared config type stays nameable.
+type ClaimedTaskExecutionHooks = aster_forge_tasks::ClaimedTaskExecutionConfig<
+    fn(DateTime<Utc>) -> DateTime<Utc>,
+    fn(i32) -> i64,
+>;
 
-    // One batch per dispatch round: the periodic dispatcher wakes up again on
-    // its interval or on the dispatcher wake signal, so continuing to claim
-    // inside a single round is unnecessary for this product.
-    if !shutdown_token.is_cancelled() {
-        let claimed_tasks = claim_due_for_lane(state, lane_config).await?;
-        if claimed_tasks.is_empty() {
-            tracing::debug!(lane = ?lane_config.lane, "background task lane had no claimable tasks");
-        } else {
-            let claimed = claimed_tasks.len();
-            total.claimed += claimed;
-            total.add(run_claimed_tasks(state, claimed_tasks, shutdown_token.clone()).await?);
-        }
-    } else {
-        tracing::debug!(lane = ?lane_config.lane, "background task lane dispatch stopped by shutdown");
+/// Lease/heartbeat/retry configuration for claimed-task execution, shared by
+/// the queue consumer and test drivers so fenced semantics stay identical.
+pub(crate) fn claimed_task_execution_config() -> ClaimedTaskExecutionHooks {
+    aster_forge_tasks::ClaimedTaskExecutionConfig {
+        renewal_timeout: aster_forge_tasks::task_lease_renewal_timeout(
+            TASK_PROCESSING_STALE_SECS,
+            TASK_HEARTBEAT_INTERVAL_SECS,
+        ),
+        heartbeat_interval: std::time::Duration::from_secs(TASK_HEARTBEAT_INTERVAL_SECS),
+        lease_expires_at: task_lease_expires_at,
+        retry_delay_secs: aster_forge_tasks::default_task_retry_delay_secs,
     }
-
-    tracing::debug!(
-        lane = ?lane_config.lane,
-        claimed = total.claimed,
-        succeeded = total.succeeded,
-        retried = total.retried,
-        failed = total.failed,
-        "finished background task lane dispatch"
-    );
-    Ok(total)
 }
