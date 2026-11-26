@@ -178,13 +178,14 @@ async fn standby_takes_over_scheduled_lease_after_holder_failure() {
     let holder_status = TaskRuntimeStatus::default();
     let standby_status = TaskRuntimeStatus::default();
 
+    // Start the holder first and wait for it to own the lease, so the
+    // takeover observed later is really a failover, not a startup race.
     let holder = spawn_group(state_data.clone(), holder_status, holder_stop);
-    let standby = spawn_group(state_data.clone(), standby_status, standby_stop.clone());
-
-    // Exactly one of the two instances holds the lease.
-    let first_owner = wait_for!("the first instance to acquire the runtime lease", {
+    let first_owner = wait_for!("the holder to acquire the runtime lease", {
         lease_owner(&state).await
     });
+
+    let standby = spawn_group(state_data.clone(), standby_status, standby_stop.clone());
 
     // The holder crashes: its runner future is aborted, so it can neither
     // renew nor release — exactly what a kill -9 leaves behind.
@@ -222,17 +223,63 @@ async fn standby_takes_over_scheduled_lease_after_holder_failure() {
         next.is_some_and(|at| at > first_finished).then_some(())
     });
 
-    // Queue consumers never touch the runtime lease: claiming still works
-    // while the scheduled group runs.
+    // Queue consumers never touch the runtime lease: an enqueued due task is
+    // claimed with real content while the scheduled group runs under the new
+    // lease owner.
+    let queue_task_id = insert_due_queue_task(&state).await;
     let queue_consumer = aster_yggdrasil::services::ops::task::FallbackTaskConsumer::new(
         web::Data::new(state.clone()),
     );
-    let claimed = aster_forge_tasks::TaskConsumer::claim(&queue_consumer, 4).await;
+    let claimed = aster_forge_tasks::TaskConsumer::claim(&queue_consumer, 4)
+        .await
+        .expect("queue consumers must claim independently of the runtime lease");
     assert!(
-        claimed.is_ok(),
-        "queue consumers must claim independently of the runtime lease"
+        claimed.iter().any(|(task, _)| task.id == queue_task_id),
+        "the due queue task must be claimable while the scheduled group runs"
     );
 
     standby_stop.cancel();
     let _ = tokio::time::timeout(Duration::from_secs(10), standby).await;
+}
+
+async fn insert_due_queue_task(state: &AppState) -> i64 {
+    use aster_yggdrasil_model::entities::background_task;
+    use aster_yggdrasil_model::types::task::{BackgroundTaskKind, StoredTaskPayload};
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let now = Utc::now();
+    background_task::ActiveModel {
+        kind: Set(BackgroundTaskKind::SystemRuntime),
+        status: Set(aster_yggdrasil_model::types::task::BackgroundTaskStatus::Pending),
+        creator_user_id: Set(None),
+        display_name: Set("lease-overlap probe".to_string()),
+        payload_json: Set(StoredTaskPayload(
+            serde_json::json!({ "task_name": "task-cleanup" }).to_string(),
+        )),
+        result_json: Set(None),
+        runtime_json: Set(None),
+        steps_json: Set(None),
+        progress_current: Set(0),
+        progress_total: Set(1),
+        status_text: Set(None),
+        attempt_count: Set(0),
+        max_attempts: Set(3),
+        next_run_at: Set(now - chrono::Duration::seconds(30)),
+        processing_token: Set(0),
+        processing_started_at: Set(None),
+        last_heartbeat_at: Set(None),
+        lease_expires_at: Set(None),
+        started_at: Set(None),
+        finished_at: Set(None),
+        last_error: Set(None),
+        failure_can_retry: Set(None),
+        expires_at: Set(now + chrono::Duration::hours(24)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(state.writer_db())
+    .await
+    .expect("due queue task should insert")
+    .id
 }
