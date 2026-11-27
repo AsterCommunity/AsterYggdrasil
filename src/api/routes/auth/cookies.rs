@@ -1,7 +1,7 @@
 //! Authentication cookie route helpers.
 
 use crate::api::middleware::csrf;
-use crate::api::request_auth::ACCESS_COOKIE;
+use crate::services::auth::request::ACCESS_COOKIE;
 use actix_web::cookie::time::Duration as CookieDuration;
 use actix_web::cookie::{Cookie, SameSite};
 

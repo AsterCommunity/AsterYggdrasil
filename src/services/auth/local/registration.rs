@@ -56,6 +56,19 @@ impl RegisterOutcome {
     }
 }
 
+/// Reports whether the instance already has at least one registered user,
+/// so the frontend can choose between first-time setup and the login flow.
+///
+/// Reads the writer connection so the check cannot trail the initial setup
+/// write behind a read-replica replication delay; this mirrors the
+/// `setup_first_admin` initialization guard.
+pub async fn has_any_user<S>(state: &S) -> Result<bool>
+where
+    S: crate::runtime::DatabaseRuntimeState,
+{
+    Ok(user_repo::count_all(state.writer_db()).await? > 0)
+}
+
 /// One-time bootstrap: creates the first account as an Admin, optionally
 /// seeds the `public_site_url` runtime config, issues a session, and writes a
 /// system-setup audit entry. Rejected once any user exists.

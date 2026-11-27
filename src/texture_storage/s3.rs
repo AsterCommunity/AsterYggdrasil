@@ -1,11 +1,13 @@
 //! S3-compatible object storage.
 
-use super::{ObjectBlobMetadata, TextureStore};
-use crate::config::S3TextureStorageConfig;
-use crate::errors::{AsterError, MapAsterErr, Result};
+use super::TextureStoreResult;
+use crate::errors::{AsterError, Result};
 use aster_forge_storage_core::{
     S3ConfigError, join_key_prefix, normalize_object_key, normalize_object_prefix,
     normalize_s3_endpoint_and_bucket, strip_key_prefix,
+};
+use aster_yggdrasil_texture_storage::{
+    ObjectBlobMetadata, S3TextureStorageConfig, TextureStore, TextureStoreError,
 };
 use async_trait::async_trait;
 use aws_credential_types::Credentials;
@@ -76,19 +78,20 @@ impl S3TextureStore {
         Ok(Self {
             client: aws_sdk_s3::Client::from_conf(builder.build()),
             bucket: normalized_s3.bucket,
-            base_path: normalize_storage_prefix(&config.base_path)?,
+            base_path: normalize_object_prefix(&config.base_path)
+                .map_err(|error| AsterError::validation_error(error.to_string()))?,
             endpoint: endpoint_option(normalized_s3.endpoint),
             force_path_style: config.force_path_style,
         })
     }
 
-    fn full_key(&self, storage_key: &str) -> Result<String> {
-        let key = normalize_storage_object_key(storage_key)?;
+    fn full_key(&self, storage_key: &str) -> TextureStoreResult<String> {
+        let key = normalize_object_key(storage_key)?;
         Ok(join_key_prefix(&self.base_path, &key))
     }
 
-    fn full_prefix(&self, prefix: &str) -> Result<String> {
-        let prefix = normalize_storage_prefix(prefix)?;
+    fn full_prefix(&self, prefix: &str) -> TextureStoreResult<String> {
+        let prefix = normalize_object_prefix(prefix)?;
         if self.base_path.is_empty() {
             return Ok(prefix);
         }
@@ -109,12 +112,12 @@ impl TextureStore for S3TextureStore {
         "s3"
     }
 
-    async fn put_file(&self, storage_key: &str, local_path: &Path) -> Result<String> {
-        let key = normalize_storage_object_key(storage_key)?;
+    async fn put_file(&self, storage_key: &str, local_path: &Path) -> TextureStoreResult<String> {
+        let key = normalize_object_key(storage_key)?;
         let full_key = self.full_key(&key)?;
-        let body = ByteStream::from_path(local_path)
-            .await
-            .map_aster_err_ctx("open object for S3 upload", AsterError::internal_error)?;
+        let body = ByteStream::from_path(local_path).await.map_err(|error| {
+            TextureStoreError::backend(format!("open object for S3 upload: {error}"))
+        })?;
 
         self.client
             .put_object()
@@ -136,7 +139,10 @@ impl TextureStore for S3TextureStore {
         Ok(key)
     }
 
-    async fn get_stream(&self, storage_key: &str) -> Result<Box<dyn AsyncRead + Unpin + Send>> {
+    async fn get_stream(
+        &self,
+        storage_key: &str,
+    ) -> TextureStoreResult<Box<dyn AsyncRead + Unpin + Send>> {
         let key = self.full_key(storage_key)?;
         let response = self
             .client
@@ -157,7 +163,7 @@ impl TextureStore for S3TextureStore {
         Ok(Box::new(response.body.into_async_read()))
     }
 
-    async fn delete(&self, storage_key: &str) -> Result<()> {
+    async fn delete(&self, storage_key: &str) -> TextureStoreResult<()> {
         let key = self.full_key(storage_key)?;
         self.client
             .delete_object()
@@ -176,7 +182,7 @@ impl TextureStore for S3TextureStore {
         Ok(())
     }
 
-    async fn exists(&self, storage_key: &str) -> Result<bool> {
+    async fn exists(&self, storage_key: &str) -> TextureStoreResult<bool> {
         let key = self.full_key(storage_key)?;
         match self
             .client
@@ -197,7 +203,7 @@ impl TextureStore for S3TextureStore {
         }
     }
 
-    async fn metadata(&self, storage_key: &str) -> Result<ObjectBlobMetadata> {
+    async fn metadata(&self, storage_key: &str) -> TextureStoreResult<ObjectBlobMetadata> {
         let key = self.full_key(storage_key)?;
         let response = self
             .client
@@ -216,7 +222,10 @@ impl TextureStore for S3TextureStore {
             })?;
         let size = response
             .content_length
-            .map(|value| aster_forge_utils::numbers::i64_to_u64(value, "S3 object content_length"))
+            .map(|value| {
+                aster_forge_utils::numbers::i64_to_u64(value, "S3 object content_length")
+                    .map_err(|error| TextureStoreError::backend(error.to_string()))
+            })
             .transpose()?
             .unwrap_or(0);
 
@@ -226,7 +235,7 @@ impl TextureStore for S3TextureStore {
         })
     }
 
-    async fn list_keys(&self, prefix: &str) -> Result<Vec<String>> {
+    async fn list_keys(&self, prefix: &str) -> TextureStoreResult<Vec<String>> {
         let prefix = self.full_prefix(prefix)?;
         let mut continuation_token: Option<String> = None;
         let mut keys = Vec::new();
@@ -277,12 +286,12 @@ impl S3TextureStore {
         key: Option<&str>,
         context: &'static str,
         error: SdkError<E>,
-    ) -> AsterError
+    ) -> TextureStoreError
     where
         E: StdError + ProvideErrorMetadata + Send + Sync + 'static,
     {
         if is_not_found(&error) {
-            AsterError::record_not_found(format!("{context}: object not found"))
+            TextureStoreError::not_found(format!("{context}: object not found"))
         } else {
             self.map_sdk_error(operation, key, context, error)
         }
@@ -294,7 +303,7 @@ impl S3TextureStore {
         key: Option<&str>,
         context: &'static str,
         error: SdkError<E>,
-    ) -> AsterError
+    ) -> TextureStoreError
     where
         E: StdError + ProvideErrorMetadata + Send + Sync + 'static,
     {
@@ -308,7 +317,7 @@ impl S3TextureStore {
             error = %formatted,
             "S3 object storage request failed"
         );
-        AsterError::internal_error(format!("{context}: {formatted}"))
+        TextureStoreError::backend(format!("{context}: {formatted}"))
     }
 }
 
@@ -348,18 +357,6 @@ fn endpoint_option(endpoint: String) -> Option<String> {
     } else {
         Some(endpoint)
     }
-}
-
-fn normalize_storage_object_key(storage_key: &str) -> Result<String> {
-    normalize_object_key(storage_key).map_err(map_storage_core_error)
-}
-
-fn normalize_storage_prefix(prefix: &str) -> Result<String> {
-    normalize_object_prefix(prefix).map_err(map_storage_core_error)
-}
-
-fn map_storage_core_error(error: aster_forge_storage_core::StorageCoreError) -> AsterError {
-    AsterError::validation_error(error.to_string())
 }
 
 fn is_not_found<E>(error: &SdkError<E>) -> bool
@@ -408,12 +405,12 @@ fn format_error_source_chain(error: &dyn StdError) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        S3TextureStore, format_sdk_error, normalize_storage_object_key, normalize_storage_prefix,
-        normalize_storage_s3_config,
+    use super::{S3TextureStore, TextureStoreError, format_sdk_error, normalize_storage_s3_config};
+    use crate::texture_storage::create_texture_store;
+    use aster_forge_storage_core::normalize_object_key;
+    use aster_yggdrasil_texture_storage::{
+        S3TextureStorageConfig, TextureStorageConfig, TextureStore,
     };
-    use crate::config::{S3TextureStorageConfig, TextureStorageConfig};
-    use crate::texture_storage::{TextureStore, create_texture_store};
     use aws_credential_types::Credentials;
     use aws_sdk_s3::error::ProvideErrorMetadata;
     use aws_sdk_s3::error::SdkError;
@@ -524,56 +521,27 @@ mod tests {
     }
 
     #[test]
-    fn storage_key_normalizes_like_aster_drive() {
-        assert_eq!(
-            normalize_storage_object_key("/textures/a.png").unwrap(),
-            "textures/a.png"
-        );
-        assert_eq!(
-            normalize_storage_object_key("textures\\a.png").unwrap(),
-            "textures/a.png"
-        );
-        assert_eq!(
-            normalize_storage_object_key("textures/").unwrap(),
-            "textures"
-        );
-        assert!(normalize_storage_object_key("").is_err());
-        assert!(normalize_storage_object_key("  ").is_err());
-        assert!(normalize_storage_object_key("../a.png").is_err());
-        assert!(normalize_storage_object_key("textures/../../a.png").is_err());
+    fn storage_core_key_failures_map_to_invalid_key_errors() {
+        // Happy-path normalization behavior is owned by aster_forge_storage_core;
+        // this store only owns the mapping into the contract error type.
+        for rejected in ["", "  ", "../a.png", "textures/../../a.png"] {
+            let error = normalize_object_key(rejected).expect_err("key should be rejected");
+            let mapped: TextureStoreError = error.into();
+            assert!(
+                matches!(mapped, TextureStoreError::InvalidKey { .. }),
+                "key '{rejected}' should map to InvalidKey"
+            );
+        }
     }
 
     #[test]
-    fn storage_prefix_normalizes_root_and_separators() {
-        assert_eq!(
-            normalize_storage_prefix("/textures/ab/").unwrap(),
-            "textures/ab"
-        );
-        assert_eq!(
-            normalize_storage_prefix("textures\\ab").unwrap(),
-            "textures/ab"
-        );
-        assert_eq!(normalize_storage_prefix("").unwrap(), "");
-        assert_eq!(normalize_storage_prefix("/").unwrap(), "");
-    }
+    fn base_path_rejects_dangerous_paths_at_construction() {
+        let result = S3TextureStore::new(&S3TextureStorageConfig {
+            base_path: "textures/../other".to_string(),
+            ..valid_config()
+        });
 
-    #[test]
-    fn storage_prefix_rejects_dangerous_paths() {
-        assert!(normalize_storage_prefix("textures/../other").is_err());
-        assert!(normalize_storage_prefix("textures\\..\\other").is_err());
-    }
-
-    #[test]
-    fn base_path_is_normalized_and_validated() {
-        assert_eq!(normalize_storage_prefix("").unwrap(), "");
-        assert_eq!(normalize_storage_prefix("textures").unwrap(), "textures");
-        assert_eq!(normalize_storage_prefix("textures/").unwrap(), "textures");
-        assert_eq!(
-            normalize_storage_prefix("env/production/textures/").unwrap(),
-            "env/production/textures"
-        );
-        assert_eq!(normalize_storage_prefix("/textures").unwrap(), "textures");
-        assert!(normalize_storage_prefix("textures/../other").is_err());
+        assert!(result.is_err(), "dangerous base path should be rejected");
     }
 
     #[test]

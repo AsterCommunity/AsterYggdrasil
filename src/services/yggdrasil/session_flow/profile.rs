@@ -281,12 +281,12 @@ where
     // Clear the same cache entries again after commit so tokens repopulated
     // during the rename transaction observe the temporary invalidation state.
     super::token::invalidate_token_cache_hashes(state, &token_hashes).await;
-    crate::services::yggdrasil::protocol::invalidate_profile_name_summary_cache(
+    crate::services::yggdrasil::session_flow::invalidate_profile_name_summary_cache(
         state,
         &result.old_name,
     )
     .await;
-    crate::services::yggdrasil::protocol::invalidate_profile_name_summary_cache(
+    crate::services::yggdrasil::session_flow::invalidate_profile_name_summary_cache(
         state,
         &result.profile.name,
     )

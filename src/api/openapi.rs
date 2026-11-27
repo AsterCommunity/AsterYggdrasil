@@ -179,7 +179,7 @@ use utoipa::{Modify, OpenApi};
             crate::api::error_code::AsterErrorCode,
             crate::api::response::ApiErrorInfo,
             crate::api::response::HealthResponse,
-            crate::api::response::SystemInfoResponse,
+            crate::services::ops::health::SystemInfoResponse,
 
             crate::api::dto::CheckResp,
             crate::api::dto::PublicCaptchaPolicyResp,
@@ -273,7 +273,7 @@ use utoipa::{Modify, OpenApi};
             crate::services::texture::MinecraftWardrobeTextureMetadata,
             crate::services::texture::TextureReportInfo,
             crate::services::texture::TextureReportUserInfo,
-            crate::services::yggdrasil::protocol::MinecraftProfileInfo,
+            crate::services::yggdrasil::session_flow::MinecraftProfileInfo,
 
             crate::services::auth::local::AuthUserInfo,
             crate::services::user::ban::UserBanInfo,
@@ -345,7 +345,7 @@ use utoipa::{Modify, OpenApi};
             aster_forge_api::CursorPage<crate::services::yggdrasil::session_forward::AdminYggdrasilSessionForwardServerInfo, crate::services::yggdrasil::session_forward::SessionForwardServerCursor>,
             crate::services::yggdrasil::session_forward::SessionForwardServerCursor,
             aster_forge_api::CursorPage<aster_yggdrasil_protocol::YggdrasilProfile, aster_forge_api::IdCursor>,
-            aster_forge_api::CursorPage<crate::services::yggdrasil::protocol::MinecraftProfileInfo, aster_forge_api::IdCursor>,
+            aster_forge_api::CursorPage<crate::services::yggdrasil::session_flow::MinecraftProfileInfo, aster_forge_api::IdCursor>,
             aster_forge_api::CursorPage<crate::services::texture::MinecraftWardrobeTextureMetadata, aster_forge_api::DateTimeIdCursor>,
             aster_forge_api::CursorPage<crate::services::texture::PublicTextureLibraryTextureMetadata, aster_forge_api::DateTimeIdCursor>,
             aster_forge_api::CursorPage<crate::services::texture::TextureReportInfo, aster_forge_api::DateTimeIdCursor>,

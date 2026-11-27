@@ -41,8 +41,10 @@ pub(super) async fn invalidate_profile_texture_caches<S>(state: &S, profile_id: 
 where
     S: CacheRuntimeState + DatabaseRuntimeState,
 {
-    crate::services::yggdrasil::protocol::invalidate_profile_properties_cache(state, profile_id)
-        .await;
+    crate::services::yggdrasil::session_flow::invalidate_profile_properties_cache(
+        state, profile_id,
+    )
+    .await;
     if let Err(error) = minecraft_profile_repo::touch_by_id(state.writer_db(), profile_id).await {
         tracing::warn!(
             error = %error,

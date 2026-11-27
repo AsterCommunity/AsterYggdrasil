@@ -7,9 +7,9 @@ use validator::Validate;
 
 use crate::api::dto::{CopyPublicTextureReq, CreateTextureReportReq, validate_request};
 use crate::api::response::ApiResponse;
-use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
+use crate::services::texture::WardrobeTextureListFilter;
 use crate::services::{auth::local, ops::audit, texture};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 use aster_yggdrasil_model::types::yggdrasil::{MinecraftTextureType, TextureTagSearchMethod};

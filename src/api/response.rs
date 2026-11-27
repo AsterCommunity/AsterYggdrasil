@@ -105,18 +105,6 @@ pub struct HealthResponse {
     pub status: String,
 }
 
-/// System information shown to authenticated admin clients.
-#[derive(Debug, Clone, Serialize)]
-#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(ToSchema))]
-pub struct SystemInfoResponse {
-    /// Crate version of the running build.
-    pub version: String,
-    /// Build timestamp of the running binary.
-    pub build_time: String,
-    /// Seconds the current process has been serving.
-    pub uptime_seconds: u64,
-}
-
 impl<T: Serialize> ApiResponse<T> {
     /// Builds a success envelope wrapping `data`.
     pub fn ok(data: T) -> Self {

@@ -1,66 +1,27 @@
-//! Minecraft object storage abstraction.
+//! Minecraft texture object storage: concrete backends and backend selection.
+//!
+//! The [`TextureStore`] contract, structured store errors, and the
+//! `[object_storage]` configuration types live in the
+//! `aster_yggdrasil_texture_storage` crate; this module owns the concrete
+//! local/S3 implementations, SDK wiring, and application error mapping.
 
 mod local;
 mod s3;
 
-use crate::errors::Result;
-use async_trait::async_trait;
-use std::path::Path;
+use aster_yggdrasil_texture_storage::{TextureStorageConfig, TextureStoreError};
 use std::sync::Arc;
-use tokio::io::AsyncRead;
 
+pub use aster_yggdrasil_texture_storage::{TextureStore, TextureStoreResult};
 pub use local::LocalTextureStore;
 pub use s3::S3TextureStore;
-
-/// Metadata for a stored texture object, as reported by the storage backend.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectBlobMetadata {
-    /// Object size in bytes.
-    pub size: u64,
-    /// Content type served for the object; currently always `image/png`.
-    pub content_type: &'static str,
-}
-
-/// Storage abstraction for texture files backed by the local filesystem or S3-compatible object storage.
-///
-/// Keys are normalized object keys (`textures/aa/bb.png` style); implementations map them onto
-/// backend-specific paths and may add a configured base prefix.
-#[async_trait]
-pub trait TextureStore: Send + Sync {
-    /// Name of the storage backend, e.g. `"local"` or `"s3"`.
-    fn backend_name(&self) -> &'static str;
-    /// Uploads the file at `local_path` as `storage_key`.
-    ///
-    /// Local backend skips the copy when the key already exists; S3 overwrites. Returns the
-    /// normalized storage key actually used.
-    async fn put_file(&self, storage_key: &str, local_path: &Path) -> Result<String>;
-    /// Opens `storage_key` for streaming reads.
-    ///
-    /// Returns `Err(record_not_found)` when the object does not exist.
-    async fn get_stream(&self, storage_key: &str) -> Result<Box<dyn AsyncRead + Unpin + Send>>;
-    /// Deletes `storage_key`.
-    ///
-    /// Deleting a missing object succeeds idempotently.
-    async fn delete(&self, storage_key: &str) -> Result<()>;
-    /// Returns whether `storage_key` currently exists in the backend.
-    async fn exists(&self, storage_key: &str) -> Result<bool>;
-    /// Returns size and content type of `storage_key`.
-    ///
-    /// Returns `Err(record_not_found)` when the object does not exist.
-    async fn metadata(&self, storage_key: &str) -> Result<ObjectBlobMetadata>;
-    /// Lists all storage keys under `prefix`, sorted lexicographically.
-    ///
-    /// An empty prefix lists every object; a missing prefix yields an empty list.
-    async fn list_keys(&self, prefix: &str) -> Result<Vec<String>>;
-}
 
 /// Builds the texture store configured by `config`.
 ///
 /// Accepts `""`/`"local"` (filesystem backend) and `"s3"`/`"minio"`; any other backend name is
 /// a configuration error.
 pub fn create_texture_store(
-    config: &crate::config::TextureStorageConfig,
-) -> Result<Arc<dyn TextureStore>> {
+    config: &TextureStorageConfig,
+) -> crate::errors::Result<Arc<dyn TextureStore>> {
     match config.backend.trim() {
         "" | "local" => Ok(Arc::new(LocalTextureStore::new(&config.local_root))),
         "s3" | "minio" => Ok(Arc::new(S3TextureStore::new(&config.s3)?)),
@@ -70,10 +31,22 @@ pub fn create_texture_store(
     }
 }
 
+/// Maps contract errors onto the application error type; store call sites
+/// keep using `?` transparently.
+impl From<TextureStoreError> for crate::errors::AsterError {
+    fn from(error: TextureStoreError) -> Self {
+        match error {
+            TextureStoreError::NotFound { context } => Self::record_not_found(context),
+            TextureStoreError::Backend { context } => Self::internal_error(context),
+            TextureStoreError::InvalidKey { reason } => Self::validation_error(reason),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::create_texture_store;
-    use crate::config::TextureStorageConfig;
+    use aster_yggdrasil_texture_storage::TextureStorageConfig;
 
     #[test]
     fn creates_local_backend_from_explicit_config() {

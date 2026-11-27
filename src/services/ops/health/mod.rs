@@ -116,6 +116,33 @@ fn record_health_metrics(
     crate::metrics::record_health_report(metrics, scope, report);
 }
 
+/// System information shown to authenticated admin clients.
+#[derive(Debug, Clone, serde::Serialize)]
+#[cfg_attr(all(debug_assertions, feature = "openapi"), derive(utoipa::ToSchema))]
+pub struct SystemInfoResponse {
+    /// Crate version of the running build.
+    pub version: String,
+    /// Build timestamp of the running binary.
+    pub build_time: String,
+    /// Seconds the current process has been serving.
+    pub uptime_seconds: u64,
+}
+
+/// Builds the system info payload from the crate version, configured build
+/// time, and process uptime.
+pub fn system_info_response(state: &crate::runtime::AppState) -> SystemInfoResponse {
+    SystemInfoResponse {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        build_time: compile_time().to_string(),
+        uptime_seconds: state.uptime().as_secs(),
+    }
+}
+
+#[inline]
+pub(crate) fn compile_time() -> &'static str {
+    option_env!("ASTER_BUILD_TIME").unwrap_or("unknown")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{HealthStatus, core_health_component};

@@ -7,10 +7,9 @@ use crate::api::dto::{
 };
 use crate::api::error_code::AsterErrorCode;
 use crate::api::response::ApiResponse;
-use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
-use crate::services::{auth::local, ops::audit, texture, yggdrasil::protocol};
+use crate::services::{auth::local, ops::audit, texture, yggdrasil::session_flow};
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
@@ -98,20 +97,8 @@ pub async fn bind_minecraft_profile_texture(
     }
     let texture_type = parse_profile_texture_type(&texture_type_raw)?;
     let user = local::current_user(state.get_ref(), &req).await?;
-    let Some(profile) =
-        minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
-            .await?
-    else {
-        tracing::debug!(
-            user_id = user.id,
-            profile_uuid = %uuid,
-            "minecraft profile texture bind rejected missing profile"
-        );
-        return Err(AsterError::record_not_found_code(
-            AsterErrorCode::MinecraftProfileNotFound,
-            format!("minecraft profile '{uuid}'"),
-        ));
-    };
+    let profile =
+        crate::services::user::profile::find_owned_profile(state.get_ref(), &uuid, user.id).await?;
     let stored = texture::bind_wardrobe_texture_to_profile(
         state.get_ref(),
         user.id,
@@ -191,20 +178,8 @@ pub async fn unbind_minecraft_profile_texture(
     }
     let texture_type = parse_profile_texture_type(&texture_type_raw)?;
     let user = local::current_user(state.get_ref(), &req).await?;
-    let Some(profile) =
-        minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
-            .await?
-    else {
-        tracing::debug!(
-            user_id = user.id,
-            profile_uuid = %uuid,
-            "minecraft profile texture unbind rejected missing profile"
-        );
-        return Err(AsterError::record_not_found_code(
-            AsterErrorCode::MinecraftProfileNotFound,
-            format!("minecraft profile '{uuid}'"),
-        ));
-    };
+    let profile =
+        crate::services::user::profile::find_owned_profile(state.get_ref(), &uuid, user.id).await?;
     let deleted = texture::delete_texture_for_profile(state.get_ref(), &profile, texture_type)
         .await
         .map_err(texture_error_to_api_error)?;
@@ -279,13 +254,10 @@ pub async fn list_minecraft_profiles(
         has_query = query.query.is_some(),
         "listing current user minecraft profiles"
     );
-    let slice = minecraft_profile_repo::list_cursor(
-        state.get_ref().reader_db(),
-        minecraft_profile_repo::MinecraftProfileFilters {
-            user_id: Some(user.id),
-            query: query.query.clone(),
-            ..Default::default()
-        },
+    let slice = crate::services::user::profile::list_profiles_for_user(
+        state.get_ref(),
+        user.id,
+        query.query.clone(),
         limit,
         after_id,
     )
@@ -301,7 +273,7 @@ pub async fn list_minecraft_profiles(
     let profiles = slice
         .items
         .iter()
-        .map(protocol::profile_summary)
+        .map(session_flow::profile_summary)
         .collect::<Vec<_>>();
     tracing::debug!(
         user_id = user.id,
@@ -344,7 +316,7 @@ pub async fn create_minecraft_profile(
     );
     validate_request(&*body)?;
     let user = local::current_user(state.get_ref(), &req).await?;
-    let profile = protocol::create_profile(state.get_ref(), user.id, &body.name).await?;
+    let profile = session_flow::create_profile(state.get_ref(), user.id, &body.name).await?;
     let ctx = audit::AuditContext::from_request(&req, user.id);
     audit::log_with_details(
         state.get_ref(),
@@ -369,7 +341,7 @@ pub async fn create_minecraft_profile(
         profile_uuid = %profile.uuid,
         "current user minecraft profile created"
     );
-    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_summary(&profile))))
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(session_flow::profile_summary(&profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -413,7 +385,7 @@ pub async fn rename_minecraft_profile(
     }
     let user = local::current_user(state.get_ref(), &req).await?;
     let Some(renamed) =
-        protocol::rename_profile_for_user(state.get_ref(), user.id, &uuid, &body.name).await?
+        session_flow::rename_profile_for_user(state.get_ref(), user.id, &uuid, &body.name).await?
     else {
         tracing::debug!(
             user_id = user.id,
@@ -436,7 +408,11 @@ pub async fn rename_minecraft_profile(
         temporarily_invalidated_token_count = renamed.temporarily_invalidated_token_count,
         "current user minecraft profile renamed"
     );
-    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_summary(&renamed.profile))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::ok(session_flow::profile_summary(
+            &renamed.profile,
+        ))),
+    )
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -475,20 +451,8 @@ pub async fn list_minecraft_profile_textures(
         ));
     }
     let user = local::current_user(state.get_ref(), &req).await?;
-    let Some(profile) =
-        minecraft_profile_repo::find_by_uuid_for_user(state.get_ref().reader_db(), &uuid, user.id)
-            .await?
-    else {
-        tracing::debug!(
-            user_id = user.id,
-            profile_uuid = %uuid,
-            "minecraft profile texture list rejected missing profile"
-        );
-        return Err(AsterError::record_not_found_code(
-            AsterErrorCode::MinecraftProfileNotFound,
-            format!("minecraft profile '{uuid}'"),
-        ));
-    };
+    let profile =
+        crate::services::user::profile::find_owned_profile(state.get_ref(), &uuid, user.id).await?;
     let textures = texture::texture_metadata_for_profile(state.get_ref(), &profile).await?;
     tracing::debug!(
         user_id = user.id,
@@ -536,7 +500,8 @@ pub async fn delete_minecraft_profile(
         ));
     }
     let user = local::current_user(state.get_ref(), &req).await?;
-    let Some(deleted) = protocol::delete_profile_for_user(state.get_ref(), user.id, &uuid).await?
+    let Some(deleted) =
+        session_flow::delete_profile_for_user(state.get_ref(), user.id, &uuid).await?
     else {
         tracing::debug!(
             user_id = user.id,
@@ -566,7 +531,7 @@ pub async fn delete_minecraft_profile(
 pub(crate) async fn log_profile_delete_audit(
     state: &AppState,
     ctx: &audit::AuditContext,
-    deleted: &protocol::DeleteMinecraftProfileResult,
+    deleted: &session_flow::DeleteMinecraftProfileResult,
 ) {
     audit::log_with_details(
         state,
@@ -590,7 +555,7 @@ pub(crate) async fn log_profile_delete_audit(
 pub(crate) async fn log_profile_rename_audit(
     state: &AppState,
     ctx: &audit::AuditContext,
-    renamed: &protocol::RenameMinecraftProfileResult,
+    renamed: &session_flow::RenameMinecraftProfileResult,
 ) {
     audit::log_with_details(
         state,

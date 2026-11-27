@@ -50,7 +50,7 @@ pub(crate) fn validate_optional_auth_password(
 pub(crate) fn validate_minecraft_profile_name(
     value: &str,
 ) -> std::result::Result<(), ValidationError> {
-    crate::services::yggdrasil::protocol::validate_profile_name(value)
+    crate::services::yggdrasil::session_flow::validate_profile_name(value)
         .map_err(aster_to_validation_error)
 }
 

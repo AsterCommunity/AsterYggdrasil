@@ -4,8 +4,8 @@ use futures::StreamExt;
 
 use crate::api::cache::{not_modified_response, request_etag_matches, weak_etag_for_sha256_hash};
 use crate::runtime::AppState;
-use crate::services::yggdrasil::protocol::{YggdrasilError, YggdrasilErrorKind};
-use crate::services::{ops::audit, texture, yggdrasil::protocol};
+use crate::services::yggdrasil::session_flow::{YggdrasilError, YggdrasilErrorKind};
+use crate::services::{ops::audit, texture, yggdrasil::session_flow};
 use aster_yggdrasil_model::types::yggdrasil::MinecraftTextureType;
 
 use super::yggdrasil_error_response;
@@ -64,7 +64,7 @@ pub async fn upload_texture(
     // authlib-injector explicitly requires 401 for missing Authorization on
     // texture upload/delete, even though other Yggdrasil invalid-token cases
     // in this codebase still use 403.
-    let Some(access_token) = crate::api::request_auth::bearer_token(&req) else {
+    let Some(access_token) = crate::services::auth::request::bearer_token(&req) else {
         tracing::debug!(
             profile_uuid = %uuid,
             texture_type = ?texture_type,
@@ -191,7 +191,7 @@ pub async fn delete_texture(
     };
     // See upload_texture above: authlib-injector expects 401 here for missing
     // Authorization or invalid accessToken.
-    let Some(access_token) = crate::api::request_auth::bearer_token(&req) else {
+    let Some(access_token) = crate::services::auth::request::bearer_token(&req) else {
         tracing::debug!(
             profile_uuid = %uuid,
             texture_type = ?texture_type,
@@ -363,7 +363,7 @@ pub async fn forwarded_texture_by_hash(
         texture_hash = %texture_hash,
         "received forwarded yggdrasil texture request by hash"
     );
-    let Some(url) = (match protocol::forwarded_texture_url(
+    let Some(url) = (match session_flow::forwarded_texture_url(
         state.get_ref(),
         upstream_id,
         &texture_hash,

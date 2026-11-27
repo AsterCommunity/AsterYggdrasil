@@ -4,8 +4,6 @@ use serde::Serialize;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 use utoipa::ToSchema;
 
-use crate::api::response::SystemInfoResponse;
-use crate::api::routes::health;
 use crate::db::repository::{
     audit_log_repo, auth_session_repo, background_task_repo, minecraft_profile_repo,
     minecraft_texture_repo, user_repo, yggdrasil_token_repo,
@@ -13,6 +11,7 @@ use crate::db::repository::{
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::ops::audit::{self, AuditLogEntry};
+use crate::services::ops::health::{self, SystemInfoResponse};
 use crate::services::ops::task;
 use crate::services::ops::task::types::{RuntimeSystemHealthStatus, RuntimeTaskResult};
 use aster_yggdrasil_model::types::audit::AuditAction;
@@ -603,7 +602,7 @@ mod tests {
             .expect("admin overview test runtime config should reload");
         let config = Arc::new(crate::config::Config {
             database: db_cfg,
-            texture_storage: crate::config::TextureStorageConfig {
+            texture_storage: aster_yggdrasil_texture_storage::TextureStorageConfig {
                 backend: "local".to_string(),
                 local_root: texture_root.to_string_lossy().to_string(),
                 ..Default::default()

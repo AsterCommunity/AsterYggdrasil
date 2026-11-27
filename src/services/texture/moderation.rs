@@ -503,7 +503,7 @@ where
 {
     tracing::debug!(profile_uuid, "authenticating texture upload access");
     let token =
-        crate::services::yggdrasil::protocol::active_token_for_protocol(state, access_token)
+        crate::services::yggdrasil::session_flow::active_token_for_protocol(state, access_token)
             .await
             .map_err(|_| TextureError::new(TextureErrorKind::InvalidToken))?;
     let Some(selected_profile_id) = token.selected_profile_id else {

@@ -11,9 +11,9 @@ use crate::api::dto::textures::{ReplaceWardrobeTextureTagsReq, UpdateWardrobeTex
 use crate::api::dto::validate_request;
 use crate::api::error_code::AsterErrorCode;
 use crate::api::response::ApiResponse;
-use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
+use crate::services::texture::WardrobeTextureListFilter;
 use crate::services::{auth::local, ops::audit, texture, user};
 use aster_forge_api::{
     LimitQuery, NullablePatch, parse_datetime_id_cursor, parse_sort_order_name_id_cursor,

@@ -4,3 +4,4 @@ pub mod captcha;
 pub mod external;
 pub mod local;
 pub mod passkey;
+pub mod request;

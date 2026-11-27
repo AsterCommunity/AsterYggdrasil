@@ -1,0 +1,48 @@
+name: Repository Automation
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/**'
+      - '.github/aster-automation.json'
+      - 'developer-docs/zh-CN/contributing/github-automation.md'
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/**'
+      - '.github/aster-automation.json'
+      - 'developer-docs/zh-CN/contributing/github-automation.md'
+
+concurrency:
+  group: repository-automation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate repository automation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26
+
+      - name: Validate repository automation configuration
+        uses: AsterCommunity/aster-automation@f12ece993b91aadc1fe91433581b808fc44a389b # v0.1.0 candidate
+        with:
+          mode: validate-config
+          config-path: .github/aster-automation.json
+
+      - name: Validate repository automation contract
+        uses: AsterCommunity/aster-automation@f12ece993b91aadc1fe91433581b808fc44a389b # v0.1.0 candidate
+        with:
+          mode: validate-repository
+          config-path: .github/aster-automation.json

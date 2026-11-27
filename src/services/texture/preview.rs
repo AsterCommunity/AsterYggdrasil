@@ -753,8 +753,12 @@ mod execution_paths_tests {
             "failing-upload"
         }
 
-        async fn put_file(&self, _storage_key: &str, _local_path: &StdPath) -> Result<String> {
-            Err(AsterError::internal_error(
+        async fn put_file(
+            &self,
+            _storage_key: &str,
+            _local_path: &StdPath,
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<String> {
+            Err(aster_yggdrasil_texture_storage::TextureStoreError::backend(
                 "S3 object upload failed: endpoint=https://s3.internal, bucket=private, source=connection refused",
             ))
         }
@@ -762,26 +766,43 @@ mod execution_paths_tests {
         async fn get_stream(
             &self,
             _storage_key: &str,
-        ) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send>> {
-            Err(AsterError::internal_error("failing upload storage"))
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<
+            Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+        > {
+            Err(aster_yggdrasil_texture_storage::TextureStoreError::backend(
+                "failing upload storage",
+            ))
         }
 
-        async fn delete(&self, _storage_key: &str) -> Result<()> {
+        async fn delete(
+            &self,
+            _storage_key: &str,
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<()> {
             Ok(())
         }
 
-        async fn exists(&self, _storage_key: &str) -> Result<bool> {
+        async fn exists(
+            &self,
+            _storage_key: &str,
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<bool> {
             Ok(false)
         }
 
         async fn metadata(
             &self,
             _storage_key: &str,
-        ) -> Result<crate::texture_storage::ObjectBlobMetadata> {
-            Err(AsterError::internal_error("failing upload storage"))
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<
+            aster_yggdrasil_texture_storage::ObjectBlobMetadata,
+        > {
+            Err(aster_yggdrasil_texture_storage::TextureStoreError::backend(
+                "failing upload storage",
+            ))
         }
 
-        async fn list_keys(&self, _prefix: &str) -> Result<Vec<String>> {
+        async fn list_keys(
+            &self,
+            _prefix: &str,
+        ) -> aster_yggdrasil_texture_storage::TextureStoreResult<Vec<String>> {
             Ok(Vec::new())
         }
     }

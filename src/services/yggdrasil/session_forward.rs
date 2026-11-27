@@ -270,7 +270,7 @@ where
     };
 
     let server = yggdrasil_session_forward_server_repo::create(state.writer_db(), server).await?;
-    crate::services::yggdrasil::protocol::invalidate_session_forward_server_cache(state).await;
+    crate::services::yggdrasil::session_flow::invalidate_session_forward_server_cache(state).await;
     Ok(server_to_admin(server))
 }
 
@@ -334,7 +334,7 @@ where
     active.updated_at = Set(Utc::now());
 
     let server = yggdrasil_session_forward_server_repo::update(state.writer_db(), active).await?;
-    crate::services::yggdrasil::protocol::invalidate_session_forward_server_cache(state).await;
+    crate::services::yggdrasil::session_flow::invalidate_session_forward_server_cache(state).await;
     Ok(server_to_admin(server))
 }
 
@@ -352,7 +352,7 @@ where
     }
     let info = server_to_admin(server);
     yggdrasil_session_forward_server_repo::delete(state.writer_db(), id).await?;
-    crate::services::yggdrasil::protocol::invalidate_session_forward_server_cache(state).await;
+    crate::services::yggdrasil::session_flow::invalidate_session_forward_server_cache(state).await;
     Ok(info)
 }
 

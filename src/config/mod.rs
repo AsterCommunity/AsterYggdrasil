@@ -58,7 +58,7 @@ pub use runtime_config::{JWT_AUDIENCE, JWT_ISSUER, RuntimeConfig};
 pub use schema::{
     AuthConfig, Config, DEFAULT_AUTH_CSRF_COOKIE_NAME, DEFAULT_AUTH_CSRF_HEADER_NAME,
     DEFAULT_PASSWORD_HASH_MAX_CONCURRENCY, DatabaseConfig, NetworkTrustConfig, RateLimitConfig,
-    RateLimitTier, S3TextureStorageConfig, ServerConfig, TextureStorageConfig,
+    RateLimitTier, ServerConfig,
 };
 pub use worker::WorkerConfig;
 

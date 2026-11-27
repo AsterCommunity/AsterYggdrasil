@@ -12,12 +12,9 @@ use crate::api::dto::textures::{
 use crate::api::dto::validation::validate_request;
 use crate::api::error_code::AsterErrorCode;
 use crate::api::response::ApiResponse;
-use crate::db::repository::{
-    minecraft_texture_repo::AdminTextureLibraryListFilter,
-    minecraft_texture_report_repo::AdminTextureReportListFilter,
-};
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
+use crate::services::texture::{AdminTextureLibraryListFilter, AdminTextureReportListFilter};
 use crate::services::{auth::local, ops::audit, texture};
 use aster_forge_api::{LimitQuery, parse_datetime_id_cursor, parse_sort_order_name_id_cursor};
 use aster_yggdrasil_model::types::{

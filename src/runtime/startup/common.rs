@@ -49,12 +49,14 @@ async fn prepare_state(
     let db_handles =
         crate::db::runtime::prepare_database_handles(&config.database, metrics.clone()).await?;
 
-    let runtime_config = crate::config::runtime::prepare_runtime_config(
+    crate::services::ops::config::bootstrap_insecure_cookies(
         db_handles.writer(),
-        db_handles.reader(),
-        &config.auth,
+        config.auth.bootstrap_insecure_cookies,
     )
     .await?;
+    crate::services::ops::config::ensure_defaults(db_handles.writer()).await?;
+    let runtime_config =
+        crate::config::runtime::prepare_runtime_config(db_handles.reader(), &config.auth).await?;
     crate::services::yggdrasil::session_forward::prepare_runtime_session_forward_servers(
         db_handles.writer(),
     )

@@ -97,17 +97,3 @@ fn status_response(status: &str) -> HealthResponse {
         status: status.to_string(),
     }
 }
-
-/// Builds the system info payload from the crate version, configured build time, and process uptime.
-pub fn system_info_response(state: &AppState) -> crate::api::response::SystemInfoResponse {
-    crate::api::response::SystemInfoResponse {
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        build_time: compile_time().to_string(),
-        uptime_seconds: state.uptime().as_secs(),
-    }
-}
-
-#[inline]
-pub(crate) fn compile_time() -> &'static str {
-    option_env!("ASTER_BUILD_TIME").unwrap_or("unknown")
-}

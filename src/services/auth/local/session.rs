@@ -253,7 +253,7 @@ pub async fn current_user<S>(state: &S, req: &HttpRequest) -> Result<user::Model
 where
     S: SharedRuntimeState,
 {
-    let token = crate::api::request_auth::access_token(req)
+    let token = crate::services::auth::request::access_token(req)
         .ok_or_else(|| AsterError::auth_token_invalid("missing access token"))?;
     let (user, claims) = current_user_and_claims_from_token(state, &token).await?;
     if claims.password_change && !super::token_scope::password_change_request_allowed(req) {

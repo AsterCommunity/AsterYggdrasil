@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol", "crates/aster_yggdrasil_outbound"]
+members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol", "crates/aster_yggdrasil_outbound", "crates/aster_yggdrasil_texture_storage"]
 
 [workspace.package]
 version = "0.1.0-beta.1"
@@ -16,6 +16,7 @@ aster_yggdrasil_model = { path = "crates/aster_yggdrasil_model" }
 aster_yggdrasil_migration = { path = "crates/aster_yggdrasil_migration" }
 aster_yggdrasil_protocol = { path = "crates/aster_yggdrasil_protocol" }
 aster_yggdrasil_outbound = { path = "crates/aster_yggdrasil_outbound" }
+aster_yggdrasil_texture_storage = { path = "crates/aster_yggdrasil_texture_storage" }
 # Pin all Forge mechanisms together to the exact published crates.io versions;
 # members add only their required features.
 aster_forge_middleware = { version = "=0.1.0-alpha.6" }
@@ -219,6 +220,7 @@ aster_yggdrasil_model = { workspace = true }
 aster_yggdrasil_migration = { workspace = true }
 aster_yggdrasil_protocol = { workspace = true }
 aster_yggdrasil_outbound = { workspace = true }
+aster_yggdrasil_texture_storage = { workspace = true }
 aster_forge_middleware = { workspace = true, features = ["metrics"] }
 aster_forge_observability = { workspace = true, optional = true }
 aster_forge_alloc = { workspace = true }
