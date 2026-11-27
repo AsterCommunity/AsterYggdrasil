@@ -190,14 +190,19 @@ export function MinecraftPreview({
 					</Button>
 				</div>
 			</div>
-			<div
-				ref={frameRef}
-				className={cn(
-					"relative h-[26rem] bg-[radial-gradient(circle_at_50%_18%,oklch(0.92_0.024_151_/_0.75),transparent_42%),linear-gradient(180deg,oklch(0.96_0.004_255),oklch(0.9_0.01_255))] dark:bg-[radial-gradient(circle_at_50%_18%,oklch(0.32_0.06_151_/_0.5),transparent_42%),linear-gradient(180deg,oklch(0.2_0.02_255),oklch(0.17_0.018_255))]",
-					frameClassName,
-				)}
-			>
-				<canvas ref={canvasRef} className="block size-full" />
+			<div ref={frameRef} className={cn("relative h-[26rem]", frameClassName)}>
+				{/* 亮/暗舞台背景双层 opacity 交叉淡入；渐变不可插值，禁止单元素 dark:bg-[...] 切换 */}
+				<div
+					data-theme-surface="public-backdrop"
+					aria-hidden="true"
+					className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,oklch(0.92_0.024_151_/_0.75),transparent_42%),linear-gradient(180deg,oklch(0.96_0.004_255),oklch(0.9_0.01_255))] opacity-100 dark:opacity-0"
+				/>
+				<div
+					data-theme-surface="public-backdrop"
+					aria-hidden="true"
+					className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,oklch(0.32_0.06_151_/_0.5),transparent_42%),linear-gradient(180deg,oklch(0.2_0.02_255),oklch(0.17_0.018_255))] opacity-0 dark:opacity-100"
+				/>
+				<canvas ref={canvasRef} className="relative block size-full" />
 				{hasTexture && !failed ? null : (
 					<div className="absolute inset-0 grid place-items-center p-6 text-center">
 						<div className="rounded-lg border border-border/70 bg-background/82 px-4 py-3 shadow-lg backdrop-blur">

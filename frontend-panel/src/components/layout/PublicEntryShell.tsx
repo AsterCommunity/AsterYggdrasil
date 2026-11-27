@@ -29,7 +29,7 @@ export function PublicEntryShell({
 	return (
 		<div
 			data-theme-surface="public-shell"
-			className="relative min-h-dvh min-w-0 overflow-x-clip bg-[#edf4ed] text-[#102118] dark:bg-[#07110d] dark:text-white"
+			className="relative min-h-dvh min-w-0 overflow-x-clip bg-public-surface text-public-foreground"
 		>
 			<PublicEntryBackdrop variant={variant} />
 			<div className="relative z-10 flex min-h-dvh flex-col">
@@ -44,7 +44,7 @@ export function PublicEntryShell({
 							wordmarkClassName="h-10 max-w-52"
 						/>
 						<span className="min-w-0">
-							<span className="block truncate font-semibold text-xl text-[#102118] tracking-normal dark:text-white">
+							<span className="block truncate font-semibold text-xl text-public-foreground tracking-normal">
 								{title}
 							</span>
 							<span className="block truncate font-medium text-[0.68rem] text-emerald-700 uppercase tracking-[0.18em] dark:text-emerald-300">

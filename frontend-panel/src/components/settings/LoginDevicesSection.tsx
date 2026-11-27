@@ -14,6 +14,7 @@ import { SessionPlatformIcon } from "@/components/common/SessionPlatformIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatUserAgentLabel } from "@/lib/userAgent";
 import { cn } from "@/lib/utils";
 import { authService } from "@/services/authService";
@@ -273,11 +274,13 @@ export function LoginDevicesSection() {
 			</div>
 			<div className="mt-4">
 				{loading ? (
-					<div className="grid min-h-52 place-items-center rounded-lg border border-dashed border-border/80 bg-muted/20 text-sm text-muted-foreground dark:border-white/12 dark:bg-muted/12">
-						<span className="inline-flex items-center gap-2">
-							<Icon name="Spinner" className="size-4 animate-spin" />
-							{t("common.loading")}
-						</span>
+					<div className="min-h-52 rounded-lg border border-dashed border-border/80 bg-muted/20 p-4 dark:border-white/12 dark:bg-muted/12">
+						<span className="sr-only">{t("common.loading")}</span>
+						<div className="space-y-3">
+							<Skeleton className="h-12 w-full rounded-lg" />
+							<Skeleton className="h-12 w-full rounded-lg" />
+							<Skeleton className="h-12 w-4/5 rounded-lg" />
+						</div>
 					</div>
 				) : visibleSessions.length === 0 ? (
 					<div className="grid min-h-52 place-items-center rounded-lg border border-dashed border-border/80 bg-muted/20 px-4 text-center dark:border-white/12 dark:bg-muted/12">

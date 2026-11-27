@@ -99,7 +99,7 @@ export default function ErrorPage() {
 					<div className="font-black text-7xl leading-none text-emerald-500 drop-shadow-[0_0_32px_rgba(16,185,129,0.38)] sm:text-8xl md:text-9xl">
 						{errorState.status === 404 ? "404" : "ERR"}
 					</div>
-					<h1 className="mt-6 max-w-2xl text-balance font-black text-4xl leading-tight tracking-normal text-[#102118] drop-shadow-[0_1px_18px_rgba(255,255,255,0.52)] sm:text-5xl dark:text-white dark:drop-shadow-[0_2px_18px_rgba(0,0,0,0.42)]">
+					<h1 className="mt-6 max-w-2xl text-balance font-black text-4xl leading-tight tracking-normal text-public-foreground drop-shadow-[0_1px_18px_rgba(255,255,255,0.52)] sm:text-5xl dark:drop-shadow-[0_2px_18px_rgba(0,0,0,0.42)]">
 						{pageTitle}
 					</h1>
 					<p className="mt-5 max-w-2xl text-base leading-7 text-slate-700 drop-shadow-[0_1px_12px_rgba(255,255,255,0.46)] sm:text-lg dark:text-slate-200 dark:drop-shadow-[0_1px_12px_rgba(0,0,0,0.45)]">
@@ -123,7 +123,7 @@ export default function ErrorPage() {
 							type="button"
 							className={cn(
 								buttonVariants({ variant: "outline", size: "lg" }),
-								"h-12 min-w-40 rounded-lg border-black/12 bg-white/70 px-5 text-[#102118] shadow-lg shadow-black/10 backdrop-blur-md hover:border-black/18 hover:bg-white/85 dark:border-white/18 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:border-white/32 dark:hover:bg-white/14 dark:hover:text-white",
+								"h-12 min-w-40 rounded-lg border-black/12 bg-white/70 px-5 text-public-foreground shadow-lg shadow-black/10 backdrop-blur-md hover:border-black/18 hover:bg-white/85 dark:border-white/18 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:border-white/32 dark:hover:bg-white/14 dark:hover:text-white",
 							)}
 							onClick={goBack}
 						>
@@ -141,7 +141,7 @@ export default function ErrorPage() {
 				</section>
 
 				<aside
-					className="public-home-enter min-w-0 rounded-2xl border border-black/10 bg-white/64 p-4 text-[#102118] shadow-2xl shadow-black/12 backdrop-blur-xl sm:p-5 dark:border-white/12 dark:bg-[#06120f]/76 dark:text-white dark:shadow-black/38"
+					className="public-home-enter min-w-0 rounded-2xl border border-black/10 bg-public-card-strong p-4 text-public-foreground shadow-2xl shadow-black/12 backdrop-blur-xl sm:p-5 dark:border-white/12 dark:shadow-black/38"
 					style={{ animationDelay: "120ms" }}
 					aria-label={t("errorPage.supportPanel")}
 				>
@@ -151,11 +151,18 @@ export default function ErrorPage() {
 							alt=""
 							className="absolute inset-0 size-full object-cover"
 						/>
-						<div className="absolute inset-0 bg-[radial-gradient(circle_at_58%_26%,transparent_0%,rgba(237,244,237,0.04)_42%,rgba(3,9,7,0.32)_100%)] dark:bg-[radial-gradient(circle_at_58%_26%,transparent_0%,rgba(3,9,7,0.08)_42%,rgba(3,9,7,0.48)_100%)]" />
+						<div
+							data-theme-surface="public-backdrop"
+							className="absolute inset-0 bg-[radial-gradient(circle_at_58%_26%,transparent_0%,rgba(237,244,237,0.04)_42%,rgba(3,9,7,0.32)_100%)] opacity-100 dark:opacity-0"
+						/>
+						<div
+							data-theme-surface="public-backdrop"
+							className="absolute inset-0 bg-[radial-gradient(circle_at_58%_26%,transparent_0%,rgba(3,9,7,0.08)_42%,rgba(3,9,7,0.48)_100%)] opacity-0 dark:opacity-100"
+						/>
 					</div>
 
-					<div className="mt-4 rounded-xl border border-black/10 bg-white/52 p-5 dark:border-white/10 dark:bg-white/[0.045]">
-						<h2 className="text-base font-semibold text-[#102118] dark:text-white">
+					<div className="mt-4 rounded-xl border border-black/10 bg-public-card p-5 dark:border-white/10">
+						<h2 className="text-base font-semibold text-public-foreground">
 							{t("errorPage.reasonTitle")}
 						</h2>
 						<ul className="mt-4 grid gap-3 text-sm text-slate-700 dark:text-slate-200/82">
@@ -171,17 +178,17 @@ export default function ErrorPage() {
 						</ul>
 					</div>
 
-					<div className="mt-3 rounded-xl border border-black/10 bg-white/52 p-5 dark:border-white/10 dark:bg-white/[0.045]">
-						<h2 className="text-base font-semibold text-[#102118] dark:text-white">
+					<div className="mt-3 rounded-xl border border-black/10 bg-public-card p-5 dark:border-white/10">
+						<h2 className="text-base font-semibold text-public-foreground">
 							{t("errorPage.helpTitle")}
 						</h2>
 						<p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200/76">
 							{t("errorPage.helpDescription")}
 						</p>
-						<div className="mt-3 overflow-hidden rounded-lg border border-black/10 bg-white/58 dark:border-white/10 dark:bg-black/16">
+						<div className="mt-3 overflow-hidden rounded-lg border border-black/10 bg-public-card dark:border-white/10">
 							<button
 								type="button"
-								className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium text-[#102118] outline-none transition-colors hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:text-slate-100 dark:hover:text-emerald-200 dark:focus-visible:ring-emerald-300/45"
+								className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium text-public-foreground outline-none transition-colors hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:text-slate-100 dark:hover:text-emerald-200 dark:focus-visible:ring-emerald-300/45"
 								aria-expanded={detailsOpen}
 								aria-controls="route-error-detail"
 								onClick={() => setDetailsOpen((open) => !open)}

@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { authInputClassName } from "@/components/auth/AuthFormPrimitives";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { AuthFormFieldError } from "./AuthFormPrimitives";
 
@@ -63,10 +63,7 @@ export function CaptchaField({
 					title={t("login.refreshCaptcha")}
 				>
 					{loading ? (
-						<Icon
-							name="Spinner"
-							className="size-5 animate-spin text-slate-500"
-						/>
+						<Skeleton className="h-14 w-full rounded-lg" />
 					) : imageBase64 ? (
 						<img
 							src={imageBase64}

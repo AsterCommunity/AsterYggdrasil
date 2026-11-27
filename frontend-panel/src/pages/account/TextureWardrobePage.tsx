@@ -5,7 +5,6 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -75,8 +74,6 @@ export default function TextureWardrobePage() {
 	const [tagFilterOpen, setTagFilterOpen] = useState(false);
 	const [tagSearchMethod, setTagSearchMethod] =
 		useState<TextureTagSearchMethod>("all");
-	const tagFilterTriggerRef = useRef<HTMLDivElement | null>(null);
-	const tagFilterPopoverRef = useRef<HTMLDivElement | null>(null);
 	const [editTagIds, setEditTagIds] = useState<number[]>([]);
 	const [editTagQuery, setEditTagQuery] = useState("");
 	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
@@ -585,7 +582,6 @@ export default function TextureWardrobePage() {
 							</div>
 							<TextureTagFilterPopover
 								open={tagFilterOpen}
-								popoverRef={tagFilterPopoverRef}
 								selectedIds={draftTagIds}
 								selectedTags={selectedTags}
 								searchMethod={tagSearchMethod}
@@ -593,7 +589,6 @@ export default function TextureWardrobePage() {
 								loading={tagLoading}
 								tags={tags}
 								testId="wardrobe-tag-filter-popover"
-								triggerRef={tagFilterTriggerRef}
 								onClear={clearTagFilter}
 								onLoadMore={loadMoreTags}
 								onOpenChange={setTagFilterOpen}

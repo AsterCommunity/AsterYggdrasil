@@ -6,6 +6,7 @@ import { DateTimeText } from "@/components/common/DateTimeText";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	createPasskeyCredential,
 	isWebAuthnSupported,
@@ -267,8 +268,15 @@ export function SecurityPasskeysSection() {
 
 			<div className="mt-4 space-y-2">
 				{state.loading ? (
-					<div className="rounded-lg border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
-						{t("common.loading")}
+					<div
+						className="rounded-lg border border-dashed border-border/70 px-4 py-4"
+						role="status"
+					>
+						<span className="sr-only">{t("common.loading")}</span>
+						<div className="space-y-3">
+							<Skeleton className="h-11 w-full rounded-lg" />
+							<Skeleton className="h-11 w-5/6 rounded-lg" />
+						</div>
 					</div>
 				) : state.passkeys.length === 0 ? (
 					<div className="rounded-lg border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">

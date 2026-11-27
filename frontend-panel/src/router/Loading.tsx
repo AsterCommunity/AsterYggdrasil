@@ -13,7 +13,7 @@ export function Loading({ surface = "default" }: LoadingProps) {
 			className={cn(
 				"flex min-h-dvh items-center justify-center",
 				surface === "public"
-					? "bg-[#edf4ed] text-[#102118] dark:bg-[#07110d] dark:text-white"
+					? "bg-public-surface text-public-foreground"
 					: "bg-background text-muted-foreground",
 			)}
 		>

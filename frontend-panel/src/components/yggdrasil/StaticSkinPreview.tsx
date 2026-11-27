@@ -36,10 +36,21 @@ export function StaticSkinPreview({
 	return (
 		<div
 			className={cn(
-				"grid aspect-[5/4] grid-cols-2 overflow-hidden border-b border-border/70 bg-[linear-gradient(180deg,oklch(0.98_0.004_255),oklch(0.93_0.012_151))] dark:bg-[linear-gradient(180deg,oklch(0.22_0.022_255),oklch(0.17_0.018_255))]",
+				"relative grid aspect-[5/4] grid-cols-2 overflow-hidden border-b border-border/70",
 				className,
 			)}
 		>
+			{/* 亮/暗舞台背景双层 opacity 交叉淡入；渐变不可插值，禁止单元素 dark:bg-[...] 切换 */}
+			<div
+				data-theme-surface="public-backdrop"
+				aria-hidden="true"
+				className="absolute inset-0 bg-[linear-gradient(180deg,oklch(0.98_0.004_255),oklch(0.93_0.012_151))] opacity-100 dark:opacity-0"
+			/>
+			<div
+				data-theme-surface="public-backdrop"
+				aria-hidden="true"
+				className="absolute inset-0 bg-[linear-gradient(180deg,oklch(0.22_0.022_255),oklch(0.17_0.018_255))] opacity-0 dark:opacity-100"
+			/>
 			<img
 				src={skinUrl}
 				alt={alt}

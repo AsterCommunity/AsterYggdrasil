@@ -19,6 +19,7 @@ import {
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -993,9 +994,13 @@ function TextureSlotCard({
 
 	if (loading) {
 		return (
-			<div className="p-4 text-sm text-muted-foreground">
-				<Icon name="Spinner" className="mr-2 inline size-4" />
-				{t("profiles.textureMetadataLoading")}
+			<div className="p-4" role="status">
+				<span className="sr-only">{t("profiles.textureMetadataLoading")}</span>
+				<div className="space-y-3">
+					<Skeleton className="h-4 w-1/2" />
+					<Skeleton className="h-3 w-2/3" />
+					<Skeleton className="h-16 w-full rounded-lg" />
+				</div>
 			</div>
 		);
 	}

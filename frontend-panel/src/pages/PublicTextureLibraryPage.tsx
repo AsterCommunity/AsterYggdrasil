@@ -4,7 +4,6 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -71,8 +70,6 @@ export default function PublicTextureLibraryPage() {
 	const [tagFilterOpen, setTagFilterOpen] = useState(false);
 	const [tagSearchMethod, setTagSearchMethod] =
 		useState<TextureTagSearchMethod>("all");
-	const tagFilterTriggerRef = useRef<HTMLDivElement | null>(null);
-	const tagFilterPopoverRef = useRef<HTMLDivElement | null>(null);
 	const [query, setQuery] = useState("");
 	const [appliedQuery, setAppliedQuery] = useState("");
 	const [loading, setLoading] = useState(true);
@@ -271,7 +268,6 @@ export default function PublicTextureLibraryPage() {
 									</div>
 									<TextureTagFilterPopover
 										open={tagFilterOpen}
-										popoverRef={tagFilterPopoverRef}
 										searchMethod={tagSearchMethod}
 										selectedIds={draftTagIds}
 										selectedTags={selectedTags}
@@ -279,7 +275,6 @@ export default function PublicTextureLibraryPage() {
 										loading={tagLoading}
 										tags={tags}
 										testId="library-tag-filter-popover"
-										triggerRef={tagFilterTriggerRef}
 										onClear={clearTagFilter}
 										onLoadMore={loadMoreTags}
 										onOpenChange={setTagFilterOpen}

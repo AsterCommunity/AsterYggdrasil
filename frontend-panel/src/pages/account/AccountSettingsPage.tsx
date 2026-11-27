@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { handleApiError } from "@/hooks/useApiError";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
@@ -935,10 +936,21 @@ export default function AccountSettingsPage() {
 	if (!user) {
 		return (
 			<div className="mx-auto w-full max-w-[96rem] px-4 py-5 sm:px-6 lg:px-7">
-				<div className="rounded-lg border border-border/70 bg-card p-5 text-card-foreground shadow-sm dark:border-white/10 dark:bg-card/90 dark:shadow-none">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground">
-						<Icon name="Spinner" className="size-4 animate-spin" />
-						{t("common.loading")}
+				<div
+					className="rounded-lg border border-border/70 bg-card p-5 text-card-foreground shadow-sm dark:border-white/10 dark:bg-card/90 dark:shadow-none"
+					role="status"
+				>
+					<span className="sr-only">{t("common.loading")}</span>
+					<div className="space-y-4">
+						<div className="flex items-center gap-3">
+							<Skeleton className="size-12 rounded-full" />
+							<div className="flex-1 space-y-2">
+								<Skeleton className="h-4 w-1/3" />
+								<Skeleton className="h-3 w-1/2" />
+							</div>
+						</div>
+						<Skeleton className="h-32 w-full rounded-lg" />
+						<Skeleton className="h-24 w-full rounded-lg" />
 					</div>
 				</div>
 			</div>

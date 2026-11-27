@@ -28,6 +28,7 @@ import {
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1183,10 +1184,7 @@ function CaptchaPreviewPanel({
 			<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
 				<div className="flex h-16 w-full max-w-[13.5rem] items-center justify-start overflow-hidden bg-transparent">
 					{loading ? (
-						<Icon
-							name="Spinner"
-							className="size-5 animate-spin text-muted-foreground"
-						/>
+						<Skeleton className="h-14 w-full max-w-[13.5rem] rounded-lg" />
 					) : imageBase64 ? (
 						<img
 							src={imageBase64}

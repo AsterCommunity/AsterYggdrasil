@@ -17,6 +17,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cropAvatarImage, renderAvatarCropPreview } from "@/lib/avatarCrop";
 
 type AvatarCropDialogProps = {
@@ -227,9 +228,12 @@ function AvatarCropDialogSession({
 								/>
 							</ReactCrop>
 						) : (
-							<div className="flex items-center justify-center text-sm text-muted-foreground">
-								<Icon name="Spinner" className="mr-2 size-4 animate-spin" />
-								{t("common.loading")}
+							<div
+								className="flex min-h-40 w-full items-center justify-center"
+								role="status"
+							>
+								<span className="sr-only">{t("common.loading")}</span>
+								<Skeleton className="h-40 w-full max-w-md rounded-lg" />
 							</div>
 						)}
 					</section>

@@ -35,7 +35,7 @@ export function AppFooter() {
 	);
 
 	return (
-		<footer className="min-w-0 overflow-x-clip border-black/10 border-t bg-white/72 text-slate-700 backdrop-blur-xl dark:border-white/10 dark:bg-[#050b09] dark:text-slate-300">
+		<footer className="min-w-0 overflow-x-clip border-black/10 border-t bg-public-footer text-slate-700 backdrop-blur-xl dark:border-white/10 dark:text-slate-300">
 			<div className="mx-auto grid w-full min-w-0 max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1fr)_280px]">
 				<div className="min-w-0 max-w-xl">
 					<Link
@@ -48,7 +48,7 @@ export function AppFooter() {
 							className="size-9 shrink-0 object-contain"
 						/>
 						<span className="min-w-0">
-							<span className="block truncate font-semibold text-[#102118] dark:text-white">
+							<span className="block truncate font-semibold text-public-foreground">
 								{title}
 							</span>
 							<span className="block truncate font-medium text-[0.68rem] text-emerald-700 uppercase tracking-[0.18em] dark:text-emerald-300">
