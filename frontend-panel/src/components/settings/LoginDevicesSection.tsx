@@ -1,19 +1,15 @@
-import {
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useMemo,
-	useReducer,
-	useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { SessionPlatformIcon } from "@/components/common/SessionPlatformIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCursorList } from "@/hooks/useCursorList";
 import { formatUserAgentLabel } from "@/lib/userAgent";
 import { cn } from "@/lib/utils";
 import { authService } from "@/services/authService";
@@ -28,28 +24,20 @@ const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat(undefined, {
 });
 
 type LoginDevicesState = {
-	loading: boolean;
 	pageSize: number;
 	revokeBusyId: string | null;
 	revokeOthersBusy: boolean;
-	sessionTotal: number;
-	sessions: AuthSessionInfo[];
 };
 
 type LoginDevicesAction =
-	| { type: "loaded"; sessions: AuthSessionInfo[]; total: number }
-	| { type: "set_loading"; value: boolean }
 	| { type: "set_page_size"; value: number }
 	| { type: "set_revoke_busy_id"; value: string | null }
 	| { type: "set_revoke_others_busy"; value: boolean };
 
 const loginDevicesInitialState: LoginDevicesState = {
-	loading: true,
 	pageSize: DEFAULT_SESSION_PAGE_SIZE,
 	revokeBusyId: null,
 	revokeOthersBusy: false,
-	sessionTotal: 0,
-	sessions: [],
 };
 
 function loginDevicesReducer(
@@ -57,14 +45,6 @@ function loginDevicesReducer(
 	action: LoginDevicesAction,
 ): LoginDevicesState {
 	switch (action.type) {
-		case "loaded":
-			return {
-				...state,
-				sessionTotal: action.total,
-				sessions: sortSessions(action.sessions),
-			};
-		case "set_loading":
-			return { ...state, loading: action.value };
 		case "set_page_size":
 			return { ...state, pageSize: action.value };
 		case "set_revoke_busy_id":
@@ -81,52 +61,30 @@ export function LoginDevicesSection() {
 		loginDevicesReducer,
 		loginDevicesInitialState,
 	);
-	const [cursorStack, setCursorStack] = useState<DateTimeStringCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeStringCursor | null>(
-		null,
-	);
-	const {
-		loading,
-		pageSize,
-		revokeBusyId,
-		revokeOthersBusy,
-		sessionTotal,
-		sessions,
-	} = state;
+	const { pageSize, revokeBusyId, revokeOthersBusy } = state;
 
-	const loadSessions = useCallback(
-		async (stack: DateTimeStringCursor[] = cursorStack) => {
-			dispatch({ type: "set_loading", value: true });
-			try {
-				const cursor = stack.at(-1);
-				const next = await authService.sessionsPage({
-					limit: pageSize,
-					after_last_seen_at: cursor?.value,
-					after_id: cursor?.id,
-				});
-				if (next.items.length === 0 && next.total > 0 && stack.length > 0) {
-					setCursorStack((current) => current.slice(0, -1));
-					setNextCursor(null);
-					return;
-				}
-				dispatch({
-					type: "loaded",
-					sessions: next.items,
-					total: next.total,
-				});
-				setNextCursor(next.next_cursor ?? null);
-			} catch (nextError: unknown) {
-				toast.error(formatUnknownError(nextError));
-			} finally {
-				dispatch({ type: "set_loading", value: false });
-			}
+	const loadSessionPage = useCallback(
+		async ({ cursor }: { cursor: DateTimeStringCursor | null }) => {
+			const next = await authService.sessionsPage({
+				limit: pageSize,
+				after_last_seen_at: cursor?.value,
+				after_id: cursor?.id,
+			});
+			return {
+				items: sortSessions(next.items),
+				nextCursor: next.next_cursor ?? null,
+				total: next.total,
+			};
 		},
-		[cursorStack, pageSize],
+		[pageSize],
 	);
-
-	useEffect(() => {
-		void loadSessions();
-	}, [loadSessions]);
+	const list = useCursorList<AuthSessionInfo, DateTimeStringCursor>({
+		deps: [pageSize],
+		loadPage: loadSessionPage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+	});
+	const { loading, total: sessionTotal } = list;
+	const sessions = list.items;
 
 	const visibleSessions = useMemo(
 		() => sessions.filter((session) => isActiveSession(session)),
@@ -154,7 +112,7 @@ export function LoginDevicesSection() {
 					return;
 				}
 				await authService.revokeSession(session.id);
-				await loadSessions();
+				await list.reload();
 				toast.success(t("sessions.sessionRevoked"));
 			} catch (nextError: unknown) {
 				toast.error(formatUnknownError(nextError));
@@ -162,22 +120,20 @@ export function LoginDevicesSection() {
 				dispatch({ type: "set_revoke_busy_id", value: null });
 			}
 		},
-		[clearAuth, loadSessions, t],
+		[clearAuth, list, t],
 	);
 	const revokeOtherSessions = useCallback(async () => {
 		dispatch({ type: "set_revoke_others_busy", value: true });
 		try {
 			await authService.revokeOtherSessions();
-			setCursorStack([]);
-			setNextCursor(null);
-			await loadSessions([]);
 			toast.success(t("sessions.otherSessionsRevoked"));
+			await list.reloadFirstPage();
 		} catch (nextError: unknown) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "set_revoke_others_busy", value: false });
 		}
-	}, [loadSessions, t]);
+	}, [list, t]);
 
 	function changePageSize(value: string | null) {
 		const parsed = Number(value);
@@ -186,9 +142,8 @@ export function LoginDevicesSection() {
 		)
 			? parsed
 			: DEFAULT_SESSION_PAGE_SIZE;
+		// pageSize is a list dep, so the cursor list resets itself.
 		dispatch({ type: "set_page_size", value: nextPageSize });
-		setCursorStack([]);
-		setNextCursor(null);
 	}
 
 	return (
@@ -225,22 +180,13 @@ export function LoginDevicesSection() {
 						/>
 						{t("sessions.revokeOtherSessions")}
 					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={loading}
-						onClick={() => {
-							void loadSessions();
-						}}
+					<RefreshButton
 						className="rounded-md"
-					>
-						<Icon
-							name={loading ? "Spinner" : "ArrowClockwise"}
-							className={cn("size-3.5", loading && "animate-spin")}
-						/>
-						{t("common.refresh")}
-					</Button>
+						loading={loading}
+						onClick={() => {
+							void list.reload();
+						}}
+					/>
 				</div>
 			</div>
 			<div className="mt-4 grid overflow-hidden rounded-lg border border-border/70 bg-muted/20 dark:border-white/10 dark:bg-muted/10 @min-[48rem]/devices:grid-cols-3">
@@ -273,11 +219,13 @@ export function LoginDevicesSection() {
 			</div>
 			<div className="mt-4">
 				{loading ? (
-					<div className="grid min-h-52 place-items-center rounded-lg border border-dashed border-border/80 bg-muted/20 text-sm text-muted-foreground dark:border-white/12 dark:bg-muted/12">
-						<span className="inline-flex items-center gap-2">
-							<Icon name="Spinner" className="size-4 animate-spin" />
-							{t("common.loading")}
-						</span>
+					<div className="min-h-52 rounded-lg border border-dashed border-border/80 bg-muted/20 p-4 dark:border-white/12 dark:bg-muted/12">
+						<span className="sr-only">{t("common.loading")}</span>
+						<div className="space-y-3">
+							<Skeleton className="h-12 w-full rounded-lg" />
+							<Skeleton className="h-12 w-full rounded-lg" />
+							<Skeleton className="h-12 w-4/5 rounded-lg" />
+						</div>
 					</div>
 				) : visibleSessions.length === 0 ? (
 					<div className="grid min-h-52 place-items-center rounded-lg border border-dashed border-border/80 bg-muted/20 px-4 text-center dark:border-white/12 dark:bg-muted/12">
@@ -304,27 +252,19 @@ export function LoginDevicesSection() {
 							/>
 						))}
 						<AdminOffsetPagination
-							currentPage={cursorStack.length + 1}
-							nextDisabled={!nextCursor}
-							onNext={() => {
-								if (!nextCursor) return;
-								setCursorStack((current) => [...current, nextCursor]);
-							}}
+							currentPage={list.currentPage}
+							nextDisabled={list.nextPageDisabled}
+							onNext={list.goNext}
 							onPageSizeChange={changePageSize}
-							onPrevious={() =>
-								setCursorStack((current) => current.slice(0, -1))
-							}
+							onPrevious={list.goPrevious}
 							pageSize={String(pageSize)}
 							pageSizeOptions={SESSION_PAGE_SIZE_OPTIONS.map((size) => ({
 								label: t("admin.pagination.pageSizeOption", { count: size }),
 								value: String(size),
 							}))}
-							prevDisabled={cursorStack.length === 0}
+							prevDisabled={list.prevPageDisabled}
 							total={sessionTotal}
-							totalPages={Math.max(
-								cursorStack.length + (nextCursor ? 2 : 1),
-								1,
-							)}
+							totalPages={list.totalPages}
 						/>
 					</div>
 				)}

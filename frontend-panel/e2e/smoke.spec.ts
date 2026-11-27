@@ -1,10 +1,16 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { loginViaUi, logoutViaUi } from "./support/auth";
+import { ADMIN } from "./support/fixtures";
 
-const adminUsername = "e2e_admin";
-const adminPassword = "E2e-Admin-Passw0rd!";
-const adminEmail = "e2e_admin@example.test";
+// Smoke checks cover the guest-visible entry points, so they run without any
+// seeded session even though the project provides one by default.
+test.use({ storageState: { cookies: [], origins: [] } });
 
-async function ensureInitialized(page: Page) {
+// Kept from the original smoke suite: the first-run entry points a brand-new
+// instance depends on. Accounts and initialization come from the setup
+// project; credentials live in `support/fixtures.ts` (env-overridable), not
+// inline in this file.
+async function ensureInitialized(page: import("@playwright/test").Page) {
 	await page.goto("/init");
 	if (
 		await page
@@ -13,31 +19,13 @@ async function ensureInitialized(page: Page) {
 	) {
 		return;
 	}
-
-	await page.getByLabel("Username").fill(adminUsername);
-	await page.getByLabel("Email").fill(adminEmail);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(adminPassword);
-	await page.getByLabel("Confirm password").fill(adminPassword);
+	await page.getByLabel("Username").fill(ADMIN.username);
+	await page.getByLabel("Email").fill(ADMIN.email);
+	await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
+	await page.getByLabel("Confirm password").fill(ADMIN.password);
 	await page.getByRole("button", { name: "Create admin" }).click();
 	await expect(page).toHaveURL(/\/account$/);
-	await page.getByRole("button", { name: adminUsername }).click();
-	await page.getByRole("menuitem", { name: "Logout" }).click();
-	// Logout navigates to the public home page.
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
-}
-
-async function loginAsAdmin(page: Page) {
-	await ensureInitialized(page);
-	await page.goto("/login");
-	await page.getByLabel("Email or username").fill(adminUsername);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(adminPassword);
-	await page.getByRole("button", { name: "Login" }).click();
-	await expect(page).toHaveURL(/\/account$/);
+	await logoutViaUi(page, ADMIN.username);
 }
 
 test("serves the public Yggdrasil entry screen", async ({ page }) => {
@@ -65,9 +53,7 @@ test("shows login as a standalone route and protects account routes", async ({
 	await expect(page).toHaveURL(/\/login$/);
 	await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
 	await expect(page.getByLabel("Email or username")).toBeVisible();
-	await expect(
-		page.getByRole("textbox", { exact: true, name: "Password" }),
-	).toBeVisible();
+	await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 	await page.getByRole("link", { name: "Register now" }).click();
 	await expect(page).toHaveURL(/\/register$/);
 	await expect(
@@ -106,7 +92,8 @@ test("keeps the public entry usable on mobile", async ({ page }) => {
 test("keeps app topbar compact across account and admin shells", async ({
 	page,
 }) => {
-	await loginAsAdmin(page);
+	await ensureInitialized(page);
+	await loginViaUi(page, ADMIN.username, ADMIN.password);
 
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(page).toHaveURL(/\/account$/);
@@ -130,15 +117,17 @@ test("keeps app topbar compact across account and admin shells", async ({
 		page.getByPlaceholder("Search players, UUIDs, sessions, or settings..."),
 	).toHaveCount(0);
 	await expect(page.getByText("⌘K")).toHaveCount(0);
+
+	await logoutViaUi(page, ADMIN.username);
 });
 
 test("keeps users logged out after reload once logout succeeds", async ({
 	page,
 }) => {
-	await loginAsAdmin(page);
+	await ensureInitialized(page);
+	await loginViaUi(page, ADMIN.username, ADMIN.password);
 
-	await page.getByRole("button", { name: adminUsername }).click();
-	await page.getByRole("menuitem", { name: "Logout" }).click();
+	await logoutViaUi(page, ADMIN.username);
 	await expect(page).toHaveURL(/\/$/);
 
 	// Regression for issue #37: after a successful logout, a page reload must

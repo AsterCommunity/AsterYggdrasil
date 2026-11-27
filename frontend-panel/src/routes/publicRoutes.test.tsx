@@ -35,7 +35,11 @@ vi.mock("@/pages/InitPage", () => ({
 }));
 
 vi.mock("@/pages/LoginPage", () => ({
-	default: () => <div data-testid="login-page">login/register route</div>,
+	default: () => <div data-testid="login-page">login route</div>,
+}));
+
+vi.mock("@/pages/auth/register-page/RegisterPage", () => ({
+	default: () => <div data-testid="register-page">register route</div>,
 }));
 
 vi.mock("@/pages/InvitePage", () => ({
@@ -52,7 +56,7 @@ vi.mock("@/pages/PublicConnectPage", () => ({
 	),
 }));
 
-vi.mock("@/pages/PublicTextureLibraryPage", () => ({
+vi.mock("@/pages/public-texture-library/PublicTextureLibraryPage", () => ({
 	default: () => (
 		<div data-testid="public-texture-library-page">texture library route</div>
 	),
@@ -160,7 +164,7 @@ describe("fixed public routes", () => {
 		[publicPaths.tos, "terms-page"],
 		[publicPaths.privacy, "privacy-page"],
 		[publicPaths.login, "login-page"],
-		[publicPaths.register, "login-page"],
+		[publicPaths.register, "register-page"],
 		["/invite/test-token", "invite-page"],
 		[publicPaths.resetPassword, "reset-password-page"],
 	])("renders initialized public route %s", async (path, testId) => {

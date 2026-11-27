@@ -121,6 +121,7 @@
 	"yggdrasil_rotate_signature_key": "轮换签名密钥",
 	"yggdrasil_rotate_signature_key_running": "轮换中",
 	"yggdrasil_rotate_signature_key_hint": "生成新的 RSA 私钥，并让后续 textures property 使用新密钥签名。",
+	"yggdrasil_rotate_signature_key_dirty_hint": "存在未保存的修改，请先保存或还原后 再轮换签名密钥。",
 	"yggdrasil_rotate_signature_key_success": "Yggdrasil 签名密钥已轮换",
 	"settings_mail_template_group_register_activation": "注册激活",
 	"settings_mail_template_group_contact_change_confirmation": "联系方式变更确认",

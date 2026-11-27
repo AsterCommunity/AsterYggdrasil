@@ -2,6 +2,7 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,8 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
 	keepMounted?: boolean;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<DialogPortal keepMounted={keepMounted}>
 			<DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
@@ -34,7 +37,7 @@ function DialogContent({
 					{children}
 					<DialogPrimitive.Close
 						className="absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
-						aria-label="Close"
+						aria-label={t("common.close")}
 					>
 						<Icon name="X" className="size-4" />
 					</DialogPrimitive.Close>

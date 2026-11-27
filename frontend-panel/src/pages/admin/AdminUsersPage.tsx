@@ -1,5 +1,12 @@
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -16,19 +23,31 @@ import {
 	DEFAULT_USER_PAGE_SIZE,
 	USER_PAGE_SIZE_OPTIONS,
 	type UserFilterValue,
-	useAdminUsersPageState,
-} from "@/components/admin/admin-users-page/useAdminUsersPageState";
+} from "@/components/admin/admin-users-page/userPageFilters";
 import { UsersSectionNav } from "@/components/admin/UsersSectionNav";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
+import { useClipboard } from "@/hooks/useClipboard";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useCursorList } from "@/hooks/useCursorList";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+	managedEnumField,
+	managedPageSizeField,
+	managedStringField,
+	useManagedListQueryState,
+} from "@/hooks/useManagedListQueryState";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingAction } from "@/hooks/usePendingAction";
+import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
+import { inviteUserSchema } from "@/lib/validation";
 import { adminUserPath } from "@/routes/routePaths";
 import { adminUserService } from "@/services/adminService";
 import type {
@@ -44,7 +63,6 @@ type InviteState = {
 	createdInvitation: AdminUserInvitationInfo | null;
 	error: string | null;
 	form: CreateUserInvitationRequest;
-	inviting: boolean;
 	open: boolean;
 };
 
@@ -53,7 +71,6 @@ type InviteAction =
 	| { type: "close" }
 	| { type: "field"; value: string }
 	| { type: "error"; value: string | null }
-	| { type: "inviting"; value: boolean }
 	| { type: "created"; value: AdminUserInvitationInfo };
 
 type GeneratedPasswordState = {
@@ -61,9 +78,14 @@ type GeneratedPasswordState = {
 	username: string;
 };
 
-function isValidEmail(value: string) {
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
+type ManagedUsersQuery = {
+	keyword: string;
+	pageSize: (typeof USER_PAGE_SIZE_OPTIONS)[number];
+	role: UserFilterValue<UserRole>;
+	status: UserFilterValue<UserStatus>;
+};
+
+type UserCursor = { id: number; value: string };
 
 function createInviteForm(): CreateUserInvitationRequest {
 	return { email: "" };
@@ -74,7 +96,6 @@ function initialInviteState(): InviteState {
 		createdInvitation: null,
 		error: null,
 		form: createInviteForm(),
-		inviting: false,
 		open: false,
 	};
 }
@@ -94,8 +115,6 @@ function inviteReducer(state: InviteState, action: InviteAction): InviteState {
 			};
 		case "error":
 			return { ...state, error: action.value };
-		case "inviting":
-			return { ...state, inviting: action.value };
 		case "created":
 			return {
 				...state,
@@ -121,20 +140,126 @@ function useAdminUsersPageController() {
 	);
 	const [generatedPassword, setGeneratedPassword] =
 		useState<GeneratedPasswordState | null>(null);
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [keywordUserDraft, setKeywordDraft] = useState("");
 
 	usePageTitle(t("admin.users.title"));
 
-	const [state, dispatch] = useAdminUsersPageState(searchParams);
-	const {
-		debouncedKeyword,
-		keyword,
-		cursorStack,
-		nextCursor,
-		pageSize,
-		role,
-		status,
-		total,
-	} = state;
+	const { query, setQuery } = useManagedListQueryState<ManagedUsersQuery>({
+		schema: {
+			keyword: managedStringField("keyword"),
+			pageSize: managedPageSizeField(
+				USER_PAGE_SIZE_OPTIONS,
+				DEFAULT_USER_PAGE_SIZE,
+			),
+			role: managedEnumField("role", ["admin", "operator", "user"], "__all__"),
+			status: managedEnumField("status", ["active", "disabled"], "__all__"),
+		},
+		searchParams,
+		setSearchParams,
+	});
+	const { keyword: committedKeyword, pageSize, role, status } = query;
+	// The input keeps intermediate drafts; the URL commits after a debounce.
+	// Only user edits start the debounce pipeline: the URL stays the source of
+	// truth for external navigation (deep links, back/forward), otherwise a
+	// mount-time empty draft would overwrite a restored `?keyword=...` filter.
+	const [keywordSource, setKeywordSource] = useState<"url" | "user">("url");
+	// Distinguishes our own debounced commits from external URL changes.
+	// `pendingCommit` holds the keyword the page just pushed into the URL and
+	// is cleared once the router reflects it; `lastSubmitted` is the last
+	// keyword this page authored. A committedKeyword matching neither means
+	// the URL was changed from outside (back/forward, in-app link), and the
+	// "user" mode must retire — a stale draft would otherwise push the old
+	// keyword back over the externally navigated one.
+	const pendingCommitRef = useRef<string | null>(null);
+	const lastSubmittedRef = useRef<string | null>(null);
+	const keywordDraft =
+		keywordSource === "url" ? committedKeyword : keywordUserDraft;
+	const debouncedKeyword = useDebouncedValue(keywordDraft, 250);
+	useEffect(() => {
+		if (keywordSource === "url") return;
+		if (debouncedKeyword.trim() === committedKeyword) return;
+		pendingCommitRef.current = debouncedKeyword;
+		setQuery({ keyword: debouncedKeyword });
+	}, [committedKeyword, debouncedKeyword, keywordSource, setQuery]);
+	useEffect(() => {
+		if (pendingCommitRef.current !== null) {
+			if (committedKeyword === pendingCommitRef.current) {
+				// Our own commit landed in the URL — stay in user mode.
+				pendingCommitRef.current = null;
+				lastSubmittedRef.current = committedKeyword;
+				return;
+			}
+			// Commit still in flight; do not treat the old URL as external.
+			return;
+		}
+		if (committedKeyword === lastSubmittedRef.current) {
+			return;
+		}
+		// External navigation: adopt the URL keyword and drop the stale draft.
+		setKeywordSource("url");
+		setKeywordDraft(committedKeyword);
+	}, [committedKeyword]);
+
+	const { pending: submitting, runWithPending } = usePendingAction();
+	const { pendingId: deletingId, runWithPending: runDeletion } =
+		usePendingId<number>();
+	const { pendingId: revokingId, runWithPending: runRevocation } =
+		usePendingId<number>();
+
+	const loadUserPage = useCallback(
+		async ({ cursor }: { cursor: UserCursor | null }) => {
+			const page = await adminUserService.list({
+				keyword: committedKeyword,
+				limit: pageSize,
+				after_created_at: cursor?.value,
+				after_id: cursor?.id,
+				role: role === "__all__" ? undefined : role,
+				status: status === "__all__" ? undefined : status,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[committedKeyword, pageSize, role, status],
+	);
+	const list = useCursorList<AdminUserInfo, UserCursor>({
+		deps: [committedKeyword, pageSize, role, status],
+		loadPage: loadUserPage,
+		onError: handleApiError,
+	});
+
+	const deleteDialog = useConfirmDialog<AdminUserInfo>((target) => {
+		void runDeletion(target.id, async () => {
+			try {
+				if (target.id !== 1) {
+					await adminUserService.delete(target.id);
+					toast.success(t("admin.users.deleted"));
+				}
+				await list.reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
+	});
+	const revokeDialog = useConfirmDialog<AdminUserInfo>((target) => {
+		void runRevocation(target.id, async () => {
+			try {
+				const result = await adminUserService.revokeSessions(target.id);
+				toast.success(
+					t("admin.users.sessionsRevoked", { count: result.removed }),
+				);
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
+	});
+
+	const { pending: inviting, runWithPending: runInvite } = usePendingAction();
+	const { copy } = useClipboard();
+
 	const roleOptions = useMemo(
 		() => [
 			{ label: t("admin.users.allRoles"), value: "__all__" },
@@ -157,46 +282,51 @@ function useAdminUsersPageController() {
 		value: String(size),
 	}));
 	const filtered =
-		Boolean(debouncedKeyword.trim()) ||
-		role !== "__all__" ||
-		status !== "__all__";
+		Boolean(committedKeyword) || role !== "__all__" || status !== "__all__";
 	const activeFilterCount =
-		(keyword.trim() ? 1 : 0) +
+		(keywordDraft.trim() ? 1 : 0) +
 		(role !== "__all__" ? 1 : 0) +
 		(status !== "__all__" ? 1 : 0);
 	const toolbar = useMemo(
 		() => (
 			<AdminUserFiltersToolbar
 				activeFilterCount={activeFilterCount}
-				keyword={keyword}
+				keyword={keywordDraft}
 				role={role}
 				roleOptions={roleOptions}
 				status={status}
 				statusOptions={statusOptions}
 				onKeywordChange={(value) => {
-					dispatch({ type: "keyword", value });
+					setKeywordSource("user");
+					setKeywordDraft(value);
 				}}
 				onRoleChange={(value) => {
-					dispatch({
-						type: "role",
-						value: (value as UserFilterValue<UserRole> | null) ?? "__all__",
+					setQuery({
+						role: (value as UserFilterValue<UserRole> | null) ?? "__all__",
 					});
 				}}
 				onStatusChange={(value) => {
-					dispatch({
-						type: "status",
-						value: (value as UserFilterValue<UserStatus> | null) ?? "__all__",
+					setQuery({
+						status: (value as UserFilterValue<UserStatus> | null) ?? "__all__",
 					});
 				}}
-				onResetFilters={() => dispatch({ type: "resetFilters" })}
+				onResetFilters={() => {
+					setKeywordSource("url");
+					setKeywordDraft("");
+					setQuery({
+						keyword: "",
+						role: "__all__",
+						status: "__all__",
+					});
+				}}
 			/>
 		),
 		[
 			activeFilterCount,
-			dispatch,
-			keyword,
+			keywordDraft,
 			role,
 			roleOptions,
+			setQuery,
 			status,
 			statusOptions,
 		],
@@ -206,199 +336,123 @@ function useAdminUsersPageController() {
 	const pagination = useMemo(
 		() => (
 			<AdminOffsetPagination
-				total={total}
-				currentPage={cursorStack.length + 1}
-				totalPages={Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1)}
+				total={list.total}
+				currentPage={list.currentPage}
+				totalPages={list.totalPages}
 				pageSize={String(pageSize)}
 				pageSizeOptions={pageSizeOptions}
-				prevDisabled={cursorStack.length === 0}
-				nextDisabled={!nextCursor}
-				onPrevious={() => dispatch({ type: "previousPage" })}
-				onNext={() => dispatch({ type: "nextPage" })}
+				prevDisabled={list.prevPageDisabled}
+				nextDisabled={list.nextPageDisabled}
+				onPrevious={list.goPrevious}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(value, USER_PAGE_SIZE_OPTIONS);
 					if (next == null) return;
-					dispatch({ type: "pageSize", value: next });
+					setQuery({ pageSize: next });
 				}}
 			/>
 		),
 		[
-			cursorStack.length,
-			dispatch,
-			nextCursor,
+			list.goNext,
+			list.goPrevious,
+			list.nextPageDisabled,
+			list.prevPageDisabled,
+			list.currentPage,
+			list.totalPages,
+			list.total,
 			pageSize,
 			pageSizeOptions,
-			total,
+			setQuery,
 		],
 	);
 
-	useEffect(() => {
-		const timer = window.setTimeout(() => {
-			dispatch({ type: "debouncedKeyword", value: keyword });
-		}, 250);
-		return () => window.clearTimeout(timer);
-	}, [dispatch, keyword]);
-
-	useEffect(() => {
-		const next = new URLSearchParams(searchParams);
-		setOrDelete(next, "keyword", debouncedKeyword.trim());
-		setOrDelete(next, "role", role === "__all__" ? "" : role);
-		setOrDelete(next, "status", status === "__all__" ? "" : status);
-		setOrDelete(
-			next,
-			"pageSize",
-			pageSize !== DEFAULT_USER_PAGE_SIZE ? String(pageSize) : "",
-		);
-		if (next.toString() !== searchParams.toString()) {
-			setSearchParams(next, { replace: true });
-		}
-	}, [debouncedKeyword, pageSize, role, searchParams, setSearchParams, status]);
-
-	const loadUsers = useCallback(async () => {
-		try {
-			dispatch({ type: "loadStart" });
-			const page = await adminUserService.list({
-				keyword: debouncedKeyword,
-				limit: pageSize,
-				after_created_at: cursorStack.at(-1)?.value,
-				after_id: cursorStack.at(-1)?.id,
-				role: role === "__all__" ? undefined : role,
-				status: status === "__all__" ? undefined : status,
-			});
-			if (page.items.length === 0 && page.total > 0 && cursorStack.length > 0) {
-				dispatch({ type: "previousPage" });
-				return;
-			}
-			dispatch({
-				type: "loadSuccess",
-				items: page.items,
-				nextCursor: page.next_cursor ?? null,
-				total: page.total,
-			});
-		} catch (error) {
-			handleApiError(error);
-			dispatch({ type: "loading", value: false });
-		} finally {
-			dispatch({ type: "loading", value: false });
-		}
-	}, [debouncedKeyword, dispatch, cursorStack, pageSize, role, status]);
-
-	useEffect(() => {
-		void loadUsers();
-	}, [loadUsers]);
-
 	async function createUser(data: CreateAdminUserRequest) {
-		try {
-			dispatch({ type: "submitting", value: true });
-			const result = await adminUserService.create(data);
-			toast.success(t("admin.users.created"));
-			dispatch({ type: "createDialogOpen", value: false });
-			if (result.generated_password) {
-				setGeneratedPassword({
-					password: result.generated_password,
-					username: result.user.username,
-				});
+		await runWithPending(async () => {
+			try {
+				const result = await adminUserService.create(data);
+				toast.success(t("admin.users.created"));
+				setCreateDialogOpen(false);
+				if (result.generated_password) {
+					setGeneratedPassword({
+						password: result.generated_password,
+						username: result.user.username,
+					});
+				}
+				await list.reloadFirstPage();
+			} catch (error) {
+				handleApiError(error);
 			}
-			await loadUsers();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatch({ type: "submitting", value: false });
-		}
+		});
 	}
 
 	function closeInviteDialog() {
-		if (inviteState.inviting) return;
+		if (inviting) return;
 		dispatchInvite({ type: "close" });
 	}
 
 	async function copyInvitationLink(value: string) {
 		if (!value) return;
-		try {
-			await navigator.clipboard.writeText(value);
+		if (await copy(value)) {
 			toast.success(t("common.copied"));
-		} catch (error) {
-			handleApiError(error);
+		} else {
+			toast.error(t("errors.unexpected_error"));
 		}
 	}
 
 	async function copyGeneratedPassword() {
 		if (!generatedPassword?.password) return;
-		try {
-			await navigator.clipboard.writeText(generatedPassword.password);
+		if (await copy(generatedPassword.password)) {
 			toast.success(t("common.copied"));
-		} catch (error) {
-			handleApiError(error);
+		} else {
+			toast.error(t("errors.unexpected_error"));
 		}
 	}
 
 	async function createInvitation(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const email = inviteState.form.email.trim();
-		if (!isValidEmail(email)) {
+		const parsed = inviteUserSchema.safeParse({
+			email: inviteState.form.email.trim(),
+		});
+		if (!parsed.success) {
 			dispatchInvite({
 				type: "error",
-				value: t("admin.users.inviteEmailInvalid"),
+				value: t(parsed.error.issues[0]?.message ?? ""),
 			});
 			return;
 		}
-		try {
-			dispatchInvite({ type: "inviting", value: true });
-			const invitation = await adminUserService.createInvitation({ email });
-			dispatchInvite({ type: "created", value: invitation });
-			toast.success(t("admin.users.invitationCreated"));
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatchInvite({ type: "inviting", value: false });
-		}
-	}
-
-	async function revokeUserSessions(id: number) {
-		const result = await adminUserService.revokeSessions(id);
-		await loadUsers();
-		return result.removed;
-	}
-
-	async function revokeSessions() {
-		if (!state.revokingUser) return;
-		try {
-			dispatch({ type: "revokingId", value: state.revokingUser.id });
-			const removed = await revokeUserSessions(state.revokingUser.id);
-			toast.success(t("admin.users.sessionsRevoked", { count: removed }));
-			dispatch({ type: "revokingUser", value: null });
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatch({ type: "revokingId", value: null });
-		}
-	}
-
-	async function deleteUser() {
-		if (!state.deletingUser || state.deletingUser.id === 1) return;
-		try {
-			dispatch({ type: "deletingId", value: state.deletingUser.id });
-			await adminUserService.delete(state.deletingUser.id);
-			toast.success(t("admin.users.deleted"));
-			dispatch({ type: "deletingUser", value: null });
-			await loadUsers();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatch({ type: "deletingId", value: null });
-		}
+		await runInvite(async () => {
+			try {
+				const invitation = await adminUserService.createInvitation({
+					email: parsed.data.email,
+				});
+				dispatchInvite({ type: "created", value: invitation });
+				toast.success(t("admin.users.invitationCreated"));
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
 	return {
-		dispatch,
-		dispatchInvite,
+		createDialogOpen,
+		deleteDialog,
+		revokeDialog,
 		emptyIcon,
 		filtered,
 		generatedPassword,
 		headerRow,
+		inviting,
 		inviteState,
+		keywordDraft,
+		list,
 		pagination,
-		state,
+		revokingId,
+		deletingId,
+		dispatchInvite,
+		setCreateDialogOpen,
+		setGeneratedPassword,
+		setKeywordDraft,
+		submitting,
 		toolbar,
 		actions: {
 			closeInviteDialog,
@@ -406,14 +460,9 @@ function useAdminUsersPageController() {
 			copyGeneratedPassword,
 			createInvitation,
 			createUser,
-			loadUsers,
+			reload: () => list.reload(),
 			navigateToUser: (user: AdminUserInfo) => navigate(adminUserPath(user.id)),
-			openCreateDialog: () =>
-				dispatch({ type: "createDialogOpen", value: true }),
 			openInviteDialog: () => dispatchInvite({ type: "open" }),
-			setGeneratedPassword,
-			deleteUser,
-			revokeSessions,
 		},
 	};
 }
@@ -440,7 +489,7 @@ function AdminUsersPageHeader({
 	controller: AdminUsersController;
 }) {
 	const { t } = useTranslation();
-	const { actions, state, toolbar } = controller;
+	const { actions, list, toolbar } = controller;
 
 	return (
 		<AdminPageHeader
@@ -448,10 +497,10 @@ function AdminUsersPageHeader({
 			description={t("admin.users.description")}
 			actions={
 				<AdminUsersPageActions
-					loading={state.loading}
-					onCreate={actions.openCreateDialog}
+					loading={list.loading}
+					onCreate={() => controller.setCreateDialogOpen(true)}
 					onInvite={actions.openInviteDialog}
-					onRefresh={() => void actions.loadUsers()}
+					onRefresh={actions.reload}
 				/>
 			}
 			toolbar={toolbar}
@@ -483,19 +532,7 @@ function AdminUsersPageActions({
 				<Icon name="Plus" className="mr-2 size-4" />
 				{t("admin.users.create")}
 			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				disabled={loading}
-				onClick={onRefresh}
-			>
-				<Icon
-					name={loading ? "Spinner" : "ArrowsClockwise"}
-					className={cn("mr-2 size-4", loading && "animate-spin")}
-				/>
-				{t("common.refresh")}
-			</Button>
+			<RefreshButton loading={loading} onClick={onRefresh} />
 		</>
 	);
 }
@@ -508,18 +545,21 @@ function AdminUsersTableSection({
 	const { t } = useTranslation();
 	const {
 		actions,
-		dispatch,
+		deleteDialog,
+		deletingId,
 		emptyIcon,
 		filtered,
 		headerRow,
+		list,
 		pagination,
-		state,
+		revokingId,
+		revokeDialog,
 	} = controller;
 
 	return (
 		<AdminTableList
-			loading={state.loading}
-			items={state.items}
+			loading={list.loading}
+			items={list.items}
 			columns={6}
 			rows={6}
 			filtered={filtered}
@@ -534,15 +574,13 @@ function AdminUsersTableSection({
 				<UsersTableRow
 					key={user.id}
 					user={user}
-					deletingId={state.deletingId}
-					revokingId={state.revokingId}
+					deletingId={deletingId}
+					revokingId={revokingId}
 					onEdit={(item) => {
 						void actions.navigateToUser(item);
 					}}
-					onDelete={(item) => dispatch({ type: "deletingUser", value: item })}
-					onRevokeSessions={(item) =>
-						dispatch({ type: "revokingUser", value: item })
-					}
+					onDelete={deleteDialog.requestConfirm}
+					onRevokeSessions={revokeDialog.requestConfirm}
 				/>
 			)}
 		/>
@@ -557,28 +595,33 @@ function AdminUsersDialogs({
 	const { t } = useTranslation();
 	const {
 		actions,
-		dispatch,
+		createDialogOpen,
+		deleteDialog,
+		deletingId,
 		dispatchInvite,
 		generatedPassword,
 		inviteState,
-		state,
+		inviting,
+		revokingId,
+		revokeDialog,
+		setCreateDialogOpen,
+		setGeneratedPassword,
+		submitting,
 	} = controller;
 
 	return (
 		<>
 			<UserDialog
-				open={state.createDialogOpen}
-				submitting={state.submitting}
-				onOpenChange={(open) => {
-					dispatch({ type: "createDialogOpen", value: open });
-				}}
+				open={createDialogOpen}
+				submitting={submitting}
+				onOpenChange={setCreateDialogOpen}
 				onSubmit={(data) => void actions.createUser(data)}
 			/>
 			<InviteUserDialog
 				open={inviteState.open}
 				form={inviteState.form}
 				error={inviteState.error}
-				inviting={inviteState.inviting}
+				inviting={inviting}
 				createdInvitation={inviteState.createdInvitation}
 				onFieldChange={(value) => dispatchInvite({ type: "field", value })}
 				onCopyLink={(value) => void actions.copyInvitationLink(value)}
@@ -597,43 +640,34 @@ function AdminUsersDialogs({
 				username={generatedPassword?.username ?? ""}
 				onCopy={() => void actions.copyGeneratedPassword()}
 				onOpenChange={(open) => {
-					if (!open) actions.setGeneratedPassword(null);
+					if (!open) setGeneratedPassword(null);
 				}}
 			/>
 			<ConfirmDialog
-				open={Boolean(state.revokingUser)}
-				onOpenChange={(open) => {
-					if (!open) dispatch({ type: "revokingUser", value: null });
-				}}
+				open={revokeDialog.dialogProps.open}
+				onOpenChange={revokeDialog.dialogProps.onOpenChange}
 				title={t("admin.users.revokeSessionsTitle", {
-					name: state.revokingUser?.username ?? "",
+					name: revokeDialog.confirmTarget?.username ?? "",
 				})}
 				description={t("admin.users.revokeSessionsDescription")}
 				cancelLabel={t("common.cancel")}
 				confirmLabel={t("admin.users.revokeSessions")}
-				loading={state.revokingId != null}
-				onConfirm={() => void actions.revokeSessions()}
+				loading={revokingId != null}
+				onConfirm={revokeDialog.dialogProps.onConfirm}
 			/>
 			<ConfirmDialog
-				open={Boolean(state.deletingUser)}
-				onOpenChange={(open) => {
-					if (!open) dispatch({ type: "deletingUser", value: null });
-				}}
+				open={deleteDialog.dialogProps.open}
+				onOpenChange={deleteDialog.dialogProps.onOpenChange}
 				title={t("admin.users.deleteTitle", {
-					name: state.deletingUser?.username ?? "",
+					name: deleteDialog.confirmTarget?.username ?? "",
 				})}
 				description={t("admin.users.deleteDescription")}
 				cancelLabel={t("common.cancel")}
 				confirmLabel={t("admin.users.delete")}
-				loading={state.deletingId != null}
+				loading={deletingId != null}
 				variant="destructive"
-				onConfirm={() => void actions.deleteUser()}
+				onConfirm={deleteDialog.dialogProps.onConfirm}
 			/>
 		</>
 	);
-}
-
-function setOrDelete(params: URLSearchParams, key: string, value: string) {
-	if (value) params.set(key, value);
-	else params.delete(key);
 }

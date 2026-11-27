@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
-import type { AdminUserInfo } from "@/types/api";
+import { createAdminUser, createAdminUserPage } from "@/test/fixtures";
 import AdminUsersPage from "./AdminUsersPage";
 
 const adminUserServiceMock = vi.hoisted(() => ({
@@ -23,25 +23,12 @@ vi.mock("sonner", () => ({
 	},
 }));
 
-const createdUser: AdminUserInfo = {
-	active_session_count: 0,
-	created_at: "2026-06-18T00:00:00.000Z",
-	email: "alex@example.com",
-	email_verified_at: null,
+const createdUser = createAdminUser({
 	id: 7,
-	must_change_password: true,
-	pending_email: null,
-	profile: {
-		avatar: { source: "none", url_1024: null, url_512: null, version: 0 },
-		display_name: null,
-	},
-	profile_count: 0,
-	role: "user",
-	session_version: 1,
-	status: "active",
-	updated_at: "2026-06-18T00:00:00.000Z",
 	username: "alex-1",
-};
+	must_change_password: true,
+	email_verified_at: null,
+});
 
 function renderPage() {
 	return render(
@@ -61,12 +48,7 @@ function renderPage() {
 describe("AdminUsersPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		adminUserServiceMock.list.mockResolvedValue({
-			items: [],
-			limit: 20,
-			next_cursor: null,
-			total: 0,
-		});
+		adminUserServiceMock.list.mockResolvedValue(createAdminUserPage());
 		adminUserServiceMock.create.mockResolvedValue({
 			generated_password: "TempPass-123456789!",
 			user: createdUser,

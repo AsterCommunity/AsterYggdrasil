@@ -88,9 +88,7 @@ const STARTUP_FORBIDDEN_PRECACHE_GLOBS = [
 	"assets/**/*vendor-3d*",
 	"assets/**/*vendor-skinview3d*",
 	"assets/**/*vendor-three*",
-	"assets/**/*vendor-devicons*",
 	"assets/**/*preview-data*",
-	"assets/**/*preview-xml*",
 	"assets/**/*pwaWarmup*",
 ];
 
@@ -252,17 +250,6 @@ export default defineConfig(({ command }) => {
 						if (packageName === "three" || packageName === "@types/three") {
 							return "vendor-three";
 						}
-
-						if (
-							packageName === "@devicon/react" ||
-							packageName === "react-devicons"
-						) {
-							return "vendor-devicons";
-						}
-
-						if (packageName === "xml-formatter") {
-							return "preview-xml";
-						}
 					},
 				},
 			},
@@ -285,11 +272,6 @@ export default defineConfig(({ command }) => {
 				reporter: ["text", "json-summary", "lcov", "html"],
 				reportsDirectory: "./coverage",
 				reportOnFailure: true,
-			},
-			server: {
-				deps: {
-					inline: [/^react-devicons(?:\/|$)/],
-				},
 			},
 		},
 	};

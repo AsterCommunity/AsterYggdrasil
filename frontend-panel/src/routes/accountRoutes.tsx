@@ -16,7 +16,7 @@ const AccountAuditPage = lazyWithPreload(
 	() => import("@/pages/account/AccountAuditPage"),
 );
 const TextureWardrobePage = lazyWithPreload(
-	() => import("@/pages/account/TextureWardrobePage"),
+	() => import("@/pages/account/texture-wardrobe-page/TextureWardrobePage"),
 );
 
 export const accountRoutes = [

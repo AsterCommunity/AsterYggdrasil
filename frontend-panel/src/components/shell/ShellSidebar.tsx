@@ -57,7 +57,7 @@ export function ShellSidebar({
 				data-slot="shell-mobile-drawer"
 				data-theme-surface="chrome"
 				className={cn(
-					"fixed inset-y-0 left-0 z-50 grid h-dvh w-[min(22rem,calc(100vw-2.5rem))] grid-rows-[auto_minmax(0,1fr)] overflow-hidden border-white/10 bg-[#0b271b] text-white transition-[translate,box-shadow] duration-200 ease-out will-change-transform lg:hidden motion-reduce:transition-none",
+					"fixed inset-y-0 left-0 z-50 grid h-dvh w-[min(22rem,calc(100vw-2.5rem))] grid-rows-[auto_minmax(0,1fr)] overflow-hidden border-white/10 bg-shell-sidebar text-white transition-[translate,box-shadow] duration-200 ease-out will-change-transform lg:hidden motion-reduce:transition-none",
 					mobileOpen
 						? "translate-x-0 shadow-2xl shadow-black/35"
 						: "pointer-events-none -translate-x-[calc(100%+1rem)] shadow-none",
@@ -85,7 +85,7 @@ export function ShellSidebar({
 				data-theme-surface="chrome"
 				data-state={desktopCollapsed ? "collapsed" : "expanded"}
 				className={cn(
-					"hidden shrink-0 border-white/10 bg-[#0b271b] text-white shadow-2xl shadow-emerald-950/20 transition-[width] duration-200 ease-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:overflow-y-auto motion-reduce:transition-none",
+					"hidden shrink-0 border-white/10 bg-shell-sidebar text-white shadow-2xl shadow-emerald-950/20 transition-[width] duration-200 ease-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:overflow-y-auto motion-reduce:transition-none",
 					desktopCollapsed ? "lg:w-[6.5rem]" : "lg:w-[17rem]",
 				)}
 			>
@@ -274,7 +274,7 @@ export function ShellSidebarNavLink({
 			<TooltipTrigger render={link} />
 			<TooltipContent
 				side="right"
-				className="hidden border-white/10 bg-[#0b271b] text-white shadow-xl shadow-black/20 lg:block"
+				className="hidden border-white/10 bg-shell-sidebar text-white shadow-xl shadow-black/20 lg:block"
 			>
 				{label}
 			</TooltipContent>

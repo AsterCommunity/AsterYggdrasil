@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	banFormSchema,
+	inviteUserSchema,
 	passwordChangeSchema,
 	passwordSchema,
 	usernameSchema,
@@ -59,5 +61,50 @@ describe("validation schemas", () => {
 				confirmPassword: "",
 			}).success,
 		).toBe(false);
+	});
+
+	it("accepts invite emails through the shared email schema", () => {
+		expect(
+			inviteUserSchema.safeParse({ email: "player@example.com" }).success,
+		).toBe(true);
+		expect(
+			inviteUserSchema.safeParse({ email: "  player@example.com  " }).success,
+		).toBe(true);
+	});
+
+	it("rejects invite emails and reports the email issue", () => {
+		const invalid = inviteUserSchema.safeParse({ email: "player@example" });
+		expect(invalid.success).toBe(false);
+		if (!invalid.success) {
+			expect(invalid.error.issues[0]?.path).toEqual(["email"]);
+		}
+		const empty = inviteUserSchema.safeParse({ email: "   " });
+		expect(empty.success).toBe(false);
+	});
+
+	it("validates the ban form reason and scopes in field order", () => {
+		const valid = banFormSchema.safeParse({
+			reason: "  griefing  ",
+			scopes: ["scope.a"],
+		});
+		expect(valid.success).toBe(true);
+		if (valid.success) {
+			expect(valid.data.reason).toBe("griefing");
+		}
+
+		const blank = banFormSchema.safeParse({ reason: "   ", scopes: [] });
+		expect(blank.success).toBe(false);
+		if (!blank.success) {
+			expect(blank.error.issues.map((issue) => issue.path[0])).toEqual([
+				"reason",
+				"scopes",
+			]);
+		}
+
+		const emptyScopes = banFormSchema.safeParse({
+			reason: "griefing",
+			scopes: [],
+		});
+		expect(emptyScopes.success).toBe(false);
 	});
 });

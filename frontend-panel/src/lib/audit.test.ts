@@ -11,12 +11,7 @@ import {
 	formatAuditTarget,
 	getAuditActionBadgeClass,
 } from "@/lib/audit";
-import type { AuditLogEntry } from "@/types/api";
-
-type AuditEntrySample = Pick<
-	AuditLogEntry,
-	"action" | "entity_id" | "entity_name" | "entity_type" | "presentation"
->;
+import { createAuditEntry } from "@/test/fixtures";
 
 async function tFor(language: keyof typeof resources) {
 	const i18n = createInstance();
@@ -33,7 +28,7 @@ async function tFor(language: keyof typeof resources) {
 }
 
 function renameAuditEntry() {
-	return {
+	return createAuditEntry({
 		action: "minecraft_profile_rename",
 		entity_id: 7,
 		entity_name: "RenameNew",
@@ -63,7 +58,7 @@ function renameAuditEntry() {
 				},
 			},
 		},
-	} satisfies AuditEntrySample;
+	});
 }
 
 function generatedSchemaValues(schemaName: "AuditAction" | "AuditEntityType") {
@@ -127,7 +122,7 @@ describe("audit i18n helpers", () => {
 	it("formats Yggdrasil session forwarding audit entries", async () => {
 		const en = await tFor("en-US");
 		const zh = await tFor("zh-CN");
-		const entry = {
+		const entry = createAuditEntry({
 			action: "yggdrasil_session_forward_check",
 			entity_id: 3,
 			entity_name: "Yggdrasil compatible upstream",
@@ -143,7 +138,7 @@ describe("audit i18n helpers", () => {
 					},
 				},
 			},
-		} satisfies AuditEntrySample;
+		});
 
 		expect(
 			formatAuditAction(en, "admin_update_yggdrasil_session_forward_server"),
@@ -195,7 +190,7 @@ describe("audit i18n helpers", () => {
 				detail: { code: "unknown_profile_detail" },
 				summary: { code: "unknown_profile_action" },
 			},
-		} satisfies AuditEntrySample;
+		};
 
 		expect(formatAuditSummary(t, entry)).toBe("重命名 Minecraft 角色档案");
 		expect(formatAuditDetail(t, entry)).toBeUndefined();
@@ -203,7 +198,7 @@ describe("audit i18n helpers", () => {
 
 	it("does not render unresolved audit presentation placeholders", async () => {
 		const t = await tFor("zh-CN");
-		const entry = {
+		const entry = createAuditEntry({
 			action: "admin_update_external_auth_provider",
 			entity_id: 9,
 			entity_name: "example",
@@ -217,7 +212,7 @@ describe("audit i18n helpers", () => {
 					},
 				},
 			},
-		} satisfies AuditEntrySample;
+		});
 
 		expect(formatAuditDetail(t, entry)).toBe("example，启用 true");
 	});

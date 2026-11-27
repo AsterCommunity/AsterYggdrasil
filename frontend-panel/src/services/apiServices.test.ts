@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createAdminInvitation,
+	createAdminUser,
+	createUserBan,
+	createUserBanEvent,
+} from "@/test/fixtures";
 
 const apiMock = vi.hoisted(() => {
 	const get = vi.fn();
@@ -444,20 +450,7 @@ describe("admin services", () => {
 	});
 
 	it("uses admin user invitation endpoints", async () => {
-		const invitation = {
-			accepted_at: null,
-			accepted_user_id: null,
-			created_at: "2026-06-18T00:00:00Z",
-			email: "invitee@example.com",
-			expires_at: "2026-06-25T00:00:00Z",
-			id: 42,
-			invitation_url: "http://localhost:3300/invite/token",
-			invited_by: 1,
-			mail_queued: true,
-			revoked_at: null,
-			status: "pending" as const,
-			updated_at: "2026-06-18T00:00:00Z",
-		} satisfies import("@/types/api").AdminUserInvitationInfo;
+		const invitation = createAdminInvitation({ id: 42 });
 		apiMock.get.mockResolvedValueOnce(cursorPage([invitation], 10, 0, 1));
 		apiMock.post
 			.mockResolvedValueOnce(invitation)
@@ -487,14 +480,8 @@ describe("admin services", () => {
 	});
 
 	it("uses admin user account endpoints including deletion", async () => {
-		const user = {
-			active_session_count: 0,
-			created_at: "2026-06-18T00:00:00Z",
-			email: "alex@example.com",
+		const user = createAdminUser({
 			email_verified_at: null,
-			id: 7,
-			must_change_password: false,
-			pending_email: null,
 			profile: {
 				display_name: "Alex",
 				avatar: {
@@ -504,13 +491,7 @@ describe("admin services", () => {
 					version: 0,
 				},
 			},
-			profile_count: 0,
-			role: "user",
-			session_version: 1,
-			status: "active",
-			updated_at: "2026-06-18T00:00:00Z",
-			username: "alex",
-		} satisfies import("@/types/api").AdminUserInfo;
+		});
 		apiMock.get.mockResolvedValueOnce(cursorPage([user], 0, 20, 1));
 		apiMock.get.mockResolvedValueOnce(user);
 		apiMock.post.mockResolvedValueOnce({
@@ -561,25 +542,12 @@ describe("admin services", () => {
 	});
 
 	it("uses admin user capability ban endpoints", async () => {
-		const ban = {
+		const ban = createUserBan({
 			admin_note: "internal",
-			created_at: "2026-06-18T00:00:00Z",
-			created_by_user_id: 1,
-			effective: true,
-			effective_status: "active",
-			expires_at: null,
-			id: 11,
 			public_reason: "policy",
 			reason: "spam",
-			revoke_note: null,
-			revoked_at: null,
-			revoked_by_user_id: null,
-			scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
 			starts_at: "2026-06-18T00:00:00Z",
-			status: "active",
-			updated_at: "2026-06-18T00:00:00Z",
-			user_id: 7,
-		} satisfies import("@/types/api").UserBanInfo;
+		});
 		apiMock.get.mockResolvedValueOnce({
 			items: [ban],
 			limit: 20,
@@ -590,21 +558,8 @@ describe("admin services", () => {
 		apiMock.patch.mockResolvedValueOnce({ ...ban, reason: "abuse" });
 		apiMock.post.mockResolvedValueOnce({ ...ban, status: "revoked" });
 		apiMock.get.mockResolvedValueOnce([
-			{
-				actor_user_id: 1,
-				ban_id: 11,
-				created_at: "2026-06-18T00:00:00Z",
-				event_type: "created",
-				id: 21,
-				next_expires_at: null,
-				next_scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
-				next_status: "active",
-				note: "spam",
-				previous_expires_at: null,
-				previous_scopes: null,
-				previous_status: null,
-			},
-		] satisfies import("@/types/api").UserBanEventInfo[]);
+			createUserBanEvent({ id: 21, note: "spam" }),
+		]);
 		const { adminUserService } = await import("./adminService");
 
 		await adminUserService.listBans({
@@ -1399,43 +1354,6 @@ describe("yggdrasilService", () => {
 		expect(apiMock.rootClientRequest).not.toHaveBeenCalled();
 	});
 
-	it("reuses concurrent current-user profile texture requests for the same uuid", async () => {
-		apiMock.get.mockImplementation((path: string) => {
-			if (path === "/profiles/minecraft/profile-one/textures") {
-				return Promise.resolve([
-					{
-						source: "bound",
-						texture_type: "skin",
-						url: "/textures/profile-one-skin.png",
-					},
-				]);
-			}
-			if (path === "/profiles/minecraft/profile-two/textures") {
-				return Promise.resolve([]);
-			}
-			return Promise.reject(new Error(`unexpected path: ${path}`));
-		});
-		const { yggdrasilService } = await import("./yggdrasilService");
-
-		await Promise.all([
-			yggdrasilService.listProfileTextures("profile-one"),
-			yggdrasilService.listProfileSkinTextureUrls([
-				"profile-one",
-				"profile-two",
-			]),
-		]);
-
-		expect(apiMock.get).toHaveBeenCalledTimes(2);
-		expect(
-			apiMock.get.mock.calls.filter(
-				([path]) => path === "/profiles/minecraft/profile-one/textures",
-			),
-		).toHaveLength(1);
-		expect(apiMock.get).toHaveBeenCalledWith(
-			"/profiles/minecraft/profile-two/textures",
-		);
-	});
-
 	it("renames admin Minecraft profiles through the admin API", async () => {
 		apiMock.put.mockResolvedValue({
 			created_at: "2026-06-15T00:00:00Z",
@@ -1627,7 +1545,7 @@ describe("yggdrasilService", () => {
 		);
 	});
 
-	it("lists current user texture tags and replaces wardrobe texture tags", async () => {
+	it("replaces wardrobe texture tags", async () => {
 		apiMock.get.mockResolvedValueOnce({
 			items: [
 				{
@@ -1663,70 +1581,13 @@ describe("yggdrasilService", () => {
 		});
 		const { yggdrasilService } = await import("./yggdrasilService");
 
-		await expect(yggdrasilService.listTextureLibraryTags()).resolves.toEqual([
-			{
-				color: "#228855",
-				created_at: "2026-06-15T00:00:00Z",
-				id: 3,
-				name: "Featured",
-				sort_order: 10,
-				updated_at: "2026-06-15T00:00:00Z",
-			},
-		]);
-		await yggdrasilService.listTextureLibraryTags();
 		await yggdrasilService.replaceWardrobeTextureTags(12, {
 			tag_ids: [3, 4],
 		});
 
-		expect(apiMock.get).toHaveBeenCalledTimes(1);
-		expect(apiMock.get).toHaveBeenCalledWith("/wardrobe/tags?limit=30");
 		expect(apiMock.put).toHaveBeenCalledWith("/wardrobe/textures/12/tags", {
 			tag_ids: [3, 4],
 		});
-	});
-
-	it("loads current user texture tags page by page when cache is refreshed", async () => {
-		apiMock.get
-			.mockResolvedValueOnce({
-				items: Array.from({ length: 30 }, (_, index) => ({
-					color: "#228855",
-					created_at: "2026-06-15T00:00:00Z",
-					id: index + 1,
-					name: `Tag ${index + 1}`,
-					sort_order: index,
-					updated_at: "2026-06-15T00:00:00Z",
-				})),
-				limit: 30,
-				next_cursor: {
-					id: 30,
-					name: "Tag 30",
-					sort_order: 29,
-				},
-				total: 51,
-			})
-			.mockResolvedValueOnce({
-				items: Array.from({ length: 21 }, (_, index) => ({
-					color: "#334455",
-					created_at: "2026-06-15T00:00:00Z",
-					id: index + 31,
-					name: `Tag ${index + 31}`,
-					sort_order: index + 31,
-					updated_at: "2026-06-15T00:00:00Z",
-				})),
-				limit: 30,
-				next_cursor: null,
-				total: 51,
-			});
-		const { yggdrasilService } = await import("./yggdrasilService");
-
-		const tags = await yggdrasilService.listTextureLibraryTags({ force: true });
-
-		expect(tags).toHaveLength(51);
-		expect(apiMock.get).toHaveBeenNthCalledWith(1, "/wardrobe/tags?limit=30");
-		expect(apiMock.get).toHaveBeenNthCalledWith(
-			2,
-			"/wardrobe/tags?limit=30&after_sort_order=29&after_name=Tag+30&after_id=30",
-		);
 	});
 
 	it("maps generated Yggdrasil error bodies to protocol errors", async () => {

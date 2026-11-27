@@ -26,12 +26,14 @@ export const loginSuccessPathWarmupLoaders = [
 	{
 		key: "route:texture-library",
 		label: "PublicTextureLibraryPage",
-		load: () => import("@/pages/PublicTextureLibraryPage"),
+		load: () =>
+			import("@/pages/public-texture-library/PublicTextureLibraryPage"),
 	},
 	{
 		key: "route:wardrobe",
 		label: "TextureWardrobePage",
-		load: () => import("@/pages/account/TextureWardrobePage"),
+		load: () =>
+			import("@/pages/account/texture-wardrobe-page/TextureWardrobePage"),
 	},
 ] satisfies WarmupLoaderEntry[];
 
@@ -56,12 +58,14 @@ export const userRouteWarmupLoaders = [
 	{
 		key: "route:texture-library",
 		label: "PublicTextureLibraryPage",
-		load: () => import("@/pages/PublicTextureLibraryPage"),
+		load: () =>
+			import("@/pages/public-texture-library/PublicTextureLibraryPage"),
 	},
 	{
 		key: "route:wardrobe",
 		label: "TextureWardrobePage",
-		load: () => import("@/pages/account/TextureWardrobePage"),
+		load: () =>
+			import("@/pages/account/texture-wardrobe-page/TextureWardrobePage"),
 	},
 ] satisfies WarmupLoaderEntry[];
 

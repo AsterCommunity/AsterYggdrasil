@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { UserDetailPanel } from "@/components/admin/admin-users-page/UserDetailPanel";
 import { EmptyState } from "@/components/common/EmptyState";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
@@ -90,19 +91,11 @@ export default function AdminUserDetailPage() {
 							<Icon name="ArrowLeft" className="mr-2 size-4" />
 							{t("admin.users.backToUsers")}
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={loading || userId == null}
+						<RefreshButton
+							loading={loading}
+							disabled={userId == null}
 							onClick={() => void loadUser()}
-						>
-							<Icon
-								name={loading ? "Spinner" : "ArrowsClockwise"}
-								className={loading ? "mr-2 size-4 animate-spin" : "mr-2 size-4"}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>

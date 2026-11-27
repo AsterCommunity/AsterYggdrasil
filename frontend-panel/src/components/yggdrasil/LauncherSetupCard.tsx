@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { CopyField } from "@/components/yggdrasil/CopyField";
+import { useClipboard } from "@/hooks/useClipboard";
 import { cn } from "@/lib/utils";
 import {
 	yggdrasilAddServerUri,
@@ -23,7 +24,7 @@ export function LauncherSetupCard({
 }: LauncherSetupCardProps) {
 	const { t } = useTranslation();
 	const yggdrasilConfig = useFrontendConfigStore((state) => state.yggdrasil);
-	const [copiedDragUri, setCopiedDragUri] = useState(false);
+	const { copied: copiedDragUri, copy: writeClipboard } = useClipboard();
 	const [serverOwnerExpanded, setServerOwnerExpanded] = useState(false);
 	const apiRoot = yggdrasilApiRoot(yggdrasilConfig);
 	const addServerUri = yggdrasilAddServerUri(apiRoot);
@@ -38,10 +39,8 @@ export function LauncherSetupCard({
 		event.dataTransfer.effectAllowed = "copy";
 	}
 
-	async function copyAddServerUri() {
-		await navigator.clipboard.writeText(addServerUri);
-		setCopiedDragUri(true);
-		window.setTimeout(() => setCopiedDragUri(false), 1200);
+	function copyAddServerUri() {
+		void writeClipboard(addServerUri);
 	}
 
 	return (

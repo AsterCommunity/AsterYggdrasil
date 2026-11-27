@@ -38,13 +38,15 @@ export const accountNavItems: ShellNavItem[] = [
 		to: accountPaths.wardrobe,
 		labelKey: "nav.wardrobe",
 		icon: "FileImage",
-		preload: () => import("@/pages/account/TextureWardrobePage"),
+		preload: () =>
+			import("@/pages/account/texture-wardrobe-page/TextureWardrobePage"),
 	},
 	{
 		to: publicPaths.textureLibrary,
 		labelKey: "nav.textureLibrary",
 		icon: "Images",
-		preload: () => import("@/pages/PublicTextureLibraryPage"),
+		preload: () =>
+			import("@/pages/public-texture-library/PublicTextureLibraryPage"),
 	},
 	{
 		to: accountPaths.audit,
@@ -82,21 +84,28 @@ export const adminNavItems: ShellNavItem[] = [
 		labelKey: "admin.nav.externalAuth",
 		icon: "SignIn",
 		operatorScope: "com.astercosm.yggdrasil.permission.admin.external_auth",
-		preload: () => import("@/pages/admin/AdminExternalAuthPage"),
+		preload: () =>
+			import("@/pages/admin/admin-external-auth-page/AdminExternalAuthPage"),
 	},
 	{
 		to: adminPaths.yggdrasilForwarding,
 		labelKey: "admin.nav.yggdrasilForwarding",
 		icon: "Shuffle",
 		operatorScope: "com.astercosm.yggdrasil.permission.admin.settings",
-		preload: () => import("@/pages/admin/AdminYggdrasilForwardingPage"),
+		preload: () =>
+			import(
+				"@/pages/admin/admin-yggdrasil-forwarding-page/AdminYggdrasilForwardingPage"
+			),
 	},
 	{
 		to: adminPaths.textureLibrary,
 		labelKey: "admin.nav.textureLibrary",
 		icon: "Images",
 		operatorScope: "com.astercosm.yggdrasil.permission.admin.texture_library",
-		preload: () => import("@/pages/admin/AdminTextureLibraryTexturesPage"),
+		preload: () =>
+			import(
+				"@/pages/admin/admin-texture-library-textures-page/AdminTextureLibraryTexturesPage"
+			),
 	},
 	{
 		to: adminPaths.audit,
@@ -117,7 +126,8 @@ export const adminNavItems: ShellNavItem[] = [
 		labelKey: "admin.nav.settings",
 		icon: "Gear",
 		operatorScope: "com.astercosm.yggdrasil.permission.admin.settings",
-		preload: () => import("@/pages/admin/AdminSettingsPage"),
+		preload: () =>
+			import("@/pages/admin/admin-settings-page/AdminSettingsPage"),
 	},
 	{
 		to: adminPaths.about,

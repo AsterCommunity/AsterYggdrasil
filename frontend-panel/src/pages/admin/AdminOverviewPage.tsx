@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ActivityTrendChart } from "@/components/admin/admin-overview-page/OverviewTrendChartContent";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { StatusIndicator } from "@/components/common/StatusIndicator";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { AdminSurface } from "@/components/layout/AdminSurface";
@@ -242,15 +243,12 @@ function SystemHealthBanner({
 					</div>
 				</div>
 				{error ? (
-					<Button
-						variant="outline"
-						size="sm"
+					<RefreshButton
 						className="shrink-0 border-current/25 bg-background/45 hover:bg-background/70"
 						onClick={onRetry}
 					>
-						<Icon name="ArrowsClockwise" className="size-4" />
 						{t("admin.overview.retry")}
-					</Button>
+					</RefreshButton>
 				) : currentHealth.task_id ? (
 					<Button
 						variant="outline"
@@ -686,6 +684,7 @@ function SystemInfoPanel({
 		{
 			label: t("admin.overview.system.uptime"),
 			value: formatDurationSeconds(
+				t,
 				overview?.system_info.uptime_seconds,
 				loading ? "..." : t("admin.overview.system.unknown"),
 				i18n.language,

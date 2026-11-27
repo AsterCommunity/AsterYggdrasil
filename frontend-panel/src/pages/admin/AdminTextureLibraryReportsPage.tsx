@@ -1,10 +1,4 @@
-import {
-	type FormEvent,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
@@ -19,6 +13,7 @@ import {
 } from "@/components/common/AdminTable";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Badge } from "@/components/ui/badge";
@@ -42,12 +37,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { TextureLibraryTextureAvatar } from "@/components/yggdrasil/TextureLibraryTextureAvatar";
 import { handleApiError } from "@/hooks/useApiError";
+import { useCursorList } from "@/hooks/useCursorList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
 import { adminTextureLibraryService } from "@/services/adminService";
 import type {
-	DateTimeIdCursor,
 	MinecraftTextureReportReason,
 	MinecraftTextureReportStatus,
 	TextureReportInfo,
@@ -74,6 +69,7 @@ const REPORT_STATUSES = [
 type ReportPageSize = (typeof REPORT_PAGE_SIZE_OPTIONS)[number];
 type FilterValue<T extends string> = T | typeof ALL_VALUE;
 type ReportAction = "accept" | "reject";
+type ReportCursor = { id: number; value: string };
 
 type ReportDialogState = {
 	action: ReportAction;
@@ -91,80 +87,61 @@ export default function AdminTextureLibraryReportsPage() {
 		useState<FilterValue<MinecraftTextureReportReason>>(ALL_VALUE);
 	const [dialog, setDialog] = useState<ReportDialogState | null>(null);
 	const [adminNote, setAdminNote] = useState("");
-	const [submittingReportId, setSubmittingReportId] = useState<number | null>(
-		null,
-	);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
-	const [reports, setReports] = useState<TextureReportInfo[]>([]);
-	const [total, setTotal] = useState(0);
-	const [loading, setLoading] = useState(true);
+	const { pendingId: submittingReportId, runWithPending: runReportAction } =
+		usePendingId<number>();
 
 	usePageTitle(t("admin.textureLibraryReportsPage.title"));
 
-	const query = useMemo(
-		() => ({
-			limit: pageSize,
-			after_created_at: cursorStack.at(-1)?.value,
-			after_id: cursorStack.at(-1)?.id,
-			status: status === ALL_VALUE ? undefined : status,
-			reason: reason === ALL_VALUE ? undefined : reason,
-		}),
-		[cursorStack, pageSize, reason, status],
+	const loadReportPage = useCallback(
+		async ({ cursor }: { cursor: ReportCursor | null }) => {
+			const page = await adminTextureLibraryService.listReports({
+				limit: pageSize,
+				after_created_at: cursor?.value,
+				after_id: cursor?.id,
+				status: status === ALL_VALUE ? undefined : status,
+				reason: reason === ALL_VALUE ? undefined : reason,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[pageSize, reason, status],
 	);
-
-	const reload = useCallback(async () => {
-		setLoading(true);
-		try {
-			const page = await adminTextureLibraryService.listReports(query);
-			setReports(page.items);
-			setTotal(page.total);
-			setNextCursor(page.next_cursor ?? null);
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setLoading(false);
-		}
-	}, [query]);
-
-	useEffect(() => {
-		void reload();
-	}, [reload]);
-
-	const resetCursor = useCallback(() => {
-		setCursorStack((current) => (current.length > 0 ? [] : current));
-		setNextCursor((current) => (current ? null : current));
-	}, []);
+	const list = useCursorList<TextureReportInfo, ReportCursor>({
+		deps: [pageSize, reason, status],
+		loadPage: loadReportPage,
+		onError: handleApiError,
+	});
+	const { setItems } = list;
 
 	const activeFilterCount =
 		(status !== "pending" ? 1 : 0) + (reason !== ALL_VALUE ? 1 : 0);
 	const pagination = useMemo(
 		() => (
 			<AdminOffsetPagination
-				total={total}
-				currentPage={cursorStack.length + 1}
-				totalPages={Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1)}
+				total={list.total}
+				currentPage={list.currentPage}
+				totalPages={list.totalPages}
 				pageSize={String(pageSize)}
 				pageSizeOptions={REPORT_PAGE_SIZE_OPTIONS.map((size) => ({
 					label: t("admin.pagination.pageSizeOption", { count: size }),
 					value: String(size),
 				}))}
-				prevDisabled={cursorStack.length === 0}
-				nextDisabled={nextCursor === null}
-				onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-				}}
+				prevDisabled={list.prevPageDisabled}
+				nextDisabled={list.nextPageDisabled}
+				onPrevious={list.goPrevious}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(value, REPORT_PAGE_SIZE_OPTIONS);
 					if (next == null) return;
+					// pageSize is a list dep, so the cursor list resets itself.
 					setPageSize(next);
-					resetCursor();
 				}}
 			/>
 		),
-		[cursorStack.length, nextCursor, pageSize, resetCursor, t, total],
+		[list, pageSize, t],
 	);
 
 	const openDialog = useCallback(
@@ -184,30 +161,30 @@ export default function AdminTextureLibraryReportsPage() {
 	async function submitReportAction(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!dialog) return;
-		setSubmittingReportId(dialog.report.id);
-		try {
-			const updated =
-				dialog.action === "accept"
-					? await adminTextureLibraryService.acceptReport(dialog.report.id, {
-							admin_note: adminNote.trim() || null,
-						})
-					: await adminTextureLibraryService.rejectReport(dialog.report.id, {
-							admin_note: adminNote.trim() || null,
-						});
-			setReports((current) =>
-				current.map((report) => (report.id === updated.id ? updated : report)),
-			);
-			toast.success(
-				t(`admin.textureLibraryReportsPage.${dialog.action}Success`),
-			);
-			setDialog(null);
-			setAdminNote("");
-			await reload();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmittingReportId(null);
-		}
+		const action = dialog.action;
+		await runReportAction(dialog.report.id, async () => {
+			try {
+				const updated =
+					action === "accept"
+						? await adminTextureLibraryService.acceptReport(dialog.report.id, {
+								admin_note: adminNote.trim() || null,
+							})
+						: await adminTextureLibraryService.rejectReport(dialog.report.id, {
+								admin_note: adminNote.trim() || null,
+							});
+				setItems((current) =>
+					current.map((report) =>
+						report.id === updated.id ? updated : report,
+					),
+				);
+				toast.success(t(`admin.textureLibraryReportsPage.${action}Success`));
+				setDialog(null);
+				setAdminNote("");
+				await list.reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
 	return (
@@ -218,19 +195,10 @@ export default function AdminTextureLibraryReportsPage() {
 				actions={
 					<>
 						<TextureLibrarySectionNav active="reports" />
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={loading}
-							onClick={() => void reload()}
-						>
-							<Icon
-								name={loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						<RefreshButton
+							loading={list.loading}
+							onClick={() => void list.reload()}
+						/>
 					</>
 				}
 			/>
@@ -248,8 +216,8 @@ export default function AdminTextureLibraryReportsPage() {
 					"admin.textureLibraryReportsPage.filteredEmptyDescription",
 				)}
 				headerRow={<ReportTableHeader />}
-				items={reports}
-				loading={loading}
+				items={list.items}
+				loading={list.loading}
 				pagination={pagination}
 				renderRow={(report) => (
 					<ReportTableRow
@@ -268,7 +236,6 @@ export default function AdminTextureLibraryReportsPage() {
 						onResetFilters={() => {
 							setStatus("pending");
 							setReason(ALL_VALUE);
-							resetCursor();
 						}}
 					>
 						<ReportSelect
@@ -286,7 +253,6 @@ export default function AdminTextureLibraryReportsPage() {
 							]}
 							onChange={(value) => {
 								setStatus(value as FilterValue<MinecraftTextureReportStatus>);
-								resetCursor();
 							}}
 						/>
 						<ReportSelect
@@ -304,7 +270,6 @@ export default function AdminTextureLibraryReportsPage() {
 							]}
 							onChange={(value) => {
 								setReason(value as FilterValue<MinecraftTextureReportReason>);
-								resetCursor();
 							}}
 						/>
 					</AdminFilterToolbar>

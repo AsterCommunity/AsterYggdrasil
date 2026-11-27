@@ -24,6 +24,10 @@ import { cn } from "@/lib/utils";
 import { publicPaths } from "@/routes/routePaths";
 import type { ExternalAuthPublicProvider } from "@/types/api";
 import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
+import type {
+	ExternalAuthRecoveryMode,
+	ExternalAuthRecoveryState,
+} from "./useExternalAuthRecovery";
 
 type LoginFormField =
 	| "identifier"
@@ -34,23 +38,6 @@ type LoginFormField =
 	| "acceptedTerms";
 
 type LoginFormErrors = Partial<Record<LoginFormField, string>>;
-
-export type ExternalAuthRecoveryMode = "password" | "email";
-
-export type ExternalAuthRecoveryState = {
-	email: string;
-	emailError: string;
-	emailSubmitting: boolean;
-	flowToken: string;
-	mode: ExternalAuthRecoveryMode;
-	password: string;
-	passwordError: string;
-	passwordIdentifier: string;
-	passwordIdentifierError: string;
-	passwordSubmitting: boolean;
-	returnPath: string;
-	sent: boolean;
-};
 
 export type LoginFormCardProps = {
 	isRegister: boolean;

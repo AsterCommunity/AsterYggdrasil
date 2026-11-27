@@ -269,7 +269,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 					<AuthUserMenu
 						user={user}
 						scope="public"
-						className="border-black/10 bg-white/64 text-[#102118] shadow-lg shadow-black/12 backdrop-blur hover:bg-white/80 aria-expanded:bg-white/80 dark:border-white/14 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:bg-white/14 dark:aria-expanded:bg-white/14"
+						className="border-black/10 bg-white/64 text-public-foreground shadow-lg shadow-black/12 backdrop-blur hover:bg-white/80 aria-expanded:bg-white/80 dark:border-white/14 dark:bg-white/8 dark:text-white dark:shadow-black/20 dark:hover:bg-white/14 dark:aria-expanded:bg-white/14"
 						onLogout={() => void logout()}
 					/>
 				) : (
@@ -294,7 +294,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 							<Icon name={config.icon} className="size-3.5" />
 							{t(config.badgeKey)}
 						</Badge>
-						<h1 className="mt-5 text-balance font-black text-4xl leading-none tracking-normal text-[#102118] sm:text-5xl dark:text-white">
+						<h1 className="mt-5 text-balance font-black text-4xl leading-none tracking-normal text-public-foreground sm:text-5xl">
 							{t(config.headingKey)}
 						</h1>
 						<p className="mt-5 text-sm leading-6 text-slate-700 dark:text-slate-300">
@@ -311,7 +311,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 
 					<nav
 						aria-label={t("legal.common.contents")}
-						className="mt-4 rounded-lg border border-black/10 bg-white/60 p-2 shadow-lg shadow-black/8 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055]"
+						className="mt-4 rounded-lg border border-black/10 bg-public-card p-2 shadow-lg shadow-black/8 backdrop-blur-xl dark:border-white/10"
 					>
 						{config.sections.map((section) => (
 							<a
@@ -329,7 +329,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 					</nav>
 				</aside>
 
-				<section className="min-w-0 rounded-lg border border-black/10 bg-white/78 p-5 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-8 lg:p-10 dark:border-white/10 dark:bg-[#07110d]/82 dark:shadow-black/28">
+				<section className="min-w-0 rounded-lg border border-black/10 bg-public-card-strong p-5 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-8 lg:p-10 dark:border-white/10 dark:shadow-black/28">
 					<div className="mb-8 border-black/10 border-b pb-6 dark:border-white/10">
 						<div className="flex flex-wrap items-center gap-3 text-slate-600 text-sm dark:text-slate-400">
 							<Link
@@ -340,7 +340,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 								{t("nav.home")}
 							</Link>
 							<span aria-hidden="true">/</span>
-							<span className="font-medium text-[#102118] dark:text-white">
+							<span className="font-medium text-public-foreground">
 								{pageTitle}
 							</span>
 						</div>
@@ -354,7 +354,7 @@ export function LegalPage({ kind }: { kind: LegalPageKind }) {
 										<Icon name={section.icon} className="size-5" />
 									</div>
 									<div className="min-w-0">
-										<h2 className="text-pretty font-semibold text-2xl text-[#102118] tracking-normal dark:text-white">
+										<h2 className="text-pretty font-semibold text-2xl text-public-foreground tracking-normal">
 											{t(section.titleKey)}
 										</h2>
 										<div className="mt-3 grid gap-3 text-base leading-7 text-slate-700 dark:text-slate-300">

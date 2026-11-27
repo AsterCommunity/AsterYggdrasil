@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -31,16 +32,11 @@ export function ProfileTextureList({
 						{t("admin.minecraftProfilePage.textureListDescription")}
 					</p>
 				</div>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
+				<RefreshButton
 					className="w-full sm:w-auto"
+					loading={false}
 					onClick={onRefresh}
-				>
-					<Icon name="ArrowsClockwise" className="size-4" />
-					{t("common.refresh")}
-				</Button>
+				/>
 			</div>
 
 			<div className="grid gap-2">

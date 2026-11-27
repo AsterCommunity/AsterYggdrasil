@@ -6,6 +6,7 @@ import type {
 } from "axios";
 import axios, { AxiosHeaders } from "axios";
 import { config } from "@/config/app";
+import { skipTokenRefreshApiPaths } from "@/routes/routePaths";
 import type { ApiResponse, AsterErrorCode } from "@/types/api";
 import { CSRF_HEADER_NAME, getCsrfToken } from "./csrf";
 
@@ -102,6 +103,30 @@ export function isApiConnectionError(error: unknown): boolean {
 	);
 }
 
+/**
+ * The single transport-level classification of raw (non-ApiError) failures.
+ * Both the ApiError extraction in this module and the user-facing message
+ * chain in useApiError.ts consume this; there must be no second copy of the
+ * timeout/network heuristics.
+ */
+export function transportErrorKind(
+	error: unknown,
+): FrontendTransportErrorCode | null {
+	if (typeof error !== "object" || error === null) {
+		return null;
+	}
+	if (isRequestCanceled(error)) {
+		return null;
+	}
+	if (isRequestTimeout(error)) {
+		return "request_timeout";
+	}
+	if (isNetworkError(error)) {
+		return "network_error";
+	}
+	return null;
+}
+
 function isTokenAuthError(error: unknown) {
 	return (
 		error instanceof ApiError &&
@@ -161,20 +186,8 @@ function isNetworkError(error: object): boolean {
 	);
 }
 
-const SKIP_REFRESH_PATHS = [
-	"/auth/refresh",
-	"/auth/login",
-	"/auth/register",
-	"/auth/logout",
-	"/auth/check",
-	"/auth/setup",
-	"/auth/passkeys/login/start",
-	"/auth/passkeys/login/finish",
-	"/auth/external-auth/providers",
-];
-
 function shouldSkipRefresh(url: string) {
-	return SKIP_REFRESH_PATHS.some((path) => url.endsWith(path));
+	return skipTokenRefreshApiPaths.some((path) => url.endsWith(path));
 }
 
 function isUnsafeMethod(method?: string) {

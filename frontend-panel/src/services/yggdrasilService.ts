@@ -7,7 +7,6 @@ import type {
 	CreateTextureReportRequest,
 	MinecraftTextureMetadata,
 	MinecraftTextureModel,
-	MinecraftTextureTagList,
 	MinecraftTextureTagPage,
 	MinecraftTextureTagQuery,
 	MinecraftTextureType,
@@ -44,31 +43,6 @@ type YggdrasilProfileByUuidResponse =
 export type { YggdrasilMetadata };
 
 export const TEXTURE_TAG_PAGE_SIZE = 30;
-const TEXTURE_TAG_CACHE_TTL_MS = 60_000;
-
-const textureTagPageCache = new Map<
-	string,
-	{
-		expiresAt: number;
-		promise: Promise<MinecraftTextureTagPage>;
-	}
->();
-const publicTextureTagPageCache = new Map<
-	string,
-	{
-		expiresAt: number;
-		promise: Promise<PublicTextureLibraryTagPage>;
-	}
->();
-let textureTagListCache: {
-	expiresAt: number;
-	promise: Promise<MinecraftTextureTagList>;
-} | null = null;
-
-const profileTexturesRequests = new Map<
-	string,
-	Promise<MinecraftTextureMetadata[]>
->();
 
 export class YggdrasilProtocolError extends Error {
 	status: number;
@@ -112,111 +86,17 @@ export function yggdrasilPrefetchedMetadata(metadata: YggdrasilMetadata) {
 	return btoa(binary);
 }
 
-function tagPageCacheKey(params: {
-	limit?: number;
-	keyword?: string;
-	after_sort_order?: number;
-	after_name?: string;
-	after_id?: number;
-}) {
-	return JSON.stringify({
-		keyword: params.keyword?.trim() || "",
-		limit: params.limit ?? TEXTURE_TAG_PAGE_SIZE,
-		after_sort_order: params.after_sort_order ?? null,
-		after_name: params.after_name ?? null,
-		after_id: params.after_id ?? null,
-	});
-}
-
 function normalizeTagKeyword(keyword: string | null | undefined) {
 	const trimmed = keyword?.trim();
 	return trimmed ? trimmed : undefined;
 }
 
-function cacheTextureTagPage<Page extends MinecraftTextureTagPage>(
-	cache: Map<
-		string,
-		{
-			expiresAt: number;
-			promise: Promise<Page>;
-		}
-	>,
-	key: string,
-	promiseFactory: () => Promise<Page>,
-	force: boolean,
-) {
-	const now = Date.now();
-	if (!force) {
-		const cached = cache.get(key);
-		if (cached && cached.expiresAt > now) {
-			return cached.promise;
-		}
-	}
-	const promise = promiseFactory().catch((error) => {
-		if (cache.get(key)?.promise === promise) {
-			cache.delete(key);
-		}
-		throw error;
-	});
-	cache.set(key, {
-		expiresAt: now + TEXTURE_TAG_CACHE_TTL_MS,
-		promise,
-	});
-	return promise;
-}
-
-async function fetchAllTextureLibraryTags(): Promise<MinecraftTextureTagList> {
-	const items: MinecraftTextureTagList = [];
-	let cursor: NonNullable<MinecraftTextureTagPage["next_cursor"]> | undefined;
-
-	do {
-		const page = await yggdrasilService.listTextureLibraryTagsPage({
-			limit: TEXTURE_TAG_PAGE_SIZE,
-			after_sort_order: cursor?.sort_order ?? undefined,
-			after_name: cursor?.name,
-			after_id: cursor?.id,
-		});
-		items.push(...page.items);
-		cursor = page.next_cursor ?? undefined;
-	} while (cursor);
-
-	return items;
-}
-
-function cachedTextureLibraryTags(force = false) {
-	const now = Date.now();
-	if (!force && textureTagListCache && textureTagListCache.expiresAt > now) {
-		return textureTagListCache.promise;
-	}
-
-	const promise = fetchAllTextureLibraryTags().catch((error) => {
-		if (textureTagListCache?.promise === promise) {
-			textureTagListCache = null;
-		}
-		throw error;
-	});
-	textureTagListCache = {
-		expiresAt: now + TEXTURE_TAG_CACHE_TTL_MS,
-		promise,
-	};
-	return promise;
-}
-
 function listProfileTextures(
 	uuid: YggdrasilProfileByUuidPath["uuid"],
 ): Promise<MinecraftTextureMetadata[]> {
-	const pending = profileTexturesRequests.get(uuid);
-	if (pending) return pending;
-
-	const promise = api
-		.get<MinecraftTextureMetadata[]>(`/profiles/minecraft/${uuid}/textures`)
-		.finally(() => {
-			if (profileTexturesRequests.get(uuid) === promise) {
-				profileTexturesRequests.delete(uuid);
-			}
-		});
-	profileTexturesRequests.set(uuid, promise);
-	return promise;
+	return api.get<MinecraftTextureMetadata[]>(
+		`/profiles/minecraft/${uuid}/textures`,
+	);
 }
 
 export const yggdrasilService = {
@@ -279,55 +159,31 @@ export const yggdrasilService = {
 				tag_search_method: params.tag_search_method,
 			}),
 		),
-	listTextureLibraryTags: (options: { force?: boolean } = {}) =>
-		cachedTextureLibraryTags(Boolean(options.force)),
-	listTextureLibraryTagsPage: (
-		params: MinecraftTextureTagQuery = {},
-		options: { force?: boolean } = {},
-	) => {
+	listTextureLibraryTagsPage: (params: MinecraftTextureTagQuery = {}) => {
 		const keyword = normalizeTagKeyword(params.keyword);
-		const nextParams = {
-			limit: params.limit ?? TEXTURE_TAG_PAGE_SIZE,
-			keyword: keyword ?? undefined,
-			after_sort_order: params.after_sort_order ?? undefined,
-			after_name: params.after_name ?? undefined,
-			after_id: params.after_id ?? undefined,
-		};
-		const key = tagPageCacheKey(nextParams);
-		return cacheTextureTagPage(
-			textureTagPageCache,
-			key,
-			() =>
-				api.get<MinecraftTextureTagPage>(
-					withQuery("/wardrobe/tags", nextParams),
-				),
-			Boolean(options.force),
+		return api.get<MinecraftTextureTagPage>(
+			withQuery("/wardrobe/tags", {
+				limit: params.limit ?? TEXTURE_TAG_PAGE_SIZE,
+				keyword: keyword ?? undefined,
+				after_sort_order: params.after_sort_order ?? undefined,
+				after_name: params.after_name ?? undefined,
+				after_id: params.after_id ?? undefined,
+			}),
 		);
 	},
 	listWardrobeTextureItems: async (
 		params: MinecraftWardrobeTextureQuery = {},
 	) => (await yggdrasilService.listWardrobeTextures(params)).items,
-	listPublicTextureLibraryTags: (
-		params: PublicTextureLibraryTagQuery = {},
-		options: { force?: boolean } = {},
-	) => {
+	listPublicTextureLibraryTags: (params: PublicTextureLibraryTagQuery = {}) => {
 		const keyword = normalizeTagKeyword(params.keyword);
-		const nextParams = {
-			limit: params.limit ?? TEXTURE_TAG_PAGE_SIZE,
-			keyword: keyword ?? undefined,
-			after_sort_order: params.after_sort_order ?? undefined,
-			after_name: params.after_name ?? undefined,
-			after_id: params.after_id ?? undefined,
-		};
-		const key = tagPageCacheKey(nextParams);
-		return cacheTextureTagPage(
-			publicTextureTagPageCache,
-			key,
-			() =>
-				api.get<PublicTextureLibraryTagPage>(
-					withQuery("/texture-library/tags", nextParams),
-				),
-			Boolean(options.force),
+		return api.get<PublicTextureLibraryTagPage>(
+			withQuery("/texture-library/tags", {
+				limit: params.limit ?? TEXTURE_TAG_PAGE_SIZE,
+				keyword: keyword ?? undefined,
+				after_sort_order: params.after_sort_order ?? undefined,
+				after_name: params.after_name ?? undefined,
+				after_id: params.after_id ?? undefined,
+			}),
 		);
 	},
 	listPublicTextureLibraryTextures: (params: PublicTextureLibraryQuery = {}) =>

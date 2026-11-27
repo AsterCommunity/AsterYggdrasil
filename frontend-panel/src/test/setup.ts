@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { server } from "@/test/server";
+
+// MSW runs globally with `onUnhandledFrame: "error"`: any request that
+// escapes `vi.mock` service boundaries and has no handler fails loudly
+// instead of silently leaking to the network. See src/test/README.md for
+// the vi.mock (component boundary) vs MSW (network boundary) rules.
 
 class ResizeObserverMock {
 	observe() {}
@@ -70,11 +76,20 @@ Object.defineProperty(Element.prototype, "getAnimations", {
 	value: vi.fn(() => []),
 });
 
+beforeAll(() => {
+	server.listen({ onUnhandledFrame: "error" });
+});
+
 afterEach(() => {
 	cleanup();
+	server.resetHandlers();
 	localStorage.clear();
 	sessionStorage.clear();
 	document.documentElement.className = "";
 	document.documentElement.removeAttribute("data-theme");
 	vi.useRealTimers();
+});
+
+afterAll(() => {
+	server.close();
 });

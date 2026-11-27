@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { useClipboard } from "@/hooks/useClipboard";
 import { cn } from "@/lib/utils";
 
 type CopyFieldProps = {
@@ -19,13 +19,7 @@ export function CopyField({
 	inputClassName,
 }: CopyFieldProps) {
 	const { t } = useTranslation();
-	const [copied, setCopied] = useState(false);
-
-	async function copy() {
-		await navigator.clipboard.writeText(value);
-		setCopied(true);
-		window.setTimeout(() => setCopied(false), 1200);
-	}
+	const { copied, copy: writeClipboard } = useClipboard();
 
 	return (
 		<div className="grid min-w-0 gap-1.5">
@@ -45,7 +39,7 @@ export function CopyField({
 					size="icon"
 					className="shrink-0"
 					aria-label={t("common.copy", { label })}
-					onClick={() => void copy()}
+					onClick={() => void writeClipboard(value)}
 				>
 					<Icon name={copied ? "Check" : "Copy"} className="size-4" />
 				</Button>
