@@ -88,10 +88,20 @@ function notifyPermissionsUpdated(): void {
  * Fetches and installs the localization bundle for one locale. Best-effort
  * by design: a bundle failure must not block the descriptor flow, because
  * labels degrade to the static bundle and descriptor labels.
+ *
+ * The bundle binds to the generation it started under: a response that
+ * lands after an invalidation installs nothing and never marks the bundle
+ * loaded, so the current locale's own request stays authoritative.
  */
-async function loadBundle(locale: string): Promise<boolean> {
+async function loadBundle(
+	locale: string,
+	startedGeneration: number,
+): Promise<boolean> {
 	try {
 		const bundle = await permissionService.localizations(locale);
+		if (loadGeneration !== startedGeneration) {
+			return false;
+		}
 		installPermissionMessages(bundle.resolved_locale, bundle.messages);
 		bundleLoaded = true;
 		return true;
@@ -118,10 +128,12 @@ function loadPermissions(): Promise<LoadResult> {
 			return Promise.resolve({ ok: true, permissions: cachedPermissions });
 		}
 		// Descriptors are cached but the bundle never arrived: retry it.
-		const bundleRetry = loadBundle(activeLocale()).then((ok) => {
-			if (ok) notifyPermissionsUpdated();
-			return { ok: true, permissions: cachedPermissions } as LoadResult;
-		});
+		const bundleRetry = loadBundle(activeLocale(), loadGeneration).then(
+			(ok) => {
+				if (ok) notifyPermissionsUpdated();
+				return { ok: true, permissions: cachedPermissions } as LoadResult;
+			},
+		);
 		return bundleRetry;
 	}
 	if (pendingLoad) return pendingLoad;
@@ -137,7 +149,7 @@ function loadPermissions(): Promise<LoadResult> {
 			// Install at the tier the backend resolved (its parent-tag
 			// fallback already picked the best variant); the i18n language
 			// hierarchy (en-US -> en) resolves into that tier on lookup.
-			const bundleOk = await loadBundle(locale);
+			const bundleOk = await loadBundle(locale, startedGeneration);
 			if (loadGeneration !== startedGeneration) {
 				return { ok: false } as LoadResult;
 			}
@@ -232,7 +244,7 @@ export function useRegistryPermissions(
 	const retryBundle = useCallback(() => {
 		if (bundleStatus === "loading") return;
 		setBundleStatus("loading");
-		void loadBundle(activeLocale()).then((ok) => {
+		void loadBundle(activeLocale(), loadGeneration).then((ok) => {
 			setBundleStatus(ok ? "ready" : "error");
 			if (ok) notifyPermissionsUpdated();
 		});
@@ -245,6 +257,11 @@ export function useRegistryPermissions(
 			if (!cachedPermissions) return;
 			setPermissions(cachedPermissions.filter((item) => item.kind === kind));
 			setStatus("ready");
+			// A sibling consumer's successful bundle retry clears this
+			// instance's failure strip without refetching descriptors.
+			if (bundleLoaded) {
+				setBundleStatus("ready");
+			}
 		};
 		cacheListeners.add(listener);
 		return () => {
