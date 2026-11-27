@@ -1149,7 +1149,7 @@ dependencies = [
 
 [[package]]
 name = "aster_yggdrasil"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 dependencies = [
  "actix-http",
  "actix-multipart",
@@ -1235,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "aster_yggdrasil_migration"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 dependencies = [
  "aster_forge_db",
  "aster_forge_db_migration",
@@ -1247,7 +1247,7 @@ dependencies = [
 
 [[package]]
 name = "aster_yggdrasil_model"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 dependencies = [
  "aster_forge_api",
  "aster_forge_db",
@@ -1264,7 +1264,7 @@ dependencies = [
 
 [[package]]
 name = "aster_yggdrasil_outbound"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 dependencies = [
  "aster_forge_http",
  "reqwest",

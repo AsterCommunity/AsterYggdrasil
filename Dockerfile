@@ -19,7 +19,6 @@ RUN apk add --no-cache build-base pkgconfig sqlite-dev curl
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
-COPY migration/ migration/
 COPY crates/ crates/
 
 # Pre-build dependencies as a cache layer.

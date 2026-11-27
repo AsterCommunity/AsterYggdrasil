@@ -2,7 +2,7 @@
 members = [".", "crates/aster_yggdrasil_migration", "crates/aster_yggdrasil_render", "crates/aster_yggdrasil_model", "crates/aster_yggdrasil_protocol", "crates/aster_yggdrasil_outbound", "crates/aster_yggdrasil_texture_storage"]
 
 [workspace.package]
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 authors = [
     "AptS-1547 <apts-1547@esaps.net>",
     "AptS-1548 <apts-1548@esaps.net>",

@@ -33,25 +33,25 @@ jobs:
       matrix:
         include:
           - variant: default
-            features: server,cli
+            features: server
             suffix: ""
             platform: linux/amd64
             arch: amd64
             runner: ubuntu-latest
           - variant: default
-            features: server,cli
+            features: server
             suffix: ""
             platform: linux/arm64
             arch: arm64
             runner: ubuntu-24.04-arm
           - variant: metrics
-            features: server,cli,metrics
+            features: server,metrics
             suffix: "-metrics"
             platform: linux/amd64
             arch: amd64
             runner: ubuntu-latest
           - variant: metrics
-            features: server,cli,metrics
+            features: server,metrics
             suffix: "-metrics"
             platform: linux/arm64
             arch: arm64
