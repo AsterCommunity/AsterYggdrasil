@@ -176,8 +176,13 @@ describe("useRegistryPermissions", () => {
 	it("discards a stale bundle response after a language switch", async () => {
 		await i18next.changeLanguage("en-US");
 		let enRequests = 0;
-		let releaseEn: (value: { messages: Record<string, string> }) => void =
-			() => {};
+		let releaseEn: (value: {
+			namespace: string;
+			requested_locale: string;
+			resolved_locale: string;
+			revision: string;
+			messages: Record<string, string>;
+		}) => void = () => {};
 		mockedLocalizations.mockImplementation((locale: string) => {
 			if (locale.startsWith("zh")) {
 				return Promise.resolve({
@@ -188,11 +193,8 @@ describe("useRegistryPermissions", () => {
 					messages: { "admin.users.bans.scope.texture_upload": "材质上传" },
 				});
 			}
-			// en requests: the first completes normally; a later one hangs so
-			// the test can land it after the language switch.
 			enRequests += 1;
-			const callIndex = enRequests;
-			if (callIndex === 1) {
+			if (enRequests === 1) {
 				return Promise.resolve({
 					namespace: "permissions",
 					requested_locale: locale,
@@ -203,39 +205,44 @@ describe("useRegistryPermissions", () => {
 					},
 				});
 			}
+			// A later en request hangs so the test can land it stale.
 			return new Promise((resolve) => {
-				releaseEn = (value) => resolve(value);
-			}) as unknown as Promise<{
-				namespace: string;
-				requested_locale: string;
-				resolved_locale: string;
-				revision: string;
-				messages: Record<string, string>;
-			}>;
+				releaseEn = resolve;
+			});
 		});
 
 		const { unmount } = render(<Mount />);
 		await waitFor(() => {
 			expect(screen.getByTestId("status")).toHaveTextContent("ready");
 		});
-		// Trigger a hanging en bundle request via the exposed retry...
+
+		// Hang an en bundle request via the exposed retry...
 		fireEvent.click(screen.getByTestId("retry-bundle"));
 		expect(await screen.findByTestId("bundle-status")).toHaveTextContent(
 			"loading",
 		);
-		// ...and then switch languages, which invalidates the in-flight load.
+		// ...then switch languages, invalidating the in-flight generation.
 		await i18next.changeLanguage("zh-CN");
 		await waitFor(() => {
 			expect(flatLookup("admin.users.bans.scope.texture_upload")).toBe(
 				"材质上传",
 			);
 		});
-		// The stale en response lands: it must install nothing and leave the
-		// zh bundle authoritative.
+
+		// Watch installs directly: a stale response must not call
+		// addResourceBundle at all, regardless of what the zh lookup shows.
+		const addSpy = vi.spyOn(i18next, "addResourceBundle");
+		addSpy.mockClear();
 		releaseEn({
+			namespace: "permissions",
+			requested_locale: "en-US",
+			resolved_locale: "en-US",
+			revision: "stale",
 			messages: { "admin.users.bans.scope.texture_upload": "STALE EN" },
 		});
 		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(addSpy).not.toHaveBeenCalled();
+		addSpy.mockRestore();
 		expect(flatLookup("admin.users.bans.scope.texture_upload")).toBe(
 			"材质上传",
 		);

@@ -245,7 +245,9 @@ export function useRegistryPermissions(
 						setBundleStatus(ok ? "ready" : "error");
 					});
 				} else {
-					setBundleStatus("error");
+					// No in-flight bundle: a cached-descriptor hit with the
+					// bundle already loaded is ready, not a failure.
+					setBundleStatus(bundleLoaded ? "ready" : "error");
 				}
 			} else {
 				setStatus("error");

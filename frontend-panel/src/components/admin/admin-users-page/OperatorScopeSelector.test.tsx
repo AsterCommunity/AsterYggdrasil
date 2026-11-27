@@ -119,11 +119,25 @@ describe("OperatorScopeSelector", () => {
 			screen.getByRole("switch", { name: "Texture library" }),
 		).toBeInTheDocument();
 
-		mockedLocalizations.mockResolvedValue(await registryFixture());
+		// The retry returns a real bundle whose label differs from the
+		// static copy, so the assertion proves the retry actually landed.
+		mockedLocalizations.mockResolvedValue({
+			namespace: "permissions",
+			requested_locale: "en-US",
+			resolved_locale: "en-US",
+			revision: "test-retry",
+			messages: {
+				"admin.users.operatorScope.texture_library": "Retry restored label",
+			},
+		});
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 		expect(
-			await screen.findByRole("switch", { name: "Texture library" }),
+			await screen.findByRole("switch", { name: "Retry restored label" }),
 		).toBeInTheDocument();
+		// The warning strip clears once the bundle has landed.
+		expect(
+			screen.queryByText(/Failed to load permission labels/),
+		).not.toBeInTheDocument();
 	});
 
 	it("emits removals when a selected switch is toggled off", async () => {
