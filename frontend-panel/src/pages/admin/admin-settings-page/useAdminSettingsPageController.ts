@@ -61,7 +61,16 @@ export type AdminSettingsAction =
 	| { type: "discard_changes" }
 	| { type: "set_saving"; value: boolean }
 	| { type: "save_failed"; message: string }
-	| { type: "saved"; updated: SystemConfig[] }
+	| {
+			type: "saved";
+			/**
+			 * Draft value each submitted key carried at submit time. Keys the
+			 * user edited while the request was in flight keep their draft;
+			 * the server result only becomes the config baseline.
+			 */
+			submittedDrafts: Record<string, DraftValue>;
+			updated: SystemConfig[];
+	  }
 	| { type: "reloaded"; configs: SystemConfig[] }
 	| { type: "set_test_email_dialog_open"; value: boolean }
 	| { type: "set_test_email_target"; value: string }
@@ -154,13 +163,22 @@ export function adminSettingsReducer(
 					return next ?? config;
 				}),
 			);
+			// The config baseline always adopts the server result (so the save
+			// bar can diff it against a further-edited draft), but a draft the
+			// user edited while the request was in flight survives untouched:
+			// submitting B and retyping C must not let the response restore B.
+			const serverDrafts = draftsFromConfigs(updated);
+			const drafts = { ...state.drafts };
+			for (const [key, serverDraft] of Object.entries(serverDrafts)) {
+				const submitted = action.submittedDrafts[key];
+				if (submitted === undefined || state.drafts[key] === submitted) {
+					drafts[key] = serverDraft;
+				}
+			}
 			return {
 				...state,
 				configs,
-				drafts: {
-					...state.drafts,
-					...draftsFromConfigs(updated),
-				},
+				drafts,
 				savedAt: new Date().toISOString(),
 			};
 		}
@@ -342,9 +360,11 @@ export function useAdminSettingsPageController() {
 			// Commit A's result so it is not re-submitted, keep B's draft for
 			// correction, and only settle `saving` after every request ended —
 			// an early release would let a retry overlap the still-running A.
+			const submittedDrafts: Record<string, DraftValue> = {};
 			const settled = await Promise.allSettled(
 				changedConfigs.map((config) => {
 					const draft = drafts[config.key];
+					submittedDrafts[config.key] = draft;
 					return adminConfigService.set(
 						config.key,
 						buildSetConfigRequest(
@@ -367,6 +387,7 @@ export function useAdminSettingsPageController() {
 			if (fulfilled.length > 0) {
 				dispatch({
 					type: "saved",
+					submittedDrafts,
 					updated: fulfilled.map((item) => item.value.config),
 				});
 				for (const warning of fulfilled.flatMap(
