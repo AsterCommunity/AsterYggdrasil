@@ -17,7 +17,12 @@ let languageTick = 0;
 let cachedBackendT: TFunction | null = null;
 
 type LoadResult =
-	| { ok: true; permissions: AdminPermissionInfo[] }
+	| {
+			ok: true;
+			permissions: AdminPermissionInfo[];
+			/** In-flight bundle install; resolves true when it landed. */
+			bundlePending?: Promise<boolean>;
+	  }
 	| { ok: false };
 
 /**
@@ -146,16 +151,16 @@ function loadPermissions(): Promise<LoadResult> {
 				return { ok: false } as LoadResult;
 			}
 			cachedPermissions ??= list.permissions;
-			// Install at the tier the backend resolved (its parent-tag
-			// fallback already picked the best variant); the i18n language
-			// hierarchy (en-US -> en) resolves into that tier on lookup.
-			const bundleOk = await loadBundle(locale, startedGeneration);
-			if (loadGeneration !== startedGeneration) {
-				return { ok: false } as LoadResult;
-			}
-			bundleLoaded = bundleOk;
 			notifyPermissionsUpdated();
-			return { ok: true, permissions: cachedPermissions } as LoadResult;
+			// The bundle is best-effort: publish the descriptors now and load
+			// the bundle without blocking the editor. A hung bundle request
+			// delays labels, never the switches themselves.
+			const bundlePending = loadBundle(locale, startedGeneration);
+			return {
+				ok: true,
+				permissions: cachedPermissions,
+				bundlePending,
+			} as LoadResult;
 		} catch {
 			// Registry introspection is display-only; a failed request must
 			// not read as "no permissions are registered".
@@ -231,7 +236,17 @@ export function useRegistryPermissions(
 			if (result.ok) {
 				setPermissions(result.permissions.filter((item) => item.kind === kind));
 				setStatus("ready");
-				setBundleStatus(bundleLoaded ? "ready" : "error");
+				// The bundle resolves independently: descriptors are already
+				// published, and the pending promise only moves bundleStatus.
+				if (result.bundlePending) {
+					setBundleStatus("loading");
+					void result.bundlePending.then((ok) => {
+						if (cancelled) return;
+						setBundleStatus(ok ? "ready" : "error");
+					});
+				} else {
+					setBundleStatus("error");
+				}
 			} else {
 				setStatus("error");
 			}
