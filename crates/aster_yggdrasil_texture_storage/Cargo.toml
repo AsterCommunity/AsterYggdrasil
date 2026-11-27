@@ -1,0 +1,31 @@
+[package]
+name = "aster_yggdrasil_texture_storage"
+description = "Texture object-storage contract for AsterYggdrasil: store trait, structured errors, and configuration types."
+version = "0.1.0-alpha.1"
+homepage = "https://github.com/AsterCommunity/AsterYggdrasil/tree/master/crates/aster_yggdrasil_texture_storage"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+edition = "2024"
+rust-version = "1.95.0"
+publish = true
+keywords = ["yggdrasil", "minecraft", "texture", "storage", "s3"]
+categories = ["config", "storage"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+aster_forge_config = { workspace = true }
+aster_forge_storage_core = { workspace = true }
+async-trait = { workspace = true }
+secrecy = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
+tokio = { workspace = true }
+
+[lib]
+name = "aster_yggdrasil_texture_storage"
+doctest = false

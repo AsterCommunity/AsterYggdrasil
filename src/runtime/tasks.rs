@@ -6,6 +6,7 @@ use actix_web::web;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 
+use crate::components::{SCHEDULED_TASKS_COMPONENT, TASK_CONSUMERS_COMPONENT};
 use crate::config::operations;
 use crate::runtime::{AppState, SharedRuntimeState};
 use crate::services::ops::task::{RuntimeTaskRunOutcome, SystemRuntimeTaskKind};
@@ -18,20 +19,6 @@ const BACKGROUND_TASK_RUNTIME_LEASE_TTL: Duration = Duration::from_secs(30);
 const BACKGROUND_TASK_RUNTIME_LEASE_RENEW_INTERVAL: Duration = Duration::from_secs(10);
 const BACKGROUND_TASK_RUNTIME_LEASE_STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULED_TASK_CLAIM_TTL: Duration = Duration::from_secs(120);
-
-/// Independent component identity for the per-instance queue consumer group.
-///
-/// Process-owned maintenance (metrics updates, config reload) keeps the default
-/// [`aster_forge_tasks::BACKGROUND_TASKS_COMPONENT`] name, so shutdown graphs can
-/// order the consumer group against it explicitly.
-pub const TASK_CONSUMERS_COMPONENT: &str = "task_consumers";
-
-/// Independent component identity for the leased scheduled maintenance group.
-///
-/// Unlike [`TASK_CONSUMERS_COMPONENT`], only the instance holding the runtime
-/// lease runs these tasks; the component exists so health reports and shutdown
-/// graphs can address the group separately from queue consumers.
-pub const SCHEDULED_TASKS_COMPONENT: &str = "scheduled_tasks";
 
 type BackgroundTasksComponent<F> =
     aster_forge_tasks::BackgroundTaskRuntimeDefinitionsComponentFromShutdown<
@@ -393,8 +380,10 @@ async fn run_external_auth_flow_cleanup(state: web::Data<AppState>) -> RuntimeTa
 }
 
 async fn run_yggdrasil_token_cleanup(state: web::Data<AppState>) -> RuntimeTaskRunOutcome {
-    match crate::services::yggdrasil::protocol::cleanup_expired_or_revoked_tokens(state.get_ref())
-        .await
+    match crate::services::yggdrasil::session_flow::cleanup_expired_or_revoked_tokens(
+        state.get_ref(),
+    )
+    .await
     {
         Ok(count) if count > 0 => {
             tracing::info!(count, "cleaned up expired or revoked Yggdrasil tokens");

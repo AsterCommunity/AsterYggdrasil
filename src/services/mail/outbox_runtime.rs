@@ -62,7 +62,7 @@ pub fn mail_outbox_component(
     let dependencies: &'static [&'static str] = if role.consumes_tasks() {
         &[
             aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
+            crate::components::TASK_CONSUMERS_COMPONENT,
         ]
     } else {
         &[aster_forge_tasks::BACKGROUND_TASKS_COMPONENT]
@@ -153,7 +153,7 @@ mod tests {
             descriptor.dependencies,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT
+                crate::components::TASK_CONSUMERS_COMPONENT
             ]
         );
         assert_eq!(descriptor.shutdown.len(), 1);

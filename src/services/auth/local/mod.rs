@@ -21,7 +21,9 @@ pub use contact_verification::{
 };
 pub use login::{login, logout, refresh};
 pub use password_change::{change_password, change_password_with_audit};
-pub use registration::{RegisterOutcome, RegisterResponse, register, setup_first_admin};
+pub use registration::{
+    RegisterOutcome, RegisterResponse, has_any_user, register, setup_first_admin,
+};
 pub use session::{
     AuthSessionInfo, AuthTokenBundle, AuthTokenResponse, AuthTokenStatus,
     cleanup_expired_auth_sessions, current_user, current_user_from_token,

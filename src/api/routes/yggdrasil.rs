@@ -7,7 +7,7 @@ use crate::api::dto::validate_request;
 use crate::runtime::AppState;
 use crate::services::{
     ops::audit::AuditRequestInfo,
-    yggdrasil::protocol::{self, YggdrasilError, YggdrasilErrorKind},
+    yggdrasil::session_flow::{self, YggdrasilError, YggdrasilErrorKind},
 };
 use actix_web::{HttpRequest, HttpResponse, web};
 use aster_yggdrasil_protocol::{
@@ -98,7 +98,7 @@ pub async fn metadata(state: web::Data<AppState>) -> HttpResponse {
     tracing::debug!("serving yggdrasil metadata");
     HttpResponse::Ok()
         .insert_header(("Cache-Control", YGGDRASIL_METADATA_CACHE_CONTROL))
-        .json(protocol::metadata(state.get_ref()))
+        .json(session_flow::metadata(state.get_ref()))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -152,7 +152,7 @@ pub async fn authenticate(
             error.message(),
         ));
     }
-    match protocol::authenticate(state.get_ref(), body, &req).await {
+    match session_flow::authenticate(state.get_ref(), body, &req).await {
         Ok(response) => {
             tracing::debug!(
                 available_profile_count = response.available_profiles.len(),
@@ -205,7 +205,7 @@ pub async fn refresh(
             error.message(),
         ));
     }
-    match protocol::refresh(state.get_ref(), body, &req).await {
+    match session_flow::refresh(state.get_ref(), body, &req).await {
         Ok(response) => {
             tracing::debug!(
                 selected_profile = response.selected_profile.is_some(),
@@ -254,7 +254,7 @@ pub async fn validate(
             error.message(),
         ));
     }
-    match protocol::validate(state.get_ref(), body).await {
+    match session_flow::validate(state.get_ref(), body).await {
         Ok(()) => {
             tracing::debug!("yggdrasil validate request completed");
             HttpResponse::NoContent().finish()
@@ -299,7 +299,7 @@ pub async fn invalidate(
             error.message(),
         ));
     }
-    match protocol::invalidate(state.get_ref(), body).await {
+    match session_flow::invalidate(state.get_ref(), body).await {
         Ok(()) => {
             tracing::debug!("yggdrasil invalidate request completed");
             HttpResponse::NoContent().finish()
@@ -349,7 +349,7 @@ pub async fn signout(
             error.message(),
         ));
     }
-    match protocol::signout(state.get_ref(), &body.username, &body.password).await {
+    match session_flow::signout(state.get_ref(), &body.username, &body.password).await {
         Ok(()) => {
             tracing::debug!("yggdrasil signout request completed");
             HttpResponse::NoContent().finish()
@@ -387,7 +387,7 @@ pub async fn profiles_by_names(
         tracing::debug!("yggdrasil profiles by names request validation failed");
         return yggdrasil_error_response(YggdrasilError::new(YggdrasilErrorKind::BadRequest));
     }
-    match protocol::profiles_by_names(state.get_ref(), &body).await {
+    match session_flow::profiles_by_names(state.get_ref(), &body).await {
         Ok(response) => {
             tracing::debug!(
                 returned_count = response.len(),
@@ -434,7 +434,7 @@ pub async fn join(
             error.message(),
         ));
     }
-    match protocol::join(state.get_ref(), body, &req).await {
+    match session_flow::join(state.get_ref(), body, &req).await {
         Ok(()) => {
             tracing::debug!("yggdrasil join request completed");
             HttpResponse::NoContent().finish()
@@ -483,7 +483,7 @@ pub async fn has_joined(
             error.message(),
         ));
     }
-    match protocol::has_joined(
+    match session_flow::has_joined(
         state.get_ref(),
         &query.username,
         &query.server_id,
@@ -557,7 +557,9 @@ pub async fn profile_by_uuid(
             error.message(),
         ));
     }
-    match protocol::profile_by_uuid(state.get_ref(), &uuid, query.unsigned.unwrap_or(true)).await {
+    match session_flow::profile_by_uuid(state.get_ref(), &uuid, query.unsigned.unwrap_or(true))
+        .await
+    {
         Ok(Some(profile)) => {
             tracing::debug!(
                 profile_uuid = %profile.id,

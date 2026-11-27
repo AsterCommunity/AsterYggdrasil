@@ -101,50 +101,49 @@
           "**/Cargo.toml",
           "**/Cargo.lock",
           "**/package.json",
-          "**/bun.lock",
-          ".github/dependabot.yml"
+          "**/bun.lock"
         ]
       },
       {
         "label": "Scope: Auth",
         "paths": [
-          "src/api/routes/auth.rs",
-          "src/api/routes/auth_external_auth.rs",
+          "src/api/routes/auth/**",
+          "src/api/routes/auth/external.rs",
           "src/api/middleware/auth.rs",
           "src/api/middleware/csrf/**",
-          "src/services/auth_service/**",
-          "src/services/passkey_service.rs",
-          "src/services/user_invitation_service.rs",
-          "src/services/captcha_service.rs",
+          "src/services/auth/**",
+          "src/services/auth/passkey.rs",
+          "src/services/user/invitation.rs",
+          "src/services/auth/captcha.rs",
           "src/db/repository/contact_verification_token_repo.rs",
-          "src/entities/contact_verification_token.rs",
+          "crates/aster_yggdrasil_model/src/entities/contact_verification_token.rs",
           "crates/aster_yggdrasil_model/src/types/auth.rs"
         ]
       },
       {
         "label": "Scope: Yggdrasil Protocol",
         "paths": [
-          "src/services/yggdrasil_service/**",
-          "src/services/yggdrasil_signature.rs",
-          "src/services/yggdrasil_session_forward_service.rs",
+          "src/services/yggdrasil/**",
+          "src/services/yggdrasil/signature.rs",
+          "src/services/yggdrasil/session_forward.rs",
           "src/api/routes/yggdrasil.rs",
           "src/api/routes/yggdrasil/**",
           "src/db/repository/yggdrasil_token_repo.rs",
           "src/db/repository/yggdrasil_session_forward_server_repo.rs",
-          "src/entities/yggdrasil_token.rs",
-          "src/entities/yggdrasil_session_forward_server.rs",
+          "crates/aster_yggdrasil_model/src/entities/yggdrasil_token.rs",
+          "crates/aster_yggdrasil_model/src/entities/yggdrasil_session_forward_server.rs",
           "crates/aster_yggdrasil_model/src/types/yggdrasil.rs"
         ]
       },
       {
         "label": "Scope: Profiles",
         "paths": [
-          "src/services/profile_service/**",
+          "src/services/user/**",
           "src/api/routes/profiles.rs",
           "src/api/routes/admin/profiles.rs",
-          "src/entities/minecraft_profile.rs",
-          "src/entities/user_profile.rs",
-          "src/entities/user_operator_scope.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_profile.rs",
+          "crates/aster_yggdrasil_model/src/entities/user_profile.rs",
+          "crates/aster_yggdrasil_model/src/entities/user_operator_scope.rs",
           "src/db/repository/minecraft_profile_repo.rs",
           "src/db/repository/user_profile_repo.rs"
         ]
@@ -152,14 +151,14 @@
       {
         "label": "Scope: Textures",
         "paths": [
-          "src/services/texture_service/**",
-          "src/services/texture_preview.rs",
+          "src/services/texture/**",
+          "src/services/texture/preview.rs",
           "src/api/routes/wardrobe.rs",
           "src/api/routes/texture_preview.rs",
           "src/texture_storage/**",
           "crates/aster_yggdrasil_render/**",
-          "src/entities/minecraft_texture.rs",
-          "src/entities/minecraft_profile_texture.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_texture.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_profile_texture.rs",
           "src/db/repository/minecraft_texture_repo.rs",
           "src/db/repository/minecraft_profile_texture_repo.rs",
           "src/api/dto/textures.rs"
@@ -170,29 +169,28 @@
         "paths": [
           "src/api/routes/texture_library.rs",
           "src/api/routes/admin/texture_library.rs",
-          "src/services/texture_service/library.rs",
-          "src/services/texture_service/reports.rs",
-          "src/services/texture_service/moderation.rs",
-          "src/services/texture_service/wardrobe.rs",
-          "src/entities/minecraft_texture_report.rs",
-          "src/entities/minecraft_texture_tag.rs",
-          "src/entities/minecraft_texture_tag_binding.rs",
+          "src/services/texture/library.rs",
+          "src/services/texture/reports.rs",
+          "src/services/texture/moderation.rs",
+          "src/services/texture/wardrobe.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_texture_report.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_texture_tag.rs",
+          "crates/aster_yggdrasil_model/src/entities/minecraft_texture_tag_binding.rs",
           "src/db/repository/minecraft_texture_report_repo.rs",
-          "src/db/repository/minecraft_texture_tag_repo.rs",
-          "src/db/repository/minecraft_texture_tag_binding_repo.rs"
+          "src/db/repository/minecraft_texture_tag_repo.rs"
         ]
       },
       {
         "label": "Scope: External Auth",
         "paths": [
-          "src/services/external_auth_service/**",
+          "src/services/auth/external/**",
           "src/external_auth/**",
-          "src/api/routes/auth_external_auth.rs",
+          "src/api/routes/auth/external.rs",
           "src/api/routes/admin/external_auth.rs",
-          "src/entities/external_auth_provider.rs",
-          "src/entities/external_auth_identity.rs",
-          "src/entities/external_auth_login_flow.rs",
-          "src/entities/external_auth_email_verification_flow.rs",
+          "crates/aster_yggdrasil_model/src/entities/external_auth_provider.rs",
+          "crates/aster_yggdrasil_model/src/entities/external_auth_identity.rs",
+          "crates/aster_yggdrasil_model/src/entities/external_auth_login_flow.rs",
+          "crates/aster_yggdrasil_model/src/entities/external_auth_email_verification_flow.rs",
           "src/db/repository/external_auth_provider_repo.rs",
           "src/db/repository/external_auth_identity_repo.rs",
           "src/db/repository/external_auth_login_flow_repo.rs",
@@ -210,11 +208,11 @@
         "label": "Scope: Runtime",
         "paths": [
           "src/runtime/**",
-          "src/services/task_service/**",
+          "src/services/ops/task/**",
           "src/api/routes/admin/tasks.rs",
           "src/api/routes/health.rs",
-          "src/services/health_service/**",
-          "src/entities/background_task.rs",
+          "src/services/ops/health/**",
+          "crates/aster_yggdrasil_model/src/entities/background_task.rs",
           "src/db/repository/background_task_repo/**",
           "src/config/operations.rs"
         ]
@@ -224,7 +222,7 @@
         "paths": [
           "src/config/**",
           "src/api/routes/admin/config.rs",
-          "src/services/config_service/**",
+          "src/services/ops/config/**",
           "src/db/repository/system_config_repo.rs",
           "config.example.toml"
         ]
@@ -234,7 +232,7 @@
         "paths": [
           "src/services/mail/**",
           "src/config/mail.rs",
-          "src/entities/mail_outbox.rs"
+          "crates/aster_yggdrasil_model/src/entities/mail_outbox.rs"
         ]
       },
       {
@@ -248,16 +246,16 @@
         "label": "Risk: High",
         "paths": [
           "crates/aster_yggdrasil_migration/**",
-          "src/api/routes/auth.rs",
+          "src/api/routes/auth/**",
           "src/api/middleware/auth.rs",
           "src/api/middleware/csrf/**",
-          "src/services/auth_service/**",
-          "src/services/passkey_service.rs",
-          "src/services/ban_service.rs",
+          "src/services/auth/**",
+          "src/services/auth/passkey.rs",
+          "src/services/user/ban.rs",
           "src/api/routes/yggdrasil.rs",
           "src/api/routes/yggdrasil/**",
-          "src/services/yggdrasil_service/**",
-          "src/services/yggdrasil_signature.rs",
+          "src/services/yggdrasil/**",
+          "src/services/yggdrasil/signature.rs",
           "src/texture_storage/**",
           ".github/workflows/**"
         ]
@@ -280,7 +278,6 @@
         "Cargo.toml",
         "Cargo.lock",
         "frontend-panel/package.json",
-        "frontend-panel/generated/openapi.json",
         "frontend-panel/src/types/api.generated.ts",
         "scripts/coverage-summary.mjs",
         ".github/workflows/rust.yml"
@@ -310,7 +307,6 @@
       "paths": [
         "**/Cargo.toml",
         "**/Cargo.lock",
-        ".cargo/audit.toml",
         ".github/workflows/audit.yml"
       ]
     },
@@ -319,7 +315,6 @@
       "paths": [
         "src/**",
         "crates/**",
-        "frontend-panel/dist/**",
         "Cargo.toml",
         "Cargo.lock",
         "Dockerfile",
@@ -341,7 +336,6 @@
       "paths": [
         "src/**",
         "crates/**",
-        "frontend-panel/dist/**",
         "Cargo.toml",
         "Cargo.lock",
         ".github/workflows/rust-release.yml"

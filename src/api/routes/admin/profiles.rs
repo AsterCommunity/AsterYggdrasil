@@ -2,13 +2,16 @@
 
 use crate::api::dto::RenameMinecraftProfileReq;
 use crate::api::dto::{AdminMinecraftProfileListQuery, validation::validate_request};
-use crate::api::error_code::AsterErrorCode;
 use crate::api::response::ApiResponse;
-use crate::db::repository::minecraft_profile_repo;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
 use crate::services::auth::local::AuthUserInfo;
-use crate::services::{ops::audit, texture, yggdrasil::protocol};
+use crate::services::user::admin as user_admin;
+use crate::services::user::profile::{
+    MinecraftProfileFilters, find_any_profile, list_profiles, list_profiles_for_user,
+    validate_profile_uuid,
+};
+use crate::services::{ops::audit, texture, yggdrasil::session_flow};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use aster_forge_api::{CursorPage, IdCursor, LimitQuery, parse_id_cursor};
 
@@ -22,29 +25,6 @@ fn current_admin_user_id(req: &HttpRequest) -> Result<i64> {
         .ok_or_else(|| AsterError::internal_error("missing authenticated user in request context"))
 }
 
-fn validate_profile_uuid(uuid: &str) -> Result<()> {
-    crate::api::dto::validation::validate_unsigned_uuid(uuid).map_err(|error| {
-        AsterError::validation_error_code(
-            AsterErrorCode::MinecraftProfileUuidInvalid,
-            error.message.unwrap_or_default(),
-        )
-    })
-}
-
-async fn find_profile_by_uuid(
-    state: &AppState,
-    uuid: &str,
-) -> Result<aster_yggdrasil_model::entities::minecraft_profile::Model> {
-    minecraft_profile_repo::find_by_uuid(state.reader_db(), uuid)
-        .await?
-        .ok_or_else(|| {
-            AsterError::record_not_found_code(
-                AsterErrorCode::MinecraftProfileNotFound,
-                format!("minecraft profile '{uuid}'"),
-            )
-        })
-}
-
 #[aster_forge_api_docs_macros::path(
     get,
     path = "/api/v1/admin/minecraft-profiles",
@@ -52,7 +32,7 @@ async fn find_profile_by_uuid(
     operation_id = "admin_list_minecraft_profiles",
     params(LimitQuery, AdminMinecraftProfileListQuery),
     responses(
-        (status = 200, description = "Minecraft profiles", body = inline(ApiResponse<CursorPage<protocol::MinecraftProfileInfo, IdCursor>>)),
+        (status = 200, description = "Minecraft profiles", body = inline(ApiResponse<CursorPage<session_flow::MinecraftProfileInfo, IdCursor>>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -77,15 +57,13 @@ pub async fn list_minecraft_profiles(
         has_query = query.query.is_some(),
         "admin listing minecraft profiles"
     );
-    let filters = minecraft_profile_repo::MinecraftProfileFilters {
+    let filters = MinecraftProfileFilters {
         user_id: query.user_id,
         name: query.name.clone(),
         uuid: query.uuid.clone(),
         query: query.query.clone(),
     };
-    let slice =
-        minecraft_profile_repo::list_cursor(state.get_ref().reader_db(), filters, limit, after_id)
-            .await?;
+    let slice = list_profiles(state.get_ref(), filters, limit, after_id).await?;
     let next_cursor = if slice.has_more {
         slice
             .items
@@ -97,7 +75,7 @@ pub async fn list_minecraft_profiles(
     let items = slice
         .items
         .iter()
-        .map(protocol::profile_info)
+        .map(session_flow::profile_info)
         .collect::<Vec<_>>();
     tracing::debug!(
         returned = items.len(),
@@ -145,17 +123,8 @@ pub async fn list_user_minecraft_profiles(
         has_cursor = after_id.is_some(),
         "admin listing user minecraft profiles"
     );
-    crate::db::repository::user_repo::find_by_id(state.get_ref().reader_db(), user_id).await?;
-    let slice = minecraft_profile_repo::list_cursor(
-        state.get_ref().reader_db(),
-        minecraft_profile_repo::MinecraftProfileFilters {
-            user_id: Some(user_id),
-            ..Default::default()
-        },
-        limit,
-        after_id,
-    )
-    .await?;
+    user_admin::ensure_user_exists(state.get_ref(), user_id).await?;
+    let slice = list_profiles_for_user(state.get_ref(), user_id, None, limit, after_id).await?;
     let next_cursor = if slice.has_more {
         slice
             .items
@@ -167,7 +136,7 @@ pub async fn list_user_minecraft_profiles(
     let profiles = slice
         .items
         .iter()
-        .map(protocol::profile_summary)
+        .map(session_flow::profile_summary)
         .collect::<Vec<_>>();
     tracing::debug!(
         user_id,
@@ -192,7 +161,7 @@ pub async fn list_user_minecraft_profiles(
     operation_id = "admin_get_minecraft_profile",
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Minecraft profile", body = inline(ApiResponse<protocol::MinecraftProfileInfo>)),
+        (status = 200, description = "Minecraft profile", body = inline(ApiResponse<session_flow::MinecraftProfileInfo>)),
         (status = 400, description = "Invalid profile UUID"),
         (status = 404, description = "Profile not found"),
         (status = 401, description = "Unauthorized"),
@@ -209,14 +178,14 @@ pub async fn get_minecraft_profile(
     let uuid = path.into_inner();
     tracing::debug!(profile_uuid = %uuid, "admin loading minecraft profile");
     validate_profile_uuid(&uuid)?;
-    let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
+    let profile = find_any_profile(state.get_ref(), &uuid).await?;
     tracing::debug!(
         profile_id = profile.id,
         profile_uuid = %profile.uuid,
         user_id = profile.user_id,
         "admin loaded minecraft profile"
     );
-    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_info(&profile))))
+    Ok(HttpResponse::Ok().json(ApiResponse::ok(session_flow::profile_info(&profile))))
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -227,7 +196,7 @@ pub async fn get_minecraft_profile(
     request_body = RenameMinecraftProfileReq,
     params(("uuid" = String, Path, description = "Unsigned Minecraft profile UUID")),
     responses(
-        (status = 200, description = "Renamed Minecraft profile", body = inline(ApiResponse<protocol::MinecraftProfileInfo>)),
+        (status = 200, description = "Renamed Minecraft profile", body = inline(ApiResponse<session_flow::MinecraftProfileInfo>)),
         (status = 400, description = "Invalid profile UUID/name or duplicate profile"),
         (status = 404, description = "Profile not found"),
         (status = 401, description = "Unauthorized"),
@@ -252,8 +221,8 @@ pub async fn rename_minecraft_profile(
     );
     validate_request(&*body)?;
     validate_profile_uuid(&uuid)?;
-    let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
-    let renamed = protocol::rename_profile(state.get_ref(), profile, &body.name).await?;
+    let profile = find_any_profile(state.get_ref(), &uuid).await?;
+    let renamed = session_flow::rename_profile(state.get_ref(), profile, &body.name).await?;
 
     let ctx = audit::AuditContext::from_request(&req, current_admin_user_id(&req)?);
     crate::api::routes::profiles::log_profile_rename_audit(state.get_ref(), &ctx, &renamed).await;
@@ -265,7 +234,11 @@ pub async fn rename_minecraft_profile(
         temporarily_invalidated_token_count = renamed.temporarily_invalidated_token_count,
         "admin renamed minecraft profile"
     );
-    Ok(HttpResponse::Ok().json(ApiResponse::ok(protocol::profile_info(&renamed.profile))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::ok(session_flow::profile_info(
+            &renamed.profile,
+        ))),
+    )
 }
 
 #[aster_forge_api_docs_macros::path(
@@ -295,7 +268,7 @@ pub async fn list_minecraft_profile_textures(
         "admin listing minecraft profile textures"
     );
     validate_profile_uuid(&uuid)?;
-    let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
+    let profile = find_any_profile(state.get_ref(), &uuid).await?;
     let textures = texture::texture_metadata_for_profile(state.get_ref(), &profile).await?;
     tracing::debug!(
         profile_id = profile.id,
@@ -334,9 +307,10 @@ pub async fn delete_minecraft_profile(
         "admin deleting minecraft profile"
     );
     validate_profile_uuid(&uuid)?;
-    let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
+    let profile = find_any_profile(state.get_ref(), &uuid).await?;
     let Some(deleted) =
-        protocol::delete_profile_for_user(state.get_ref(), profile.user_id, &profile.uuid).await?
+        session_flow::delete_profile_for_user(state.get_ref(), profile.user_id, &profile.uuid)
+            .await?
     else {
         return Err(AsterError::record_not_found(format!(
             "minecraft profile '{uuid}'"
@@ -400,7 +374,7 @@ pub async fn delete_minecraft_profile_texture(
             return Err(AsterError::validation_error(error.protocol_message()));
         }
     };
-    let profile = find_profile_by_uuid(state.get_ref(), &uuid).await?;
+    let profile = find_any_profile(state.get_ref(), &uuid).await?;
     let Some(deleted) =
         texture::delete_texture_for_profile_unchecked(state.get_ref(), &profile, texture_type)
             .await

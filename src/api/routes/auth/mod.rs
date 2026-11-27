@@ -14,11 +14,11 @@ use crate::api::dto::{
 };
 use crate::api::error_code::AsterErrorCode;
 use crate::api::middleware::csrf;
-use crate::api::request_auth::access_cookie_token;
 use crate::api::response::ApiResponse;
 use crate::config::auth_runtime::RuntimeAuthPolicy;
 use crate::errors::{AsterError, Result};
 use crate::runtime::AppState;
+use crate::services::auth::request::access_cookie_token;
 use crate::services::{auth::captcha, auth::local, auth::passkey, ops::audit, user};
 use actix_multipart::Multipart;
 use actix_web::http::header;
@@ -151,8 +151,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 /// can choose between first-time setup and the normal login flow.
 pub async fn check(state: web::Data<AppState>) -> Result<HttpResponse> {
     tracing::debug!("auth check request received");
-    let initialized =
-        crate::db::repository::user_repo::count_all(state.get_ref().reader_db()).await? > 0;
+    let initialized = crate::services::auth::local::has_any_user(state.get_ref()).await?;
     tracing::debug!(initialized, "auth check request completed");
     Ok(HttpResponse::Ok().json(ApiResponse::ok(CheckResp { initialized })))
 }
@@ -1410,10 +1409,7 @@ pub async fn rename_passkey(
         passkey_id = id,
         "auth passkey rename request received"
     );
-    let previous =
-        crate::db::repository::passkey_repo::find_by_id_for_user(state.writer_db(), id, user.id)
-            .await?
-            .ok_or_else(|| AsterError::record_not_found(format!("passkey #{id}")))?;
+    let previous = passkey::find_for_user(state.get_ref(), id, user.id).await?;
     let passkey = passkey::rename_passkey(state.get_ref(), user.id, id, &body.name).await?;
     let audit_ctx = audit::AuditContext::from_request(&req, user.id);
     audit::log_with_details(
@@ -1473,10 +1469,7 @@ pub async fn delete_passkey(
         passkey_id = id,
         "auth passkey delete request received"
     );
-    let passkey =
-        crate::db::repository::passkey_repo::find_by_id_for_user(state.writer_db(), id, user.id)
-            .await?
-            .ok_or_else(|| AsterError::record_not_found(format!("passkey #{id}")))?;
+    let passkey = passkey::find_for_user(state.get_ref(), id, user.id).await?;
     let passkey_name = passkey.name.clone();
     if !passkey::delete_passkey(state.get_ref(), user.id, id).await? {
         return Err(AsterError::record_not_found(format!("passkey #{id}")));

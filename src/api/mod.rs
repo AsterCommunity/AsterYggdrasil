@@ -14,7 +14,6 @@ pub mod http;
 pub mod middleware;
 #[cfg(all(debug_assertions, feature = "openapi"))]
 pub mod openapi;
-pub mod request_auth;
 pub mod response;
 pub mod routes;
 

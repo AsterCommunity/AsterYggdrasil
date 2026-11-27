@@ -1,10 +1,10 @@
 //! Yggdrasil 协议域：协议流程、会话转发上游基础设施和签名密钥管理。
 
-pub mod protocol;
+pub mod session_flow;
 pub mod session_forward;
 pub mod signature;
 
-pub use protocol::{
+pub use session_flow::{
     DeleteMinecraftProfileResult, MinecraftProfileInfo, RenameMinecraftProfileResult,
     YggdrasilError, YggdrasilErrorKind, active_token_for_protocol, authenticate,
     cleanup_expired_or_revoked_tokens, create_profile, delete_profile_for_user,

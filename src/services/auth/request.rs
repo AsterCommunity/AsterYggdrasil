@@ -1,4 +1,8 @@
-//! API request authentication helpers.
+//! Access-token extraction from incoming requests.
+//!
+//! How an access token travels (cookie name, bearer precedence) is part of the
+//! auth domain contract; the API middleware and route handlers consume these
+//! helpers from here so services never import from the `api` module.
 
 use actix_web::{HttpRequest, http::header};
 

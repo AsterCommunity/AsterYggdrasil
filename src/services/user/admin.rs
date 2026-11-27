@@ -10,7 +10,7 @@ use crate::runtime::{
     RuntimeConfigRuntimeState, TextureStorageRuntimeState,
 };
 use crate::services::user::profile::{self, AvatarAudience, AvatarInfo, UserProfileInfo};
-use crate::services::{auth::local, texture, yggdrasil::protocol};
+use crate::services::{auth::local, texture, yggdrasil::session_flow};
 use aster_forge_api::{CursorPage, DateTimeIdCursor};
 use aster_forge_utils::numbers::u64_to_usize;
 use aster_forge_validation::email::normalize_email;
@@ -345,6 +345,17 @@ where
         .ok_or_else(|| AsterError::internal_error("admin user hydration returned no item"))
 }
 
+/// Guards user-scoped listings: fails with the standard record-not-found
+/// error when the account does not exist.
+pub async fn ensure_user_exists<S>(state: &S, user_id: i64) -> Result<()>
+where
+    S: DatabaseRuntimeState,
+{
+    user_repo::find_by_id(state.reader_db(), user_id)
+        .await
+        .map(|_| ())
+}
+
 /// Creates an account, generating and returning a temporary password when
 /// none is supplied (forcing a password change at next login), normalizing
 /// the role against the requested operator scopes, and persisting operator
@@ -553,7 +564,7 @@ where
     let mut revoked_yggdrasil_token_count = 0u64;
     for profile in profiles {
         if let Some(result) =
-            protocol::delete_profile_for_user(state, user_id, &profile.uuid).await?
+            session_flow::delete_profile_for_user(state, user_id, &profile.uuid).await?
         {
             deleted_profile_texture_count += result.deleted_texture_count;
             revoked_yggdrasil_token_count += result.revoked_token_count;
@@ -567,10 +578,10 @@ where
             .len();
     let revoked_session_count =
         user_repo::revoke_sessions_for_user(state.writer_db(), user_id).await?;
-    let token_hashes = protocol::invalidate_token_cache_for_user(state, user_id).await?;
+    let token_hashes = session_flow::invalidate_token_cache_for_user(state, user_id).await?;
     revoked_yggdrasil_token_count +=
         yggdrasil_token_repo::revoke_all_for_user(state.writer_db(), user_id).await?;
-    protocol::invalidate_token_cache_hashes(state, &token_hashes).await;
+    session_flow::invalidate_token_cache_hashes(state, &token_hashes).await;
     user_repo::delete_by_id(state.writer_db(), user_id).await?;
 
     tracing::debug!(
@@ -696,7 +707,7 @@ mod tests {
             .expect("admin user test auth runtimes should install");
         let config = Arc::new(crate::config::Config {
             database: db_cfg,
-            texture_storage: crate::config::TextureStorageConfig {
+            texture_storage: aster_yggdrasil_texture_storage::TextureStorageConfig {
                 backend: "local".to_string(),
                 local_root: texture_root.to_string_lossy().to_string(),
                 ..Default::default()

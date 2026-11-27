@@ -1,8 +1,8 @@
 //! Local filesystem object storage.
 
-use super::{ObjectBlobMetadata, TextureStore};
-use crate::errors::{AsterError, MapAsterErr, Result};
+use super::{TextureStore, TextureStoreResult};
 use aster_forge_storage_core::{normalize_object_key, normalize_object_prefix};
+use aster_yggdrasil_texture_storage::{ObjectBlobMetadata, TextureStoreError};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncRead;
@@ -21,8 +21,8 @@ impl LocalTextureStore {
         Self { base_path }
     }
 
-    fn full_path(&self, storage_key: &str) -> Result<PathBuf> {
-        let relative = normalize_storage_object_key(storage_key)?;
+    fn full_path(&self, storage_key: &str) -> TextureStoreResult<PathBuf> {
+        let relative = normalize_object_key(storage_key)?;
         Ok(self.base_path.join(relative))
     }
 }
@@ -33,89 +33,89 @@ impl TextureStore for LocalTextureStore {
         "local"
     }
 
-    async fn put_file(&self, storage_key: &str, local_path: &Path) -> Result<String> {
-        let key = normalize_storage_object_key(storage_key)?;
+    async fn put_file(&self, storage_key: &str, local_path: &Path) -> TextureStoreResult<String> {
+        let key = normalize_object_key(storage_key)?;
         let target = self.base_path.join(&key);
         if let Some(parent) = target.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_aster_err_ctx("create object storage dir", AsterError::internal_error)?;
+            tokio::fs::create_dir_all(parent).await.map_err(|error| {
+                TextureStoreError::backend(format!("create object storage dir: {error}"))
+            })?;
         }
-        if tokio::fs::try_exists(&target)
-            .await
-            .map_aster_err_ctx("check existing object", AsterError::internal_error)?
-        {
+        if tokio::fs::try_exists(&target).await.map_err(|error| {
+            TextureStoreError::backend(format!("check existing object: {error}"))
+        })? {
             return Ok(key);
         }
         tokio::fs::copy(local_path, &target)
             .await
-            .map_aster_err_ctx("store object", AsterError::internal_error)?;
+            .map_err(|error| TextureStoreError::backend(format!("store object: {error}")))?;
         Ok(key)
     }
 
-    async fn get_stream(&self, storage_key: &str) -> Result<Box<dyn AsyncRead + Unpin + Send>> {
+    async fn get_stream(
+        &self,
+        storage_key: &str,
+    ) -> TextureStoreResult<Box<dyn AsyncRead + Unpin + Send>> {
         let file = tokio::fs::File::open(self.full_path(storage_key)?)
             .await
-            .map_aster_err_ctx("open object", AsterError::record_not_found)?;
+            .map_err(|error| TextureStoreError::not_found(format!("open object: {error}")))?;
         Ok(Box::new(file))
     }
 
-    async fn delete(&self, storage_key: &str) -> Result<()> {
+    async fn delete(&self, storage_key: &str) -> TextureStoreResult<()> {
         let target = self.full_path(storage_key)?;
         match tokio::fs::remove_file(target).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(AsterError::internal_error(format!(
+            Err(error) => Err(TextureStoreError::backend(format!(
                 "delete object: {error}"
             ))),
         }
     }
 
-    async fn exists(&self, storage_key: &str) -> Result<bool> {
+    async fn exists(&self, storage_key: &str) -> TextureStoreResult<bool> {
         tokio::fs::try_exists(self.full_path(storage_key)?)
             .await
-            .map_aster_err_ctx("check object exists", AsterError::internal_error)
+            .map_err(|error| TextureStoreError::backend(format!("check object exists: {error}")))
     }
 
-    async fn metadata(&self, storage_key: &str) -> Result<ObjectBlobMetadata> {
+    async fn metadata(&self, storage_key: &str) -> TextureStoreResult<ObjectBlobMetadata> {
         let metadata = tokio::fs::metadata(self.full_path(storage_key)?)
             .await
-            .map_aster_err_ctx("read object metadata", AsterError::record_not_found)?;
+            .map_err(|error| {
+                TextureStoreError::not_found(format!("read object metadata: {error}"))
+            })?;
         Ok(ObjectBlobMetadata {
             size: metadata.len(),
             content_type: DEFAULT_CONTENT_TYPE,
         })
     }
 
-    async fn list_keys(&self, prefix: &str) -> Result<Vec<String>> {
-        let relative_prefix = match normalize_storage_prefix(prefix)?.as_str() {
+    async fn list_keys(&self, prefix: &str) -> TextureStoreResult<Vec<String>> {
+        let relative_prefix = match normalize_object_prefix(prefix)?.as_str() {
             "" => PathBuf::new(),
             prefix => PathBuf::from(prefix),
         };
         let root = self.base_path.join(&relative_prefix);
-        if !tokio::fs::try_exists(&root)
-            .await
-            .map_aster_err_ctx("check object storage prefix", AsterError::internal_error)?
-        {
+        if !tokio::fs::try_exists(&root).await.map_err(|error| {
+            TextureStoreError::backend(format!("check object storage prefix: {error}"))
+        })? {
             return Ok(Vec::new());
         }
 
         let mut keys = Vec::new();
         let mut stack = vec![root];
         while let Some(dir) = stack.pop() {
-            let mut entries = tokio::fs::read_dir(&dir)
-                .await
-                .map_aster_err_ctx("read object storage dir", AsterError::internal_error)?;
-            while let Some(entry) = entries
-                .next_entry()
-                .await
-                .map_aster_err_ctx("iterate object storage dir", AsterError::internal_error)?
-            {
+            let mut entries = tokio::fs::read_dir(&dir).await.map_err(|error| {
+                TextureStoreError::backend(format!("read object storage dir: {error}"))
+            })?;
+            while let Some(entry) = entries.next_entry().await.map_err(|error| {
+                TextureStoreError::backend(format!("iterate object storage dir: {error}"))
+            })? {
                 let path = entry.path();
-                let file_type = entry.file_type().await.map_aster_err_ctx(
-                    "read object storage entry type",
-                    AsterError::internal_error,
-                )?;
+                let file_type = entry.file_type().await.map_err(|error| {
+                    TextureStoreError::backend(format!("read object storage entry type: {error}"))
+                })?;
                 if file_type.is_dir() {
                     stack.push(path);
                     continue;
@@ -124,7 +124,7 @@ impl TextureStore for LocalTextureStore {
                     continue;
                 }
                 let relative = path.strip_prefix(&self.base_path).map_err(|error| {
-                    AsterError::internal_error(format!(
+                    TextureStoreError::backend(format!(
                         "object storage key is outside local root: {error}"
                     ))
                 })?;
@@ -136,37 +136,23 @@ impl TextureStore for LocalTextureStore {
     }
 }
 
-fn normalize_storage_object_key(storage_key: &str) -> Result<String> {
-    normalize_object_key(storage_key).map_err(map_storage_core_error)
-}
-
-fn normalize_storage_prefix(prefix: &str) -> Result<String> {
-    normalize_object_prefix(prefix).map_err(map_storage_core_error)
-}
-
-fn map_storage_core_error(error: aster_forge_storage_core::StorageCoreError) -> AsterError {
-    AsterError::validation_error(error.to_string())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{LocalTextureStore, normalize_storage_object_key};
-    use crate::texture_storage::TextureStore;
+    use super::LocalTextureStore;
+    use aster_yggdrasil_texture_storage::TextureStore;
 
-    #[test]
-    fn storage_key_normalizes_like_aster_drive() {
-        assert_eq!(
-            normalize_storage_object_key("/textures/a.png").unwrap(),
-            "textures/a.png"
-        );
-        assert_eq!(
-            normalize_storage_object_key("textures\\a.png").unwrap(),
-            "textures/a.png"
-        );
-        assert!(normalize_storage_object_key("").is_err());
-        assert!(normalize_storage_object_key("/").is_err());
-        assert!(normalize_storage_object_key("../a.png").is_err());
-        assert!(normalize_storage_object_key("textures/../../a.png").is_err());
+    #[tokio::test]
+    async fn put_file_rejects_invalid_storage_keys() {
+        let root = aster_forge_test::temp::TestTempDir::new("object-storage");
+        tokio::fs::create_dir_all(root.path()).await.unwrap();
+        let storage = LocalTextureStore::new(root.path().to_str().unwrap());
+        let source = root.join("source.png");
+        tokio::fs::write(&source, b"one").await.unwrap();
+
+        for key in ["", "/", "../a.png", "textures/../../a.png"] {
+            let result = storage.put_file(key, &source).await;
+            assert!(result.is_err(), "invalid key '{key}' should be rejected");
+        }
     }
 
     #[tokio::test]

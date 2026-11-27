@@ -58,16 +58,17 @@ pub use deletion::{
     delete_texture_for_profile_unchecked, delete_textures_by_hash,
 };
 pub use library::{
-    accept_texture_library_report, create_texture_library_report, get_admin_texture_library_report,
-    list_admin_texture_library_reports_cursor,
-};
-pub use library::{approve_texture_library_texture, withdraw_texture_library_submission};
-pub use library::{
-    create_texture_library_tag, delete_texture_library_tag, delete_texture_library_texture,
-    get_admin_texture_library_texture, list_admin_texture_library_textures_cursor,
-    list_texture_library_tags, list_texture_library_tags_paginated, reject_texture_library_texture,
+    AdminTextureLibraryListFilter, create_texture_library_tag, delete_texture_library_tag,
+    delete_texture_library_texture, get_admin_texture_library_texture,
+    list_admin_texture_library_textures_cursor, list_texture_library_tags,
+    list_texture_library_tags_paginated, reject_texture_library_texture,
     submit_texture_library_review, unpublish_texture_library_texture, update_texture_library_tag,
 };
+pub use library::{
+    AdminTextureReportListFilter, accept_texture_library_report, create_texture_library_report,
+    get_admin_texture_library_report, list_admin_texture_library_reports_cursor,
+};
+pub use library::{approve_texture_library_texture, withdraw_texture_library_submission};
 pub use moderation::{
     authenticate_texture_access, register_bound_textures_in_wardrobe, store_texture,
     store_wardrobe_texture, write_multipart_texture_field_to_file,
@@ -77,7 +78,7 @@ pub use shared::DeletedTextureLibraryTexture;
 pub use shared::MinecraftTextureTagMutationResult;
 pub use shared::{parse_skin_model, parse_texture_type};
 pub use wardrobe::{
-    bind_wardrobe_texture_to_profile, copy_public_texture_to_wardrobe,
+    WardrobeTextureListFilter, bind_wardrobe_texture_to_profile, copy_public_texture_to_wardrobe,
     delete_all_wardrobe_textures_for_user, delete_wardrobe_texture,
     get_public_texture_library_texture, list_public_texture_library_cursor,
     list_wardrobe_textures_cursor, replace_wardrobe_texture_tags, update_wardrobe_texture_metadata,

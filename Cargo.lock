@@ -1183,6 +1183,7 @@ dependencies = [
  "aster_yggdrasil_outbound",
  "aster_yggdrasil_protocol",
  "aster_yggdrasil_render",
+ "aster_yggdrasil_texture_storage",
  "async-trait",
  "aws-credential-types",
  "aws-sdk-s3",
@@ -1289,6 +1290,18 @@ dependencies = [
  "image",
  "sysinfo 0.39.6",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "aster_yggdrasil_texture_storage"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "aster_forge_config",
+ "aster_forge_storage_core",
+ "async-trait",
+ "secrecy",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

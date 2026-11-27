@@ -1,5 +1,10 @@
 //! Player wardrobe: metadata editing, listing, copy-in, binding, and deletion.
 
+/// Filter shape accepted by the wardrobe and public-library listings;
+/// re-exported as part of this module's API so callers do not import the
+/// repository directly.
+pub use crate::db::repository::minecraft_texture_repo::WardrobeTextureListFilter;
+
 use super::library::texture_next_cursor;
 use super::moderation::{
     cleanup_texture_asset_if_unreferenced, ensure_texture_library_enabled,

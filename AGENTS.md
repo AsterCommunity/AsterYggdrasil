@@ -16,18 +16,23 @@ AsterYggdrasil 是自建 Minecraft 皮肤站 + Yggdrasil 认证服务器项目�
 ```text
 src/                         Rust 后端
 src/api/                     路由、DTO、OpenAPI 注册、中间件、响应封装
-src/cache/                   cache trait 以及 memory/noop/Redis 实现
-src/config/                  静态配置、运行时配置定义、配置规范化
-src/db/                      数据库连接、重试、事务、repository
-src/entities/                SeaORM Entity
-src/metrics/                 metrics feature 下的 Prometheus 实现
-src/runtime/                 AppState、启动、关闭、日志、后台任务循环
-src/services/                领域平面组织：auth/（local、external、passkey、captcha）、user/、ops/、texture/、yggdrasil/、mail/
-src/types/                   共享枚举和 DB wrapper 类型
-src/utils/                   crypto、ID、path、number、email、RAII 等工具
-migration/                   SeaORM migration crate
-crates/                      产品 crate：model / migration / render / protocol（协议 wire 模型）/ outbound（出站 HTTP 策略），不依赖应用壳
-api-docs-macros/             OpenAPI 辅助宏
+src/components.rs            runtime 组件身份常量（shutdown 依赖图与健康报告的跨模块契约）
+src/config/                  静态配置 schema（TOML）、运行时配置、配置定义注册表；纯定义层，不调用 services
+src/db/                      数据库连接、重试、事务、repository；不依赖 runtime
+src/errors.rs                统一错误类型（AsterError）、稳定错误码映射
+src/external_auth/           Forge external-auth SDK 适配边界：把 Forge 枚举/错误映射成应用类型，route/service 不直接触碰 Forge 枚举
+src/metrics/                 Forge observability 薄桥接（metrics/otlp feature 下挂 /metrics 端点、健康报告转发）
+src/runtime/                 AppState、启动装配（startup/）、runtime 组件图组装、关闭、后台任务循环、进程角色（role）
+src/services/                领域平面组织：auth/（local、external、passkey、captcha、request——access token 提取）、user/（profile 含 Minecraft 档案产品读、ban、invitation、admin）、ops/（admin、audit、config、health、task）、texture/、yggdrasil/（session_flow、session_forward、signature）、mail/
+src/texture_storage/         TextureStore 的具体 local/S3 实现与后端选择；契约（trait、错误、配置类型）在 aster_yggdrasil_texture_storage crate
+src/utils/                   出站 UA 常量、Yggdrasil 默认路径包装
+crates/                      产品 crate（都不依赖应用壳）：
+                             model（SeaORM entities + 共享强类型，原 src/entities、src/types）
+                             migration（SeaORM migrations）
+                             protocol（Yggdrasil/authlib-injector 纯 wire 模型与错误状态机，无 DB/HTTP 依赖）
+                             render（纯 CPU 皮肤渲染器）
+                             outbound（出站 HTTP 策略）
+                             texture_storage（材质对象存储契约：TextureStore trait、TextureStoreError、object_storage 配置类型；对齐 AsterDrive 的 aster_drive_storage 模式）
 frontend-panel/              React + Vite 管理前端，目前只是模板/demo
 developer-docs/              开发说明
 docs/                        用户/部署文档站
@@ -35,13 +40,15 @@ tests/                       集成测试和 OpenAPI 导出测试
 tmp/authlib-injector/wiki/   authlib-injector/Yggdrasil 参考资料入口
 ```
 
+分层方向（grep 可验收）：`api → services → db/repository → model crate`；`db` 不得 import `runtime`，`config` 不得 import `services`，`services` 只允许 import `api::error_code`，`api` handler 不得直查 `db/repository`（薄查询走对应 service）。服务层自有响应类型跟随现有模式（如 `AdminOverviewResp`），api 层只做认证、参数提取、调用 service、组装响应。
+
 ## 技术栈
 
 - 后端: Rust 2024, actix-web 4, SeaORM 2.0-rc, tokio, jsonwebtoken, argon2
 - 数据库: SQLite 默认，兼容 MySQL/PostgreSQL
 - 缓存: memory/noop/Redis 后端
 - 前端: React 19, Vite, TypeScript, Tailwind CSS 4, shadcn/ui, Biome, Vitest, Playwright
-- OpenAPI: `utoipa` + `api-docs-macros`
+- OpenAPI: `utoipa` + `aster_forge_api_docs_macros`
 - 嵌入: `rust-embed` 将 `frontend-panel/dist/` 编译进二进制
 
 ## 开发命令
@@ -129,12 +136,12 @@ Yggdrasil/authlib-injector 兼容端点必须优先满足协议响应格式，�
 ## 后端代码约定
 
 - 路由模块放在 `src/api/routes/`，每个模块暴露 `configure(cfg: &mut web::ServiceConfig)` 或 `routes()`，按现有注册方式接入 `src/api/routes/mod.rs`。
-- DTO 放在 `src/api/dto/`，领域共享类型放在 `src/types/`，不要在 handler 里散落匿名 JSON 拼装。
+- DTO 放在 `src/api/dto/`，领域共享类型放在 `crates/aster_yggdrasil_model/src/types/`，不要在 handler 里散落匿名 JSON 拼装。
 - 业务逻辑放 `src/services/`，数据库访问放 `src/db/repository/`，handler 只做认证、参数提取、调用 service、返回响应。
 - 新表必须有 SeaORM entity 和 migration，测试覆盖 SQLite；涉及数据库差异时同时考虑 MySQL/PostgreSQL。
-- 配置项统一定义在 `src/config/definitions.rs`，由 `system_config_service::ensure_defaults()` 初始化。不要在业务代码里写散落默认值。
+- 配置项统一定义在 `src/config/definitions.rs`，由 `services::ops::config::ensure_defaults()` 在启动装配时初始化。不要在业务代码里写散落默认值。
 - 运行时共享状态走现有 `AppState`/runtime 初始化路径，不要引入全局可变单例。
-- 需要后台异步处理的用户可见任务，优先复用 `task_service` 的 task record/dispatch/retry/presentation 结构。
+- 需要后台异步处理的用户可见任务，优先复用 `services::ops::task` 的 task record/dispatch/retry/presentation 结构。
 - fire-and-forget 操作用 `if let Err(error) = ... { tracing::warn!(...) }`，不要静默 `let _ =`。
 - 数据库事务失败不用手写多余 `rollback()`；SeaORM transaction drop 会自动回滚。
 
@@ -142,7 +149,7 @@ Yggdrasil/authlib-injector 兼容端点必须优先满足协议响应格式，�
 
 - 枚举字段优先使用 `DeriveActiveEnum` 或明确的强类型 wrapper，禁止魔法字符串在 service/repo 间传来传去。
 - 数据库列不要为了省事直接上 JSON。除非确实需要数据库侧 JSON 查询、索引或约束，否则结构化内容用 `TEXT` 存储，并在代码层用强类型 DTO + serde 校验。
-- 禁止跨层裸写 `as i32` / `as usize` / `as i64` 做静默截断；使用 `src/utils/numbers.rs` 的 checked conversion helper。
+- 禁止跨层裸写 `as i32` / `as usize` / `as i64` 做静默截断；使用 `aster_forge_utils::numbers` 的 checked conversion helper。
 - 多数据库 SQL 要保守：
   - 不用 SQLite-only 标量 `MAX(a, b)`，改用 `CASE WHEN ...`
   - 多表 join 下 `COUNT`/`GROUP BY` 必须显式限定列来源

@@ -24,13 +24,13 @@ use aster_yggdrasil::entities::{
     audit_log, minecraft_profile_texture, minecraft_texture, yggdrasil_session_forward_server,
     yggdrasil_token,
 };
-use aster_yggdrasil::errors::{AsterError, Result};
 use aster_yggdrasil::services::{ops::audit, user};
-use aster_yggdrasil::texture_storage::{ObjectBlobMetadata, TextureStore};
+use aster_yggdrasil::texture_storage::TextureStore;
 use aster_yggdrasil::types::{
     user::AvatarSource, yggdrasil::MinecraftTextureModel,
     yggdrasil::YggdrasilSessionForwardProviderKind,
 };
+use aster_yggdrasil_texture_storage::{ObjectBlobMetadata, TextureStoreError, TextureStoreResult};
 use base64::Engine;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -83,29 +83,32 @@ impl TextureStore for FailingObjectStorage {
         "failing"
     }
 
-    async fn put_file(&self, _storage_key: &str, _local_path: &Path) -> Result<String> {
-        Err(AsterError::internal_error(
+    async fn put_file(&self, _storage_key: &str, _local_path: &Path) -> TextureStoreResult<String> {
+        Err(TextureStoreError::backend(
             "S3 object upload failed: endpoint=https://s3.internal, bucket=private, source=connection refused",
         ))
     }
 
-    async fn get_stream(&self, _storage_key: &str) -> Result<Box<dyn AsyncRead + Unpin + Send>> {
-        Err(AsterError::internal_error("failing test storage"))
+    async fn get_stream(
+        &self,
+        _storage_key: &str,
+    ) -> TextureStoreResult<Box<dyn AsyncRead + Unpin + Send>> {
+        Err(TextureStoreError::backend("failing test storage"))
     }
 
-    async fn delete(&self, _storage_key: &str) -> Result<()> {
+    async fn delete(&self, _storage_key: &str) -> TextureStoreResult<()> {
         Ok(())
     }
 
-    async fn exists(&self, _storage_key: &str) -> Result<bool> {
+    async fn exists(&self, _storage_key: &str) -> TextureStoreResult<bool> {
         Ok(false)
     }
 
-    async fn metadata(&self, _storage_key: &str) -> Result<ObjectBlobMetadata> {
-        Err(AsterError::internal_error("failing test storage"))
+    async fn metadata(&self, _storage_key: &str) -> TextureStoreResult<ObjectBlobMetadata> {
+        Err(TextureStoreError::backend("failing test storage"))
     }
 
-    async fn list_keys(&self, _prefix: &str) -> Result<Vec<String>> {
+    async fn list_keys(&self, _prefix: &str) -> TextureStoreResult<Vec<String>> {
         Ok(Vec::new())
     }
 }

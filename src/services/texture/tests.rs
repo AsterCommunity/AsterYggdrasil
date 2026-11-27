@@ -43,7 +43,7 @@ async fn test_state(texture_root: String) -> AppState {
         .expect("texture cleanup runtime config should reload");
     let config = Arc::new(crate::config::Config {
         database: db_cfg,
-        texture_storage: crate::config::TextureStorageConfig {
+        texture_storage: aster_yggdrasil_texture_storage::TextureStorageConfig {
             backend: "local".to_string(),
             local_root: texture_root,
             ..Default::default()

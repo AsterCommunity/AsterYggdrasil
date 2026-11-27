@@ -729,6 +729,18 @@ pub async fn finish_registration(
     Ok(model_to_info(created))
 }
 
+/// Finds one of the user's own passkeys by id; reports not found when the
+/// passkey does not exist or belongs to another user.
+pub async fn find_for_user(
+    state: &impl SharedRuntimeState,
+    passkey_id: i64,
+    user_id: i64,
+) -> Result<passkey::Model> {
+    passkey_repo::find_by_id_for_user(state.writer_db(), passkey_id, user_id)
+        .await?
+        .ok_or_else(|| AsterError::record_not_found(format!("passkey #{passkey_id}")))
+}
+
 /// Renames one of the user's passkeys; reports not found when the passkey
 /// does not belong to the user.
 pub async fn rename_passkey(

@@ -144,6 +144,13 @@ impl From<AsterError> for TextureError {
     }
 }
 
+impl From<aster_yggdrasil_texture_storage::TextureStoreError> for TextureError {
+    fn from(value: aster_yggdrasil_texture_storage::TextureStoreError) -> Self {
+        tracing::warn!(error = %value, "texture object storage failed");
+        Self::new(TextureErrorKind::Storage)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{TextureError, TextureErrorKind};

@@ -93,7 +93,7 @@ pub async fn run(state: crate::runtime::AppState, role: ServeRole) -> io::Result
         .component(crate::services::ops::audit::runtime::audit_runtime_component(app_state))
         .component(crate::db::runtime::database_component(
             app_state.db_handles.clone(),
-            role,
+            role.consumes_tasks(),
         ))
         .component(role_component(role_initialization));
 
@@ -174,8 +174,8 @@ mod tests {
             &registry,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+                crate::components::TASK_CONSUMERS_COMPONENT,
+                crate::components::SCHEDULED_TASKS_COMPONENT,
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT,
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT,
                 aster_forge_audit::AUDIT_LOGS_COMPONENT,
@@ -187,8 +187,8 @@ mod tests {
             &registry,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT.to_string(),
-                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT.to_string(),
-                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT.to_string(),
+                crate::components::TASK_CONSUMERS_COMPONENT.to_string(),
+                crate::components::SCHEDULED_TASKS_COMPONENT.to_string(),
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT.to_string(),
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT.to_string(),
             ],
@@ -203,8 +203,8 @@ mod tests {
             .expect("api-role runtime component graph should validate");
         let names = component_names(&registry);
         for component in [
-            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+            crate::components::TASK_CONSUMERS_COMPONENT,
+            crate::components::SCHEDULED_TASKS_COMPONENT,
         ] {
             assert!(
                 !names.contains(&component),
@@ -229,8 +229,8 @@ mod tests {
             .expect("worker-role runtime component graph should validate");
         let names = component_names(&registry);
         for component in [
-            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+            crate::components::TASK_CONSUMERS_COMPONENT,
+            crate::components::SCHEDULED_TASKS_COMPONENT,
         ] {
             assert!(
                 names.contains(&component),
@@ -241,8 +241,8 @@ mod tests {
             &registry,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT.to_string(),
-                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT.to_string(),
-                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT.to_string(),
+                crate::components::TASK_CONSUMERS_COMPONENT.to_string(),
+                crate::components::SCHEDULED_TASKS_COMPONENT.to_string(),
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT.to_string(),
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT.to_string(),
             ],
@@ -287,7 +287,7 @@ mod tests {
                     aster_forge_tasks::BackgroundTaskRuntimeComponent::new(
                         aster_forge_tasks::BackgroundTasks::new(),
                     )
-                    .named(crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
+                    .named(crate::components::TASK_CONSUMERS_COMPONENT),
                 )
                 .register(registry);
                 aster_forge_runtime::runtime_component(
@@ -295,7 +295,7 @@ mod tests {
                         aster_forge_tasks::BackgroundTasks::new(),
                         crate::services::ops::task::registered_system_runtime_tasks(),
                     )
-                    .named(crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT),
+                    .named(crate::components::SCHEDULED_TASKS_COMPONENT),
                 )
                 .register(registry);
             }
@@ -303,7 +303,8 @@ mod tests {
                 .register(registry);
             crate::services::ops::audit::runtime::audit_runtime_component(&state)
                 .register(registry);
-            crate::db::runtime::database_component(db_handles, role).register(registry);
+            crate::db::runtime::database_component(db_handles, role.consumes_tasks())
+                .register(registry);
             super::role_component(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
                 false,
             )))

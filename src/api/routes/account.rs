@@ -4,7 +4,6 @@ use crate::api::dto::{
     AccountAuditLogFilterQuery, AccountOverviewResp, AccountUserBanInfo, AccountUserBanListQuery,
 };
 use crate::api::response::ApiResponse;
-use crate::db::repository::user_repo;
 use crate::errors::Result;
 use crate::runtime::AppState;
 use crate::services::{auth::local, ops::audit, user};
@@ -46,11 +45,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 pub async fn overview(state: web::Data<AppState>, req: HttpRequest) -> Result<HttpResponse> {
     let user = local::current_user(state.get_ref(), &req).await?;
     tracing::debug!(user_id = user.id, "account overview request received");
-    let profile_count = user_repo::count_profiles_by_user_ids(state.reader_db(), &[user.id])
-        .await?
-        .get(&user.id)
-        .copied()
-        .unwrap_or(0);
+    let profile_count =
+        crate::services::user::profile::count_profiles_for_users(state.get_ref(), &[user.id])
+            .await?
+            .get(&user.id)
+            .copied()
+            .unwrap_or(0);
     let recent_activity = query_current_user_audit_logs(
         state.get_ref(),
         user.id,

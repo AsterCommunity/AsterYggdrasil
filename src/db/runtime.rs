@@ -1,7 +1,6 @@
 //! Database runtime component registration.
 
 use crate::errors::{AsterError, MapAsterErr, Result};
-use crate::runtime::role::ServeRole;
 use aster_forge_db::DbHandles;
 use aster_forge_metrics::SharedMetricsRecorder;
 
@@ -10,12 +9,12 @@ const DATABASE_MIGRATION_LOCK_NAMESPACE: &str = "aster_yggdrasil:database_migrat
 /// Database handles close only after every component that may touch them has
 /// stopped. Queue consumers and the leased scheduled group exist only on roles
 /// that consume tasks; process maintenance (config reload) runs on every role.
-fn database_shutdown_dependencies(role: ServeRole) -> &'static [&'static str] {
-    if role.consumes_tasks() {
+fn database_shutdown_dependencies(consumes_tasks: bool) -> &'static [&'static str] {
+    if consumes_tasks {
         &[
             aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+            crate::components::TASK_CONSUMERS_COMPONENT,
+            crate::components::SCHEDULED_TASKS_COMPONENT,
             aster_forge_mail::MAIL_OUTBOX_COMPONENT,
             aster_forge_audit::AUDIT_MANAGER_COMPONENT,
         ]
@@ -29,12 +28,19 @@ fn database_shutdown_dependencies(role: ServeRole) -> &'static [&'static str] {
 }
 
 /// Creates the database runtime component used by the product entrypoint.
+///
+/// `consumes_tasks` mirrors `ServeRole::consumes_tasks()` for the process role
+/// the component is registered for; it is passed as a plain flag so this
+/// module does not depend on the runtime assembly.
 pub fn database_component(
     db_handles: DbHandles,
-    role: ServeRole,
+    consumes_tasks: bool,
 ) -> aster_forge_runtime::RuntimeComponentBundleRegistration<aster_forge_db::DatabaseRuntimeComponent>
 {
-    aster_forge_db::database_component_after(db_handles, database_shutdown_dependencies(role))
+    aster_forge_db::database_component_after(
+        db_handles,
+        database_shutdown_dependencies(consumes_tasks),
+    )
 }
 
 /// Connects database handles and applies pending migrations.
@@ -59,7 +65,6 @@ pub async fn prepare_database_handles(
 mod tests {
     use super::{database_component, database_shutdown_dependencies, prepare_database_handles};
     use crate::config::DatabaseConfig;
-    use crate::runtime::role::ServeRole;
     use aster_forge_runtime::RuntimeComponentBundle;
     use aster_forge_runtime::{HealthCheckScope, HealthStatus};
 
@@ -71,7 +76,7 @@ mod tests {
         let db_handles = aster_forge_db::DbHandles::single(db);
 
         let registry = aster_forge_runtime::RuntimeComponentRegistry::configured(|registry| {
-            database_component(db_handles, ServeRole::All).register(registry);
+            database_component(db_handles, true).register(registry);
         });
 
         let descriptor = registry
@@ -85,8 +90,8 @@ mod tests {
             descriptor.dependencies,
             vec![
                 aster_forge_tasks::BACKGROUND_TASKS_COMPONENT,
-                crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-                crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+                crate::components::TASK_CONSUMERS_COMPONENT,
+                crate::components::SCHEDULED_TASKS_COMPONENT,
                 aster_forge_mail::MAIL_OUTBOX_COMPONENT,
                 aster_forge_audit::AUDIT_MANAGER_COMPONENT
             ]
@@ -100,25 +105,23 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_dependencies_track_the_serve_role() {
-        for role in [ServeRole::All, ServeRole::Worker] {
-            let dependencies = database_shutdown_dependencies(role);
-            assert!(
-                dependencies.contains(&crate::runtime::tasks::TASK_CONSUMERS_COMPONENT),
-                "{role:?} consumes tasks and must wait for queue consumers"
-            );
-            assert!(
-                dependencies.contains(&crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT),
-                "{role:?} consumes tasks and must wait for the scheduled group"
-            );
-        }
+    fn shutdown_dependencies_track_task_consumption() {
+        let dependencies = database_shutdown_dependencies(true);
+        assert!(
+            dependencies.contains(&crate::components::TASK_CONSUMERS_COMPONENT),
+            "task-consuming roles must wait for queue consumers"
+        );
+        assert!(
+            dependencies.contains(&crate::components::SCHEDULED_TASKS_COMPONENT),
+            "task-consuming roles must wait for the scheduled group"
+        );
         for component in [
-            crate::runtime::tasks::TASK_CONSUMERS_COMPONENT,
-            crate::runtime::tasks::SCHEDULED_TASKS_COMPONENT,
+            crate::components::TASK_CONSUMERS_COMPONENT,
+            crate::components::SCHEDULED_TASKS_COMPONENT,
         ] {
             assert!(
-                !database_shutdown_dependencies(ServeRole::Api).contains(&component),
-                "api role must not depend on {component} it never registers"
+                !database_shutdown_dependencies(false).contains(&component),
+                "api-only processes must not depend on {component} they never register"
             );
         }
     }

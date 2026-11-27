@@ -1,5 +1,11 @@
 //! Texture-library review, moderation flows, and admin texture lifecycle.
 
+/// Filter shapes accepted by the admin library/report listings; re-exported
+/// as part of this module's API so callers do not import the repository
+/// directly.
+pub use crate::db::repository::minecraft_texture_repo::AdminTextureLibraryListFilter;
+pub use crate::db::repository::minecraft_texture_report_repo::AdminTextureReportListFilter;
+
 use super::moderation::{
     admin_texture_report, normalize_texture_tag_color, normalize_texture_tag_name,
 };

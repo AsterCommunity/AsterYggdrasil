@@ -9,10 +9,10 @@ use futures::future::{LocalBoxFuture, Ready, ok};
 use std::rc::Rc;
 
 use crate::api::middleware::csrf;
-use crate::api::request_auth::access_cookie_token;
 use crate::errors::AsterError;
 use crate::runtime::AppState;
 use crate::services::auth::local;
+use crate::services::auth::request::access_cookie_token;
 use aster_forge_middleware::actix::csrf::{RequestSourceMode, is_unsafe_method};
 
 /// Authentication middleware that resolves the JWT access cookie into an
