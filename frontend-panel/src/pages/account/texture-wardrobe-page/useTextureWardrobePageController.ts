@@ -5,7 +5,6 @@ import {
 	useEffect,
 	useMemo,
 	useReducer,
-	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +36,19 @@ type TextureWardrobePageState = {
 	deleteDialogOpen: boolean;
 	deleteTexture: MinecraftWardrobeTextureMetadata | null;
 	dialogOpen: boolean;
+	/**
+	 * Metadata write already accepted by the server for the current edit
+	 * session, if any. A tag-write retry skips the metadata request only when
+	 * its request payload matches the accepted one.
+	 */
+	editMetadataApplied: {
+		request: UpdateWardrobeTextureRequest;
+		response: MinecraftWardrobeTextureMetadata;
+		textureId: number;
+	} | null;
 	editDialogOpen: boolean;
+	/** Incremented per edit-dialog open; late save completions carry it. */
+	editSession: number;
 	editTexture: MinecraftWardrobeTextureMetadata | null;
 	file: File | null;
 	model: MinecraftTextureModel;
@@ -56,10 +67,20 @@ type TextureWardrobePageAction =
 	| { type: "deleteDialogOpen"; value: boolean }
 	| { type: "deleteTexture"; value: MinecraftWardrobeTextureMetadata | null }
 	| { type: "dialogOpen"; value: boolean }
+	| {
+			type: "edit_metadata_applied";
+			request: UpdateWardrobeTextureRequest;
+			response: MinecraftWardrobeTextureMetadata;
+			session: number;
+			textureId: number;
+	  }
+	| { type: "close_edit_dialog"; session?: number }
 	| { type: "editDialogOpen"; value: boolean }
+	| { type: "edit_save_settled"; session: number }
 	| { type: "editTexture"; value: MinecraftWardrobeTextureMetadata | null }
 	| { type: "file"; value: File | null }
 	| { type: "model"; value: MinecraftTextureModel }
+	| { type: "open_edit_dialog"; texture: MinecraftWardrobeTextureMetadata }
 	| { type: "profilesSuccess"; profiles: YggdrasilProfile[] }
 	| { type: "profileQuery"; value: string }
 	| { type: "query"; value: string }
@@ -75,7 +96,9 @@ const initialDialogState: TextureWardrobePageState = {
 	deleteDialogOpen: false,
 	deleteTexture: null,
 	dialogOpen: false,
+	editMetadataApplied: null,
 	editDialogOpen: false,
+	editSession: 0,
 	editTexture: null,
 	file: null,
 	model: "default",
@@ -109,6 +132,52 @@ function dialogReducer(
 		case "uploadName":
 		case "visibility":
 			return { ...state, [action.type]: action.value };
+		case "open_edit_dialog":
+			return {
+				...state,
+				editDialogOpen: true,
+				// A fresh session starts with no accepted metadata write; the
+				// partial-save carry-over from a previous session must not
+				// apply to a different texture or a re-opened one.
+				editMetadataApplied: null,
+				editSession: state.editSession + 1,
+				editTexture: action.texture,
+			};
+		case "close_edit_dialog": {
+			// A session-tagged close only applies to the dialog it was issued
+			// for: the admin may have dismissed dialog A (Esc/overlay/header)
+			// and opened dialog B, whose drafts must survive A's completion.
+			if (
+				action.session !== undefined &&
+				action.session !== state.editSession
+			) {
+				return { ...state, submitting: false };
+			}
+			return {
+				...state,
+				editDialogOpen: false,
+				editMetadataApplied: null,
+				submitting: false,
+			};
+		}
+		case "edit_metadata_applied": {
+			// A late completion may only record into its own session.
+			if (action.session !== state.editSession) return state;
+			return {
+				...state,
+				editMetadataApplied: {
+					request: action.request,
+					response: action.response,
+					textureId: action.textureId,
+				},
+			};
+		}
+		case "edit_save_settled":
+			// A late save completion must not clear the submitting flag of a
+			// newer session's own in-flight save.
+			return state.editSession === action.session
+				? { ...state, submitting: false }
+				: state;
 		case "profilesSuccess":
 			return {
 				...state,
@@ -164,10 +233,6 @@ export function useTextureWardrobePageController() {
 		useState<TextureTagSearchMethod>("all");
 	const [editTagIds, setEditTagIds] = useState<number[]>([]);
 	const [editTagQuery, setEditTagQuery] = useState("");
-	// Metadata write accepted for the current edit session, if any. Non-null
-	// means a later tag-write retry must not resubmit unchanged metadata.
-	const editMetadataAppliedRef =
-		useRef<MinecraftWardrobeTextureMetadata | null>(null);
 	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
 	const {
 		activeTexture,
@@ -175,6 +240,8 @@ export function useTextureWardrobePageController() {
 		deleteTexture,
 		dialogOpen,
 		editDialogOpen,
+		editMetadataApplied,
+		editSession,
 		editTexture,
 		file,
 		model,
@@ -437,15 +504,11 @@ export function useTextureWardrobePageController() {
 	}
 
 	function openEditDialog(texture: MinecraftWardrobeTextureMetadata) {
-		dispatch({ type: "editTexture", value: texture });
+		dispatch({ type: "open_edit_dialog", texture });
 		addTags(texture.tags);
 		resetEnsureTagsLoaded();
 		setEditTagIds(texture.tags.map((tag) => tag.id));
 		setEditTagQuery("");
-		// A fresh edit session starts with no accepted metadata write; the
-		// partial-save carry-over from a previous session must not apply.
-		editMetadataAppliedRef.current = null;
-		dispatch({ type: "editDialogOpen", value: true });
 	}
 
 	function clearUploadDialogStateAfterClose() {
@@ -496,32 +559,49 @@ export function useTextureWardrobePageController() {
 					? nextModel
 					: editTexture.texture_model;
 		}
+		// The save carries the edit session it was issued in: late completions
+		// (metadata applied, dialog close, submitting reset) only affect that
+		// session, never a newer dialog opened after this one was dismissed.
+		const session = editSession;
+		const textureId = editTexture.id;
+		const applied = editMetadataApplied;
+		const metadataAlreadyAccepted =
+			applied?.textureId === textureId &&
+			applied.request.display_name === metadataUpdate.display_name &&
+			applied.request.visibility === metadataUpdate.visibility &&
+			applied.request.texture_model === metadataUpdate.texture_model;
 		dispatch({ type: "submitting", value: true });
 		try {
 			// The save is two writes: metadata, then tags. Once the server
 			// accepted the metadata write, apply its response immediately —
 			// cards and preview must reflect what the server already has even
-			// if the tag write below fails, and a retry then only re-runs the
-			// missing tag write instead of resubmitting unchanged metadata.
-			let updated = editMetadataAppliedRef.current;
+			// if the tag write below fails, and a retry only re-runs the
+			// missing tag write when the request is unchanged (an edited
+			// name/visibility/model resubmits the metadata).
+			let updated = metadataAlreadyAccepted ? applied.response : null;
 			if (!updated) {
 				updated = await yggdrasilService.updateWardrobeTexture(
-					editTexture.id,
+					textureId,
 					metadataUpdate,
 				);
-				editMetadataAppliedRef.current = updated;
+				dispatch({
+					type: "edit_metadata_applied",
+					request: metadataUpdate,
+					response: updated,
+					session,
+					textureId,
+				});
 				replaceTextureEverywhere({ ...updated, tags: editTexture.tags });
 			}
 			try {
 				const tagged = await yggdrasilService.replaceWardrobeTextureTags(
-					editTexture.id,
+					textureId,
 					{
 						tag_ids: Array.from(new Set(editTagIds)),
 					},
 				);
 				replaceTextureEverywhere({ ...updated, tags: tagged.tags });
-				editMetadataAppliedRef.current = null;
-				dispatch({ type: "editDialogOpen", value: false });
+				dispatch({ type: "close_edit_dialog", session });
 				toast.success(t("wardrobe.editSuccess"));
 			} catch (tagError) {
 				// Metadata is saved; keep the dialog open with the tag draft
@@ -531,7 +611,7 @@ export function useTextureWardrobePageController() {
 		} catch (metadataError) {
 			toast.error(formatUnknownError(metadataError));
 		} finally {
-			dispatch({ type: "submitting", value: false });
+			dispatch({ type: "edit_save_settled", session });
 		}
 	}
 
