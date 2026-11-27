@@ -19,9 +19,9 @@ import AccountSettingsPage from "@/pages/account/AccountSettingsPage";
 import InitPage from "@/pages/InitPage";
 import LoginPage from "@/pages/LoginPage";
 import PublicConnectPage from "@/pages/PublicConnectPage";
-import { RequireInitialized } from "@/router/InitStatusGate";
-import { LoginGuard } from "@/router/LoginGuard";
-import { ProtectedRoute } from "@/router/ProtectedRoute";
+import { AuthenticatedGate } from "@/routes/guards/AuthenticatedGate";
+import { GuestOnlyGate } from "@/routes/guards/GuestOnlyGate";
+import { InitializedGate } from "@/routes/guards/InitGate";
 import { ApiError } from "@/services/http";
 import { useAuthStore } from "@/stores/authStore";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
@@ -537,7 +537,7 @@ describe("frontend entry routes", () => {
 		const router = createMemoryRouter(
 			[
 				{
-					element: <RequireInitialized />,
+					element: <InitializedGate />,
 					children: [
 						{
 							path: "/register",
@@ -565,7 +565,7 @@ describe("frontend entry routes", () => {
 		const router = createMemoryRouter(
 			[
 				{
-					element: <ProtectedRoute />,
+					element: <AuthenticatedGate />,
 					children: [
 						{
 							path: "/account",
@@ -595,7 +595,7 @@ describe("frontend entry routes", () => {
 		const router = createMemoryRouter(
 			[
 				{
-					element: <ProtectedRoute />,
+					element: <AuthenticatedGate />,
 					children: [
 						{
 							path: "/account",
@@ -641,12 +641,12 @@ describe("frontend entry routes", () => {
 			[
 				{
 					path: "/login",
-					element: <LoginGuard />,
+					element: <GuestOnlyGate />,
 					children: [{ index: true, element: <div>login-route</div> }],
 				},
 				{
 					path: "/register",
-					element: <LoginGuard />,
+					element: <GuestOnlyGate />,
 					children: [{ index: true, element: <div>register-route</div> }],
 				},
 				{ path: "/account", element: <div>account-route</div> },
@@ -680,7 +680,7 @@ describe("frontend entry routes", () => {
 			[
 				{
 					path: "/login",
-					element: <LoginGuard />,
+					element: <GuestOnlyGate />,
 					children: [{ index: true, element: <div>login-route</div> }],
 				},
 			],

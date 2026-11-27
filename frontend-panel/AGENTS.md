@@ -53,8 +53,9 @@ bun run test:e2e
 
 ## Shell 约定
 
-- `components/shell/AccountShell.tsx`: 已登录用户工作区。
-- `components/shell/AdminShell.tsx`: 管理后台。
+- `components/shell/AppShell.tsx`: 唯一 shell，按 `scope`（`account` / `admin`）参数化，由 `ShellSidebar.tsx`、`ShellTopbar.tsx` 和 `shellNavigation.ts` 提供分区导航。
+- `routes/guards/`: 路由守卫都在这里：`AuthenticatedGate`（登录）、`GuestOnlyGate`（未登录限定）、`AdminOnlyGate`（管理权限）、`InitGate`（初始化状态）、`RouteAccessState`（拒绝态提示）。不要新建 `src/router/*` 别名文件。
+- `components/layout/AdminPageShell.tsx`: 管理页页面级容器（配合 `AdminPageHeader.tsx`、`AdminSurface.tsx`）。
 - `components/layout/PublicEntryShell.tsx`: 公开入口和认证入口的共享壳。
 - `components/layout/AppLayout.tsx`: 现阶段仍是认证区 frame，后续应继续拆小，不要再加新业务逻辑。
 
