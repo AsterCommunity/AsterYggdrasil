@@ -3,11 +3,14 @@ import { loginViaUi, logoutViaUi } from "./support/auth";
 import { ADMIN, STORAGE_STATE_FILES } from "./support/fixtures";
 
 test.describe("route guards", () => {
+	test.use({ storageState: { cookies: [], origins: [] } });
+
 	test("a signed-in user hitting /login sees the already-signed-in state", async ({
 		page,
 	}) => {
 		// Real user flow: sign in once (cookies + local session marker), then
-		// revisit the guest-only routes.
+		// revisit the guest-only routes. Explicit empty storageState keeps the
+		// starting point deterministic instead of racing the gate's hydration.
 		await loginViaUi(page, ADMIN.username, ADMIN.password);
 		await logoutViaUi(page, ADMIN.username);
 		await loginViaUi(page, ADMIN.username, ADMIN.password);

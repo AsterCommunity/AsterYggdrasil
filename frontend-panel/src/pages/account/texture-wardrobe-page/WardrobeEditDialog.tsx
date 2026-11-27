@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect } from "react";
+import { type FormEvent, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -197,16 +197,24 @@ function WardrobeEditTagSelector({
 }) {
 	const { t } = useTranslation();
 	const hasQuery = query.trim().length > 0;
+	// The dialog stays mounted while closed (keepMounted), so this effect
+	// keeps running after close. Reading the parent handler through a ref
+	// keeps the debounce keyed only to this dialog's own query: otherwise
+	// every list-level search (new handler identity) would re-arm the timer
+	// and write this dialog's empty query back into the list's keyword.
+	const onSearchQueryChangeRef = useRef(onSearchQueryChange);
+	useEffect(() => {
+		onSearchQueryChangeRef.current = onSearchQueryChange;
+	});
 
-	// Debounces the callback itself: the parent-provided handler identity can
-	// change across renders, so calling it synchronously here would re-enter
-	// the parent update loop on every render.
+	// Debounces only the dialog's own query changes; the latest handler is
+	// invoked through the ref instead of appearing in the dependency array.
 	useEffect(() => {
 		const timer = window.setTimeout(() => {
-			onSearchQueryChange(query.trim());
+			onSearchQueryChangeRef.current(query.trim());
 		}, 180);
 		return () => window.clearTimeout(timer);
-	}, [onSearchQueryChange, query]);
+	}, [query]);
 
 	return (
 		<div className="grid gap-1.5">

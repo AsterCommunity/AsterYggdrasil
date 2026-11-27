@@ -845,8 +845,10 @@ describe("TextureWardrobePage", () => {
 		expect(
 			within(topDialog()).getByText("wardrobe.editDialogTitle"),
 		).toBeInTheDocument();
-		expect(screen.queryByText("Edited Skin")).not.toBeInTheDocument();
-		expect(screen.getAllByText("skin-texture-has").length).toBeGreaterThan(0);
+		// The metadata write was accepted by the server, so the new name shows
+		// locally at once (card + preview) even though the tag write failed.
+		expect(screen.getAllByText("Edited Skin").length).toBeGreaterThan(0);
+		expect(screen.queryByText("skin-texture-has")).not.toBeInTheDocument();
 	});
 
 	it("submits a public wardrobe texture for library review and updates progress", async () => {

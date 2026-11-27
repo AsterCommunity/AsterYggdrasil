@@ -21,9 +21,7 @@ async function ensureInitialized(page: import("@playwright/test").Page) {
 	}
 	await page.getByLabel("Username").fill(ADMIN.username);
 	await page.getByLabel("Email").fill(ADMIN.email);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(ADMIN.password);
+	await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
 	await page.getByLabel("Confirm password").fill(ADMIN.password);
 	await page.getByRole("button", { name: "Create admin" }).click();
 	await expect(page).toHaveURL(/\/account$/);
@@ -55,9 +53,7 @@ test("shows login as a standalone route and protects account routes", async ({
 	await expect(page).toHaveURL(/\/login$/);
 	await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
 	await expect(page.getByLabel("Email or username")).toBeVisible();
-	await expect(
-		page.getByRole("textbox", { exact: true, name: "Password" }),
-	).toBeVisible();
+	await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 	await page.getByRole("link", { name: "Register now" }).click();
 	await expect(page).toHaveURL(/\/register$/);
 	await expect(

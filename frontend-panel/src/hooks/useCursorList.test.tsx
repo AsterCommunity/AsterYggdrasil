@@ -248,6 +248,49 @@ describe("useCursorList", () => {
 		});
 	});
 
+	it("reloads after disabling mid-flight, despite an unchanged signature", async () => {
+		// Regression: disabling discards the in-flight response, so re-enabling
+		// with the same stack must reload instead of hitting the signature
+		// dedup short-circuit with the discarded cursor recorded as loaded.
+		const resolvers: Array<
+			(value: {
+				items: Row[];
+				nextCursor: Cursor | null;
+				total: number;
+			}) => void
+		> = [];
+		const loadPage = vi
+			.fn<
+				(args: { cursor: Cursor | null }) => Promise<{
+					items: Row[];
+					nextCursor: Cursor | null;
+					total: number;
+				}>
+			>()
+			.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						resolvers.push(resolve);
+					}),
+			);
+		const { rerender } = render(<Probe loadPage={loadPage} enabled={true} />);
+		expect(loadPage).toHaveBeenCalledTimes(1);
+
+		// Disable while the first request is still pending; its response (if
+		// any) would be discarded by the generation check.
+		rerender(<Probe loadPage={loadPage} enabled={false} />);
+		resolvers[0]?.(page(1, null, [1]));
+		rerender(<Probe loadPage={loadPage} enabled={true} />);
+
+		await waitFor(() => {
+			expect(loadPage).toHaveBeenCalledTimes(2);
+		});
+		resolvers[1]?.(page(1, null, [1]));
+		await waitFor(() => {
+			expect(screen.getByText("row:1")).toBeInTheDocument();
+		});
+	});
+
 	it("stores a normalized error and calls onError without throwing", async () => {
 		const onError = vi.fn();
 		const loadPage = vi

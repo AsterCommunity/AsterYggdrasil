@@ -13,9 +13,7 @@ export async function loginViaUi(
 ) {
 	await page.goto("/login");
 	await page.getByLabel("Email or username").fill(identifier);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(password);
+	await page.getByLabel("Password", { exact: true }).fill(password);
 	await page.getByRole("button", { name: "Login", exact: true }).click();
 	await expect(page).toHaveURL(/\/account$/);
 }
@@ -30,9 +28,7 @@ export async function registerViaUi(
 	await page.goto("/register");
 	await page.getByLabel("Username").fill(username);
 	await page.getByLabel("Email").fill(email);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(password);
+	await page.getByLabel("Password", { exact: true }).fill(password);
 	await page.getByLabel("Confirm password").fill(password);
 	// The terms checkbox is visually hidden (sr-only inside its label), so
 	// click the visible label text to toggle it.
@@ -58,9 +54,7 @@ export async function loginViaUiExpectingPasswordChange(
 ) {
 	await page.goto("/login");
 	await page.getByLabel("Email or username").fill(identifier);
-	await page
-		.getByRole("textbox", { exact: true, name: "Password" })
-		.fill(password);
+	await page.getByLabel("Password", { exact: true }).fill(password);
 	await page.getByRole("button", { name: "Login", exact: true }).click();
 	await expect(page).toHaveURL(/\/force-password-change$/);
 }

@@ -80,6 +80,16 @@ export function updatePayload(
 	form: ForwardForm,
 	server: AdminYggdrasilSessionForwardServerInfo,
 ): UpdateYggdrasilSessionForwardServerRequest {
+	// `server` is the snapshot captured when the edit session opened. Only
+	// fields the admin actually changed from that baseline are sent: the row
+	// can legitimately change behind the dialog (e.g. an inline disable
+	// completing mid-edit), and resubmitting untouched fields would silently
+	// revert it. Every field of the update request is optional and applied
+	// only when provided.
+	const nextPriority = numberFromField(form.priority, server.priority);
+	const nextTimeoutMs = numberFromField(form.timeoutMs, server.timeout_ms);
+	const nextWeight = numberFromField(form.weight, server.weight);
+	const nextTextureForward = server.local ? false : form.textureForwardEnabled;
 	return {
 		...(form.displayName.trim() !== server.display_name
 			? { display_name: form.displayName.trim() }
@@ -87,10 +97,14 @@ export function updatePayload(
 		...(!server.local && form.baseUrl.trim() !== (server.base_url ?? "")
 			? { base_url: form.baseUrl.trim() }
 			: {}),
-		enabled: form.enabled,
-		priority: numberFromField(form.priority, server.priority),
-		texture_forward_enabled: server.local ? false : form.textureForwardEnabled,
-		timeout_ms: numberFromField(form.timeoutMs, server.timeout_ms),
-		weight: numberFromField(form.weight, server.weight),
+		...(form.enabled !== server.enabled ? { enabled: form.enabled } : {}),
+		...(nextPriority !== server.priority ? { priority: nextPriority } : {}),
+		...(nextTextureForward !== server.texture_forward_enabled
+			? { texture_forward_enabled: nextTextureForward }
+			: {}),
+		...(nextTimeoutMs !== server.timeout_ms
+			? { timeout_ms: nextTimeoutMs }
+			: {}),
+		...(nextWeight !== server.weight ? { weight: nextWeight } : {}),
 	};
 }

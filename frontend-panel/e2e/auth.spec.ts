@@ -65,14 +65,12 @@ test.describe("auth flows", () => {
 		await page.goto("/login");
 		await page.getByLabel("Email or username").fill(PLAYER.username);
 		await page
-			.getByRole("textbox", { exact: true, name: "Password" })
+			.getByLabel("Password", { exact: true })
 			.fill("definitely-not-the-password");
 		await page.getByRole("button", { name: "Login", exact: true }).click();
 
 		await expect(page).toHaveURL(/\/login$/);
-		await expect(
-			page.getByRole("textbox", { exact: true, name: "Password" }),
-		).toBeVisible();
+		await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 	});
 
 	test("forces a password change before the workbench opens", async ({

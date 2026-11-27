@@ -160,6 +160,10 @@ export function useCursorList<Item, Cursor>({
 	useEffect(() => {
 		if (!enabled) {
 			generationRef.current += 1;
+			// Invalidate the loaded-signature cache too: a disable mid-flight
+			// discards the response, so re-enabling with the same stack must
+			// actually reload instead of hitting the dedup short-circuit.
+			lastLoadedCursorSignatureRef.current = null;
 			setLoading(false);
 			return;
 		}

@@ -5,6 +5,7 @@ import {
 	useEffect,
 	useMemo,
 	useReducer,
+	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -163,6 +164,10 @@ export function useTextureWardrobePageController() {
 		useState<TextureTagSearchMethod>("all");
 	const [editTagIds, setEditTagIds] = useState<number[]>([]);
 	const [editTagQuery, setEditTagQuery] = useState("");
+	// Metadata write accepted for the current edit session, if any. Non-null
+	// means a later tag-write retry must not resubmit unchanged metadata.
+	const editMetadataAppliedRef =
+		useRef<MinecraftWardrobeTextureMetadata | null>(null);
 	const yggdrasilConfig = useFrontendConfigStore((store) => store.yggdrasil);
 	const {
 		activeTexture,
@@ -437,6 +442,9 @@ export function useTextureWardrobePageController() {
 		resetEnsureTagsLoaded();
 		setEditTagIds(texture.tags.map((tag) => tag.id));
 		setEditTagQuery("");
+		// A fresh edit session starts with no accepted metadata write; the
+		// partial-save carry-over from a previous session must not apply.
+		editMetadataAppliedRef.current = null;
 		dispatch({ type: "editDialogOpen", value: true });
 	}
 
@@ -490,21 +498,38 @@ export function useTextureWardrobePageController() {
 		}
 		dispatch({ type: "submitting", value: true });
 		try {
-			const updated = await yggdrasilService.updateWardrobeTexture(
-				editTexture.id,
-				metadataUpdate,
-			);
-			const tagged = await yggdrasilService.replaceWardrobeTextureTags(
-				editTexture.id,
-				{
-					tag_ids: Array.from(new Set(editTagIds)),
-				},
-			);
-			replaceTextureEverywhere({ ...updated, tags: tagged.tags });
-			dispatch({ type: "editDialogOpen", value: false });
-			toast.success(t("wardrobe.editSuccess"));
-		} catch (nextError) {
-			toast.error(formatUnknownError(nextError));
+			// The save is two writes: metadata, then tags. Once the server
+			// accepted the metadata write, apply its response immediately —
+			// cards and preview must reflect what the server already has even
+			// if the tag write below fails, and a retry then only re-runs the
+			// missing tag write instead of resubmitting unchanged metadata.
+			let updated = editMetadataAppliedRef.current;
+			if (!updated) {
+				updated = await yggdrasilService.updateWardrobeTexture(
+					editTexture.id,
+					metadataUpdate,
+				);
+				editMetadataAppliedRef.current = updated;
+				replaceTextureEverywhere({ ...updated, tags: editTexture.tags });
+			}
+			try {
+				const tagged = await yggdrasilService.replaceWardrobeTextureTags(
+					editTexture.id,
+					{
+						tag_ids: Array.from(new Set(editTagIds)),
+					},
+				);
+				replaceTextureEverywhere({ ...updated, tags: tagged.tags });
+				editMetadataAppliedRef.current = null;
+				dispatch({ type: "editDialogOpen", value: false });
+				toast.success(t("wardrobe.editSuccess"));
+			} catch (tagError) {
+				// Metadata is saved; keep the dialog open with the tag draft
+				// intact so the retry only completes the tag write.
+				toast.error(formatUnknownError(tagError));
+			}
+		} catch (metadataError) {
+			toast.error(formatUnknownError(metadataError));
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}

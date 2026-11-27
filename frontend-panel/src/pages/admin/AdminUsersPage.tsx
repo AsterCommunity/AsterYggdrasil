@@ -1,5 +1,12 @@
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -157,19 +164,42 @@ function useAdminUsersPageController() {
 	// truth for external navigation (deep links, back/forward), otherwise a
 	// mount-time empty draft would overwrite a restored `?keyword=...` filter.
 	const [keywordSource, setKeywordSource] = useState<"url" | "user">("url");
+	// Distinguishes our own debounced commits from external URL changes.
+	// `pendingCommit` holds the keyword the page just pushed into the URL and
+	// is cleared once the router reflects it; `lastSubmitted` is the last
+	// keyword this page authored. A committedKeyword matching neither means
+	// the URL was changed from outside (back/forward, in-app link), and the
+	// "user" mode must retire — a stale draft would otherwise push the old
+	// keyword back over the externally navigated one.
+	const pendingCommitRef = useRef<string | null>(null);
+	const lastSubmittedRef = useRef<string | null>(null);
 	const keywordDraft =
 		keywordSource === "url" ? committedKeyword : keywordUserDraft;
 	const debouncedKeyword = useDebouncedValue(keywordDraft, 250);
 	useEffect(() => {
 		if (keywordSource === "url") return;
 		if (debouncedKeyword.trim() === committedKeyword) return;
+		pendingCommitRef.current = debouncedKeyword;
 		setQuery({ keyword: debouncedKeyword });
 	}, [committedKeyword, debouncedKeyword, keywordSource, setQuery]);
-	// Adopt URL changes into the draft while the user is not typing.
 	useEffect(() => {
-		if (keywordSource === "user") return;
+		if (pendingCommitRef.current !== null) {
+			if (committedKeyword === pendingCommitRef.current) {
+				// Our own commit landed in the URL — stay in user mode.
+				pendingCommitRef.current = null;
+				lastSubmittedRef.current = committedKeyword;
+				return;
+			}
+			// Commit still in flight; do not treat the old URL as external.
+			return;
+		}
+		if (committedKeyword === lastSubmittedRef.current) {
+			return;
+		}
+		// External navigation: adopt the URL keyword and drop the stale draft.
+		setKeywordSource("url");
 		setKeywordDraft(committedKeyword);
-	}, [committedKeyword, keywordSource]);
+	}, [committedKeyword]);
 
 	const { pending: submitting, runWithPending } = usePendingAction();
 	const { pendingId: deletingId, runWithPending: runDeletion } =

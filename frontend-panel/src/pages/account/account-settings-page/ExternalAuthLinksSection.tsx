@@ -16,13 +16,15 @@ import type { DateTimeIdCursor, ExternalAuthLinkInfo } from "@/types/api";
 const EXTERNAL_AUTH_LINK_PAGE_SIZE = 20;
 
 type ExternalAuthLinksState = {
-	busyId: number | null;
+	busyIds: ReadonlySet<number>;
 };
 
-type ExternalAuthLinksAction = { type: "set_busy_id"; value: number | null };
+type ExternalAuthLinksAction =
+	| { type: "set_busy_id"; value: number }
+	| { type: "clear_busy_id"; value: number };
 
 const externalAuthLinksInitialState: ExternalAuthLinksState = {
-	busyId: null,
+	busyIds: new Set(),
 };
 
 function externalAuthLinksReducer(
@@ -30,8 +32,19 @@ function externalAuthLinksReducer(
 	action: ExternalAuthLinksAction,
 ): ExternalAuthLinksState {
 	switch (action.type) {
-		case "set_busy_id":
-			return { ...state, busyId: action.value };
+		case "set_busy_id": {
+			// Tracked per id: a second unbind must not re-enable the first
+			// row's button while its request is still in flight.
+			if (state.busyIds.has(action.value)) return state;
+			const busyIds = new Set(state.busyIds);
+			busyIds.add(action.value);
+			return { ...state, busyIds };
+		}
+		case "clear_busy_id": {
+			const busyIds = new Set(state.busyIds);
+			busyIds.delete(action.value);
+			return { ...state, busyIds };
+		}
 	}
 }
 
@@ -41,7 +54,7 @@ export function ExternalAuthLinksSection() {
 		externalAuthLinksReducer,
 		externalAuthLinksInitialState,
 	);
-	const { busyId } = state;
+	const { busyIds } = state;
 
 	const loadLinkPage = useCallback(
 		async ({ cursor }: { cursor: DateTimeIdCursor | null }) => {
@@ -75,7 +88,7 @@ export function ExternalAuthLinksSection() {
 		} catch (error) {
 			toast.error(formatUnknownError(error));
 		} finally {
-			dispatch({ type: "set_busy_id", value: null });
+			dispatch({ type: "clear_busy_id", value: link.id });
 		}
 	}
 
@@ -136,15 +149,15 @@ export function ExternalAuthLinksSection() {
 									type="button"
 									size="sm"
 									variant="outline"
-									disabled={busyId === link.id}
+									disabled={busyIds.has(link.id)}
 									onClick={() => void unlink(link)}
 									className="border-destructive/35 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
 								>
 									<Icon
-										name={busyId === link.id ? "Spinner" : "Trash"}
+										name={busyIds.has(link.id) ? "Spinner" : "Trash"}
 										className={cn(
 											"mr-2 size-4",
-											busyId === link.id && "animate-spin",
+											busyIds.has(link.id) && "animate-spin",
 										)}
 									/>
 									{t("personalSettings.externalAuthUnlink")}

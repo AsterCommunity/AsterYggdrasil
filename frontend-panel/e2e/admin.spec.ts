@@ -41,9 +41,7 @@ test.describe("admin console", () => {
 		await expect(dialog).toBeVisible();
 		await dialog.getByLabel("Username").fill(username);
 		await dialog.getByLabel("Email").fill(`${username}@example.test`);
-		await dialog
-			.getByRole("textbox", { exact: true, name: "Password" })
-			.fill(password);
+		await dialog.getByLabel("Password", { exact: true }).fill(password);
 		await dialog.getByRole("button", { name: "Create", exact: true }).click();
 		await expect(dialog).toBeHidden();
 		await expect(page.getByText("User created")).toBeVisible();
