@@ -560,6 +560,25 @@ describe("admin services", () => {
 		expect(apiMock.deleteRequest).toHaveBeenCalledWith("/admin/users/7");
 	});
 
+	it("calls the permission registry and localization endpoints", async () => {
+		apiMock.get.mockResolvedValue({ permissions: [] });
+		const { permissionService } = await import("./permissionService");
+		await permissionService.list();
+		expect(apiMock.get).toHaveBeenLastCalledWith("/permissions");
+
+		apiMock.get.mockResolvedValue({
+			namespace: "permissions_backend",
+			requested_locale: "en-US",
+			resolved_locale: "en",
+			revision: "r",
+			messages: {},
+		});
+		await permissionService.localizations("zh-CN");
+		expect(apiMock.get).toHaveBeenLastCalledWith(
+			"/permissions/localizations?locale=zh-CN",
+		);
+	});
+
 	it("uses admin user capability ban endpoints", async () => {
 		const ban = {
 			admin_note: "internal",

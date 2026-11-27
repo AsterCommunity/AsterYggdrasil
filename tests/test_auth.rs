@@ -3657,7 +3657,7 @@ async fn permission_localizations_serve_locales_with_etag_negotiation() {
         body["data"]["messages"]["admin.users.operatorScope.overview"],
         "后台概览"
     );
-    assert_eq!(body["data"]["namespace"], "permissions");
+    assert_eq!(body["data"]["namespace"], "permissions_backend");
 
     // An unsupported locale falls back to the default locale.
     let req = test::TestRequest::get()

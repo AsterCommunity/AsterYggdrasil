@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { i18next } from "@/i18n";
 import {
@@ -23,6 +23,14 @@ function Probe({ registry }: { registry: RegistryPermissions }) {
 	return (
 		<div>
 			<span data-testid="status">{registry.status}</span>
+			<span data-testid="bundle-status">{registry.bundleStatus}</span>
+			<button
+				type="button"
+				data-testid="retry-bundle"
+				onClick={registry.retryBundle}
+			>
+				retry-bundle
+			</button>
 			<span data-testid="count">{registry.permissions.length}</span>
 		</div>
 	);
@@ -58,14 +66,16 @@ describe("useRegistryPermissions", () => {
 		});
 
 		const { unmount } = render(<Mount />);
-		expect(await screen.findByText("ready")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
 		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
-		expect(screen.getByText("5")).toBeInTheDocument();
+		expect(screen.getByTestId("count")).toHaveTextContent("5");
 		unmount();
 
 		render(<Mount />);
-		expect(screen.getByText("ready")).toBeInTheDocument();
-		expect(screen.getByText("5")).toBeInTheDocument();
+		expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		expect(screen.getByTestId("count")).toHaveTextContent("5");
 		expect(mockedLocalizations).toHaveBeenCalledTimes(1);
 	});
 
@@ -91,6 +101,64 @@ describe("useRegistryPermissions", () => {
 		expect(flatLookup("plugin.__proto__.escape")).toBe("MISS");
 	});
 
+	it("keeps descriptors available when the localization bundle fails", async () => {
+		await i18next.changeLanguage("en-US");
+		mockedLocalizations.mockRejectedValue(new Error("bundle down"));
+
+		const { unmount } = render(<Mount />);
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
+		expect(screen.getByTestId("count")).toHaveTextContent("5");
+		expect(screen.getByTestId("bundle-status")).toHaveTextContent("error");
+		unmount();
+
+		// The bundle-only retry path serves a cached-descriptor consumer.
+		mockedLocalizations.mockResolvedValue({
+			namespace: "permissions",
+			requested_locale: "en-US",
+			resolved_locale: "en",
+			revision: "test",
+			messages: {
+				"admin.users.bans.scope.texture_upload": "Bundle retry label",
+			},
+		});
+		render(<Mount />);
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
+		expect(flatLookup("admin.users.bans.scope.texture_upload")).toBe(
+			"Bundle retry label",
+		);
+	});
+
+	it("retryBundle restores localized labels after a failure", async () => {
+		await i18next.changeLanguage("en-US");
+		mockedLocalizations.mockRejectedValueOnce(new Error("bundle down"));
+		mockedLocalizations.mockResolvedValue({
+			namespace: "permissions",
+			requested_locale: "en-US",
+			resolved_locale: "en",
+			revision: "test",
+			messages: { "admin.users.bans.scope.texture_upload": "Retry label" },
+		});
+
+		const { unmount } = render(<Mount />);
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
+		expect(screen.getByTestId("bundle-status")).toHaveTextContent("error");
+
+		fireEvent.click(screen.getByTestId("retry-bundle"));
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
+		expect(flatLookup("admin.users.bans.scope.texture_upload")).toBe(
+			"Retry label",
+		);
+		unmount();
+	});
+
 	it("refetches the localization bundle for a mounted consumer on language change", async () => {
 		await i18next.changeLanguage("en-US");
 		mockedLocalizations.mockImplementation(async (locale: string) => ({
@@ -107,14 +175,18 @@ describe("useRegistryPermissions", () => {
 		// language-tick subscription, so a regression where mounted hooks
 		// stop refetching cannot pass.
 		render(<Mount />);
-		expect(await screen.findByText("ready")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
 		expect(mockedLocalizations).toHaveBeenLastCalledWith("en-US");
 
 		await i18next.changeLanguage("zh-CN");
 		await waitFor(() => {
 			expect(mockedLocalizations).toHaveBeenLastCalledWith("zh-CN");
 		});
-		expect(await screen.findByText("ready")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByTestId("status")).toHaveTextContent("ready");
+		});
 		expect(mockedLocalizations).toHaveBeenCalledTimes(2);
 		await i18next.changeLanguage("en-US");
 	});

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { i18next } from "@/i18n";
 import "@/i18n";
 
 const mockedList = vi.hoisted(() => vi.fn());
@@ -73,6 +74,8 @@ describe("OperatorScopeSelector", () => {
 	});
 
 	it("backend-installed labels override the static bundle copy", async () => {
+		await i18next.changeLanguage("zh-CN");
+		await i18next.changeLanguage("en-US");
 		mockedList.mockResolvedValue(await registryFixture());
 		// Deliberately different from the static en-US bundle text so the
 		// assertion proves the backend message won.
@@ -91,9 +94,36 @@ describe("OperatorScopeSelector", () => {
 		expect(
 			await screen.findByRole("switch", { name: "Backend override label" }),
 		).toBeInTheDocument();
+		// The static copy must not survive next to the backend message.
 		expect(
 			screen.queryByRole("switch", { name: "Texture library" }),
 		).not.toBeInTheDocument();
+	});
+
+	it("shows a bundle warning with retry while switches keep static labels", async () => {
+		// Two switches force a languageChanged emission, which invalidates the
+		// process cache left by earlier cases so this case loads fresh.
+		await i18next.changeLanguage("zh-CN");
+		await i18next.changeLanguage("en-US");
+		mockedList.mockResolvedValue(await registryFixture());
+		mockedLocalizations.mockRejectedValue(new Error("bundle down"));
+		const OperatorScopeSelector = await loadSelector();
+		render(<OperatorScopeSelector value={[]} onChange={vi.fn()} />);
+
+		expect(
+			await screen.findByText(/Failed to load permission labels/),
+		).toBeInTheDocument();
+		// Descriptors still arrive, so switches render with static labels
+		// instead of the editor being hidden.
+		expect(
+			screen.getByRole("switch", { name: "Texture library" }),
+		).toBeInTheDocument();
+
+		mockedLocalizations.mockResolvedValue(await registryFixture());
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(
+			await screen.findByRole("switch", { name: "Texture library" }),
+		).toBeInTheDocument();
 	});
 
 	it("emits removals when a selected switch is toggled off", async () => {
