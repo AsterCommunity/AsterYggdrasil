@@ -16,6 +16,8 @@
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest",
 		"test:e2e": "playwright test",
+		"test:e2e:protocol": "playwright test --config playwright.protocol.config.ts",
+		"typecheck:e2e": "tsc -p tsconfig.e2e-check.json",
 		"test:e2e:asteryggdrasil": "playwright test e2e",
 		"test:e2e:headed": "playwright test --headed",
 		"test:e2e:ui": "playwright test --ui"
