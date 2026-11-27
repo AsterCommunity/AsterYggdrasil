@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,24 +20,27 @@ import { AdminSurface } from "@/components/layout/AdminSurface";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { dateTimeLocalToIso } from "@/lib/form";
+import { useCursorList } from "@/hooks/useCursorList";
 import {
-	parsePageSizeOption,
-	parsePageSizeSearchParam,
-} from "@/lib/pagination";
+	managedEnumField,
+	managedPageSizeField,
+	useManagedListQueryState,
+} from "@/hooks/useManagedListQueryState";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingAction } from "@/hooks/usePendingAction";
+import { usePendingId } from "@/hooks/usePendingId";
+import { dateTimeLocalToIso } from "@/lib/form";
+import { parsePageSizeOption } from "@/lib/pagination";
 import { formatTaskStatusLabel } from "@/lib/tasks";
 import { adminTaskService } from "@/services/adminService";
 import type {
 	AdminTaskCleanupRequest,
 	BackgroundTaskStatus,
-	DateTimeIdCursor,
 	TaskInfo,
 } from "@/types/api";
 
 const TASK_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 const DEFAULT_TASK_PAGE_SIZE = 20 as const;
-const TASK_MANAGED_QUERY_KEYS = ["pageSize", "status"] as const;
 const TASK_STATUS_FILTER_VALUES = [
 	"pending",
 	"processing",
@@ -61,11 +64,11 @@ type ManagedTaskQuery = {
 	pageSize: (typeof TASK_PAGE_SIZE_OPTIONS)[number];
 	status: TaskStatusFilter;
 };
+type TaskCursor = { id: number; value: string };
 type AdminTasksUiState = {
 	cleanupDialogOpen: boolean;
 	cleanupFinishedBefore: string;
 	cleanupStatusFilter: TaskTerminalStatusFilter;
-	cleanupSubmitting: boolean;
 	detailDialogTaskId: number | null;
 };
 type AdminTasksUiAction =
@@ -73,16 +76,7 @@ type AdminTasksUiAction =
 	| { taskId: number | null; type: "set_detail_dialog_task" }
 	| { value: string; type: "set_cleanup_finished_before" }
 	| { value: TaskTerminalStatusFilter; type: "set_cleanup_status_filter" }
-	| { submitting: boolean; type: "set_cleanup_submitting" }
 	| { type: "reset_cleanup_conditions" };
-
-function parseTaskStatusSearchParam(value: string | null): TaskStatusFilter {
-	return TASK_STATUS_FILTER_VALUES.includes(
-		value as (typeof TASK_STATUS_FILTER_VALUES)[number],
-	)
-		? (value as BackgroundTaskStatus)
-		: "__all__";
-}
 
 function parseTaskTerminalStatus(
 	value: string | null,
@@ -92,42 +86,6 @@ function parseTaskTerminalStatus(
 	)
 		? (value as TaskTerminalStatusFilter)
 		: "__all__";
-}
-
-function buildManagedTaskSearchParams({ pageSize, status }: ManagedTaskQuery) {
-	const params = new URLSearchParams();
-	if (pageSize !== DEFAULT_TASK_PAGE_SIZE) {
-		params.set("pageSize", String(pageSize));
-	}
-	if (status !== "__all__") {
-		params.set("status", status);
-	}
-	return params;
-}
-
-function readManagedTaskQuery(searchParams: URLSearchParams): ManagedTaskQuery {
-	return {
-		pageSize: parsePageSizeSearchParam(
-			searchParams.get("pageSize"),
-			TASK_PAGE_SIZE_OPTIONS,
-			DEFAULT_TASK_PAGE_SIZE,
-		),
-		status: parseTaskStatusSearchParam(searchParams.get("status")),
-	};
-}
-
-function mergeManagedTaskSearchParams(
-	searchParams: URLSearchParams,
-	managedSearchParams: URLSearchParams,
-) {
-	const merged = new URLSearchParams(searchParams);
-	for (const key of TASK_MANAGED_QUERY_KEYS) {
-		merged.delete(key);
-	}
-	for (const [key, value] of managedSearchParams.entries()) {
-		merged.set(key, value);
-	}
-	return merged;
 }
 
 function defaultCleanupFinishedBeforeValue() {
@@ -144,7 +102,6 @@ function createInitialAdminTasksUiState(): AdminTasksUiState {
 		cleanupDialogOpen: false,
 		cleanupFinishedBefore: defaultCleanupFinishedBeforeValue(),
 		cleanupStatusFilter: "__all__",
-		cleanupSubmitting: false,
 		detailDialogTaskId: null,
 	};
 }
@@ -162,8 +119,6 @@ function adminTasksUiReducer(
 			return { ...state, cleanupFinishedBefore: action.value };
 		case "set_cleanup_status_filter":
 			return { ...state, cleanupStatusFilter: action.value };
-		case "set_cleanup_submitting":
-			return { ...state, cleanupSubmitting: action.submitting };
 		case "reset_cleanup_conditions":
 			return {
 				...state,
@@ -217,15 +172,21 @@ export default function AdminTasksPage() {
 
 	usePageTitle(t("admin.tasks.title"));
 
-	const taskQuery = readManagedTaskQuery(searchParams);
-	const { pageSize, status: statusFilter } = taskQuery;
-	const [retryingTaskId, setRetryingTaskId] = useState<number | null>(null);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
-	const [items, setItems] = useState<TaskInfo[]>([]);
-	const [total, setTotal] = useState(0);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const { query, setQuery } = useManagedListQueryState<ManagedTaskQuery>({
+		schema: {
+			pageSize: managedPageSizeField(
+				TASK_PAGE_SIZE_OPTIONS,
+				DEFAULT_TASK_PAGE_SIZE,
+			),
+			status: managedEnumField("status", TASK_STATUS_FILTER_VALUES, "__all__"),
+		},
+		searchParams,
+		setSearchParams,
+	});
+	const { pageSize, status: statusFilter } = query;
+	const { pending: cleanupSubmitting, runWithPending } = usePendingAction();
+	const { pendingId: retryingTaskId, runWithPending: runRetry } =
+		usePendingId<number>();
 	const [uiState, dispatchUi] = useReducer(
 		adminTasksUiReducer,
 		undefined,
@@ -235,74 +196,33 @@ export default function AdminTasksPage() {
 		cleanupDialogOpen,
 		cleanupFinishedBefore,
 		cleanupStatusFilter,
-		cleanupSubmitting,
 		detailDialogTaskId,
 	} = uiState;
-	const setTaskQuery = useCallback(
-		(updates: Partial<ManagedTaskQuery>) => {
-			const nextManagedSearchParams = buildManagedTaskSearchParams({
-				...taskQuery,
-				...updates,
-			});
-			setSearchParams(
-				mergeManagedTaskSearchParams(searchParams, nextManagedSearchParams),
-				{ replace: true },
-			);
-		},
-		[searchParams, setSearchParams, taskQuery],
-	);
-	const resetCursor = useCallback(() => {
-		setCursorStack((current) => (current.length > 0 ? [] : current));
-		setNextCursor((current) => (current ? null : current));
-	}, []);
 
-	const loadPage = useCallback(
-		async (stack: DateTimeIdCursor[]) => {
-			setLoading(true);
-			try {
-				setError(null);
-				const cursor = stack.at(-1);
-				const page = await adminTaskService.list({
-					limit: pageSize,
-					after_updated_at: cursor?.value,
-					after_id: cursor?.id,
-					...(statusFilter !== "__all__" ? { status: statusFilter } : {}),
-				});
-				if (page.items.length === 0 && page.total > 0 && stack.length > 0) {
-					setCursorStack((current) => current.slice(0, -1));
-					setNextCursor(null);
-					return;
-				}
-				setItems(page.items);
-				setTotal(page.total);
-				setNextCursor(page.next_cursor ?? null);
-			} catch (error) {
-				setError(error instanceof Error ? error.message : String(error));
-			} finally {
-				setLoading(false);
-			}
+	const loadTaskPage = useCallback(
+		async ({ cursor }: { cursor: TaskCursor | null }) => {
+			const page = await adminTaskService.list({
+				limit: pageSize,
+				after_updated_at: cursor?.value,
+				after_id: cursor?.id,
+				...(statusFilter !== "__all__" ? { status: statusFilter } : {}),
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
 		},
 		[pageSize, statusFilter],
 	);
-	const reload = useCallback(async () => {
-		await loadPage(cursorStack);
-	}, [cursorStack, loadPage]);
-	const reloadFirstPage = useCallback(async () => {
-		setCursorStack([]);
-		setNextCursor(null);
-		await loadPage([]);
-	}, [loadPage]);
-
-	useEffect(() => {
-		void reload();
-	}, [reload]);
+	const list = useCursorList<TaskInfo, TaskCursor>({
+		deps: [pageSize, statusFilter],
+		loadPage: loadTaskPage,
+	});
+	const { currentPage, error, items, loading, total, totalPages } = list;
 
 	const activeFilterCount = statusFilter !== "__all__" ? 1 : 0;
 	const hasServerFilters = activeFilterCount > 0;
-	const totalPages = Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1);
-	const currentPage = cursorStack.length + 1;
-	const prevPageDisabled = cursorStack.length === 0;
-	const nextPageDisabled = !nextCursor;
 	const visibleDetailTaskId =
 		detailDialogTaskId != null &&
 		items.some((task) => task.id === detailDialogTaskId)
@@ -334,9 +254,8 @@ export default function AdminTasksPage() {
 	);
 
 	const resetFilters = useCallback(() => {
-		resetCursor();
-		setTaskQuery({ status: "__all__" });
-	}, [resetCursor, setTaskQuery]);
+		setQuery({ status: "__all__" });
+	}, [setQuery]);
 	const resetCleanupConditions = () => {
 		dispatchUi({ type: "reset_cleanup_conditions" });
 	};
@@ -346,17 +265,15 @@ export default function AdminTasksPage() {
 			if (next == null) {
 				return;
 			}
-			resetCursor();
-			setTaskQuery({ pageSize: next });
+			// The cursor list resets to the first page as pageSize is a dep.
+			setQuery({ pageSize: next });
 		},
-		[resetCursor, setTaskQuery],
+		[setQuery],
 	);
 	const handleStatusFilterChange = (value: string | null) => {
-		resetCursor();
-		setTaskQuery({
-			status:
-				value === "__all__" ? "__all__" : parseTaskStatusSearchParam(value),
-		});
+		// managedEnumField parses the raw param, rejecting values outside the
+		// task status set.
+		setQuery({ status: (value ?? "__all__") as TaskStatusFilter });
 	};
 	const handleCleanupSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -364,35 +281,29 @@ export default function AdminTasksPage() {
 			return;
 		}
 
-		dispatchUi({ submitting: true, type: "set_cleanup_submitting" });
-		try {
-			const result = await adminTaskService.cleanup(cleanupRequest);
-			toast.success(
-				t("admin.tasks.cleanup.success", { count: result.removed }),
-			);
-			dispatchUi({ open: false, type: "set_cleanup_dialog_open" });
-			await reloadFirstPage();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatchUi({ submitting: false, type: "set_cleanup_submitting" });
-		}
+		await runWithPending(async () => {
+			try {
+				const result = await adminTaskService.cleanup(cleanupRequest);
+				toast.success(
+					t("admin.tasks.cleanup.success", { count: result.removed }),
+				);
+				dispatchUi({ open: false, type: "set_cleanup_dialog_open" });
+				await list.reloadFirstPage();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	};
 	const handleRetry = async (taskId: number) => {
-		if (retryingTaskId !== null) {
-			return;
-		}
-
-		setRetryingTaskId(taskId);
-		try {
-			await adminTaskService.retry(taskId);
-			toast.success(t("admin.tasks.retryQueued"));
-			await reload();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setRetryingTaskId(null);
-		}
+		await runRetry(taskId, async () => {
+			try {
+				await adminTaskService.retry(taskId);
+				toast.success(t("admin.tasks.retryQueued"));
+				await list.reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	};
 	const cleanupDescription =
 		cleanupRequest == null ? (
@@ -413,16 +324,13 @@ export default function AdminTasksPage() {
 		() => (
 			<AdminOffsetPagination
 				currentPage={currentPage}
-				nextDisabled={nextPageDisabled}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-				}}
+				nextDisabled={list.nextPageDisabled}
+				onNext={list.goNext}
 				onPageSizeChange={handlePageSizeChange}
-				onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
+				onPrevious={list.goPrevious}
 				pageSize={String(pageSize)}
 				pageSizeOptions={pageSizeOptions}
-				prevDisabled={prevPageDisabled}
+				prevDisabled={list.prevPageDisabled}
 				total={total}
 				totalPages={totalPages}
 			/>
@@ -430,11 +338,12 @@ export default function AdminTasksPage() {
 		[
 			currentPage,
 			handlePageSizeChange,
-			nextPageDisabled,
+			list.goNext,
+			list.goPrevious,
+			list.nextPageDisabled,
+			list.prevPageDisabled,
 			pageSize,
 			pageSizeOptions,
-			prevPageDisabled,
-			nextCursor,
 			total,
 			totalPages,
 		],
@@ -483,7 +392,7 @@ export default function AdminTasksPage() {
 							type="button"
 							variant="outline"
 							size="sm"
-							onClick={() => void reload()}
+							onClick={() => void list.reload()}
 							disabled={loading || cleanupSubmitting}
 						>
 							<Icon
@@ -507,7 +416,7 @@ export default function AdminTasksPage() {
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() => void reload()}
+								onClick={() => void list.reload()}
 							>
 								{t("common.refresh")}
 							</Button>

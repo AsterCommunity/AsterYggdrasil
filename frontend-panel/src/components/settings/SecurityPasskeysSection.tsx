@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCursorList } from "@/hooks/useCursorList";
+import { usePendingAction } from "@/hooks/usePendingAction";
 import {
 	createPasskeyCredential,
 	isWebAuthnSupported,
@@ -15,43 +17,29 @@ import {
 } from "@/lib/webauthn";
 import { authService, type PasskeyInfo } from "@/services/authService";
 import { formatUnknownError } from "@/services/http";
-import type { DateTimeIdCursor } from "@/types/api";
 
 const PASSKEY_PAGE_SIZE = 20;
 
 type PasskeysState = {
 	busyIds: Set<number>;
-	creating: boolean;
 	editingId: number | null;
 	editingName: string;
-	loading: boolean;
 	name: string;
-	passkeys: PasskeyInfo[];
-	total: number;
 };
 
 type PasskeysAction =
-	| { type: "set_loading"; value: boolean }
-	| { type: "set_passkeys"; value: PasskeyInfo[]; total: number }
-	| { type: "set_creating"; value: boolean }
 	| { type: "set_name"; value: string }
-	| { type: "created"; value: PasskeyInfo }
+	| { type: "created" }
 	| { type: "start_edit"; id: number; name: string }
 	| { type: "cancel_edit" }
 	| { type: "set_editing_name"; value: string }
-	| { type: "renamed"; value: PasskeyInfo }
-	| { type: "deleted"; id: number }
 	| { type: "set_busy"; id: number; value: boolean };
 
 const initialPasskeysState: PasskeysState = {
 	busyIds: new Set(),
-	creating: false,
 	editingId: null,
 	editingName: "",
-	loading: false,
 	name: "",
-	passkeys: [],
-	total: 0,
 };
 
 function passkeysReducer(
@@ -59,21 +47,10 @@ function passkeysReducer(
 	action: PasskeysAction,
 ): PasskeysState {
 	switch (action.type) {
-		case "set_loading":
-			return { ...state, loading: action.value };
-		case "set_passkeys":
-			return { ...state, passkeys: action.value, total: action.total };
-		case "set_creating":
-			return { ...state, creating: action.value };
 		case "set_name":
 			return { ...state, name: action.value };
 		case "created":
-			return {
-				...state,
-				name: "",
-				total: state.total + 1,
-				passkeys: [action.value, ...state.passkeys],
-			};
+			return { ...state, name: "" };
 		case "start_edit":
 			return {
 				...state,
@@ -84,21 +61,6 @@ function passkeysReducer(
 			return { ...state, editingId: null, editingName: "" };
 		case "set_editing_name":
 			return { ...state, editingName: action.value };
-		case "renamed":
-			return {
-				...state,
-				editingId: null,
-				editingName: "",
-				passkeys: state.passkeys.map((passkey) =>
-					passkey.id === action.value.id ? action.value : passkey,
-				),
-			};
-		case "deleted":
-			return {
-				...state,
-				passkeys: state.passkeys.filter((passkey) => passkey.id !== action.id),
-				total: Math.max(0, state.total - 1),
-			};
 		case "set_busy": {
 			const busyIds = new Set(state.busyIds);
 			if (action.value) busyIds.add(action.id);
@@ -111,78 +73,61 @@ function passkeysReducer(
 export function SecurityPasskeysSection() {
 	const { t } = useTranslation();
 	const [state, dispatch] = useReducer(passkeysReducer, initialPasskeysState);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
 	const supported = useMemo(() => isWebAuthnSupported(), []);
+	const { pending: creating, runWithPending: runCreate } = usePendingAction();
 
-	const reload = useCallback(
-		async (stack: DateTimeIdCursor[] = cursorStack) => {
-			dispatch({ type: "set_loading", value: true });
-			try {
-				const cursor = stack.at(-1);
-				const page = await authService.listPasskeysPage({
-					limit: PASSKEY_PAGE_SIZE,
-					after_created_at: cursor?.value,
-					after_id: cursor?.id,
-				});
-				if (page.items.length === 0 && page.total > 0 && stack.length > 0) {
-					setCursorStack((current) => current.slice(0, -1));
-					setNextCursor(null);
-					return;
-				}
-				dispatch({
-					type: "set_passkeys",
-					total: page.total,
-					value: page.items,
-				});
-				setNextCursor(page.next_cursor ?? null);
-			} catch (error) {
-				toast.error(formatUnknownError(error));
-			} finally {
-				dispatch({ type: "set_loading", value: false });
-			}
+	const loadPasskeyPage = useCallback(
+		async ({ cursor }: { cursor: { id: number; value: string } | null }) => {
+			const page = await authService.listPasskeysPage({
+				limit: PASSKEY_PAGE_SIZE,
+				after_created_at: cursor?.value,
+				after_id: cursor?.id,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
 		},
-		[cursorStack],
+		[],
 	);
-
-	useEffect(() => {
-		void reload();
-	}, [reload]);
+	const list = useCursorList<PasskeyInfo, { id: number; value: string }>({
+		deps: [],
+		loadPage: loadPasskeyPage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+	});
 
 	async function createPasskey() {
 		if (!supported) {
 			toast.error(t("personalSettings.passkeysUnsupported"));
 			return;
 		}
-		dispatch({ type: "set_creating", value: true });
-		try {
-			const start = await authService.startPasskeyRegistration({
-				name: state.name.trim() || null,
-			});
-			const credential = await createPasskeyCredential(start.public_key);
-			const created = await authService.finishPasskeyRegistration(
-				start.flow_id,
-				credential,
-				state.name.trim() || null,
-			);
-			setCursorStack([]);
-			setNextCursor(null);
-			dispatch({ type: "created", value: created });
-			toast.success(t("personalSettings.passkeysCreated"));
-			await reload([]);
-		} catch (error) {
-			if (error instanceof WebAuthnUnsupportedError) {
-				toast.error(t("personalSettings.passkeysUnsupported"));
-				return;
+		await runCreate(async () => {
+			try {
+				const start = await authService.startPasskeyRegistration({
+					name: state.name.trim() || null,
+				});
+				const credential = await createPasskeyCredential(start.public_key);
+				await authService.finishPasskeyRegistration(
+					start.flow_id,
+					credential,
+					state.name.trim() || null,
+				);
+				dispatch({ type: "created" });
+				toast.success(t("personalSettings.passkeysCreated"));
+				await list.reloadFirstPage();
+			} catch (error) {
+				if (error instanceof WebAuthnUnsupportedError) {
+					toast.error(t("personalSettings.passkeysUnsupported"));
+					return;
+				}
+				if (error instanceof WebAuthnCancelledError) {
+					toast.error(t("personalSettings.passkeysCancelled"));
+					return;
+				}
+				toast.error(formatUnknownError(error));
 			}
-			if (error instanceof WebAuthnCancelledError) {
-				toast.error(t("personalSettings.passkeysCancelled"));
-				return;
-			}
-			toast.error(formatUnknownError(error));
-		} finally {
-			dispatch({ type: "set_creating", value: false });
-		}
+		});
 	}
 
 	async function saveRename(id: number) {
@@ -191,7 +136,12 @@ export function SecurityPasskeysSection() {
 		dispatch({ type: "set_busy", id, value: true });
 		try {
 			const updated = await authService.renamePasskey(id, { name: finalName });
-			dispatch({ type: "renamed", value: updated });
+			list.setItems((current) =>
+				current.map((passkey) =>
+					passkey.id === updated.id ? updated : passkey,
+				),
+			);
+			dispatch({ type: "cancel_edit" });
 			toast.success(t("personalSettings.passkeysRenamed"));
 		} catch (error) {
 			toast.error(formatUnknownError(error));
@@ -204,9 +154,8 @@ export function SecurityPasskeysSection() {
 		dispatch({ type: "set_busy", id, value: true });
 		try {
 			await authService.deletePasskey(id);
-			dispatch({ type: "deleted", id });
 			toast.success(t("personalSettings.passkeysDeleted"));
-			await reload();
+			await list.reload();
 		} catch (error) {
 			toast.error(formatUnknownError(error));
 		} finally {
@@ -229,7 +178,7 @@ export function SecurityPasskeysSection() {
 					type="button"
 					variant="outline"
 					size="sm"
-					onClick={() => void reload()}
+					onClick={() => void list.reload()}
 				>
 					<Icon name="ArrowClockwise" className="mr-2 size-4" />
 					{t("common.refresh")}
@@ -240,7 +189,7 @@ export function SecurityPasskeysSection() {
 				<div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
 					<Input
 						value={state.name}
-						disabled={state.creating}
+						disabled={creating}
 						maxLength={128}
 						placeholder={t("personalSettings.passkeysNamePlaceholder")}
 						onChange={(event) =>
@@ -249,11 +198,11 @@ export function SecurityPasskeysSection() {
 					/>
 					<Button
 						type="button"
-						disabled={state.creating || !supported}
+						disabled={creating || !supported}
 						onClick={() => void createPasskey()}
 					>
 						<Icon
-							name={state.creating ? "Spinner" : "Plus"}
+							name={creating ? "Spinner" : "Plus"}
 							className="mr-2 size-4"
 						/>
 						{t("personalSettings.passkeysAdd")}
@@ -267,7 +216,7 @@ export function SecurityPasskeysSection() {
 			</div>
 
 			<div className="mt-4 space-y-2">
-				{state.loading ? (
+				{list.loading ? (
 					<div
 						className="rounded-lg border border-dashed border-border/70 px-4 py-4"
 						role="status"
@@ -278,12 +227,12 @@ export function SecurityPasskeysSection() {
 							<Skeleton className="h-11 w-5/6 rounded-lg" />
 						</div>
 					</div>
-				) : state.passkeys.length === 0 ? (
+				) : list.items.length === 0 ? (
 					<div className="rounded-lg border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
 						{t("personalSettings.passkeysEmpty")}
 					</div>
 				) : (
-					state.passkeys.map((passkey) => {
+					list.items.map((passkey) => {
 						const busy = state.busyIds.has(passkey.id);
 						const editing = state.editingId === passkey.id;
 						return (
@@ -385,14 +334,11 @@ export function SecurityPasskeysSection() {
 					})
 				)}
 				<AdminOffsetPagination
-					currentPage={cursorStack.length + 1}
-					nextDisabled={!nextCursor}
-					onNext={() => {
-						if (!nextCursor) return;
-						setCursorStack((current) => [...current, nextCursor]);
-					}}
+					currentPage={list.currentPage}
+					nextDisabled={list.nextPageDisabled}
+					onNext={list.goNext}
 					onPageSizeChange={() => {}}
-					onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
+					onPrevious={list.goPrevious}
 					pageSize={String(PASSKEY_PAGE_SIZE)}
 					pageSizeOptions={[
 						{
@@ -402,9 +348,9 @@ export function SecurityPasskeysSection() {
 							value: String(PASSKEY_PAGE_SIZE),
 						},
 					]}
-					prevDisabled={cursorStack.length === 0}
-					total={state.total}
-					totalPages={Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1)}
+					prevDisabled={list.prevPageDisabled}
+					total={list.total}
+					totalPages={list.totalPages}
 				/>
 			</div>
 		</div>

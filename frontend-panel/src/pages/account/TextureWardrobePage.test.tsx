@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TextureWardrobePage from "@/pages/account/TextureWardrobePage";
+import { textureTagStore } from "@/stores/textureTagStore";
 import type {
 	MinecraftWardrobeTextureMetadata,
 	MinecraftWardrobeTexturePage,
@@ -203,6 +204,9 @@ describe("TextureWardrobePage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.useRealTimers();
+		// The tag cache owner is module-level; tests must not inherit entries.
+		textureTagStore.clearTextureTagPages();
+		textureTagStore.clearPublicTextureTagPages();
 		yggdrasilServiceMock.listProfiles.mockResolvedValue(
 			profilePage([profile("profile-one", "ProfileOne")]),
 		);

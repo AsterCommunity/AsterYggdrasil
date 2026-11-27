@@ -58,14 +58,22 @@ import { MinecraftPreviewPanel } from "@/components/yggdrasil/MinecraftPreviewPa
 import { TextureLibraryTextureAvatar } from "@/components/yggdrasil/TextureLibraryTextureAvatar";
 import { TextureTagChips } from "@/components/yggdrasil/TextureTagList";
 import { handleApiError } from "@/hooks/useApiError";
+import { useCursorList } from "@/hooks/useCursorList";
+import {
+	managedEnumField,
+	managedPageSizeField,
+	managedRemovedField,
+	managedStringField,
+	useManagedListQueryState,
+} from "@/hooks/useManagedListQueryState";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingId } from "@/hooks/usePendingId";
 import { formatBytes } from "@/lib/numberUnit";
 import { parsePageSizeOption } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { adminPaths, adminTextureLibraryPath } from "@/routes/routePaths";
 import { adminTextureLibraryService } from "@/services/adminService";
 import type {
-	DateTimeIdCursor,
 	MinecraftTextureLibraryStatus,
 	MinecraftTextureType,
 	MinecraftTextureVisibility,
@@ -93,27 +101,12 @@ type DeleteDialogState = {
 
 type FilterValue<T extends string> = T | typeof ALL_VALUE;
 type PublishedFilter = "published" | "not_published" | typeof ALL_VALUE;
-
-function parseFilter<T extends string>(
-	value: string | null,
-	allowed: readonly T[],
-	defaultValue: FilterValue<T> = ALL_VALUE,
-): FilterValue<T> {
-	return allowed.includes(value as T) ? (value as T) : defaultValue;
-}
-
-function parsePublishedFilter(value: string | null): PublishedFilter {
-	return value === "published" || value === "not_published" ? value : ALL_VALUE;
-}
+type TextureCursor = { id: number; value: string };
 
 function publishedToQuery(value: PublishedFilter): boolean | undefined {
 	if (value === "published") return true;
 	if (value === "not_published") return false;
 	return undefined;
-}
-
-function normalizeSearch(value: string | null) {
-	return value?.trim() ?? "";
 }
 
 function parseTextureId(value: string | undefined) {
@@ -143,14 +136,8 @@ export default function AdminTextureLibraryTexturesPage({
 		null,
 	);
 	const [reviewNote, setReviewNote] = useState("");
-	const [submittingTextureId, setSubmittingTextureId] = useState<number | null>(
-		null,
-	);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
-	const [textures, setTextures] = useState<LibraryTexture[]>([]);
-	const [total, setTotal] = useState(0);
-	const [loading, setLoading] = useState(!detailMode);
+	const { pendingId: submittingTextureId, runWithPending: runTextureAction } =
+		usePendingId<number>();
 
 	const modeDefaults = useMemo(
 		(): {
@@ -167,29 +154,54 @@ export default function AdminTextureLibraryTexturesPage({
 		}),
 		[mode],
 	);
-	const keyword = normalizeSearch(searchParams.get("keyword"));
-	const pageSize =
-		parsePageSizeOption(
-			searchParams.get("pageSize"),
-			TEXTURE_PAGE_SIZE_OPTIONS,
-		) ?? DEFAULT_TEXTURE_PAGE_SIZE;
-	const textureType = parseFilter<MinecraftTextureType>(
-		searchParams.get("textureType"),
-		["skin", "cape"],
+	const querySchema = useMemo(
+		() => ({
+			keyword: managedStringField("keyword"),
+			libraryStatus: managedEnumField(
+				"libraryStatus",
+				["private", "pending_review", "published", "rejected"],
+				modeDefaults.libraryStatus,
+			),
+			offset: managedRemovedField("offset"),
+			pageSize: managedPageSizeField(
+				TEXTURE_PAGE_SIZE_OPTIONS,
+				DEFAULT_TEXTURE_PAGE_SIZE,
+			),
+			published: managedEnumField(
+				"published",
+				["published", "not_published"],
+				modeDefaults.published,
+			),
+			textureType: managedEnumField("textureType", ["skin", "cape"], ALL_VALUE),
+			visibility: managedEnumField(
+				"visibility",
+				["private", "public"],
+				modeDefaults.visibility,
+			),
+		}),
+		[modeDefaults],
 	);
-	const visibility = parseFilter<MinecraftTextureVisibility>(
-		searchParams.get("visibility"),
-		["private", "public"],
-		modeDefaults.visibility,
-	);
-	const libraryStatus = parseFilter<MinecraftTextureLibraryStatus>(
-		searchParams.get("libraryStatus"),
-		["private", "pending_review", "published", "rejected"],
-		modeDefaults.libraryStatus,
-	);
-	const published = parsePublishedFilter(
-		searchParams.get("published") ?? modeDefaults.published,
-	);
+	const { query: filters, setQuery } = useManagedListQueryState<{
+		keyword: string;
+		libraryStatus: FilterValue<MinecraftTextureLibraryStatus>;
+		offset: null;
+		pageSize: TexturePageSize;
+		published: PublishedFilter;
+		textureType: FilterValue<MinecraftTextureType>;
+		visibility: FilterValue<MinecraftTextureVisibility>;
+	}>({
+		schema: querySchema,
+		searchParams,
+		setSearchParams,
+	});
+	const {
+		keyword,
+		libraryStatus,
+		pageSize,
+		published,
+		textureType,
+		visibility,
+	} = filters;
 
 	usePageTitle(
 		detailMode
@@ -199,52 +211,47 @@ export default function AdminTextureLibraryTexturesPage({
 				: t("admin.textureLibraryTexturesPage.title"),
 	);
 
-	const query = useMemo(
+	const listQuery = useMemo(
 		() => ({
 			limit: pageSize,
-			after_updated_at: cursorStack.at(-1)?.value,
-			after_id: cursorStack.at(-1)?.id,
 			keyword: keyword || undefined,
 			texture_type: textureType === ALL_VALUE ? undefined : textureType,
 			visibility: visibility === ALL_VALUE ? undefined : visibility,
 			library_status: libraryStatus === ALL_VALUE ? undefined : libraryStatus,
 			published: publishedToQuery(published),
 		}),
-		[
-			cursorStack,
-			keyword,
-			libraryStatus,
-			pageSize,
-			published,
-			textureType,
-			visibility,
-		],
+		[keyword, libraryStatus, pageSize, published, textureType, visibility],
 	);
 
-	const reload = useCallback(async () => {
-		if (detailMode) {
-			setTextures([]);
-			setTotal(0);
-			setNextCursor(null);
-			setLoading(false);
-			return;
-		}
-		setLoading(true);
-		try {
-			const page = await adminTextureLibraryService.listTextures(query);
-			setTextures(page.items);
-			setTotal(page.total);
-			setNextCursor(page.next_cursor ?? null);
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setLoading(false);
-		}
-	}, [detailMode, query]);
-
-	useEffect(() => {
-		void reload();
-	}, [reload]);
+	const loadTexturePage = useCallback(
+		async ({ cursor }: { cursor: TextureCursor | null }) => {
+			const page = await adminTextureLibraryService.listTextures({
+				...listQuery,
+				after_updated_at: cursor?.value,
+				after_id: cursor?.id,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[listQuery],
+	);
+	const list = useCursorList<LibraryTexture, TextureCursor>({
+		deps: [
+			pageSize,
+			keyword,
+			textureType,
+			visibility,
+			libraryStatus,
+			published,
+		],
+		enabled: !detailMode,
+		loadPage: loadTexturePage,
+		onError: handleApiError,
+	});
+	const reload = list.reload;
 
 	const loadDetailTexture = useCallback(async () => {
 		if (!detailMode) return;
@@ -268,8 +275,8 @@ export default function AdminTextureLibraryTexturesPage({
 		void loadDetailTexture();
 	}, [loadDetailTexture]);
 
-	const currentPage = cursorStack.length + 1;
-	const totalPages = Math.max(1, Math.ceil(total / pageSize));
+	const currentPage = list.currentPage;
+	const totalPages = Math.max(1, Math.ceil(list.total / pageSize));
 	const activeFilterCount =
 		(keyword ? 1 : 0) +
 		(textureType !== ALL_VALUE ? 1 : 0) +
@@ -287,70 +294,27 @@ export default function AdminTextureLibraryTexturesPage({
 			textureType?: FilterValue<MinecraftTextureType>;
 			visibility?: FilterValue<MinecraftTextureVisibility>;
 		}) => {
-			const next = new URLSearchParams(searchParams);
-			const nextKeyword = nextValues.keyword ?? keyword;
-			const nextPageSize = nextValues.pageSize ?? pageSize;
-			const nextTextureType = nextValues.textureType ?? textureType;
-			const nextVisibility = nextValues.visibility ?? visibility;
-			const nextLibraryStatus = nextValues.libraryStatus ?? libraryStatus;
-			const nextPublished = nextValues.published ?? published;
-
-			setStringParam(next, "keyword", nextKeyword.trim());
-			setStringParam(next, "textureType", valueOrEmpty(nextTextureType));
-			setStringParam(
-				next,
-				"visibility",
-				nextVisibility === modeDefaults.visibility
-					? ""
-					: valueOrEmpty(nextVisibility),
-			);
-			setStringParam(
-				next,
-				"libraryStatus",
-				nextLibraryStatus === modeDefaults.libraryStatus
-					? ""
-					: valueOrEmpty(nextLibraryStatus),
-			);
-			setStringParam(
-				next,
-				"published",
-				nextPublished === modeDefaults.published ? "" : nextPublished,
-			);
-			setStringParam(
-				next,
-				"pageSize",
-				nextPageSize === DEFAULT_TEXTURE_PAGE_SIZE ? "" : String(nextPageSize),
-			);
-			next.delete("offset");
-			setCursorStack((current) => (current.length > 0 ? [] : current));
-			setNextCursor((current) => (current ? null : current));
-			setSearchParams(next);
+			// The cursor list resets itself: every filter value is a list dep.
+			setQuery(nextValues);
 		},
-		[
-			keyword,
-			libraryStatus,
-			modeDefaults.libraryStatus,
-			modeDefaults.published,
-			modeDefaults.visibility,
-			pageSize,
-			published,
-			searchParams,
-			setSearchParams,
-			textureType,
-			visibility,
-		],
+		[setQuery],
 	);
 
 	const resetFilters = useCallback(() => {
-		setCursorStack((current) => (current.length > 0 ? [] : current));
-		setNextCursor((current) => (current ? null : current));
-		setSearchParams(new URLSearchParams());
-	}, [setSearchParams]);
+		setQuery({
+			keyword: "",
+			libraryStatus: modeDefaults.libraryStatus,
+			pageSize: DEFAULT_TEXTURE_PAGE_SIZE,
+			published: modeDefaults.published,
+			textureType: ALL_VALUE,
+			visibility: modeDefaults.visibility,
+		});
+	}, [modeDefaults, setQuery]);
 
 	const pagination = useMemo(
 		() => (
 			<AdminOffsetPagination
-				total={total}
+				total={list.total}
 				currentPage={currentPage}
 				totalPages={totalPages}
 				pageSize={String(pageSize)}
@@ -358,13 +322,10 @@ export default function AdminTextureLibraryTexturesPage({
 					label: t("admin.pagination.pageSizeOption", { count: size }),
 					value: String(size),
 				}))}
-				prevDisabled={cursorStack.length === 0}
-				nextDisabled={!nextCursor}
-				onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-				}}
+				prevDisabled={list.prevPageDisabled}
+				nextDisabled={list.nextPageDisabled}
+				onPrevious={list.goPrevious}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(value, TEXTURE_PAGE_SIZE_OPTIONS);
 					if (next == null) return;
@@ -374,12 +335,14 @@ export default function AdminTextureLibraryTexturesPage({
 		),
 		[
 			currentPage,
-			cursorStack.length,
-			nextCursor,
+			list.goNext,
+			list.goPrevious,
+			list.nextPageDisabled,
+			list.prevPageDisabled,
+			list.total,
 			pageSize,
 			setFilters,
 			t,
-			total,
 			totalPages,
 		],
 	);
@@ -412,62 +375,66 @@ export default function AdminTextureLibraryTexturesPage({
 		const payload: ReviewTextureLibraryTextureRequest = {
 			review_note: reviewNote.trim() || null,
 		};
-		setSubmittingTextureId(textureId);
-		try {
-			const updated =
-				reviewDialog.action === "approve"
-					? await adminTextureLibraryService.approveTexture(textureId, payload)
-					: reviewDialog.action === "reject"
-						? await adminTextureLibraryService.rejectTexture(textureId, payload)
-						: await adminTextureLibraryService.unpublishTexture(
+		await runTextureAction(textureId, async () => {
+			try {
+				const updated =
+					reviewDialog.action === "approve"
+						? await adminTextureLibraryService.approveTexture(
 								textureId,
 								payload,
-							);
-			setTextures((current) =>
-				current.map((texture) =>
-					texture.id === updated.id ? updated : texture,
-				),
-			);
-			setDetailTexture((current) =>
-				current?.id === updated.id ? updated : current,
-			);
-			toast.success(
-				t(`admin.textureLibraryTexturesPage.${reviewDialog.action}Success`),
-			);
-			setReviewDialog(null);
-			setReviewNote("");
-			if (!detailMode) await reload();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmittingTextureId(null);
-		}
+							)
+						: reviewDialog.action === "reject"
+							? await adminTextureLibraryService.rejectTexture(
+									textureId,
+									payload,
+								)
+							: await adminTextureLibraryService.unpublishTexture(
+									textureId,
+									payload,
+								);
+				list.setItems((current) =>
+					current.map((texture) =>
+						texture.id === updated.id ? updated : texture,
+					),
+				);
+				setDetailTexture((current) =>
+					current?.id === updated.id ? updated : current,
+				);
+				toast.success(
+					t(`admin.textureLibraryTexturesPage.${reviewDialog.action}Success`),
+				);
+				setReviewDialog(null);
+				setReviewNote("");
+				if (!detailMode) await reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
 	async function confirmDeleteTexture() {
 		if (!deleteDialog) return;
 		const textureId = deleteDialog.texture.id;
-		setSubmittingTextureId(textureId);
-		try {
-			await adminTextureLibraryService.deleteTexture(textureId);
-			setTextures((current) =>
-				current.filter((texture) => texture.id !== textureId),
-			);
-			setDetailTexture((current) =>
-				current?.id === textureId ? null : current,
-			);
-			toast.success(t("admin.textureLibraryTexturesPage.deleteSuccess"));
-			setDeleteDialog(null);
-			if (detailMode) {
-				navigate(adminPaths.textureLibrary, { replace: true });
-			} else {
-				await reload();
+		await runTextureAction(textureId, async () => {
+			try {
+				await adminTextureLibraryService.deleteTexture(textureId);
+				list.setItems((current) =>
+					current.filter((texture) => texture.id !== textureId),
+				);
+				setDetailTexture((current) =>
+					current?.id === textureId ? null : current,
+				);
+				toast.success(t("admin.textureLibraryTexturesPage.deleteSuccess"));
+				setDeleteDialog(null);
+				if (detailMode) {
+					navigate(adminPaths.textureLibrary, { replace: true });
+				} else {
+					await reload();
+				}
+			} catch (error) {
+				handleApiError(error);
 			}
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmittingTextureId(null);
-		}
+		});
 	}
 
 	if (detailMode) {
@@ -526,12 +493,12 @@ export default function AdminTextureLibraryTexturesPage({
 							type="button"
 							variant="outline"
 							size="sm"
-							disabled={loading}
+							disabled={list.loading}
 							onClick={() => void reload()}
 						>
 							<Icon
-								name={loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", loading && "animate-spin")}
+								name={list.loading ? "Spinner" : "RefreshCw"}
+								className={cn("size-4", list.loading && "animate-spin")}
 							/>
 							{t("common.refresh")}
 						</Button>
@@ -554,8 +521,8 @@ export default function AdminTextureLibraryTexturesPage({
 					"admin.textureLibraryTexturesPage.filteredEmptyDescription",
 				)}
 				headerRow={<TextureTableHeader />}
-				items={textures}
-				loading={loading}
+				items={list.items}
+				loading={list.loading}
 				pagination={pagination}
 				renderRow={(texture) => (
 					<TextureTableRow
@@ -1481,22 +1448,6 @@ function TextureSelect({
 
 function textureDisplayName(texture: LibraryTexture) {
 	return texture.display_name?.trim() || texture.name;
-}
-
-function valueOrEmpty(value: string) {
-	return value === ALL_VALUE ? "" : value;
-}
-
-function setStringParam(
-	params: URLSearchParams,
-	key: string,
-	value: string | null | undefined,
-) {
-	if (value) {
-		params.set(key, value);
-	} else {
-		params.delete(key);
-	}
 }
 
 function libraryStatusOptions(t: ReturnType<typeof useTranslation>["t"]) {

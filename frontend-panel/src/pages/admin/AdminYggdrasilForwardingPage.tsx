@@ -52,6 +52,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { handleApiError } from "@/hooks/useApiError";
+import { useCursorList } from "@/hooks/useCursorList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
 	parsePageSizeOption,
@@ -184,11 +185,6 @@ export default function AdminYggdrasilForwardingPage() {
 		DEFAULT_PAGE_SIZE,
 	);
 	const sort = parseForwardSort(searchParams.get("sort_by"));
-	const [loading, setLoading] = useState(true);
-	const [servers, setServers] = useState<
-		AdminYggdrasilSessionForwardServerInfo[]
-	>([]);
-	const [total, setTotal] = useState(0);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingServer, setEditingServer] =
 		useState<AdminYggdrasilSessionForwardServerInfo | null>(null);
@@ -198,19 +194,12 @@ export default function AdminYggdrasilForwardingPage() {
 	const [form, setForm] = useState<ForwardForm>(() => emptyForm());
 	const [submitting, setSubmitting] = useState(false);
 	const [updatingId, setUpdatingId] = useState<number | null>(null);
-	const [cursorStack, setCursorStack] = useState<Array<ForwardCursor | null>>([
-		null,
-	]);
-	const [pageIndex, setPageIndex] = useState(0);
-	const [nextCursor, setNextCursor] = useState<ForwardCursor | null>(null);
 	const editDialogCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
 	const deleteDialogCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
-	const currentPage = pageIndex + 1;
-	const totalPages = Math.max(currentPage, Math.ceil(total / pageSize));
 	const pageSizeOptions = PAGE_SIZE_OPTIONS.map((size) => ({
 		label: t("admin.pagination.pageSizeOption", { count: size }),
 		value: String(size),
@@ -222,6 +211,45 @@ export default function AdminYggdrasilForwardingPage() {
 	const selectedSortLabel =
 		sortOptions.find((option) => option.value === sort)?.label ??
 		t(`admin.yggdrasilForwarding.sort.${DEFAULT_SORT}`);
+
+	const loadServerPage = useCallback(
+		async ({ cursor }: { cursor: ForwardCursor | null }) => {
+			const page = await adminYggdrasilSessionForwardService.list({
+				limit: pageSize,
+				sort_by: sort,
+				after_enabled:
+					cursor && "call_order" in cursor
+						? cursor.call_order.enabled
+						: undefined,
+				after_priority:
+					cursor && "call_order" in cursor
+						? cursor.call_order.priority
+						: undefined,
+				after_id:
+					cursor && "call_order" in cursor
+						? cursor.call_order.id
+						: cursor && "id" in cursor
+							? cursor.id.id
+							: undefined,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[pageSize, sort],
+	);
+	const list = useCursorList<
+		AdminYggdrasilSessionForwardServerInfo,
+		ForwardCursor
+	>({
+		deps: [pageSize, sort],
+		loadPage: loadServerPage,
+		onError: handleApiError,
+	});
+	const { currentPage } = list;
+	const totalPages = Math.max(currentPage, Math.ceil(list.total / pageSize));
 
 	const updatePagination = useCallback(
 		({
@@ -242,64 +270,10 @@ export default function AdminYggdrasilForwardingPage() {
 			if (next.toString() !== searchParams.toString()) {
 				setSearchParams(next, { replace: true });
 			}
-			setCursorStack([null]);
-			setPageIndex(0);
-			setNextCursor(null);
+			// Both params are list deps, so the cursor list resets itself.
 		},
 		[pageSize, searchParams, setSearchParams, sort],
 	);
-
-	const loadServers = useCallback(async () => {
-		try {
-			setLoading(true);
-			const cursor = cursorStack[pageIndex] ?? null;
-			const page = await adminYggdrasilSessionForwardService.list({
-				limit: pageSize,
-				sort_by: sort,
-				after_enabled:
-					cursor && "call_order" in cursor
-						? cursor.call_order.enabled
-						: undefined,
-				after_priority:
-					cursor && "call_order" in cursor
-						? cursor.call_order.priority
-						: undefined,
-				after_id:
-					cursor && "call_order" in cursor
-						? cursor.call_order.id
-						: cursor && "id" in cursor
-							? cursor.id.id
-							: undefined,
-			});
-			if (page.items.length === 0 && page.total > 0 && pageIndex > 0) {
-				setCursorStack((current) => current.slice(0, -1));
-				setPageIndex((current) => Math.max(0, current - 1));
-				return;
-			}
-			setServers(page.items);
-			setTotal(page.total);
-			setNextCursor(page.next_cursor ?? null);
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setLoading(false);
-		}
-	}, [cursorStack, pageIndex, pageSize, sort]);
-
-	const goPreviousPage = useCallback(() => {
-		setCursorStack((current) => current.slice(0, -1));
-		setPageIndex((current) => Math.max(0, current - 1));
-	}, []);
-
-	const goNextPage = useCallback(() => {
-		if (!nextCursor) return;
-		setCursorStack((current) => [...current, nextCursor]);
-		setPageIndex((current) => current + 1);
-	}, [nextCursor]);
-
-	useEffect(() => {
-		void loadServers();
-	}, [loadServers]);
 
 	useEffect(
 		() => () => {
@@ -383,11 +357,11 @@ export default function AdminYggdrasilForwardingPage() {
 					updatePayload(form, editingServer),
 				);
 				toast.success(t("admin.yggdrasilForwarding.updateSuccess"));
-				await loadServers();
+				await list.reload();
 			} else {
 				await adminYggdrasilSessionForwardService.create(createPayload(form));
 				toast.success(t("admin.yggdrasilForwarding.createSuccess"));
-				await loadServers();
+				await list.reload();
 			}
 			closeForwardServerDialog();
 		} catch (error) {
@@ -405,7 +379,7 @@ export default function AdminYggdrasilForwardingPage() {
 			setUpdatingId(server.id);
 			await adminYggdrasilSessionForwardService.update(server.id, patch);
 			toast.success(t("admin.yggdrasilForwarding.updateSuccess"));
-			await loadServers();
+			await list.reload();
 		} catch (error) {
 			handleApiError(error);
 		} finally {
@@ -420,7 +394,7 @@ export default function AdminYggdrasilForwardingPage() {
 			await adminYggdrasilSessionForwardService.delete(deletingServer.id);
 			closeDeleteDialog();
 			toast.success(t("admin.yggdrasilForwarding.deleteSuccess"));
-			await loadServers();
+			await list.reload();
 		} catch (error) {
 			handleApiError(error);
 		} finally {
@@ -456,15 +430,15 @@ export default function AdminYggdrasilForwardingPage() {
 	const pagination = useMemo(
 		() => (
 			<AdminOffsetPagination
-				total={total}
+				total={list.total}
 				currentPage={currentPage}
 				totalPages={totalPages}
 				pageSize={String(pageSize)}
 				pageSizeOptions={pageSizeOptions}
-				prevDisabled={currentPage <= 1}
-				nextDisabled={nextCursor === null}
-				onPrevious={goPreviousPage}
-				onNext={goNextPage}
+				prevDisabled={list.prevPageDisabled}
+				nextDisabled={list.nextPageDisabled}
+				onPrevious={list.goPrevious}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(value, PAGE_SIZE_OPTIONS);
 					if (next == null) return;
@@ -474,12 +448,13 @@ export default function AdminYggdrasilForwardingPage() {
 		),
 		[
 			currentPage,
-			goNextPage,
-			goPreviousPage,
-			nextCursor,
+			list.goNext,
+			list.goPrevious,
+			list.nextPageDisabled,
+			list.prevPageDisabled,
+			list.total,
 			pageSize,
 			pageSizeOptions,
-			total,
 			totalPages,
 			updatePagination,
 		],
@@ -523,12 +498,12 @@ export default function AdminYggdrasilForwardingPage() {
 							type="button"
 							variant="outline"
 							size="sm"
-							disabled={loading}
-							onClick={() => void loadServers()}
+							disabled={list.loading}
+							onClick={() => void list.reload()}
 						>
 							<Icon
-								name={loading ? "Spinner" : "ArrowsClockwise"}
-								className={cn("mr-2 size-4", loading && "animate-spin")}
+								name={list.loading ? "Spinner" : "ArrowsClockwise"}
+								className={cn("mr-2 size-4", list.loading && "animate-spin")}
 							/>
 							{t("common.refresh")}
 						</Button>
@@ -538,8 +513,8 @@ export default function AdminYggdrasilForwardingPage() {
 
 			<TooltipProvider delay={100}>
 				<AdminTableList
-					loading={loading}
-					items={servers}
+					loading={list.loading}
+					items={list.items}
 					columns={5}
 					rows={6}
 					emptyIcon={<Icon name="Shuffle" className="size-5" />}

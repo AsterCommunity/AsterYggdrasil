@@ -33,6 +33,8 @@ import {
 	TextureTagPickerList,
 } from "@/components/yggdrasil/TextureTagList";
 import { TextureUploadForm } from "@/components/yggdrasil/TextureUploadForm";
+import { useCursorList } from "@/hooks/useCursorList";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useTextureTagPager } from "@/hooks/useTextureTagPager";
 import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
@@ -41,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
+import { textureTagStore } from "@/stores/textureTagStore";
 import type {
 	DateTimeIdCursor,
 	MinecraftTextureTagInfo,
@@ -58,11 +61,6 @@ const TAG_FILTER_APPLY_DEBOUNCE_MS = 240;
 export default function TextureWardrobePage() {
 	const { t } = useTranslation();
 	const [state, dispatch] = useTextureWardrobePageState();
-	const [textureCursorStack, setTextureCursorStack] = useState<
-		DateTimeIdCursor[]
-	>([]);
-	const [nextTextureCursor, setNextTextureCursor] =
-		useState<DateTimeIdCursor | null>(null);
 	const [texturePageSize, setTexturePageSize] = useState<number>(
 		DEFAULT_WARDROBE_PAGE_SIZE,
 	);
@@ -80,7 +78,6 @@ export default function TextureWardrobePage() {
 	const textureLibraryConfig = useFrontendConfigStore(
 		(store) => store.textureLibrary,
 	);
-	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const {
 		activeTexture,
 		deleteDialogOpen,
@@ -89,15 +86,12 @@ export default function TextureWardrobePage() {
 		editDialogOpen,
 		editTexture,
 		file,
-		loading,
 		model,
 		profileQuery,
 		profiles,
 		query,
 		selectedProfileId,
 		submitting,
-		textureTotal,
-		textures,
 		textureType,
 		uploadName,
 		visibility,
@@ -118,7 +112,10 @@ export default function TextureWardrobePage() {
 	}, [dispatch]);
 
 	const tagPager = useTextureTagPager({
-		loadPage: yggdrasilService.listTextureLibraryTagsPage,
+		loadPage: (params) =>
+			textureTagStore.getTextureTagPage(params, () =>
+				yggdrasilService.listTextureLibraryTagsPage(params),
+			),
 		onError: (error) => toast.error(formatUnknownError(error)),
 		retainedTagIds: [...draftTagIds, ...editTagIds],
 	});
@@ -133,65 +130,59 @@ export default function TextureWardrobePage() {
 		tags,
 	} = tagPager;
 
-	const resetTextureCursor = useCallback(() => {
-		setTextureCursorStack((current) => (current.length > 0 ? [] : current));
-		setNextTextureCursor((current) => (current ? null : current));
-	}, []);
+	// The search draft and draft tag selection commit after short debounces
+	// so bursts of input collapse into one wardrobe request.
+	const debouncedQuery = useDebouncedValue(
+		query.trim(),
+		WARDROBE_SEARCH_DEBOUNCE_MS,
+	);
+	const debouncedDraftTagIds = useDebouncedValue(
+		draftTagIds,
+		TAG_FILTER_APPLY_DEBOUNCE_MS,
+	);
 
-	const loadTextures = useCallback(
-		async (
-			nextCursorStack = textureCursorStack,
-			nextType = libraryTextureType,
-			nextQuery = debouncedQuery,
-			nextTagIds = selectedTagIds,
-			nextTagSearchMethod = tagSearchMethod,
-		) => {
-			dispatch({ type: "loading", value: true });
-			const keyword = nextQuery.trim();
-			const tagIds = Array.from(new Set(nextTagIds));
-			const cursor = nextCursorStack.at(-1);
-			try {
-				const nextTextures = await yggdrasilService.listWardrobeTextures({
-					limit: texturePageSize,
-					after_updated_at: cursor?.value,
-					after_id: cursor?.id,
-					texture_type: nextType,
-					keyword: keyword || undefined,
-					tag_ids: tagIds.length > 0 ? tagIds : undefined,
-					tag_search_method:
-						tagIds.length > 0 ? nextTagSearchMethod : undefined,
-				});
-				dispatch({
-					type: "texturesSuccess",
-					textureTotal: nextTextures.total,
-					textures: nextTextures.items,
-				});
-				setNextTextureCursor(nextTextures.next_cursor ?? null);
-			} catch (nextError) {
-				toast.error(formatUnknownError(nextError));
-				dispatch({ type: "loading", value: false });
-			} finally {
-				dispatch({ type: "loading", value: false });
-			}
+	const loadTexturePage = useCallback(
+		async ({ cursor }: { cursor: DateTimeIdCursor | null }) => {
+			const tagIds = Array.from(new Set(selectedTagIds));
+			const nextTextures = await yggdrasilService.listWardrobeTextures({
+				limit: texturePageSize,
+				after_updated_at: cursor?.value,
+				after_id: cursor?.id,
+				texture_type: libraryTextureType,
+				keyword: debouncedQuery || undefined,
+				tag_ids: tagIds.length > 0 ? tagIds : undefined,
+				tag_search_method: tagIds.length > 0 ? tagSearchMethod : undefined,
+			});
+			return {
+				items: nextTextures.items,
+				nextCursor: nextTextures.next_cursor ?? null,
+				total: nextTextures.total,
+			};
 		},
 		[
 			debouncedQuery,
-			dispatch,
 			libraryTextureType,
 			selectedTagIds,
 			tagSearchMethod,
-			textureCursorStack,
 			texturePageSize,
 		],
 	);
-
-	useEffect(() => {
-		const timer = window.setTimeout(() => {
-			resetTextureCursor();
-			setDebouncedQuery(query.trim());
-		}, WARDROBE_SEARCH_DEBOUNCE_MS);
-		return () => window.clearTimeout(timer);
-	}, [query, resetTextureCursor]);
+	const textureList = useCursorList<
+		MinecraftWardrobeTextureMetadata,
+		DateTimeIdCursor
+	>({
+		deps: [
+			texturePageSize,
+			libraryTextureType,
+			debouncedQuery,
+			selectedTagIds,
+			tagSearchMethod,
+		],
+		loadPage: loadTexturePage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+	});
+	const { setItems: setTextureItems, setTotal: setTextureTotalItems } =
+		textureList;
 
 	useEffect(() => {
 		if (tagFilterOpen || editDialogOpen) {
@@ -200,19 +191,15 @@ export default function TextureWardrobePage() {
 	}, [editDialogOpen, ensureTagsLoaded, tagFilterOpen]);
 
 	useEffect(() => {
-		void loadTextures();
-	}, [loadTextures]);
+		setSelectedTagIds((current) =>
+			sameNumberArray(current, debouncedDraftTagIds)
+				? current
+				: debouncedDraftTagIds,
+		);
+	}, [debouncedDraftTagIds]);
 
-	useEffect(() => {
-		const timer = window.setTimeout(() => {
-			resetTextureCursor();
-			setSelectedTagIds((current) =>
-				sameNumberArray(current, draftTagIds) ? current : draftTagIds,
-			);
-		}, TAG_FILTER_APPLY_DEBOUNCE_MS);
-		return () => window.clearTimeout(timer);
-	}, [draftTagIds, resetTextureCursor]);
-
+	const { loading, total: textureTotal } = textureList;
+	const textures = textureList.items;
 	const visibleTextures = textures;
 	const searchBusy =
 		query.trim() !== debouncedQuery.trim() ||
@@ -256,16 +243,21 @@ export default function TextureWardrobePage() {
 				name: uploadName,
 				visibility,
 			});
-			resetTextureCursor();
-			dispatch({ type: "prependTexture", value: uploaded });
+			toast.success(t("wardrobe.uploadSuccess"));
+			// Reload the first page for the new texture's tab; the tab switch
+			// is also a list dep, so the cursor list resets itself.
+			setActiveTab(uploaded.texture_type);
 			dispatch({ type: "activeTexture", value: uploaded });
 			dispatch({ type: "file", value: null });
 			dispatch({ type: "uploadName", value: "" });
-			setActiveTab(uploaded.texture_type);
 			setUploadDialogOpen(false);
 			setDragActive(false);
-			toast.success(t("wardrobe.uploadSuccess"));
-			await loadTextures([], uploaded.texture_type, debouncedQuery);
+			const page = await textureList.reloadFirstPage();
+			if (uploaded.texture_type === libraryTextureType) {
+				setTextureItems((current) => [uploaded, ...current]);
+				setTextureTotalItems((current) => current + 1);
+			}
+			void page;
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
@@ -424,10 +416,7 @@ export default function TextureWardrobePage() {
 					tag_ids: Array.from(new Set(editTagIds)),
 				},
 			);
-			dispatch({
-				type: "replaceTexture",
-				value: { ...updated, tags: tagged.tags },
-			});
+			replaceTextureEverywhere({ ...updated, tags: tagged.tags });
 			dispatch({ type: "editDialogOpen", value: false });
 			toast.success(t("wardrobe.editSuccess"));
 		} catch (nextError) {
@@ -442,18 +431,24 @@ export default function TextureWardrobePage() {
 		dispatch({ type: "submitting", value: true });
 		try {
 			await yggdrasilService.deleteWardrobeTexture(deleteTexture.id);
-			dispatch({ type: "removeTexture", id: deleteTexture.id });
 			if (activeTexture?.id === deleteTexture.id) {
 				dispatch({ type: "activeTexture", value: null });
 			}
 			toast.success(t("wardrobe.deleteSuccess"));
 			dispatch({ type: "deleteDialogOpen", value: false });
-			await loadTextures();
+			await textureList.reload();
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
 			dispatch({ type: "submitting", value: false });
 		}
+	}
+
+	function replaceTextureEverywhere(updated: MinecraftWardrobeTextureMetadata) {
+		dispatch({ type: "replaceTexture", value: updated });
+		setTextureItems((current) =>
+			current.map((texture) => (texture.id === updated.id ? updated : texture)),
+		);
 	}
 
 	async function submitTextureLibrary(
@@ -464,7 +459,7 @@ export default function TextureWardrobePage() {
 			const updated = await yggdrasilService.submitTextureLibraryReview(
 				texture.id,
 			);
-			dispatch({ type: "replaceTexture", value: updated });
+			replaceTextureEverywhere(updated);
 			toast.success(
 				updated.library_status === "published"
 					? t("wardrobe.librarySubmitSuccessPublished")
@@ -485,7 +480,7 @@ export default function TextureWardrobePage() {
 			const updated = await yggdrasilService.withdrawTextureLibrarySubmission(
 				texture.id,
 			);
-			dispatch({ type: "replaceTexture", value: updated });
+			replaceTextureEverywhere(updated);
 			toast.success(t("wardrobe.libraryWithdrawSuccess"));
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
@@ -495,8 +490,8 @@ export default function TextureWardrobePage() {
 	}
 
 	function selectTab(tab: MinecraftTextureType) {
+		// The tab is a list dep, so the cursor list resets itself.
 		setActiveTab(tab);
-		resetTextureCursor();
 		dispatch({ type: "textureType", value: tab });
 		dispatch({ type: "activeTexture", value: null });
 	}
@@ -515,8 +510,8 @@ export default function TextureWardrobePage() {
 	}
 
 	function changeTagSearchMethod(nextMethod: TextureTagSearchMethod) {
+		// The tag search method is a list dep, so the cursor list resets itself.
 		setTagSearchMethod(nextMethod);
-		resetTextureCursor();
 		dispatch({ type: "activeTexture", value: null });
 	}
 
@@ -603,7 +598,7 @@ export default function TextureWardrobePage() {
 								type="button"
 								variant="outline"
 								size="sm"
-								onClick={() => void loadTextures()}
+								onClick={() => void textureList.reload()}
 								disabled={loading || submitting}
 							>
 								{loading ? t("common.loading") : t("common.refresh")}
@@ -664,26 +659,18 @@ export default function TextureWardrobePage() {
 						)}
 					</div>
 					<WardrobePagination
-						currentPage={textureCursorStack.length + 1}
-						nextDisabled={!nextTextureCursor}
-						prevDisabled={textureCursorStack.length === 0}
+						currentPage={textureList.currentPage}
+						nextDisabled={textureList.nextPageDisabled}
+						prevDisabled={textureList.prevPageDisabled}
 						pageSize={texturePageSize}
 						total={textureTotal}
 						totalPages={Math.max(1, Math.ceil(textureTotal / texturePageSize))}
-						onNext={() => {
-							if (!nextTextureCursor) return;
-							setTextureCursorStack((current) => [
-								...current,
-								nextTextureCursor,
-							]);
-						}}
+						onNext={textureList.goNext}
 						onPageSizeChange={(nextPageSize) => {
+							// pageSize is a list dep, so the list resets itself.
 							setTexturePageSize(nextPageSize);
-							resetTextureCursor();
 						}}
-						onPrevious={() =>
-							setTextureCursorStack((current) => current.slice(0, -1))
-						}
+						onPrevious={textureList.goPrevious}
 					/>
 				</section>
 
@@ -1406,6 +1393,9 @@ function TextureTagSelector({
 	const { t } = useTranslation();
 	const hasQuery = query.trim().length > 0;
 
+	// Debounces the callback itself: the parent-provided handler identity can
+	// change across renders, so calling it synchronously here would re-enter
+	// the parent update loop on every render.
 	useEffect(() => {
 		const timer = window.setTimeout(() => {
 			onSearchQueryChange(query.trim());

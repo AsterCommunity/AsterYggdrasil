@@ -1,60 +1,16 @@
-import axios from "axios";
 import { toast } from "sonner";
 import { i18next } from "@/i18n";
-import { ApiError } from "@/services/http";
+import { ApiError, transportErrorKind } from "@/services/http";
+
+/**
+ * Single owner of the user-facing error message chain:
+ * `ApiError.code` -> `errors.<code underscored>` i18n key -> error message
+ * -> transport classification -> fallback. Transport classification itself
+ * lives in services/http.ts (transportErrorKind); there is no second copy.
+ */
 
 function errorCodeToMessageKey(code: string): string {
 	return `errors.${code.replaceAll(".", "_")}`;
-}
-
-function getErrorCode(error: unknown): string | undefined {
-	if (typeof error !== "object" || error === null || !("code" in error)) {
-		return undefined;
-	}
-	return typeof error.code === "string" ? error.code : undefined;
-}
-
-function getTrimmedErrorMessage(error: Error): string {
-	return error.message.trim();
-}
-
-function getTransportErrorMessage(error: unknown): string | null {
-	const code = getErrorCode(error);
-	if (code === "ERR_CANCELED") {
-		return null;
-	}
-
-	const message =
-		error instanceof Error ? getTrimmedErrorMessage(error) : undefined;
-	const normalizedMessage = message?.toLowerCase();
-	const timedOut =
-		code === "ECONNABORTED" ||
-		code === "ETIMEDOUT" ||
-		normalizedMessage?.includes("timeout") === true;
-	if (timedOut) {
-		return i18next.t("errors.request_timeout", {
-			defaultValue: "Request timed out",
-		});
-	}
-
-	if (axios.isAxiosError(error) && !error.response) {
-		return i18next.t("errors.network_error", {
-			defaultValue: "Network error",
-		});
-	}
-
-	if (
-		message === "Network Error" ||
-		normalizedMessage === "network error" ||
-		message === "Failed to fetch" ||
-		message === "Load failed"
-	) {
-		return i18next.t("errors.network_error", {
-			defaultValue: "Network error",
-		});
-	}
-
-	return null;
 }
 
 export function getApiErrorMessage(error: unknown) {
@@ -72,13 +28,20 @@ export function getApiErrorMessage(error: unknown) {
 		);
 	}
 
-	const transportErrorMessage = getTransportErrorMessage(error);
-	if (transportErrorMessage) {
-		return transportErrorMessage;
+	const kind = transportErrorKind(error);
+	if (kind === "request_timeout") {
+		return i18next.t("errors.request_timeout", {
+			defaultValue: "Request timed out",
+		});
+	}
+	if (kind === "network_error") {
+		return i18next.t("errors.network_error", {
+			defaultValue: "Network error",
+		});
 	}
 
 	if (error instanceof Error) {
-		const message = getTrimmedErrorMessage(error);
+		const message = error.message.trim();
 		return (
 			message ||
 			i18next.t("errors.unexpected_error", {

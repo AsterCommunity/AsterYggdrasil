@@ -1354,43 +1354,6 @@ describe("yggdrasilService", () => {
 		expect(apiMock.rootClientRequest).not.toHaveBeenCalled();
 	});
 
-	it("reuses concurrent current-user profile texture requests for the same uuid", async () => {
-		apiMock.get.mockImplementation((path: string) => {
-			if (path === "/profiles/minecraft/profile-one/textures") {
-				return Promise.resolve([
-					{
-						source: "bound",
-						texture_type: "skin",
-						url: "/textures/profile-one-skin.png",
-					},
-				]);
-			}
-			if (path === "/profiles/minecraft/profile-two/textures") {
-				return Promise.resolve([]);
-			}
-			return Promise.reject(new Error(`unexpected path: ${path}`));
-		});
-		const { yggdrasilService } = await import("./yggdrasilService");
-
-		await Promise.all([
-			yggdrasilService.listProfileTextures("profile-one"),
-			yggdrasilService.listProfileSkinTextureUrls([
-				"profile-one",
-				"profile-two",
-			]),
-		]);
-
-		expect(apiMock.get).toHaveBeenCalledTimes(2);
-		expect(
-			apiMock.get.mock.calls.filter(
-				([path]) => path === "/profiles/minecraft/profile-one/textures",
-			),
-		).toHaveLength(1);
-		expect(apiMock.get).toHaveBeenCalledWith(
-			"/profiles/minecraft/profile-two/textures",
-		);
-	});
-
 	it("renames admin Minecraft profiles through the admin API", async () => {
 		apiMock.put.mockResolvedValue({
 			created_at: "2026-06-15T00:00:00Z",
@@ -1582,7 +1545,7 @@ describe("yggdrasilService", () => {
 		);
 	});
 
-	it("lists current user texture tags and replaces wardrobe texture tags", async () => {
+	it("replaces wardrobe texture tags", async () => {
 		apiMock.get.mockResolvedValueOnce({
 			items: [
 				{
@@ -1618,70 +1581,13 @@ describe("yggdrasilService", () => {
 		});
 		const { yggdrasilService } = await import("./yggdrasilService");
 
-		await expect(yggdrasilService.listTextureLibraryTags()).resolves.toEqual([
-			{
-				color: "#228855",
-				created_at: "2026-06-15T00:00:00Z",
-				id: 3,
-				name: "Featured",
-				sort_order: 10,
-				updated_at: "2026-06-15T00:00:00Z",
-			},
-		]);
-		await yggdrasilService.listTextureLibraryTags();
 		await yggdrasilService.replaceWardrobeTextureTags(12, {
 			tag_ids: [3, 4],
 		});
 
-		expect(apiMock.get).toHaveBeenCalledTimes(1);
-		expect(apiMock.get).toHaveBeenCalledWith("/wardrobe/tags?limit=30");
 		expect(apiMock.put).toHaveBeenCalledWith("/wardrobe/textures/12/tags", {
 			tag_ids: [3, 4],
 		});
-	});
-
-	it("loads current user texture tags page by page when cache is refreshed", async () => {
-		apiMock.get
-			.mockResolvedValueOnce({
-				items: Array.from({ length: 30 }, (_, index) => ({
-					color: "#228855",
-					created_at: "2026-06-15T00:00:00Z",
-					id: index + 1,
-					name: `Tag ${index + 1}`,
-					sort_order: index,
-					updated_at: "2026-06-15T00:00:00Z",
-				})),
-				limit: 30,
-				next_cursor: {
-					id: 30,
-					name: "Tag 30",
-					sort_order: 29,
-				},
-				total: 51,
-			})
-			.mockResolvedValueOnce({
-				items: Array.from({ length: 21 }, (_, index) => ({
-					color: "#334455",
-					created_at: "2026-06-15T00:00:00Z",
-					id: index + 31,
-					name: `Tag ${index + 31}`,
-					sort_order: index + 31,
-					updated_at: "2026-06-15T00:00:00Z",
-				})),
-				limit: 30,
-				next_cursor: null,
-				total: 51,
-			});
-		const { yggdrasilService } = await import("./yggdrasilService");
-
-		const tags = await yggdrasilService.listTextureLibraryTags({ force: true });
-
-		expect(tags).toHaveLength(51);
-		expect(apiMock.get).toHaveBeenNthCalledWith(1, "/wardrobe/tags?limit=30");
-		expect(apiMock.get).toHaveBeenNthCalledWith(
-			2,
-			"/wardrobe/tags?limit=30&after_sort_order=29&after_name=Tag+30&after_id=30",
-		);
 	});
 
 	it("maps generated Yggdrasil error bodies to protocol errors", async () => {

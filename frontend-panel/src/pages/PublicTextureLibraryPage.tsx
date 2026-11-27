@@ -32,6 +32,8 @@ import { PublicTextureHeaderActions } from "@/components/yggdrasil/PublicTexture
 import { TextureLibraryTextureAvatar } from "@/components/yggdrasil/TextureLibraryTextureAvatar";
 import { TextureTagFilterPopover } from "@/components/yggdrasil/TextureTagFilterPopover";
 import { TextureTagChips } from "@/components/yggdrasil/TextureTagList";
+import { useCursorList } from "@/hooks/useCursorList";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePublicSession } from "@/hooks/usePublicSession";
 import { useTextureTagPager } from "@/hooks/useTextureTagPager";
@@ -41,6 +43,7 @@ import { publicPaths, publicTexturePath } from "@/routes/routePaths";
 import { ApiError, formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
+import { textureTagStore } from "@/stores/textureTagStore";
 import type {
 	DateTimeIdCursor,
 	MinecraftTextureType,
@@ -59,9 +62,6 @@ export default function PublicTextureLibraryPage() {
 		(state) => state.textureLibrary.enabled,
 	);
 	const { isAuthenticated, logout, user } = usePublicSession();
-	const [textures, setTextures] = useState<
-		PublicTextureLibraryTextureMetadata[]
-	>([]);
 	const [textureType, setTextureType] = useState<MinecraftTextureType | "all">(
 		"all",
 	);
@@ -72,17 +72,16 @@ export default function PublicTextureLibraryPage() {
 		useState<TextureTagSearchMethod>("all");
 	const [query, setQuery] = useState("");
 	const [appliedQuery, setAppliedQuery] = useState("");
-	const [loading, setLoading] = useState(true);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
 	const [pageSize, setPageSize] = useState<number>(DEFAULT_LIBRARY_PAGE_SIZE);
-	const [total, setTotal] = useState(0);
 	const serverName = branding.title || t("home.titleFallback");
 
 	usePageTitle(t("library.title"));
 
 	const tagPager = useTextureTagPager({
-		loadPage: yggdrasilService.listPublicTextureLibraryTags,
+		loadPage: (params) =>
+			textureTagStore.getPublicTextureTagPage(params, () =>
+				yggdrasilService.listPublicTextureLibraryTags(params),
+			),
 		onError: (error) => toast.error(formatUnknownError(error)),
 		retainedTagIds: draftTagIds,
 	});
@@ -95,22 +94,8 @@ export default function PublicTextureLibraryPage() {
 		tags,
 	} = tagPager;
 
-	const resetCursor = useCallback(() => {
-		setCursorStack((current) => (current.length > 0 ? [] : current));
-		setNextCursor((current) => (current ? null : current));
-	}, []);
-
-	const loadTextures = useCallback(async () => {
-		if (!textureLibraryEnabled) {
-			setTextures([]);
-			setTotal(0);
-			setNextCursor(null);
-			setLoading(false);
-			return;
-		}
-		setLoading(true);
-		const cursor = cursorStack.at(-1);
-		try {
+	const loadTexturePage = useCallback(
+		async ({ cursor }: { cursor: DateTimeIdCursor | null }) => {
 			const page = await yggdrasilService.listPublicTextureLibraryTextures({
 				limit: pageSize,
 				after_updated_at: cursor?.value,
@@ -121,43 +106,52 @@ export default function PublicTextureLibraryPage() {
 				tag_search_method:
 					selectedTagIds.length > 0 ? tagSearchMethod : undefined,
 			});
-			setTextures(page.items);
-			setTotal(page.total);
-			setNextCursor(page.next_cursor ?? null);
-		} catch (error) {
-			toast.error(formatUnknownError(error));
-		} finally {
-			setLoading(false);
-		}
-	}, [
-		appliedQuery,
-		cursorStack,
-		pageSize,
-		selectedTagIds,
-		tagSearchMethod,
-		textureType,
-		textureLibraryEnabled,
-	]);
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[appliedQuery, pageSize, selectedTagIds, tagSearchMethod, textureType],
+	);
+	const list = useCursorList<
+		PublicTextureLibraryTextureMetadata,
+		DateTimeIdCursor
+	>({
+		deps: [
+			pageSize,
+			appliedQuery,
+			textureType,
+			selectedTagIds,
+			tagSearchMethod,
+		],
+		enabled: textureLibraryEnabled,
+		loadPage: loadTexturePage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+	});
+	const { loading, total } = list;
+	const textures = list.items;
+	const resetCursor = list.reset;
 
+	// Draft tag selections commit after a short debounce so quick toggles
+	// collapse into one request.
+	const debouncedDraftTagIds = useDebouncedValue(
+		draftTagIds,
+		TAG_FILTER_APPLY_DEBOUNCE_MS,
+	);
 	useEffect(() => {
-		void loadTextures();
-	}, [loadTextures]);
+		setSelectedTagIds((current) =>
+			sameNumberArray(current, debouncedDraftTagIds)
+				? current
+				: debouncedDraftTagIds,
+		);
+	}, [debouncedDraftTagIds]);
 
 	useEffect(() => {
 		if (textureLibraryEnabled && tagFilterOpen) {
 			ensureTagsLoaded();
 		}
 	}, [ensureTagsLoaded, tagFilterOpen, textureLibraryEnabled]);
-
-	useEffect(() => {
-		const timer = window.setTimeout(() => {
-			resetCursor();
-			setSelectedTagIds((current) =>
-				sameNumberArray(current, draftTagIds) ? current : draftTagIds,
-			);
-		}, TAG_FILTER_APPLY_DEBOUNCE_MS);
-		return () => window.clearTimeout(timer);
-	}, [draftTagIds, resetCursor]);
 
 	const selectedTags = useMemo(
 		() => tags.filter((tag) => draftTagIds.includes(tag.id)),
@@ -166,7 +160,7 @@ export default function PublicTextureLibraryPage() {
 
 	function submitSearch(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		resetCursor();
+		// appliedQuery is a list dep, so the list resets itself.
 		setAppliedQuery(query);
 	}
 
@@ -175,11 +169,11 @@ export default function PublicTextureLibraryPage() {
 	}
 
 	function changeTagSearchMethod(nextMethod: TextureTagSearchMethod) {
+		// The search method is a list dep, so the list resets itself.
 		setTagSearchMethod(nextMethod);
-		resetCursor();
 	}
 
-	const currentPage = cursorStack.length + 1;
+	const currentPage = list.currentPage;
 	const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
 	return (
@@ -223,28 +217,19 @@ export default function PublicTextureLibraryPage() {
 								<div className="flex min-w-0 flex-wrap items-center gap-1">
 									<LibraryTypeButton
 										active={textureType === "all"}
-										onClick={() => {
-											setTextureType("all");
-											resetCursor();
-										}}
+										onClick={() => setTextureType("all")}
 									>
 										{t("library.type.all")}
 									</LibraryTypeButton>
 									<LibraryTypeButton
 										active={textureType === "skin"}
-										onClick={() => {
-											setTextureType("skin");
-											resetCursor();
-										}}
+										onClick={() => setTextureType("skin")}
 									>
 										{t("wardrobe.type.skin")}
 									</LibraryTypeButton>
 									<LibraryTypeButton
 										active={textureType === "cape"}
-										onClick={() => {
-											setTextureType("cape");
-											resetCursor();
-										}}
+										onClick={() => setTextureType("cape")}
 									>
 										{t("wardrobe.type.cape")}
 									</LibraryTypeButton>
@@ -289,7 +274,7 @@ export default function PublicTextureLibraryPage() {
 										type="button"
 										size="sm"
 										disabled={loading}
-										onClick={() => void loadTextures()}
+										onClick={() => void list.reload()}
 									>
 										{loading ? t("common.loading") : t("common.refresh")}
 									</Button>
@@ -360,10 +345,8 @@ export default function PublicTextureLibraryPage() {
 											type="button"
 											variant="outline"
 											size="sm"
-											disabled={cursorStack.length === 0}
-											onClick={() =>
-												setCursorStack((current) => current.slice(0, -1))
-											}
+											disabled={list.prevPageDisabled}
+											onClick={list.goPrevious}
 										>
 											{t("admin.pagination.previous")}
 										</Button>
@@ -371,11 +354,8 @@ export default function PublicTextureLibraryPage() {
 											type="button"
 											variant="outline"
 											size="sm"
-											disabled={!nextCursor}
-											onClick={() => {
-												if (!nextCursor) return;
-												setCursorStack((current) => [...current, nextCursor]);
-											}}
+											disabled={list.nextPageDisabled}
+											onClick={list.goNext}
 										>
 											{t("admin.pagination.next")}
 										</Button>

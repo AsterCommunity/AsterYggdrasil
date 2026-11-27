@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { handleApiError } from "@/hooks/useApiError";
+import { useCursorList } from "@/hooks/useCursorList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
 	clearContactVerificationRedirectSearch,
@@ -62,14 +63,8 @@ type ActiveSettingsSectionStore = {
 };
 type ExternalAuthLinksState = {
 	busyId: number | null;
-	links: ExternalAuthLinkInfo[];
-	linkTotal: number;
-	loading: boolean;
 };
-type ExternalAuthLinksAction =
-	| { type: "loaded"; links: ExternalAuthLinkInfo[]; total: number }
-	| { type: "set_busy_id"; value: number | null }
-	| { type: "set_loading"; value: boolean };
+type ExternalAuthLinksAction = { type: "set_busy_id"; value: number | null };
 type ProfileSectionState = {
 	cropOpen: boolean;
 	displayName: string;
@@ -94,9 +89,6 @@ const SECTION_IDS: SettingsSectionId[] = [
 
 const externalAuthLinksInitialState: ExternalAuthLinksState = {
 	busyId: null,
-	links: [],
-	linkTotal: 0,
-	loading: false,
 };
 
 function displayNameForUser(user: AuthUserInfo) {
@@ -305,16 +297,8 @@ function externalAuthLinksReducer(
 	action: ExternalAuthLinksAction,
 ): ExternalAuthLinksState {
 	switch (action.type) {
-		case "loaded":
-			return {
-				...state,
-				links: action.links,
-				linkTotal: action.total,
-			};
 		case "set_busy_id":
 			return { ...state, busyId: action.value };
-		case "set_loading":
-			return { ...state, loading: action.value };
 	}
 }
 
@@ -324,49 +308,36 @@ function ExternalAuthLinksSection() {
 		externalAuthLinksReducer,
 		externalAuthLinksInitialState,
 	);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
-	const { busyId, links, linkTotal, loading } = state;
+	const { busyId } = state;
 
-	const reload = useCallback(
-		async (stack: DateTimeIdCursor[] = cursorStack) => {
-			dispatch({ type: "set_loading", value: true });
-			try {
-				const cursor = stack.at(-1);
-				const page = await externalAuthService.listLinksPage({
-					limit: EXTERNAL_AUTH_LINK_PAGE_SIZE,
-					after_created_at: cursor?.value,
-					after_id: cursor?.id,
-				});
-				if (page.items.length === 0 && page.total > 0 && stack.length > 0) {
-					setCursorStack((current) => current.slice(0, -1));
-					setNextCursor(null);
-					return;
-				}
-				dispatch({
-					type: "loaded",
-					links: page.items,
-					total: page.total,
-				});
-				setNextCursor(page.next_cursor ?? null);
-			} catch (error) {
-				toast.error(formatUnknownError(error));
-			} finally {
-				dispatch({ type: "set_loading", value: false });
-			}
+	const loadLinkPage = useCallback(
+		async ({ cursor }: { cursor: DateTimeIdCursor | null }) => {
+			const page = await externalAuthService.listLinksPage({
+				limit: EXTERNAL_AUTH_LINK_PAGE_SIZE,
+				after_created_at: cursor?.value,
+				after_id: cursor?.id,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
 		},
-		[cursorStack],
+		[],
 	);
-
-	useEffect(() => {
-		void reload();
-	}, [reload]);
+	const list = useCursorList<ExternalAuthLinkInfo, DateTimeIdCursor>({
+		deps: [],
+		loadPage: loadLinkPage,
+		onError: (error: unknown) => toast.error(formatUnknownError(error)),
+	});
+	const { loading, total: linkTotal } = list;
+	const links = list.items;
 
 	async function unlink(link: ExternalAuthLinkInfo) {
 		dispatch({ type: "set_busy_id", value: link.id });
 		try {
 			await externalAuthService.deleteLink(link.id);
-			await reload();
+			await list.reload();
 			toast.success(t("personalSettings.externalAuthUnlinked"));
 		} catch (error) {
 			toast.error(formatUnknownError(error));
@@ -391,7 +362,7 @@ function ExternalAuthLinksSection() {
 					variant="outline"
 					size="sm"
 					disabled={loading}
-					onClick={() => void reload()}
+					onClick={() => void list.reload()}
 				>
 					<Icon
 						name={loading ? "Spinner" : "ArrowClockwise"}
@@ -463,14 +434,11 @@ function ExternalAuthLinksSection() {
 				)}
 			</div>
 			<AdminOffsetPagination
-				currentPage={cursorStack.length + 1}
-				nextDisabled={!nextCursor}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-				}}
+				currentPage={list.currentPage}
+				nextDisabled={list.nextPageDisabled}
+				onNext={list.goNext}
 				onPageSizeChange={() => {}}
-				onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
+				onPrevious={list.goPrevious}
 				pageSize={String(EXTERNAL_AUTH_LINK_PAGE_SIZE)}
 				pageSizeOptions={[
 					{
@@ -480,9 +448,9 @@ function ExternalAuthLinksSection() {
 						value: String(EXTERNAL_AUTH_LINK_PAGE_SIZE),
 					},
 				]}
-				prevDisabled={cursorStack.length === 0}
+				prevDisabled={list.prevPageDisabled}
 				total={linkTotal}
-				totalPages={Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1)}
+				totalPages={list.totalPages}
 			/>
 		</div>
 	);

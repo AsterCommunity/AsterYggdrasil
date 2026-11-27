@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -17,27 +17,34 @@ import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useCursorList } from "@/hooks/useCursorList";
+import {
+	managedPageSizeField,
+	useManagedListQueryState,
+} from "@/hooks/useManagedListQueryState";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingAction } from "@/hooks/usePendingAction";
+import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { adminUserService } from "@/services/adminService";
 import type {
 	AdminUserInvitationInfo,
 	CreateUserInvitationRequest,
-	DateTimeIdCursor,
 } from "@/types/api";
 
 const INVITATION_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const DEFAULT_INVITATION_PAGE_SIZE = 20;
 
 type InvitationPageSize = (typeof INVITATION_PAGE_SIZE_OPTIONS)[number];
+type InvitationCursor = { id: number; value: string };
 
 type InviteState = {
 	createdInvitation: AdminUserInvitationInfo | null;
 	emailError: string | null;
 	form: CreateUserInvitationRequest;
 	inviteDialogOpen: boolean;
-	inviting: boolean;
 };
 
 type InviteAction =
@@ -45,8 +52,7 @@ type InviteAction =
 	| { type: "created"; invitation: AdminUserInvitationInfo }
 	| { type: "email"; value: string }
 	| { type: "emailError"; value: string | null }
-	| { type: "openDialog"; value: boolean }
-	| { type: "inviting"; value: boolean };
+	| { type: "openDialog"; value: boolean };
 
 function createInviteForm(): CreateUserInvitationRequest {
 	return { email: "" };
@@ -55,15 +61,12 @@ function createInviteForm(): CreateUserInvitationRequest {
 function inviteReducer(state: InviteState, action: InviteAction): InviteState {
 	switch (action.type) {
 		case "closeDialog":
-			return state.inviting
-				? state
-				: {
-						createdInvitation: null,
-						emailError: null,
-						form: createInviteForm(),
-						inviteDialogOpen: false,
-						inviting: false,
-					};
+			return {
+				createdInvitation: null,
+				emailError: null,
+				form: createInviteForm(),
+				inviteDialogOpen: false,
+			};
 		case "created":
 			return {
 				...state,
@@ -81,8 +84,6 @@ function inviteReducer(state: InviteState, action: InviteAction): InviteState {
 			return { ...state, emailError: action.value };
 		case "openDialog":
 			return { ...state, inviteDialogOpen: action.value };
-		case "inviting":
-			return { ...state, inviting: action.value };
 	}
 }
 
@@ -92,7 +93,6 @@ function initInviteState(): InviteState {
 		emailError: null,
 		form: createInviteForm(),
 		inviteDialogOpen: false,
-		inviting: false,
 	};
 }
 
@@ -108,79 +108,69 @@ export default function AdminUserInvitationsPage() {
 		undefined,
 		initInviteState,
 	);
-	const [revokingInvitation, setRevokingInvitation] =
-		useState<AdminUserInvitationInfo | null>(null);
-	const [revokingInvitationId, setRevokingInvitationId] = useState<
-		number | null
-	>(null);
-	const [cursorStack, setCursorStack] = useState<DateTimeIdCursor[]>([]);
-	const [nextCursor, setNextCursor] = useState<DateTimeIdCursor | null>(null);
-	const [invitations, setInvitations] = useState<AdminUserInvitationInfo[]>([]);
-	const [total, setTotal] = useState(0);
-	const [loading, setLoading] = useState(true);
+	const { pending: inviting, runWithPending } = usePendingAction();
+	const { pendingId: revokingInvitationId, runWithPending: runRevocation } =
+		usePendingId<number>();
 
 	usePageTitle(t("admin.users.invitationsTitle"));
 
-	const pageSize =
-		parsePageSizeOption(
-			searchParams.get("pageSize"),
-			INVITATION_PAGE_SIZE_OPTIONS,
-		) ?? DEFAULT_INVITATION_PAGE_SIZE;
+	const { query, setQuery } = useManagedListQueryState<{
+		pageSize: InvitationPageSize;
+	}>({
+		schema: {
+			pageSize: managedPageSizeField(
+				INVITATION_PAGE_SIZE_OPTIONS,
+				DEFAULT_INVITATION_PAGE_SIZE,
+			),
+		},
+		searchParams,
+		setSearchParams,
+	});
+	const { pageSize } = query;
 
-	const loadPage = useCallback(
-		async (stack: DateTimeIdCursor[]) => {
-			setLoading(true);
-			try {
-				const cursor = stack.at(-1);
-				const page = await adminUserService.listInvitations({
-					limit: pageSize,
-					after_created_at: cursor?.value,
-					after_id: cursor?.id,
-				});
-				if (page.items.length === 0 && page.total > 0 && stack.length > 0) {
-					setCursorStack((current) => current.slice(0, -1));
-					setNextCursor(null);
-					return;
-				}
-				setInvitations(page.items);
-				setTotal(page.total);
-				setNextCursor(page.next_cursor ?? null);
-			} catch (error) {
-				handleApiError(error);
-			} finally {
-				setLoading(false);
-			}
+	const loadInvitationsPage = useCallback(
+		async ({ cursor }: { cursor: InvitationCursor | null }) => {
+			const page = await adminUserService.listInvitations({
+				limit: pageSize,
+				after_created_at: cursor?.value,
+				after_id: cursor?.id,
+			});
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
 		},
 		[pageSize],
 	);
-	const reload = useCallback(async () => {
-		await loadPage(cursorStack);
-	}, [cursorStack, loadPage]);
-	const reloadFirstPage = useCallback(async () => {
-		setCursorStack([]);
-		setNextCursor(null);
-		await loadPage([]);
-	}, [loadPage]);
+	const list = useCursorList<AdminUserInvitationInfo, InvitationCursor>({
+		deps: [pageSize],
+		loadPage: loadInvitationsPage,
+		onError: handleApiError,
+	});
+	const {
+		currentPage,
+		items: invitations,
+		loading,
+		setItems,
+		total,
+		totalPages,
+	} = list;
 
-	useEffect(() => {
-		void reload();
-	}, [reload]);
-
-	const setPagination = useCallback(
-		(nextPageSize: InvitationPageSize) => {
-			const next = new URLSearchParams();
-			if (nextPageSize !== DEFAULT_INVITATION_PAGE_SIZE) {
-				next.set("pageSize", String(nextPageSize));
+	const revokeDialog = useConfirmDialog<AdminUserInvitationInfo>((target) => {
+		void runRevocation(target.id, async () => {
+			try {
+				const updated = await adminUserService.revokeInvitation(target.id);
+				setItems((current) =>
+					current.map((item) => (item.id === updated.id ? updated : item)),
+				);
+				toast.success(t("admin.users.invitationRevoked"));
+			} catch (error) {
+				handleApiError(error);
 			}
-			setCursorStack([]);
-			setNextCursor(null);
-			setSearchParams(next);
-		},
-		[setSearchParams],
-	);
+		});
+	});
 
-	const totalPages = Math.max(cursorStack.length + (nextCursor ? 2 : 1), 1);
-	const currentPage = cursorStack.length + 1;
 	const pageSizeOptions = INVITATION_PAGE_SIZE_OPTIONS.map((size) => ({
 		label: t("admin.pagination.pageSizeOption", { count: size }),
 		value: String(size),
@@ -193,27 +183,26 @@ export default function AdminUserInvitationsPage() {
 				totalPages={totalPages}
 				pageSize={String(pageSize)}
 				pageSizeOptions={pageSizeOptions}
-				prevDisabled={cursorStack.length === 0}
-				nextDisabled={!nextCursor}
-				onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-				}}
+				prevDisabled={list.prevPageDisabled}
+				nextDisabled={list.nextPageDisabled}
+				onPrevious={list.goPrevious}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const next = parsePageSizeOption(value, INVITATION_PAGE_SIZE_OPTIONS);
 					if (next == null) return;
-					setPagination(next);
+					setQuery({ pageSize: next });
 				}}
 			/>
 		),
 		[
 			currentPage,
-			cursorStack.length,
-			nextCursor,
+			list.goNext,
+			list.goPrevious,
+			list.nextPageDisabled,
+			list.prevPageDisabled,
 			pageSize,
 			pageSizeOptions,
-			setPagination,
+			setQuery,
 			total,
 			totalPages,
 		],
@@ -262,36 +251,16 @@ export default function AdminUserInvitationsPage() {
 			});
 			return;
 		}
-		try {
-			dispatchInvite({ type: "inviting", value: true });
-			const invitation = await adminUserService.createInvitation({ email });
-			dispatchInvite({ type: "created", invitation });
-			toast.success(t("admin.users.invitationCreated"));
-			await reloadFirstPage();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			dispatchInvite({ type: "inviting", value: false });
-		}
-	}
-
-	async function revokeInvitation() {
-		if (!revokingInvitation) return;
-		try {
-			setRevokingInvitationId(revokingInvitation.id);
-			const updated = await adminUserService.revokeInvitation(
-				revokingInvitation.id,
-			);
-			setInvitations((current) =>
-				current.map((item) => (item.id === updated.id ? updated : item)),
-			);
-			toast.success(t("admin.users.invitationRevoked"));
-			setRevokingInvitation(null);
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setRevokingInvitationId(null);
-		}
+		await runWithPending(async () => {
+			try {
+				const invitation = await adminUserService.createInvitation({ email });
+				dispatchInvite({ type: "created", invitation });
+				toast.success(t("admin.users.invitationCreated"));
+				await list.reloadFirstPage();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
 	return (
@@ -317,7 +286,7 @@ export default function AdminUserInvitationsPage() {
 							variant="outline"
 							size="sm"
 							disabled={loading}
-							onClick={() => void reload()}
+							onClick={() => void list.reload()}
 						>
 							<Icon
 								name={loading ? "Spinner" : "ArrowsClockwise"}
@@ -344,7 +313,7 @@ export default function AdminUserInvitationsPage() {
 						key={invitation.id}
 						invitation={invitation}
 						revokingInvitationId={revokingInvitationId}
-						onRevokeInvitation={setRevokingInvitation}
+						onRevokeInvitation={revokeDialog.requestConfirm}
 					/>
 				)}
 			/>
@@ -352,7 +321,7 @@ export default function AdminUserInvitationsPage() {
 				open={inviteState.inviteDialogOpen}
 				form={inviteState.form}
 				error={inviteState.emailError}
-				inviting={inviteState.inviting}
+				inviting={inviting}
 				createdInvitation={inviteState.createdInvitation}
 				onFieldChange={(value) => dispatchInvite({ type: "email", value })}
 				onCopyLink={(value) => void copyInvitationLink(value)}
@@ -366,19 +335,17 @@ export default function AdminUserInvitationsPage() {
 				}}
 			/>
 			<ConfirmDialog
-				open={Boolean(revokingInvitation)}
-				onOpenChange={(open) => {
-					if (!open) setRevokingInvitation(null);
-				}}
+				open={revokeDialog.dialogProps.open}
+				onOpenChange={revokeDialog.dialogProps.onOpenChange}
 				title={t("admin.users.revokeInvitation")}
 				description={t("admin.users.confirmRevokeInvitation", {
-					email: revokingInvitation?.email ?? "",
+					email: revokeDialog.confirmTarget?.email ?? "",
 				})}
 				cancelLabel={t("common.cancel")}
 				confirmLabel={t("admin.users.revokeInvitation")}
 				loading={revokingInvitationId != null}
 				variant="destructive"
-				onConfirm={() => void revokeInvitation()}
+				onConfirm={revokeDialog.dialogProps.onConfirm}
 			/>
 		</AdminPageShell>
 	);

@@ -8,12 +8,18 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useCursorList } from "@/hooks/useCursorList";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
 import { useFrontendConfigStore } from "@/stores/frontendConfigStore";
-import type { MinecraftTextureType } from "@/types/api";
+import type {
+	IdCursor,
+	MinecraftTextureType,
+	YggdrasilProfile,
+} from "@/types/api";
 import { useMinecraftProfilesPageState } from "./useMinecraftProfilesPageState";
 
 const DEFAULT_PROFILE_PAGE_SIZE = 5;
@@ -24,19 +30,13 @@ export function useMinecraftProfilesPageController() {
 	const { t } = useTranslation();
 	const [state, dispatch] = useMinecraftProfilesPageState();
 	const {
-		debouncedQuery,
 		deletingProfile,
 		file,
 		loading,
 		model,
-		profileCursorStack,
-		profileNextCursor,
 		profilePageSize,
 		profileName,
 		profileSkinUrls,
-		profileTotal,
-		profiles,
-		profilesLoading,
 		query,
 		renameDialogOpen,
 		renameName,
@@ -51,49 +51,52 @@ export function useMinecraftProfilesPageController() {
 
 	usePageTitle(t("profiles.title"));
 
-	const loadProfiles = useCallback(
-		async (
-			nextCursorStack = profileCursorStack,
-			nextPageSize = profilePageSize,
-			selectedUuidAfterLoad?: string,
-		) => {
-			const trimmedQuery = debouncedQuery.trim();
-			const cursor = nextCursorStack.at(-1);
+	// The search draft commits to the profile list query after a debounce.
+	const debouncedQuery = useDebouncedValue(
+		query.trim(),
+		PROFILE_SEARCH_DEBOUNCE_MS,
+	);
+
+	const loadProfilePage = useCallback(
+		async ({ cursor }: { cursor: IdCursor | null }) => {
 			const params = {
 				after_id: cursor?.id,
-				limit: nextPageSize,
+				limit: profilePageSize,
 			};
-			dispatch({ type: "profilesLoading", value: true });
-			try {
-				const next = await yggdrasilService.listProfiles(
-					trimmedQuery ? { ...params, query: trimmedQuery } : params,
-				);
-				if (
-					next.items.length === 0 &&
-					next.total > 0 &&
-					nextCursorStack.length > 0
-				) {
-					dispatch({
-						type: "profileCursorStack",
-						value: nextCursorStack.slice(0, -1),
-					});
-					dispatch({ type: "profileNextCursor", value: null });
-					return;
-				}
-				dispatch({
-					type: "profilePage",
-					value: {
-						...next,
-						cursorStack: nextCursorStack,
-						selectedUuid: selectedUuidAfterLoad,
-					},
-				});
-			} finally {
-				dispatch({ type: "profilesLoading", value: false });
-			}
+			const page = await yggdrasilService.listProfiles(
+				debouncedQuery ? { ...params, query: debouncedQuery } : params,
+			);
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
 		},
-		[debouncedQuery, dispatch, profileCursorStack, profilePageSize],
+		[debouncedQuery, profilePageSize],
 	);
+	const list = useCursorList<YggdrasilProfile, IdCursor>({
+		deps: [debouncedQuery, profilePageSize],
+		loadPage: loadProfilePage,
+		onError: (error) => toast.error(formatUnknownError(error)),
+	});
+	const profiles = list.items;
+	const profileTotal = list.total;
+	const profilesLoading = list.loading;
+
+	// Keep the selection anchored: when the loaded page no longer contains the
+	// selected profile (deletion, page switch), fall back to the first row.
+	useEffect(() => {
+		if (
+			selectedUuid &&
+			profiles.some((profile) => profile.id === selectedUuid)
+		) {
+			return;
+		}
+		const fallback = profiles[0]?.id || "";
+		if (fallback !== selectedUuid) {
+			dispatch({ type: "selectedUuid", value: fallback });
+		}
+	}, [dispatch, profiles, selectedUuid]);
 
 	const loadTextures = useCallback(
 		async (uuid: string) => {
@@ -142,21 +145,6 @@ export function useMinecraftProfilesPageController() {
 	);
 
 	useEffect(() => {
-		void loadProfiles().catch((nextError) =>
-			toast.error(formatUnknownError(nextError)),
-		);
-	}, [loadProfiles]);
-
-	useEffect(() => {
-		const timeout = window.setTimeout(() => {
-			dispatch({ type: "profileCursorStack", value: [] });
-			dispatch({ type: "profileNextCursor", value: null });
-			dispatch({ type: "debouncedQuery", value: query.trim() });
-		}, PROFILE_SEARCH_DEBOUNCE_MS);
-		return () => window.clearTimeout(timeout);
-	}, [dispatch, query]);
-
-	useEffect(() => {
 		void loadTextures(selectedUuid);
 	}, [selectedUuid, loadTextures]);
 
@@ -188,7 +176,11 @@ export function useMinecraftProfilesPageController() {
 				name: profileName,
 			});
 			dispatch({ type: "profileName", value: "" });
-			await loadProfiles([], profilePageSize, created.id);
+			// Reload the first page; the created profile is picked there.
+			const page = await list.reloadFirstPage();
+			if (page?.items.some((profile) => profile.id === created.id)) {
+				dispatch({ type: "selectedUuid", value: created.id });
+			}
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
 		} finally {
@@ -214,7 +206,10 @@ export function useMinecraftProfilesPageController() {
 			dispatch({ type: "renameDialogOpen", value: false });
 			renameUuidRef.current = "";
 			dispatch({ type: "renameName", value: "" });
-			await loadProfiles([], profilePageSize, renamed.id);
+			const page = await list.reloadFirstPage();
+			if (page?.items.some((profile) => profile.id === renamed.id)) {
+				dispatch({ type: "selectedUuid", value: renamed.id });
+			}
 			toast.success(t("profiles.renameToast"));
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
@@ -230,7 +225,7 @@ export function useMinecraftProfilesPageController() {
 			await yggdrasilService.deleteProfile(selectedUuid);
 			dispatch({ type: "deleteProfileDialogOpen", value: false });
 			dispatch({ type: "selectedUuid", value: "" });
-			await loadProfiles([], profilePageSize);
+			await list.reloadFirstPage();
 			toast.success(t("profiles.deleteProfileToast"));
 		} catch (nextError) {
 			toast.error(formatUnknownError(nextError));
@@ -352,27 +347,8 @@ export function useMinecraftProfilesPageController() {
 		)
 			? parsed
 			: DEFAULT_PROFILE_PAGE_SIZE;
+		// pageSize is a list dep, so the profile list resets and reloads.
 		dispatch({ type: "profilePageSize", value: nextPageSize });
-		dispatch({ type: "profileCursorStack", value: [] });
-		dispatch({ type: "profileNextCursor", value: null });
-		void loadProfiles([], nextPageSize).catch((nextError) =>
-			toast.error(formatUnknownError(nextError)),
-		);
-	}
-
-	function nextProfilePage() {
-		if (!profileNextCursor) return;
-		dispatch({
-			type: "profileCursorStack",
-			value: [...profileCursorStack, profileNextCursor],
-		});
-	}
-
-	function previousProfilePage() {
-		dispatch({
-			type: "profileCursorStack",
-			value: profileCursorStack.slice(0, -1),
-		});
 	}
 
 	return {
@@ -383,16 +359,13 @@ export function useMinecraftProfilesPageController() {
 		loading,
 		model,
 		profileName,
-		profileCurrentPage: profileCursorStack.length + 1,
-		profileNextDisabled: profileNextCursor == null,
+		profileCurrentPage: list.currentPage,
+		profileNextDisabled: list.nextPageDisabled,
 		profilePageSize,
-		profilePrevDisabled: profileCursorStack.length === 0,
+		profilePrevDisabled: list.prevPageDisabled,
 		profileSkinUrls,
 		profileTotal,
-		profileTotalPages: Math.max(
-			profileCursorStack.length + (profileNextCursor ? 2 : 1),
-			1,
-		),
+		profileTotalPages: list.totalPages,
 		profiles,
 		query,
 		renameDialogOpen,
@@ -414,8 +387,8 @@ export function useMinecraftProfilesPageController() {
 		onOpenDeleteTextureDialog: openDeleteTextureDialog,
 		onOpenRenameDialog: openRenameDialog,
 		onOpenTextureDialog: openTextureDialog,
-		onNextProfilePage: nextProfilePage,
-		onPreviousProfilePage: previousProfilePage,
+		onNextProfilePage: list.goNext,
+		onPreviousProfilePage: list.goPrevious,
 		onRenameProfile: renameProfile,
 		onSelectTextureFile: selectTextureFile,
 		onUploadTexture: uploadTexture,

@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
@@ -32,17 +32,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { handleApiError } from "@/hooks/useApiError";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useCursorList } from "@/hooks/useCursorList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePendingAction } from "@/hooks/usePendingAction";
 import { cn } from "@/lib/utils";
 import { adminTextureLibraryService } from "@/services/adminService";
 import type {
-	AdminTextureLibraryTagPage,
 	CreateMinecraftTextureTagRequest,
 	MinecraftTextureTagInfo,
 	UpdateMinecraftTextureTagRequest,
 } from "@/types/api";
 
-type TagCursor = NonNullable<AdminTextureLibraryTagPage["next_cursor"]>;
+type TagListResponse = Awaited<
+	ReturnType<typeof adminTextureLibraryService.listTags>
+>;
+
+type TagCursor = NonNullable<TagListResponse["next_cursor"]>;
 
 const TAG_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 const DEFAULT_TAG_PAGE_SIZE = 20;
@@ -78,55 +84,43 @@ function tagPayload(form: TagFormState): CreateMinecraftTextureTagRequest {
 
 export default function AdminTextureLibraryPage() {
 	const { t } = useTranslation();
-	const [items, setItems] = useState<MinecraftTextureTagInfo[]>([]);
-	const [total, setTotal] = useState(0);
 	const [pageSize, setPageSize] = useState(DEFAULT_TAG_PAGE_SIZE);
-	const [cursorStack, setCursorStack] = useState<Array<TagCursor | null>>([
-		null,
-	]);
-	const [pageIndex, setPageIndex] = useState(0);
-	const [nextCursor, setNextCursor] = useState<TagCursor | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [submitting, setSubmitting] = useState(false);
+	const { pending: submitting, runWithPending } = usePendingAction();
 	const [form, setForm] = useState<TagFormState>(emptyTagForm);
 	const [editingTag, setEditingTag] = useState<MinecraftTextureTagInfo | null>(
 		null,
 	);
 	const [editForm, setEditForm] = useState<TagFormState>(emptyTagForm);
-	const [deleteTag, setDeleteTag] = useState<MinecraftTextureTagInfo | null>(
-		null,
+	const deleteTagDialog = useConfirmDialog<MinecraftTextureTagInfo>(
+		(target) => {
+			void confirmDeleteTag(target);
+		},
 	);
 
 	usePageTitle(t("admin.textureLibraryPage.title"));
 
-	const loadTags = useCallback(async () => {
-		setLoading(true);
-		try {
-			const cursor = cursorStack[pageIndex] ?? null;
+	const loadTagPage = useCallback(
+		async ({ cursor }: { cursor: TagCursor | null }) => {
 			const page = await adminTextureLibraryService.listTags({
 				limit: pageSize,
 				after_sort_order: cursor?.sort_order,
 				after_name: cursor?.name,
 				after_id: cursor?.id,
 			});
-			if (page.items.length === 0 && page.total > 0 && pageIndex > 0) {
-				setCursorStack((current) => current.slice(0, -1));
-				setPageIndex((current) => Math.max(0, current - 1));
-				return;
-			}
-			setItems(page.items);
-			setTotal(page.total);
-			setNextCursor(page.next_cursor ?? null);
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setLoading(false);
-		}
-	}, [cursorStack, pageIndex, pageSize]);
-
-	useEffect(() => {
-		void loadTags();
-	}, [loadTags]);
+			return {
+				items: page.items,
+				nextCursor: page.next_cursor ?? null,
+				total: page.total,
+			};
+		},
+		[pageSize],
+	);
+	const list = useCursorList<MinecraftTextureTagInfo, TagCursor>({
+		deps: [pageSize],
+		loadPage: loadTagPage,
+		onError: handleApiError,
+	});
+	const { items } = list;
 
 	async function createTag(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -134,20 +128,16 @@ export default function AdminTextureLibraryPage() {
 			toast.error(t("admin.textureLibraryPage.nameRequired"));
 			return;
 		}
-		setSubmitting(true);
-		try {
-			await adminTextureLibraryService.createTag(tagPayload(form));
-			setForm(emptyTagForm());
-			setCursorStack([null]);
-			setPageIndex(0);
-			setNextCursor(null);
-			toast.success(t("admin.textureLibraryPage.createSuccess"));
-			await loadTags();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmitting(false);
-		}
+		await runWithPending(async () => {
+			try {
+				await adminTextureLibraryService.createTag(tagPayload(form));
+				setForm(emptyTagForm());
+				toast.success(t("admin.textureLibraryPage.createSuccess"));
+				await list.reloadFirstPage();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
 	function openEditDialog(tag: MinecraftTextureTagInfo) {
@@ -165,39 +155,36 @@ export default function AdminTextureLibraryPage() {
 			toast.error(t("admin.textureLibraryPage.nameRequired"));
 			return;
 		}
-		setSubmitting(true);
-		try {
-			const payload = tagPayload(
-				editForm,
-			) satisfies UpdateMinecraftTextureTagRequest;
-			await adminTextureLibraryService.updateTag(editingTag.id, payload);
-			setEditingTag(null);
-			toast.success(t("admin.textureLibraryPage.updateSuccess"));
-			await loadTags();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmitting(false);
-		}
+		await runWithPending(async () => {
+			try {
+				const payload = tagPayload(
+					editForm,
+				) satisfies UpdateMinecraftTextureTagRequest;
+				await adminTextureLibraryService.updateTag(editingTag.id, payload);
+				setEditingTag(null);
+				toast.success(t("admin.textureLibraryPage.updateSuccess"));
+				await list.reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
-	async function confirmDeleteTag() {
-		if (!deleteTag) return;
-		setSubmitting(true);
-		try {
-			await adminTextureLibraryService.deleteTag(deleteTag.id);
-			setDeleteTag(null);
-			toast.success(t("admin.textureLibraryPage.deleteSuccess"));
-			await loadTags();
-		} catch (error) {
-			handleApiError(error);
-		} finally {
-			setSubmitting(false);
-		}
+	async function confirmDeleteTag(tag: MinecraftTextureTagInfo) {
+		await runWithPending(async () => {
+			try {
+				await adminTextureLibraryService.deleteTag(tag.id);
+				deleteTagDialog.clearConfirm();
+				toast.success(t("admin.textureLibraryPage.deleteSuccess"));
+				await list.reload();
+			} catch (error) {
+				handleApiError(error);
+			}
+		});
 	}
 
-	const currentPage = pageIndex + 1;
-	const totalPages = Math.max(currentPage, Math.ceil(total / pageSize));
+	const currentPage = list.currentPage;
+	const totalPages = Math.max(currentPage, Math.ceil(list.total / pageSize));
 	const pageSizeOptions = TAG_PAGE_SIZE_OPTIONS.map((size) => ({
 		label: t("admin.pagination.pageSizeOption", { count: size }),
 		value: String(size),
@@ -215,12 +202,12 @@ export default function AdminTextureLibraryPage() {
 							type="button"
 							variant="outline"
 							size="sm"
-							disabled={loading || submitting}
-							onClick={() => void loadTags()}
+							disabled={list.loading || submitting}
+							onClick={() => void list.reload()}
 						>
 							<Icon
-								name={loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", loading && "animate-spin")}
+								name={list.loading ? "Spinner" : "RefreshCw"}
+								className={cn("size-4", list.loading && "animate-spin")}
 							/>
 							{t("common.refresh")}
 						</Button>
@@ -292,7 +279,7 @@ export default function AdminTextureLibraryPage() {
 			</AdminSurface>
 
 			<AdminTableShell>
-				{loading ? (
+				{list.loading ? (
 					<div className="grid gap-2 p-4">
 						{TAG_SKELETON_KEYS.map((key) => (
 							<Skeleton key={key} className="h-11" />
@@ -362,7 +349,7 @@ export default function AdminTextureLibraryPage() {
 												type="button"
 												variant="destructive"
 												size="sm"
-												onClick={() => setDeleteTag(tag)}
+												onClick={() => deleteTagDialog.requestConfirm(tag)}
 											>
 												<Icon name="Trash" className="size-4" />
 												{t("common.delete")}
@@ -378,29 +365,20 @@ export default function AdminTextureLibraryPage() {
 
 			<AdminOffsetPagination
 				currentPage={currentPage}
-				nextDisabled={nextCursor === null}
-				onNext={() => {
-					if (!nextCursor) return;
-					setCursorStack((current) => [...current, nextCursor]);
-					setPageIndex((current) => current + 1);
-				}}
+				nextDisabled={list.nextPageDisabled}
+				onNext={list.goNext}
 				onPageSizeChange={(value) => {
 					const parsed = Number.parseInt(value ?? "", 10);
 					if (TAG_PAGE_SIZE_OPTIONS.includes(parsed as never)) {
+						// pageSize is a list dep, so the cursor list resets itself.
 						setPageSize(parsed);
-						setCursorStack([null]);
-						setPageIndex(0);
-						setNextCursor(null);
 					}
 				}}
-				onPrevious={() => {
-					setCursorStack((current) => current.slice(0, -1));
-					setPageIndex((current) => Math.max(0, current - 1));
-				}}
+				onPrevious={list.goPrevious}
 				pageSize={String(pageSize)}
 				pageSizeOptions={pageSizeOptions}
-				prevDisabled={currentPage <= 1}
-				total={total}
+				prevDisabled={list.prevPageDisabled}
+				total={list.total}
 				totalPages={totalPages}
 			/>
 
@@ -437,12 +415,12 @@ export default function AdminTextureLibraryPage() {
 			</Dialog>
 
 			<ConfirmDialog
-				open={Boolean(deleteTag)}
+				open={deleteTagDialog.dialogProps.open}
 				title={t("admin.textureLibraryPage.deleteTitle")}
 				description={
-					deleteTag
+					deleteTagDialog.confirmTarget
 						? t("admin.textureLibraryPage.deleteDescription", {
-								name: deleteTag.name,
+								name: deleteTagDialog.confirmTarget.name,
 							})
 						: undefined
 				}
@@ -450,8 +428,8 @@ export default function AdminTextureLibraryPage() {
 				confirmLabel={t("common.delete")}
 				loading={submitting}
 				variant="destructive"
-				onOpenChange={(open) => !open && setDeleteTag(null)}
-				onConfirm={() => void confirmDeleteTag()}
+				onOpenChange={deleteTagDialog.dialogProps.onOpenChange}
+				onConfirm={deleteTagDialog.dialogProps.onConfirm}
 			/>
 		</AdminPageShell>
 	);

@@ -61,3 +61,24 @@ export function adminUserPath(id: number | string) {
 export function adminSettingsCategoryPath(category: string) {
 	return `/admin/settings/${encodeURIComponent(category)}`;
 }
+
+/**
+ * Backend API endpoints under the auth plane. Shared by the HTTP transport
+ * (refresh-skip matching) and the auth service so the path list has exactly
+ * one owner.
+ */
+export const authApiPaths = {
+	refresh: "/auth/refresh",
+	login: "/auth/login",
+	register: "/auth/register",
+	logout: "/auth/logout",
+	check: "/auth/check",
+	setup: "/auth/setup",
+	passkeyLoginStart: "/auth/passkeys/login/start",
+	passkeyLoginFinish: "/auth/passkeys/login/finish",
+	externalAuthProviders: "/auth/external-auth/providers",
+} as const;
+
+/** Auth API endpoints that must not trigger the token-refresh retry. */
+export const skipTokenRefreshApiPaths: readonly string[] =
+	Object.values(authApiPaths);
