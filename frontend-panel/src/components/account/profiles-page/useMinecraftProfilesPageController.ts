@@ -394,3 +394,7 @@ export function useMinecraftProfilesPageController() {
 		onUploadTexture: uploadTexture,
 	};
 }
+
+export type MinecraftProfilesPageController = ReturnType<
+	typeof useMinecraftProfilesPageController
+>;

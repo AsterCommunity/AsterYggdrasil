@@ -5,7 +5,7 @@ import { AdminOnlyGate } from "@/routes/guards/AdminOnlyGate";
 import { adminPaths } from "@/routes/routePaths";
 
 const AdminSettingsPage = lazyWithPreload(
-	() => import("@/pages/admin/AdminSettingsPage"),
+	() => import("@/pages/admin/admin-settings-page/AdminSettingsPage"),
 );
 const AdminOverviewPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminOverviewPage"),
@@ -20,16 +20,22 @@ const AdminAboutPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminAboutPage"),
 );
 const AdminExternalAuthPage = lazyWithPreload(
-	() => import("@/pages/admin/AdminExternalAuthPage"),
+	() => import("@/pages/admin/admin-external-auth-page/AdminExternalAuthPage"),
 );
 const AdminYggdrasilForwardingPage = lazyWithPreload(
-	() => import("@/pages/admin/AdminYggdrasilForwardingPage"),
+	() =>
+		import(
+			"@/pages/admin/admin-yggdrasil-forwarding-page/AdminYggdrasilForwardingPage"
+		),
 );
 const AdminTextureLibraryPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminTextureLibraryPage"),
 );
 const AdminTextureLibraryTexturesPage = lazyWithPreload(
-	() => import("@/pages/admin/AdminTextureLibraryTexturesPage"),
+	() =>
+		import(
+			"@/pages/admin/admin-texture-library-textures-page/AdminTextureLibraryTexturesPage"
+		),
 );
 const AdminTextureLibraryReportsPage = lazyWithPreload(
 	() => import("@/pages/admin/AdminTextureLibraryReportsPage"),

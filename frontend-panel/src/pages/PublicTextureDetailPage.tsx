@@ -31,12 +31,10 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePublicSession } from "@/hooks/usePublicSession";
 import { formatBytes } from "@/lib/numberUnit";
 import { cn } from "@/lib/utils";
-import {
-	formatTextureKind,
-	PublicTextureCopyDialog,
-	PublicTextureDetail,
-	TextureLibraryDisabledPanel,
-} from "@/pages/PublicTextureLibraryPage";
+import { PublicTextureCopyDialog } from "@/pages/public-texture-library/PublicTextureCopyDialog";
+import { PublicTextureDetail } from "@/pages/public-texture-library/PublicTextureDetail";
+import { TextureLibraryDisabledPanel } from "@/pages/public-texture-library/TextureLibraryDisabledPanel";
+import { formatTextureKind } from "@/pages/public-texture-library/textureKind";
 import { publicPaths } from "@/routes/routePaths";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";

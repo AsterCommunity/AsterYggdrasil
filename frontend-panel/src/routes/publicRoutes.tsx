@@ -7,7 +7,7 @@ const PublicConnectPage = lazyWithPreload(
 	() => import("@/pages/PublicConnectPage"),
 );
 const PublicTextureLibraryPage = lazyWithPreload(
-	() => import("@/pages/PublicTextureLibraryPage"),
+	() => import("@/pages/public-texture-library/PublicTextureLibraryPage"),
 );
 const PublicTextureDetailPage = lazyWithPreload(
 	() => import("@/pages/PublicTextureDetailPage"),

@@ -5,6 +5,9 @@ import { publicPaths } from "@/routes/routePaths";
 import { authElement } from "@/routes/routeSuspense";
 
 const LoginPage = lazyWithPreload(() => import("@/pages/LoginPage"));
+const RegisterPage = lazyWithPreload(
+	() => import("@/pages/auth/register-page/RegisterPage"),
+);
 const InvitePage = lazyWithPreload(() => import("@/pages/InvitePage"));
 const ResetPasswordPage = lazyWithPreload(
 	() => import("@/pages/ResetPasswordPage"),
@@ -19,7 +22,7 @@ export const authRoutes = [
 	{
 		path: publicPaths.register,
 		element: <GuestOnlyGate />,
-		children: [{ index: true, element: authElement(<LoginPage />) }],
+		children: [{ index: true, element: authElement(<RegisterPage />) }],
 	},
 	{
 		path: publicPaths.invite,
