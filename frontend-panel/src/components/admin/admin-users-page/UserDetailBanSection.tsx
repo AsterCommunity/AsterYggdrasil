@@ -9,6 +9,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { LoadingButton } from "@/components/common/LoadingButton";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,6 +33,7 @@ import {
 	useRegistryPermissions,
 } from "@/lib/permissionRegistry";
 import { cn } from "@/lib/utils";
+import { banFormSchema } from "@/lib/validation";
 import { adminUserService } from "@/services/adminService";
 import type {
 	AdminPermissionInfo,
@@ -152,15 +155,15 @@ export function UserDetailBanSection({ userId }: { userId: number }) {
 		event.preventDefault();
 		if (!dialog) return;
 
-		const reason = form.reason.trim();
-		if (!reason) {
-			setFormError(t("admin.users.bans.reasonRequired"));
+		const parsed = banFormSchema.safeParse({
+			reason: form.reason,
+			scopes: form.scopes,
+		});
+		if (!parsed.success) {
+			setFormError(t(parsed.error.issues[0]?.message ?? ""));
 			return;
 		}
-		if (form.scopes.length === 0) {
-			setFormError(t("admin.users.bans.scopeRequired"));
-			return;
-		}
+		const reason = parsed.data.reason;
 
 		const startsAt = fromDateTimeLocal(form.startsAt);
 		const expiresAt = fromDateTimeLocal(form.expiresAt);
@@ -247,19 +250,7 @@ export function UserDetailBanSection({ userId }: { userId: number }) {
 					</p>
 				</div>
 				<div className="flex shrink-0 gap-2">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={loading}
-						onClick={() => void reload()}
-					>
-						<Icon
-							name={loading ? "Spinner" : "RefreshCw"}
-							className={cn("size-4", loading && "animate-spin")}
-						/>
-						{t("common.refresh")}
-					</Button>
+					<RefreshButton loading={loading} onClick={() => void reload()} />
 					<Button type="button" size="sm" onClick={openCreateDialog}>
 						<Icon name="Plus" className="size-4" />
 						{t("admin.users.bans.create")}
@@ -596,16 +587,15 @@ function BanFormDialog({
 					>
 						{t("common.cancel")}
 					</Button>
-					<Button
+					<LoadingButton
 						type="submit"
 						form="user-ban-form"
-						disabled={submitting || !registryReady}
+						loading={submitting}
+						disabled={!registryReady}
+						iconClassName="size-4"
 					>
-						{submitting ? (
-							<Icon name="Spinner" className="size-4 animate-spin" />
-						) : null}
 						{t(mode === "create" ? "admin.users.bans.create" : "common.save")}
-					</Button>
+					</LoadingButton>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
@@ -669,17 +659,16 @@ function RevokeBanDialog({
 					>
 						{t("common.cancel")}
 					</Button>
-					<Button
+					<LoadingButton
 						type="button"
 						variant="destructive"
-						disabled={!ban || submitting}
+						loading={submitting}
+						disabled={!ban}
+						iconClassName="size-4"
 						onClick={onSubmit}
 					>
-						{submitting ? (
-							<Icon name="Spinner" className="size-4 animate-spin" />
-						) : null}
 						{t("admin.users.bans.revoke")}
-					</Button>
+					</LoadingButton>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { LoadingButton } from "@/components/common/LoadingButton";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -126,14 +127,13 @@ export function InviteUserDialog({
 						>
 							{t("common.cancel")}
 						</Button>
-						<Button type="submit" disabled={inviting}>
-							{inviting ? (
-								<Icon name="Spinner" className="mr-2 size-4 animate-spin" />
-							) : (
-								<Icon name="EnvelopeSimple" className="mr-2 size-4" />
-							)}
+						<LoadingButton
+							type="submit"
+							loading={inviting}
+							icon="EnvelopeSimple"
+						>
 							{t("admin.users.sendInvitation")}
-						</Button>
+						</LoadingButton>
 					</DialogFooter>
 				</form>
 			</DialogContent>

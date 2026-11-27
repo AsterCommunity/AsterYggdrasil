@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { SessionPlatformIcon } from "@/components/common/SessionPlatformIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,22 +180,13 @@ export function LoginDevicesSection() {
 						/>
 						{t("sessions.revokeOtherSessions")}
 					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={loading}
+					<RefreshButton
+						className="rounded-md"
+						loading={loading}
 						onClick={() => {
 							void list.reload();
 						}}
-						className="rounded-md"
-					>
-						<Icon
-							name={loading ? "Spinner" : "ArrowClockwise"}
-							className={cn("size-3.5", loading && "animate-spin")}
-						/>
-						{t("common.refresh")}
-					</Button>
+					/>
 				</div>
 			</div>
 			<div className="mt-4 grid overflow-hidden rounded-lg border border-border/70 bg-muted/20 dark:border-white/10 dark:bg-muted/10 @min-[48rem]/devices:grid-cols-3">

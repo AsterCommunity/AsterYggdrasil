@@ -10,7 +10,7 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { buttonVariants } from "@/components/ui/buttonVariants";
 import type { IconName } from "@/components/ui/icon";
-import { Icon } from "@/components/ui/icon";
+import { Icon, REFRESH_ICON_NAME } from "@/components/ui/icon";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { publicPaths } from "@/routes/routePaths";
@@ -25,7 +25,7 @@ type RouteErrorState = {
 
 const reasonItems = [
 	{ id: "address", icon: "Link", label: "errorPage.reasonAddress" },
-	{ id: "moved", icon: "ArrowsClockwise", label: "errorPage.reasonMoved" },
+	{ id: "moved", icon: REFRESH_ICON_NAME, label: "errorPage.reasonMoved" },
 	{ id: "permission", icon: "Lock", label: "errorPage.reasonPermission" },
 ] as const satisfies readonly {
 	id: string;

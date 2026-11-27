@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicEntryShell } from "@/components/layout/PublicEntryShell";
 import { Badge } from "@/components/ui/badge";
@@ -157,10 +158,11 @@ export default function PublicTextureDetailPage() {
 									{error ?? t("library.detailNotFound")}
 								</p>
 								<div className="mt-5 flex flex-wrap justify-center gap-2">
-									<Button type="button" onClick={() => void loadTexture()}>
-										<Icon name="RefreshCw" className="size-4" />
-										{t("common.refresh")}
-									</Button>
+									<RefreshButton
+										variant="default"
+										size="default"
+										onClick={() => void loadTexture()}
+									/>
 									<Link
 										to={publicPaths.textureLibrary}
 										className={buttonVariants({ variant: "outline" })}

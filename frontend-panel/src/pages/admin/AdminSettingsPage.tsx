@@ -13,6 +13,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AdminNumberUnitInput } from "@/components/admin/AdminNumberUnitInput";
 import { AnimatedCollapsible } from "@/components/common/AnimatedCollapsible";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { AdminSurface } from "@/components/layout/AdminSurface";
@@ -1198,19 +1199,9 @@ function CaptchaPreviewPanel({
 						</span>
 					)}
 				</div>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={loading}
-					onClick={() => void refresh()}
-				>
-					<Icon
-						name={loading ? "Spinner" : "RefreshCw"}
-						className={cn("size-4", loading && "animate-spin")}
-					/>
+				<RefreshButton loading={loading} onClick={() => void refresh()}>
 					{t("settings_auth_captcha_preview_refresh")}
-				</Button>
+				</RefreshButton>
 			</div>
 		</div>
 	);

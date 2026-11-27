@@ -16,6 +16,7 @@ import type {
 } from "@/components/admin/admin-minecraft-profile-page/types";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { UserAvatarImage } from "@/components/common/UserAvatarImage";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
@@ -297,19 +298,7 @@ export default function AdminMinecraftProfilePage() {
 							: "admin.minecraftProfilePage.backToUsers",
 					)}
 				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onClick={() => void load()}
-					disabled={loading}
-				>
-					<Icon
-						name={loading ? "Spinner" : "ArrowsClockwise"}
-						className={loading ? "mr-2 size-4 animate-spin" : "mr-2 size-4"}
-					/>
-					{t("common.refresh")}
-				</Button>
+				<RefreshButton loading={loading} onClick={() => void load()} />
 			</>
 		),
 		[backPath, load, loading, returnTo, t],

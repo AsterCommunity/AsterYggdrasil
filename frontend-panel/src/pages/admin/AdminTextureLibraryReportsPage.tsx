@@ -13,6 +13,7 @@ import {
 } from "@/components/common/AdminTable";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,6 @@ import { useCursorList } from "@/hooks/useCursorList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
 import { adminTextureLibraryService } from "@/services/adminService";
 import type {
 	MinecraftTextureReportReason,
@@ -195,19 +195,10 @@ export default function AdminTextureLibraryReportsPage() {
 				actions={
 					<>
 						<TextureLibrarySectionNav active="reports" />
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={list.loading}
+						<RefreshButton
+							loading={list.loading}
 							onClick={() => void list.reload()}
-						>
-							<Icon
-								name={list.loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", list.loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>

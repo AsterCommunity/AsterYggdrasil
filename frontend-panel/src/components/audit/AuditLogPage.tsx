@@ -16,6 +16,7 @@ import {
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { DateTimeText } from "@/components/common/DateTimeText";
 import { EmptyState } from "@/components/common/EmptyState";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { AdminSurface } from "@/components/layout/AdminSurface";
@@ -242,19 +243,10 @@ export function AuditLogPage({
 				title={t(`${translationPrefix}.title`)}
 				description={t(`${translationPrefix}.description`)}
 				actions={
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
+					<RefreshButton
+						loading={auditList.loading}
 						onClick={() => void auditList.reload()}
-						disabled={auditList.loading}
-					>
-						<Icon
-							name={auditList.loading ? "Spinner" : "ArrowsClockwise"}
-							className={auditList.loading ? "size-4 animate-spin" : "size-4"}
-						/>
-						{t("common.refresh")}
-					</Button>
+					/>
 				}
 				toolbar={toolbar}
 			/>

@@ -2,7 +2,6 @@ import type { ComponentProps, ComponentType } from "react";
 import { FaDocker, FaGithub } from "react-icons/fa6";
 import { LuBookOpenText, LuScale } from "react-icons/lu";
 import {
-	PiArrowClockwise,
 	PiArrowCounterClockwise,
 	PiArrowDown,
 	PiArrowLeft,
@@ -107,14 +106,12 @@ import {
 
 export type IconName =
 	| "ArrowCounterClockwise"
-	| "ArrowClockwise"
 	| "ArrowDown"
 	| "ArrowLeft"
 	| "ArrowRight"
 	| "ArrowSquareOut"
 	| "ArrowUp"
 	| "ArrowsInCardinal"
-	| "ArrowsClockwise"
 	| "ArrowsOutCardinal"
 	| "BookOpenText"
 	| "BracketsCurly"
@@ -184,7 +181,7 @@ export type IconName =
 	| "Power"
 	| "Presentation"
 	| "Queue"
-	| "RefreshCw"
+	| "Refresh"
 	| "Repeat"
 	| "RepeatOnce"
 	| "Scale"
@@ -215,14 +212,12 @@ export type IconName =
 
 const iconMap: Record<IconName, ComponentType<{ className?: string }>> = {
 	ArrowCounterClockwise: PiArrowCounterClockwise,
-	ArrowClockwise: PiArrowClockwise,
 	ArrowDown: PiArrowDown,
 	ArrowLeft: PiArrowLeft,
 	ArrowRight: PiArrowRight,
 	ArrowSquareOut: PiArrowSquareOut,
 	ArrowUp: PiArrowUp,
 	ArrowsInCardinal: PiArrowsInCardinal,
-	ArrowsClockwise: PiArrowsClockwise,
 	ArrowsOutCardinal: PiArrowsOutCardinal,
 	BookOpenText: LuBookOpenText,
 	BracketsCurly: PiBracketsCurly,
@@ -292,7 +287,7 @@ const iconMap: Record<IconName, ComponentType<{ className?: string }>> = {
 	Power: PiPower,
 	Presentation: PiPresentation,
 	Queue: PiQueue,
-	RefreshCw: PiArrowsClockwise,
+	Refresh: PiArrowsClockwise,
 	Repeat: PiRepeat,
 	RepeatOnce: PiRepeatOnce,
 	Scale: LuScale,
@@ -326,6 +321,13 @@ export interface IconProps {
 	name: IconName;
 	className?: string;
 }
+
+/**
+ * Single refresh glyph for the whole app. Business code must not reference
+ * the react-icons glyph directly: refresh actions go through RefreshButton,
+ * non-button consumers (error reason lists, etc.) use this constant.
+ */
+export const REFRESH_ICON_NAME = "Refresh" as const;
 
 export function isIconName(value: string): value is IconName {
 	return Object.hasOwn(iconMap, value);

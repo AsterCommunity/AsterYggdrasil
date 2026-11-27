@@ -26,11 +26,13 @@ import {
 } from "@/components/admin/admin-external-auth-page/shared";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
+import { useClipboard } from "@/hooks/useClipboard";
 import { useCursorList } from "@/hooks/useCursorList";
 import {
 	managedPageSizeField,
@@ -38,7 +40,6 @@ import {
 } from "@/hooks/useManagedListQueryState";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
 import { adminExternalAuthService } from "@/services/adminService";
 import type {
 	AdminExternalAuthProviderInfo,
@@ -221,6 +222,7 @@ export default function AdminExternalAuthPage() {
 	});
 	const pageSize = query.pageSize;
 	const [state, dispatch] = useReducer(reducer, undefined, initialState);
+	const { copy } = useClipboard();
 	const previousCreateStepRef = useRef(0);
 	const stepAnimationRef = useRef<"idle" | "forward" | "backward">("idle");
 	const selectedKind =
@@ -357,11 +359,12 @@ export default function AdminExternalAuthPage() {
 		dispatch({ type: "set_create_step", value: state.createStep + 1 });
 	}
 
-	function copyCallback(value: string) {
-		void navigator.clipboard
-			.writeText(value)
-			.then(() => toast.success(t("common.copied")))
-			.catch(() => toast.error(t("errors.unexpected_error")));
+	async function copyCallback(value: string) {
+		if (await copy(value)) {
+			toast.success(t("common.copied"));
+		} else {
+			toast.error(t("errors.unexpected_error"));
+		}
 	}
 
 	async function testDraft() {
@@ -521,19 +524,7 @@ function ExternalAuthPageActions({
 				<Icon name="Plus" className="mr-2 size-4" />
 				{t("admin.externalAuth.create")}
 			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				disabled={loading}
-				onClick={onRefresh}
-			>
-				<Icon
-					name={loading ? "Spinner" : "ArrowsClockwise"}
-					className={cn("mr-2 size-4", loading && "animate-spin")}
-				/>
-				{t("common.refresh")}
-			</Button>
+			<RefreshButton loading={loading} onClick={onRefresh} />
 		</>
 	);
 }

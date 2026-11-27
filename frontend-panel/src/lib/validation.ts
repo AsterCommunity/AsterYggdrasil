@@ -42,3 +42,21 @@ export const passwordChangeMatchSchema = z
 	});
 
 export const passwordChangeSchema = passwordChangeMatchSchema;
+
+/**
+ * Admin invite dialog (AdminUsersPage / AdminUserInvitationsPage): the
+ * invitation email reuses the shared `emailSchema`, which is the single
+ * email validator in the app (issue #58 removed the per-page copies).
+ */
+export const inviteUserSchema = z.object({ email: emailSchema });
+
+/**
+ * Admin user-ban dialog (UserDetailBanSection): reason is required after
+ * trimming and at least one capability scope must be selected. Field order
+ * matches the dialog's manual check order (reason first, then scopes), so
+ * `issues[0]` keeps reporting the same first error as before.
+ */
+export const banFormSchema = z.object({
+	reason: z.string().trim().min(1, "admin.users.bans.reasonRequired"),
+	scopes: z.array(z.string()).min(1, "admin.users.bans.scopeRequired"),
+});

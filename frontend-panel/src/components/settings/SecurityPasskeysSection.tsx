@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -174,15 +175,7 @@ export function SecurityPasskeysSection() {
 						{t("personalSettings.passkeysDescription")}
 					</p>
 				</div>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onClick={() => void list.reload()}
-				>
-					<Icon name="ArrowClockwise" className="mr-2 size-4" />
-					{t("common.refresh")}
-				</Button>
+				<RefreshButton onClick={() => void list.reload()} />
 			</div>
 
 			<div className="mt-4 grid gap-3 rounded-lg border border-border/70 bg-background/50 p-4 dark:border-white/10">

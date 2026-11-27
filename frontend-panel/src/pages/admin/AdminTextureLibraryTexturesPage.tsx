@@ -29,6 +29,7 @@ import {
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { UserAvatarImage } from "@/components/common/UserAvatarImage";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
@@ -489,19 +490,10 @@ export default function AdminTextureLibraryTexturesPage({
 						<TextureLibrarySectionNav
 							active={mode === "reviews" ? "reviews" : "textures"}
 						/>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={list.loading}
+						<RefreshButton
+							loading={list.loading}
 							onClick={() => void reload()}
-						>
-							<Icon
-								name={list.loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", list.loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>
@@ -1042,19 +1034,7 @@ function AdminTextureDetailContent({
 							<Icon name="ArrowLeft" className="size-4" />
 							{t("admin.textureLibraryDetailPage.backToLibrary")}
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={loading}
-							onClick={onRefresh}
-						>
-							<Icon
-								name={loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						<RefreshButton loading={loading} onClick={onRefresh} />
 					</>
 				}
 			/>

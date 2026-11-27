@@ -20,11 +20,13 @@ import {
 import { UsersSectionNav } from "@/components/admin/UsersSectionNav";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
+import { useClipboard } from "@/hooks/useClipboard";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useCursorList } from "@/hooks/useCursorList";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -38,7 +40,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePendingAction } from "@/hooks/usePendingAction";
 import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
+import { inviteUserSchema } from "@/lib/validation";
 import { adminUserPath } from "@/routes/routePaths";
 import { adminUserService } from "@/services/adminService";
 import type {
@@ -77,10 +79,6 @@ type ManagedUsersQuery = {
 };
 
 type UserCursor = { id: number; value: string };
-
-function isValidEmail(value: string) {
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
 
 function createInviteForm(): CreateUserInvitationRequest {
 	return { email: "" };
@@ -218,6 +216,7 @@ function useAdminUsersPageController() {
 	});
 
 	const { pending: inviting, runWithPending: runInvite } = usePendingAction();
+	const { copy } = useClipboard();
 
 	const roleOptions = useMemo(
 		() => [
@@ -347,37 +346,39 @@ function useAdminUsersPageController() {
 
 	async function copyInvitationLink(value: string) {
 		if (!value) return;
-		try {
-			await navigator.clipboard.writeText(value);
+		if (await copy(value)) {
 			toast.success(t("common.copied"));
-		} catch (error) {
-			handleApiError(error);
+		} else {
+			toast.error(t("errors.unexpected_error"));
 		}
 	}
 
 	async function copyGeneratedPassword() {
 		if (!generatedPassword?.password) return;
-		try {
-			await navigator.clipboard.writeText(generatedPassword.password);
+		if (await copy(generatedPassword.password)) {
 			toast.success(t("common.copied"));
-		} catch (error) {
-			handleApiError(error);
+		} else {
+			toast.error(t("errors.unexpected_error"));
 		}
 	}
 
 	async function createInvitation(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const email = inviteState.form.email.trim();
-		if (!isValidEmail(email)) {
+		const parsed = inviteUserSchema.safeParse({
+			email: inviteState.form.email.trim(),
+		});
+		if (!parsed.success) {
 			dispatchInvite({
 				type: "error",
-				value: t("admin.users.inviteEmailInvalid"),
+				value: t(parsed.error.issues[0]?.message ?? ""),
 			});
 			return;
 		}
 		await runInvite(async () => {
 			try {
-				const invitation = await adminUserService.createInvitation({ email });
+				const invitation = await adminUserService.createInvitation({
+					email: parsed.data.email,
+				});
 				dispatchInvite({ type: "created", value: invitation });
 				toast.success(t("admin.users.invitationCreated"));
 			} catch (error) {
@@ -485,19 +486,7 @@ function AdminUsersPageActions({
 				<Icon name="Plus" className="mr-2 size-4" />
 				{t("admin.users.create")}
 			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				disabled={loading}
-				onClick={onRefresh}
-			>
-				<Icon
-					name={loading ? "Spinner" : "ArrowsClockwise"}
-					className={cn("mr-2 size-4", loading && "animate-spin")}
-				/>
-				{t("common.refresh")}
-			</Button>
+			<RefreshButton loading={loading} onClick={onRefresh} />
 		</>
 	);
 }

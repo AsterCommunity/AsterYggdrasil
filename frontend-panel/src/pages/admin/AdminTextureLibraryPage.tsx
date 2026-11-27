@@ -15,6 +15,7 @@ import {
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { DateTimeText } from "@/components/common/DateTimeText";
 import { EmptyState } from "@/components/common/EmptyState";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { AdminSurface } from "@/components/layout/AdminSurface";
@@ -198,19 +199,11 @@ export default function AdminTextureLibraryPage() {
 				actions={
 					<>
 						<TextureLibrarySectionNav active="tags" />
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={list.loading || submitting}
+						<RefreshButton
+							loading={list.loading}
+							disabled={submitting}
 							onClick={() => void list.reload()}
-						>
-							<Icon
-								name={list.loading ? "Spinner" : "RefreshCw"}
-								className={cn("size-4", list.loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>

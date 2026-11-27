@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AdminOffsetPagination } from "@/components/admin/AdminOffsetPagination";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { UserAvatarImage } from "@/components/common/UserAvatarImage";
 import { AvatarCropDialog } from "@/components/settings/AvatarCropDialog";
 import { LoginDevicesSection } from "@/components/settings/LoginDevicesSection";
@@ -357,19 +358,7 @@ function ExternalAuthLinksSection() {
 						{t("personalSettings.externalAuthDescription")}
 					</p>
 				</div>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={loading}
-					onClick={() => void list.reload()}
-				>
-					<Icon
-						name={loading ? "Spinner" : "ArrowClockwise"}
-						className={cn("mr-2 size-4", loading && "animate-spin")}
-					/>
-					{t("common.refresh")}
-				</Button>
+				<RefreshButton loading={loading} onClick={() => void list.reload()} />
 			</div>
 
 			<div className="divide-y divide-border/70 dark:divide-white/10">
@@ -816,19 +805,9 @@ function EmailChangeSection({ user }: { user: AuthUserInfo }) {
 								email: pendingEmail,
 							})}
 						</div>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={resending}
-							onClick={() => void resend()}
-						>
-							<Icon
-								name={resending ? "Spinner" : "ArrowClockwise"}
-								className={cn("mr-2 size-4", resending && "animate-spin")}
-							/>
+						<RefreshButton loading={resending} onClick={() => void resend()}>
 							{t("personalSettings.emailChangeResend")}
-						</Button>
+						</RefreshButton>
 					</div>
 				) : null}
 			</div>

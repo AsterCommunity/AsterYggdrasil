@@ -12,11 +12,13 @@ import {
 import { UsersSectionNav } from "@/components/admin/UsersSectionNav";
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { handleApiError } from "@/hooks/useApiError";
+import { useClipboard } from "@/hooks/useClipboard";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useCursorList } from "@/hooks/useCursorList";
 import {
@@ -27,7 +29,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePendingAction } from "@/hooks/usePendingAction";
 import { usePendingId } from "@/hooks/usePendingId";
 import { parsePageSizeOption } from "@/lib/pagination";
-import { cn } from "@/lib/utils";
+import { inviteUserSchema } from "@/lib/validation";
 import { adminUserService } from "@/services/adminService";
 import type {
 	AdminUserInvitationInfo,
@@ -96,10 +98,6 @@ function initInviteState(): InviteState {
 	};
 }
 
-function isValidEmail(value: string) {
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 export default function AdminUserInvitationsPage() {
 	const { t } = useTranslation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -111,6 +109,7 @@ export default function AdminUserInvitationsPage() {
 	const { pending: inviting, runWithPending } = usePendingAction();
 	const { pendingId: revokingInvitationId, runWithPending: runRevocation } =
 		usePendingId<number>();
+	const { copy } = useClipboard();
 
 	usePageTitle(t("admin.users.invitationsTitle"));
 
@@ -231,29 +230,32 @@ export default function AdminUserInvitationsPage() {
 	const copyInvitationLink = useCallback(
 		async (value: string) => {
 			if (!value) return;
-			try {
-				await navigator.clipboard.writeText(value);
+			if (await copy(value)) {
 				toast.success(t("common.copied"));
-			} catch (error) {
-				handleApiError(error);
+			} else {
+				toast.error(t("errors.unexpected_error"));
 			}
 		},
-		[t],
+		[copy, t],
 	);
 
 	async function createInvitation(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const email = inviteState.form.email.trim();
-		if (!isValidEmail(email)) {
+		const parsed = inviteUserSchema.safeParse({
+			email: inviteState.form.email.trim(),
+		});
+		if (!parsed.success) {
 			dispatchInvite({
 				type: "emailError",
-				value: t("admin.users.inviteEmailInvalid"),
+				value: t(parsed.error.issues[0]?.message ?? ""),
 			});
 			return;
 		}
 		await runWithPending(async () => {
 			try {
-				const invitation = await adminUserService.createInvitation({ email });
+				const invitation = await adminUserService.createInvitation({
+					email: parsed.data.email,
+				});
 				dispatchInvite({ type: "created", invitation });
 				toast.success(t("admin.users.invitationCreated"));
 				await list.reloadFirstPage();
@@ -281,19 +283,10 @@ export default function AdminUserInvitationsPage() {
 							<Icon name="EnvelopeSimple" className="mr-2 size-4" />
 							{t("admin.users.inviteUser")}
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={loading}
+						<RefreshButton
+							loading={loading}
 							onClick={() => void list.reload()}
-						>
-							<Icon
-								name={loading ? "Spinner" : "ArrowsClockwise"}
-								className={cn("mr-2 size-4", loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>

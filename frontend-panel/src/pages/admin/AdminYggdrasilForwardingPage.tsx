@@ -22,6 +22,7 @@ import {
 import { AdminTableList } from "@/components/common/AdminTableList";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { DateTimeText } from "@/components/common/DateTimeText";
+import { RefreshButton } from "@/components/common/RefreshButton";
 import { AdminPageHeader } from "@/components/layout/AdminPageHeader";
 import { AdminPageShell } from "@/components/layout/AdminPageShell";
 import { Badge } from "@/components/ui/badge";
@@ -494,19 +495,10 @@ export default function AdminYggdrasilForwardingPage() {
 							<Icon name="Plus" className="mr-2 size-4" />
 							{t("admin.yggdrasilForwarding.createAction")}
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={list.loading}
+						<RefreshButton
+							loading={list.loading}
 							onClick={() => void list.reload()}
-						>
-							<Icon
-								name={list.loading ? "Spinner" : "ArrowsClockwise"}
-								className={cn("mr-2 size-4", list.loading && "animate-spin")}
-							/>
-							{t("common.refresh")}
-						</Button>
+						/>
 					</>
 				}
 			/>
