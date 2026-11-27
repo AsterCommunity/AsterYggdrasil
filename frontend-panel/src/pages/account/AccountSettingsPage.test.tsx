@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/authStore";
+import { createAuthUser } from "@/test/fixtures";
 import type {
 	AuthSessionPage,
 	AuthUserInfo,
@@ -73,25 +74,7 @@ vi.mock("@/components/settings/AvatarCropDialog", () => ({
 		) : null,
 }));
 
-const baseUser: AuthUserInfo = {
-	id: 7,
-	username: "alex",
-	email: "alex@example.com",
-	email_verified: true,
-	must_change_password: false,
-	pending_email: null,
-	role: "user",
-	status: "active",
-	profile: {
-		display_name: null,
-		avatar: {
-			source: "none",
-			url_512: null,
-			url_1024: null,
-			version: 0,
-		},
-	},
-};
+const baseUser: AuthUserInfo = createAuthUser();
 
 const emptyAuthSessionPage: AuthSessionPage = {
 	items: [],
@@ -331,5 +314,21 @@ describe("AccountSettingsPage", () => {
 		);
 		expect(authServiceMock.me).toHaveBeenCalledTimes(1);
 		expect(useAuthStore.getState().user?.email).toBe("next@example.com");
+	});
+
+	it("renders the personal settings page with account details and session entry", () => {
+		renderPage();
+
+		expect(
+			screen.getByRole("heading", {
+				level: 1,
+				name: "Personal settings",
+			}),
+		).toBeInTheDocument();
+		expect(screen.getAllByText("alex").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("alex@example.com").length).toBeGreaterThan(0);
+		expect(
+			screen.getByRole("heading", { name: "Login devices" }),
+		).toBeInTheDocument();
 	});
 });

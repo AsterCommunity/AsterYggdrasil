@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
 import { i18next } from "@/i18n";
-import type { AdminUserInfo } from "@/types/api";
+import { createAdminUser, createUserBanPage } from "@/test/fixtures";
 import AdminUserDetailPage from "./AdminUserDetailPage";
 
 const adminUserServiceMock = vi.hoisted(() => ({
@@ -27,25 +27,18 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 	};
 });
 
-const user: AdminUserInfo = {
-	active_session_count: 0,
-	created_at: "2026-06-18T00:00:00.000Z",
+const user = createAdminUser({
+	id: 1,
+	username: "esap",
 	email: "esaps@esaps.net",
 	email_verified_at: null,
-	id: 1,
-	must_change_password: false,
-	pending_email: null,
+	role: "admin",
+	profile_count: 1,
 	profile: {
 		avatar: { source: "none", url_1024: null, url_512: null, version: 0 },
 		display_name: "AptS:1547",
 	},
-	profile_count: 1,
-	role: "admin",
-	session_version: 1,
-	status: "active",
-	updated_at: "2026-06-18T00:00:00.000Z",
-	username: "esap",
-};
+});
 
 function renderPage() {
 	return render(
@@ -63,12 +56,7 @@ describe("AdminUserDetailPage", () => {
 		vi.clearAllMocks();
 		await i18next.changeLanguage("zh-CN");
 		adminUserServiceMock.get.mockResolvedValue(user);
-		adminUserServiceMock.listBans.mockResolvedValue({
-			items: [],
-			limit: 50,
-			next_cursor: null,
-			total: 0,
-		});
+		adminUserServiceMock.listBans.mockResolvedValue(createUserBanPage([]));
 		adminUserServiceMock.revokeSessions.mockResolvedValue({ removed: 0 });
 		adminUserServiceMock.update.mockResolvedValue(user);
 		adminMinecraftProfileServiceMock.listByUserPage.mockResolvedValue({

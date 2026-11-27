@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import {
+	createMemoryRouter,
+	MemoryRouter,
+	Outlet,
+	Route,
+	RouterProvider,
+	Routes,
+} from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
 import { AdminOnlyGate } from "@/routes/guards/AdminOnlyGate";
 import { AuthenticatedGate } from "@/routes/guards/AuthenticatedGate";
 import { GuestOnlyGate } from "@/routes/guards/GuestOnlyGate";
+import { InitializedGate } from "@/routes/guards/InitGate";
+import { useInitStatusStore } from "@/stores/initStatusStore";
 
 const authState = vi.hoisted(() => ({
 	checking: false,
@@ -17,6 +26,14 @@ const authState = vi.hoisted(() => ({
 	isAuthStale: false,
 	operatorScopes: [] as string[],
 	user: null as { must_change_password?: boolean; role?: string } | null,
+}));
+
+const authServiceMock = vi.hoisted(() => ({
+	check: vi.fn(),
+}));
+
+vi.mock("@/services/authService", () => ({
+	authService: authServiceMock,
 }));
 
 vi.mock("@/stores/authStore", () => ({
@@ -71,22 +88,33 @@ function renderGuestRoute() {
 	);
 }
 
+function resetAuthState() {
+	authState.checking = false;
+	authState.canAccessAdminShell = false;
+	authState.errorCode = null;
+	authState.hasPermissionId.mockReset();
+	authState.hasPermissionId.mockImplementation((scope: string) =>
+		authState.operatorScopes.includes(scope),
+	);
+	authState.hydrate.mockReset();
+	authState.hydrate.mockResolvedValue(undefined);
+	authState.isAdmin = false;
+	authState.isAuthenticated = false;
+	authState.isAuthStale = false;
+	authState.operatorScopes = [];
+	authState.user = null;
+}
+
+function resetInitStatus() {
+	authServiceMock.check.mockReset();
+	authServiceMock.check.mockResolvedValue({ initialized: true });
+	useInitStatusStore.getState().reset();
+}
+
 describe("route guards", () => {
 	beforeEach(() => {
-		authState.checking = false;
-		authState.canAccessAdminShell = false;
-		authState.errorCode = null;
-		authState.hasPermissionId.mockReset();
-		authState.hasPermissionId.mockImplementation((scope: string) =>
-			authState.operatorScopes.includes(scope),
-		);
-		authState.hydrate.mockReset();
-		authState.hydrate.mockResolvedValue(undefined);
-		authState.isAdmin = false;
-		authState.isAuthenticated = false;
-		authState.isAuthStale = false;
-		authState.operatorScopes = [];
-		authState.user = null;
+		resetAuthState();
+		resetInitStatus();
 	});
 
 	it("renders protected content for authenticated users without forced password change", async () => {
@@ -184,5 +212,164 @@ describe("route guards", () => {
 			screen.getByRole("link", { name: "Change password" }),
 		).toHaveAttribute("href", "/force-password-change");
 		expect(screen.queryByText("login route")).not.toBeInTheDocument();
+	});
+});
+
+describe("route guards: init gate", () => {
+	beforeEach(() => {
+		resetAuthState();
+		resetInitStatus();
+	});
+
+	it("shows setup required state before initialization", async () => {
+		authServiceMock.check.mockResolvedValue({ initialized: false });
+		const router = createMemoryRouter(
+			[
+				{
+					element: <InitializedGate />,
+					children: [
+						{
+							path: "/register",
+							element: <div>register-route</div>,
+						},
+					],
+				},
+				{ path: "/init", element: <div>init-route</div> },
+			],
+			{ initialEntries: ["/register"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("Setup required")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Start setup" })).toHaveAttribute(
+			"href",
+			"/init",
+		);
+		expect(screen.queryByText("register-route")).not.toBeInTheDocument();
+		expect(screen.queryByText("init-route")).not.toBeInTheDocument();
+	});
+});
+
+describe("route guards: authenticated gate", () => {
+	beforeEach(() => {
+		resetAuthState();
+		resetInitStatus();
+	});
+
+	it("shows login required state for protected routes when unauthenticated", async () => {
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AuthenticatedGate />,
+					children: [
+						{
+							path: "/account",
+							element: <Outlet />,
+						},
+					],
+				},
+				{ path: "/login", element: <div>login-route</div> },
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("Login required")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Go to login" })).toHaveAttribute(
+			"href",
+			"/login",
+		);
+		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
+	});
+
+	it("shows network error state for protected routes when auth hydration cannot reach the server", async () => {
+		authState.errorCode = "network_error";
+		authState.hydrate.mockRejectedValue(new Error("network gone"));
+		authState.isAuthStale = true;
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AuthenticatedGate />,
+					children: [
+						{
+							path: "/account",
+							element: <Outlet />,
+						},
+					],
+				},
+				{ path: "/login", element: <div>login-route</div> },
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("Connection lost")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Retry connection" }),
+		).toBeInTheDocument();
+		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
+		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
+	});
+});
+
+describe("route guards: guest-only gate", () => {
+	beforeEach(() => {
+		resetAuthState();
+		resetInitStatus();
+	});
+
+	it("shows already signed in state on guest-only routes", async () => {
+		authState.isAuthenticated = true;
+		authState.user = { must_change_password: false, role: "user" };
+
+		const router = createMemoryRouter(
+			[
+				{
+					path: "/login",
+					element: <GuestOnlyGate />,
+					children: [{ index: true, element: <div>login-route</div> }],
+				},
+				{
+					path: "/register",
+					element: <GuestOnlyGate />,
+					children: [{ index: true, element: <div>register-route</div> }],
+				},
+				{ path: "/account", element: <div>account-route</div> },
+			],
+			{ initialEntries: ["/register"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("Already signed in")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Open workbench" }),
+		).toHaveAttribute("href", "/account");
+		expect(screen.queryByText("account-route")).not.toBeInTheDocument();
+		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
+		expect(screen.queryByText("register-route")).not.toBeInTheDocument();
+	});
+
+	it("does not block the login route with an auth check for anonymous visitors", async () => {
+		authState.checking = true;
+
+		const router = createMemoryRouter(
+			[
+				{
+					path: "/login",
+					element: <GuestOnlyGate />,
+					children: [{ index: true, element: <div>login-route</div> }],
+				},
+			],
+			{ initialEntries: ["/login"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(await screen.findByText("login-route")).toBeInTheDocument();
+		expect(authState.hydrate).not.toHaveBeenCalled();
 	});
 });

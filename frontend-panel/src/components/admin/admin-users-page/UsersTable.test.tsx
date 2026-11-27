@@ -5,19 +5,12 @@ import {
 	UsersTableHeader,
 	UsersTableRow,
 } from "@/components/admin/admin-users-page/UsersTable";
+import { createAdminUser } from "@/test/fixtures";
 import type { AdminUserInfo } from "@/types/api";
 
 function user(overrides: Partial<AdminUserInfo> = {}): AdminUserInfo {
-	return {
+	return createAdminUser({
 		id: 2,
-		username: "alex",
-		email: "alex@example.com",
-		pending_email: null,
-		operator_scopes: [],
-		role: "user",
-		status: "active",
-		must_change_password: false,
-		session_version: 1,
 		profile_count: 1,
 		active_session_count: 2,
 		profile: {
@@ -29,11 +22,8 @@ function user(overrides: Partial<AdminUserInfo> = {}): AdminUserInfo {
 				version: 3,
 			},
 		},
-		email_verified_at: "2026-06-18T00:00:00Z",
-		created_at: "2026-06-18T00:00:00Z",
-		updated_at: "2026-06-18T01:00:00Z",
 		...overrides,
-	};
+	});
 }
 
 function renderRow(target: AdminUserInfo = user()) {

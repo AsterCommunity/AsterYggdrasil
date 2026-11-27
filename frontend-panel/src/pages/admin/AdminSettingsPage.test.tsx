@@ -9,11 +9,44 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
 import { adminConfigService } from "@/services/adminService";
+import { createMockTWithInterpolation } from "@/test/i18n";
 import type {
 	ConfigSchemaItem,
 	SystemConfig,
 	TemplateVariableGroup,
 } from "@/types/api";
+
+// Settings copy asserted below uses the en-US locale strings so the tests
+// verify the key → copy wiring instead of bare key literals.
+const settingsTranslations = {
+	mail_send_test_email: "Send test email",
+	mail_template_variable_link: "Show template variables",
+	mail_template_variables_dialog_empty:
+		"This template has no variables to show.",
+	mail_test_email_recipient_label: "Recipient email",
+	settings_category_auth: "Account Auth",
+	settings_category_mail: "Mail",
+	settings_category_network: "Network",
+	settings_category_runtime: "Runtime",
+	settings_category_site: "Site",
+	settings_category_texture: "Textures",
+	settings_category_user: "Users",
+	settings_empty_desc: "Adjust the group or search term and query again.",
+	settings_empty_title: "No settings found",
+	settings_enum_set_search_placeholder: "Filter options",
+	settings_sensitive_keep_placeholder: "Leave blank to keep the current value",
+	settings_string_array_add_item: "Add item",
+	settings_time_unit_hours: "Hours",
+	settings_value_on: "Enabled",
+	yggdrasil_rotate_signature_key: "Rotate signing key",
+};
+
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		i18n: { changeLanguage: vi.fn(), language: "en-US" },
+		t: createMockTWithInterpolation(settingsTranslations),
+	}),
+}));
 
 vi.mock("@/services/adminService", async (importOriginal) => {
 	const actual =
@@ -322,7 +355,7 @@ describe("AdminSettingsPage", () => {
 		await screen.findByDisplayValue("https://example.com");
 
 		expect(
-			screen.queryByRole("heading", { name: "settings_category_site" }),
+			screen.queryByRole("heading", { name: "Site" }),
 		).not.toBeInTheDocument();
 		expect(
 			screen.getByRole("heading", { name: "Site Public" }),
@@ -407,8 +440,10 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		expect(await screen.findByText("settings_empty_title")).toBeInTheDocument();
-		expect(screen.getByText("settings_empty_desc")).toBeInTheDocument();
+		expect(await screen.findByText("No settings found")).toBeInTheDocument();
+		expect(
+			screen.getByText("Adjust the group or search term and query again."),
+		).toBeInTheDocument();
 	});
 
 	it("keeps unsupported root categories out of the editable panel", async () => {
@@ -416,7 +451,7 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		expect(await screen.findByText("settings_empty_title")).toBeInTheDocument();
+		expect(await screen.findByText("No settings found")).toBeInTheDocument();
 		expect(screen.queryByDisplayValue("enabled")).not.toBeInTheDocument();
 	});
 
@@ -427,7 +462,7 @@ describe("AdminSettingsPage", () => {
 
 		fireEvent.click(
 			await screen.findByRole("link", {
-				name: /settings_category_user/i,
+				name: /Users/i,
 			}),
 		);
 
@@ -480,7 +515,7 @@ describe("AdminSettingsPage", () => {
 
 		fireEvent.click(
 			await screen.findByRole("link", {
-				name: /settings_category_user/i,
+				name: /Users/i,
 			}),
 		);
 
@@ -519,12 +554,12 @@ describe("AdminSettingsPage", () => {
 		renderPage();
 
 		const textureCategory = await screen.findByRole("link", {
-			name: /settings_category_texture/i,
+			name: /Textures/i,
 		});
 		fireEvent.click(textureCategory);
 
 		await waitFor(() => {
-			expect(screen.getAllByText("settings_value_on")).toHaveLength(2);
+			expect(screen.getAllByText("Enabled")).toHaveLength(2);
 		});
 		expect(
 			screen.getByRole("heading", { name: "Texture Library" }),
@@ -562,7 +597,7 @@ describe("AdminSettingsPage", () => {
 		renderPage();
 
 		const textureCategory = await screen.findByRole("link", {
-			name: /settings_category_texture/i,
+			name: /Textures/i,
 		});
 		fireEvent.click(textureCategory);
 
@@ -595,13 +630,11 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_auth/i }),
-		);
+		fireEvent.click(await screen.findByRole("link", { name: /Account Auth/i }));
 		expect(screen.queryByDisplayValue("stored-secret")).not.toBeInTheDocument();
 
 		const input = screen.getByPlaceholderText(
-			"settings_sensitive_keep_placeholder",
+			"Leave blank to keep the current value",
 		);
 		expect(input).toHaveValue("");
 		fireEvent.change(input, { target: { value: "new-secret" } });
@@ -626,7 +659,7 @@ describe("AdminSettingsPage", () => {
 
 		fireEvent.click(
 			await screen.findByRole("link", {
-				name: /settings_category_runtime/i,
+				name: /Runtime/i,
 			}),
 		);
 		const input = await screen.findByDisplayValue(4);
@@ -644,13 +677,9 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_auth/i }),
-		);
+		fireEvent.click(await screen.findByRole("link", { name: /Account Auth/i }));
 
-		expect(
-			await screen.findByText("settings_time_unit_hours"),
-		).toBeInTheDocument();
+		expect(await screen.findByText("Hours")).toBeInTheDocument();
 		expect(screen.queryByText("hours")).not.toBeInTheDocument();
 	});
 
@@ -672,7 +701,7 @@ describe("AdminSettingsPage", () => {
 		});
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "settings_string_array_add_item",
+				name: "Add item",
 			}),
 		);
 		const rows = screen.getAllByRole("textbox");
@@ -703,12 +732,10 @@ describe("AdminSettingsPage", () => {
 
 		fireEvent.click(
 			await screen.findByRole("link", {
-				name: /settings_category_network/i,
+				name: /Network/i,
 			}),
 		);
-		const filter = await screen.findByPlaceholderText(
-			"settings_enum_set_search_placeholder",
-		);
+		const filter = await screen.findByPlaceholderText("Filter options");
 		fireEvent.change(filter, { target: { value: "beta" } });
 
 		expect(screen.queryByText("https://alpha.example")).not.toBeInTheDocument();
@@ -733,9 +760,7 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_mail/i }),
-		);
+		fireEvent.click(await screen.findByRole("link", { name: /Mail/i }));
 
 		const groupButton = await screen.findByRole("button", {
 			name: /Password reset/i,
@@ -752,7 +777,7 @@ describe("AdminSettingsPage", () => {
 			await screen.findByDisplayValue("Reset password"),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: /mail_template_variable_link/i }),
+			screen.getByRole("button", { name: /Show template variables/i }),
 		).toBeInTheDocument();
 	});
 
@@ -764,15 +789,13 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_mail/i }),
-		);
+		fireEvent.click(await screen.findByRole("link", { name: /Mail/i }));
 		fireEvent.click(
 			await screen.findByRole("button", { name: /Password reset/i }),
 		);
 		fireEvent.click(
 			await screen.findByRole("button", {
-				name: /mail_template_variable_link/i,
+				name: /Show template variables/i,
 			}),
 		);
 
@@ -786,21 +809,19 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_mail/i }),
-		);
+		fireEvent.click(await screen.findByRole("link", { name: /Mail/i }));
 		fireEvent.click(
 			await screen.findByRole("button", { name: /Password reset/i }),
 		);
 
 		const variableButton = await screen.findByRole("button", {
-			name: /mail_template_variable_link/i,
+			name: /Show template variables/i,
 		});
 		expect(variableButton).toBeEnabled();
 		fireEvent.click(variableButton);
 
 		expect(
-			await screen.findByText("mail_template_variables_dialog_empty"),
+			await screen.findByText("This template has no variables to show."),
 		).toBeInTheDocument();
 	});
 
@@ -813,20 +834,15 @@ describe("AdminSettingsPage", () => {
 
 		renderPage();
 
+		fireEvent.click(await screen.findByRole("link", { name: /Mail/i }));
 		fireEvent.click(
-			await screen.findByRole("link", { name: /settings_category_mail/i }),
+			await screen.findByRole("button", { name: /Send test email/i }),
 		);
-		fireEvent.click(
-			await screen.findByRole("button", { name: /mail_send_test_email/i }),
-		);
-		fireEvent.change(
-			await screen.findByLabelText(/mail_test_email_recipient_label/i),
-			{
-				target: { value: "ops@example.com" },
-			},
-		);
+		fireEvent.change(await screen.findByLabelText(/Recipient email/i), {
+			target: { value: "ops@example.com" },
+		});
 		const sendButtons = screen.getAllByRole("button", {
-			name: /mail_send_test_email/i,
+			name: /Send test email/i,
 		});
 		fireEvent.click(sendButtons[sendButtons.length - 1]);
 
@@ -864,7 +880,7 @@ describe("AdminSettingsPage", () => {
 
 		fireEvent.click(
 			await screen.findByRole("button", {
-				name: /yggdrasil_rotate_signature_key/i,
+				name: /Rotate signing key/i,
 			}),
 		);
 

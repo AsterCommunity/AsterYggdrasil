@@ -446,10 +446,13 @@ describe("TextureWardrobePage", () => {
 			expect(screen.queryByText("Classic 1")).not.toBeInTheDocument();
 		});
 
+		// Base UI 等退场动画帧完成才卸载浮层，关闭断言需要异步等待
 		fireEvent.keyDown(document, { key: "Escape" });
-		expect(
-			screen.queryByTestId("wardrobe-tag-filter-popover"),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.queryByTestId("wardrobe-tag-filter-popover"),
+			).not.toBeInTheDocument();
+		});
 
 		fireEvent.click(
 			screen.getByRole("button", { name: "wardrobe.tagFilterButton" }),
@@ -458,9 +461,11 @@ describe("TextureWardrobePage", () => {
 			screen.getByTestId("wardrobe-tag-filter-popover"),
 		).toBeInTheDocument();
 		fireEvent.pointerDown(document.body);
-		expect(
-			screen.queryByTestId("wardrobe-tag-filter-popover"),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.queryByTestId("wardrobe-tag-filter-popover"),
+			).not.toBeInTheDocument();
+		});
 	});
 
 	it("shows an empty tag picker when admins have not created tags", async () => {

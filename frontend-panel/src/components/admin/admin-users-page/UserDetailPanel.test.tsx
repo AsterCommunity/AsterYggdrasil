@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UserDetailPanel } from "@/components/admin/admin-users-page/UserDetailPanel";
 import { i18next } from "@/i18n";
+import { createAdminUser, createUserBanPage } from "@/test/fixtures";
 import type { AdminUserInfo } from "@/types/api";
 
 const adminMinecraftProfileServiceMock = vi.hoisted(() => ({
@@ -36,25 +37,15 @@ vi.mock("@/services/permissionService", () => ({
 	},
 }));
 
-const user = {
+const user = createAdminUser({
 	active_session_count: 2,
-	created_at: "2026-06-15T00:00:00.000Z",
-	email: "alex@example.com",
 	email_verified_at: null,
-	id: 7,
-	must_change_password: false,
-	operator_scopes: [],
+	profile_count: 3,
 	profile: {
 		avatar: { source: "none", url_1024: null, url_512: null, version: 0 },
 		display_name: "Alex",
 	},
-	profile_count: 3,
-	role: "user",
-	session_version: 1,
-	status: "active",
-	updated_at: "2026-06-15T01:00:00.000Z",
-	username: "alex",
-} satisfies AdminUserInfo;
+});
 
 function renderPanel(overrides: Partial<AdminUserInfo> = {}) {
 	const onBack = vi.fn();
@@ -95,12 +86,7 @@ describe("UserDetailPanel", () => {
 			total: 0,
 		});
 		adminMinecraftProfileServiceMock.listTextures.mockResolvedValue([]);
-		adminUserServiceMock.listBans.mockResolvedValue({
-			items: [],
-			limit: 50,
-			next_cursor: null,
-			total: 0,
-		});
+		adminUserServiceMock.listBans.mockResolvedValue(createUserBanPage([]));
 	});
 
 	it("renders page detail sections without internal session version", () => {

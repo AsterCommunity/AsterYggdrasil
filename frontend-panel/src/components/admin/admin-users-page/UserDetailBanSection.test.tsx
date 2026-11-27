@@ -9,11 +9,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
 import { UserDetailBanSection } from "@/components/admin/admin-users-page/UserDetailBanSection";
 import { i18next } from "@/i18n";
-import type {
-	AdminUserBanPage,
-	UserBanEventInfo,
-	UserBanInfo,
-} from "@/types/api";
+import {
+	createUserBan,
+	createUserBanEvent,
+	createUserBanPage,
+} from "@/test/fixtures";
 
 const toastMock = vi.hoisted(() => ({
 	error: vi.fn(),
@@ -53,56 +53,6 @@ vi.mock("@/services/permissionService", () => ({
 	},
 }));
 
-function ban(overrides: Partial<UserBanInfo> = {}): UserBanInfo {
-	return {
-		admin_note: "internal note",
-		created_at: "2026-06-18T00:00:00Z",
-		created_by_user_id: 1,
-		effective: true,
-		effective_status: "active",
-		expires_at: null,
-		id: 11,
-		public_reason: "visible reason",
-		reason: "upload abuse",
-		revoke_note: null,
-		revoked_at: null,
-		revoked_by_user_id: null,
-		scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
-		starts_at: "2026-06-18T00:00:00Z",
-		status: "active",
-		updated_at: "2026-06-18T00:00:00Z",
-		user_id: 7,
-		...overrides,
-	};
-}
-
-function banPage(items: UserBanInfo[] = [ban()]): AdminUserBanPage {
-	return {
-		items,
-		limit: 50,
-		next_cursor: null,
-		total: items.length,
-	};
-}
-
-function event(overrides: Partial<UserBanEventInfo> = {}): UserBanEventInfo {
-	return {
-		actor_user_id: 1,
-		ban_id: 11,
-		created_at: "2026-06-18T00:00:00Z",
-		event_type: "created",
-		id: 21,
-		next_expires_at: null,
-		next_scopes: ["com.astercosm.yggdrasil.capability.texture.upload"],
-		next_status: "active",
-		note: "upload abuse",
-		previous_expires_at: null,
-		previous_scopes: null,
-		previous_status: null,
-		...overrides,
-	};
-}
-
 function renderSection() {
 	render(<UserDetailBanSection userId={7} />);
 }
@@ -120,13 +70,13 @@ describe("UserDetailBanSection", () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		await i18next.changeLanguage("en-US");
-		adminUserServiceMock.listBans.mockResolvedValue(banPage());
-		adminUserServiceMock.createBan.mockResolvedValue(ban({ id: 12 }));
+		adminUserServiceMock.listBans.mockResolvedValue(createUserBanPage());
+		adminUserServiceMock.createBan.mockResolvedValue(createUserBan({ id: 12 }));
 		adminUserServiceMock.updateBan.mockResolvedValue(
-			ban({ admin_note: "updated", id: 11, reason: "profile abuse" }),
+			createUserBan({ admin_note: "updated", id: 11, reason: "profile abuse" }),
 		);
 		adminUserServiceMock.revokeBan.mockResolvedValue(
-			ban({
+			createUserBan({
 				effective: false,
 				effective_status: "revoked",
 				revoke_note: "appeal accepted",
@@ -135,14 +85,14 @@ describe("UserDetailBanSection", () => {
 			}),
 		);
 		adminUserServiceMock.listBanEvents.mockResolvedValue([
-			event({
+			createUserBanEvent({
 				event_type: "revoked",
 				id: 22,
 				next_status: "revoked",
 				note: "appeal accepted",
 				previous_status: "active",
 			}),
-			event(),
+			createUserBanEvent(),
 		]);
 	});
 
@@ -163,8 +113,8 @@ describe("UserDetailBanSection", () => {
 
 	it("validates the create dialog and sends trimmed nullable fields", async () => {
 		adminUserServiceMock.listBans
-			.mockResolvedValueOnce(banPage([]))
-			.mockResolvedValueOnce(banPage([ban({ id: 12 })]));
+			.mockResolvedValueOnce(createUserBanPage([]))
+			.mockResolvedValueOnce(createUserBanPage([createUserBan({ id: 12 })]));
 		renderSection();
 		await screen.findByText("This user has no ban records.");
 
@@ -204,8 +154,8 @@ describe("UserDetailBanSection", () => {
 
 	it("unchecks an extra capability before submitting the ban", async () => {
 		adminUserServiceMock.listBans
-			.mockResolvedValueOnce(banPage([]))
-			.mockResolvedValueOnce(banPage([]));
+			.mockResolvedValueOnce(createUserBanPage([]))
+			.mockResolvedValueOnce(createUserBanPage([]));
 		renderSection();
 		await screen.findByText("This user has no ban records.");
 
@@ -240,8 +190,10 @@ describe("UserDetailBanSection", () => {
 
 	it("edits active bans with nullable clear fields", async () => {
 		adminUserServiceMock.listBans
-			.mockResolvedValueOnce(banPage())
-			.mockResolvedValueOnce(banPage([ban({ reason: "profile abuse" })]));
+			.mockResolvedValueOnce(createUserBanPage())
+			.mockResolvedValueOnce(
+				createUserBanPage([createUserBan({ reason: "profile abuse" })]),
+			);
 		renderSection();
 		await screen.findByText("Texture upload and wardrobe");
 
@@ -273,10 +225,10 @@ describe("UserDetailBanSection", () => {
 
 	it("revokes active bans and opens event history", async () => {
 		adminUserServiceMock.listBans
-			.mockResolvedValueOnce(banPage())
+			.mockResolvedValueOnce(createUserBanPage())
 			.mockResolvedValueOnce(
-				banPage([
-					ban({
+				createUserBanPage([
+					createUserBan({
 						effective: false,
 						effective_status: "revoked",
 						status: "revoked",
@@ -312,8 +264,8 @@ describe("UserDetailBanSection", () => {
 
 	it("disables edit and revoke for expired or revoked bans", async () => {
 		adminUserServiceMock.listBans.mockResolvedValueOnce(
-			banPage([
-				ban({
+			createUserBanPage([
+				createUserBan({
 					effective: false,
 					effective_status: "expired",
 					expires_at: "2026-06-17T00:00:00Z",
