@@ -286,7 +286,10 @@ describe("route guards: authenticated gate", () => {
 
 	it("shows network error state for protected routes when auth hydration cannot reach the server", async () => {
 		authState.errorCode = "network_error";
-		authState.hydrate.mockRejectedValue(new Error("network gone"));
+		// The gate renders from isAuthStale/errorCode, not from the hydrate
+		// result; the mock resolves because `void hydrate()` has no catch, and
+		// a rejected mock would surface as an unhandled promise rejection.
+		authState.hydrate.mockResolvedValue(undefined);
 		authState.isAuthStale = true;
 		const router = createMemoryRouter(
 			[

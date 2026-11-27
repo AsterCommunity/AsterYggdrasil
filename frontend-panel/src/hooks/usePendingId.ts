@@ -3,12 +3,15 @@ import { useCallback, useRef, useState } from "react";
 /**
  * Ref-latched guard for per-resource-id async actions
  * (frontend-uiux-guidelines.md 3.3): the latch is set synchronously before
- * awaiting, released in `finally`, and only clears while the same id is
- * still pending so a stale resolution cannot clobber a newer action.
+ * awaiting, and only the owning operation releases it. Each run takes an
+ * operation token that `clearPending()` invalidates, so neither a stale
+ * resolution for a different id nor a cleared action A in flight can unlock
+ * a newer action B that started afterwards — even when both use the same id.
  */
 export function usePendingId<T>() {
 	const [pendingId, setPendingId] = useState<T | null>(null);
 	const pendingIdRef = useRef<T | null>(null);
+	const tokenRef = useRef(0);
 
 	const runWithPending = useCallback(
 		async (id: T, action: () => Promise<void>): Promise<boolean> => {
@@ -17,12 +20,13 @@ export function usePendingId<T>() {
 			}
 
 			pendingIdRef.current = id;
+			const token = ++tokenRef.current;
 			setPendingId(id);
 			try {
 				await action();
 				return true;
 			} finally {
-				if (Object.is(pendingIdRef.current, id)) {
+				if (token === tokenRef.current) {
 					pendingIdRef.current = null;
 					setPendingId(null);
 				}
@@ -32,6 +36,9 @@ export function usePendingId<T>() {
 	);
 
 	const clearPending = useCallback(() => {
+		// Invalidate the in-flight operation's token so its eventual `finally`
+		// cannot release a lock that now belongs to a newer action.
+		tokenRef.current += 1;
 		pendingIdRef.current = null;
 		setPendingId(null);
 	}, []);

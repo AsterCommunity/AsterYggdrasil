@@ -40,6 +40,12 @@ export type ExternalAuthUiState = {
 	createStepTouched: boolean;
 	createdProvider: AdminExternalAuthProviderInfo | null;
 	deletingProvider: AdminExternalAuthProviderInfo | null;
+	/**
+	 * Incremented on every dialog open. Save completions carry the session
+	 * they belong to, so a slow save for dialog A can never close (or wipe)
+	 * a newer dialog B opened after the admin dismissed A's dialog.
+	 */
+	dialogSession: number;
 	dialogOpen: boolean;
 	editingProvider: AdminExternalAuthProviderInfo | null;
 	form: ExternalAuthProviderFormData;
@@ -61,7 +67,7 @@ type UiAction =
 			form: ExternalAuthProviderFormData;
 			provider: AdminExternalAuthProviderInfo;
 	  }
-	| { type: "close_dialog" }
+	| { type: "close_dialog"; session?: number }
 	| {
 			type: "set_form_field";
 			key: keyof ExternalAuthProviderFormData;
@@ -75,6 +81,7 @@ type UiAction =
 	| { type: "set_create_step"; value: number }
 	| { type: "set_create_step_touched"; value: boolean }
 	| { type: "set_submitting"; value: boolean }
+	| { type: "save_settled"; session: number }
 	| { type: "set_testing_draft"; value: boolean }
 	| { type: "set_testing_id"; value: number | null }
 	| { type: "set_test_result"; value: string | null }
@@ -93,6 +100,7 @@ function initialState(): ExternalAuthUiState {
 		createStepTouched: false,
 		createdProvider: null,
 		deletingProvider: null,
+		dialogSession: 0,
 		dialogOpen: false,
 		editingProvider: null,
 		form: emptyExternalAuthForm,
@@ -120,6 +128,7 @@ function reducer(
 				createStep: 0,
 				createStepTouched: false,
 				dialogOpen: true,
+				dialogSession: state.dialogSession + 1,
 				editingProvider: null,
 				form: action.form,
 				testResult: null,
@@ -130,11 +139,21 @@ function reducer(
 				createStep: 0,
 				createStepTouched: false,
 				dialogOpen: true,
+				dialogSession: state.dialogSession + 1,
 				editingProvider: action.provider,
 				form: action.form,
 				testResult: null,
 			};
-		case "close_dialog":
+		case "close_dialog": {
+			// A session-tagged close only applies to the dialog it was issued
+			// for; the header close button may have dismissed dialog A and a
+			// newer dialog B may be open with fresh drafts.
+			if (
+				action.session !== undefined &&
+				action.session !== state.dialogSession
+			) {
+				return { ...state, submitting: false };
+			}
 			return {
 				...state,
 				createStep: 0,
@@ -145,6 +164,7 @@ function reducer(
 				submitting: false,
 				testResult: null,
 			};
+		}
 		case "set_form_field":
 			return {
 				...state,
@@ -177,6 +197,12 @@ function reducer(
 			return { ...state, createStepTouched: action.value };
 		case "set_submitting":
 			return { ...state, submitting: action.value };
+		case "save_settled":
+			// A late save completion must not clear the submitting flag of a
+			// newer dialog session's own in-flight save.
+			return state.dialogSession === action.session
+				? { ...state, submitting: false }
+				: state;
 		case "set_testing_draft":
 			return { ...state, testingDraft: action.value };
 		case "set_testing_id":
@@ -387,6 +413,10 @@ export function useAdminExternalAuthPageController() {
 			dispatch({ type: "set_create_step_touched", value: true });
 			return;
 		}
+		// Tag the in-flight save with this dialog session: if the admin closes
+		// the dialog mid-save and opens another one, the late completion must
+		// not close the new session or discard its drafts.
+		const session = state.dialogSession;
 		try {
 			dispatch({ type: "set_submitting", value: true });
 			if (state.editingProvider) {
@@ -399,21 +429,21 @@ export function useAdminExternalAuthPageController() {
 						provider.id === updated.id ? updated : provider,
 					),
 				);
-				dispatch({ type: "close_dialog" });
+				dispatch({ type: "close_dialog", session });
 				toast.success(t("admin.externalAuth.updated"));
 				return;
 			}
 			const created = await adminExternalAuthService.create(
 				createPayload(state.form, selectedKind),
 			);
-			dispatch({ type: "close_dialog" });
+			dispatch({ type: "close_dialog", session });
 			dispatch({ type: "set_created_provider", value: created });
 			toast.success(t("admin.externalAuth.created"));
 			await list.reload();
 		} catch (error) {
 			handleApiError(error);
 		} finally {
-			dispatch({ type: "set_submitting", value: false });
+			dispatch({ type: "save_settled", session });
 		}
 	}
 

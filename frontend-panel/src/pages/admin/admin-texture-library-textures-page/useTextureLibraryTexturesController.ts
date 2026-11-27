@@ -83,9 +83,13 @@ export function useTextureLibraryTexturesController(mode: TexturePageMode) {
 	const querySchema = useMemo(
 		() => ({
 			keyword: managedStringField("keyword"),
+			// ALL_VALUE must be an accepted option, not just a default: the
+			// parser falls back to defaultValue for anything outside `options`,
+			// so a user-selected "__all__" written to the URL would bounce back
+			// to the reviews default on the next render.
 			libraryStatus: managedEnumField(
 				"libraryStatus",
-				["private", "pending_review", "published", "rejected"],
+				[ALL_VALUE, "private", "pending_review", "published", "rejected"],
 				modeDefaults.libraryStatus,
 			),
 			offset: managedRemovedField("offset"),
@@ -95,13 +99,13 @@ export function useTextureLibraryTexturesController(mode: TexturePageMode) {
 			),
 			published: managedEnumField(
 				"published",
-				["published", "not_published"],
+				[ALL_VALUE, "published", "not_published"],
 				modeDefaults.published,
 			),
 			textureType: managedEnumField("textureType", ["skin", "cape"], ALL_VALUE),
 			visibility: managedEnumField(
 				"visibility",
-				["private", "public"],
+				[ALL_VALUE, "private", "public"],
 				modeDefaults.visibility,
 			),
 		}),

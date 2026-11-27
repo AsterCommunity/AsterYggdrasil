@@ -338,7 +338,11 @@ export function useAdminSettingsPageController() {
 		if (validationIssues.length > 0) return;
 		dispatch({ type: "set_saving", value: true });
 		try {
-			const results = await Promise.all(
+			// Partial success is a real outcome: A may persist while B fails.
+			// Commit A's result so it is not re-submitted, keep B's draft for
+			// correction, and only settle `saving` after every request ended —
+			// an early release would let a retry overlap the still-running A.
+			const settled = await Promise.allSettled(
 				changedConfigs.map((config) => {
 					const draft = drafts[config.key];
 					return adminConfigService.set(
@@ -350,10 +354,33 @@ export function useAdminSettingsPageController() {
 					);
 				}),
 			);
-			const updated = results.map((result) => result.config);
-			dispatch({ type: "saved", updated });
-			for (const warning of results.flatMap((result) => result.warnings)) {
-				if (warning.message) toast.warning(warning.message);
+			const fulfilled = settled.filter(
+				(
+					item,
+				): item is PromiseFulfilledResult<
+					Awaited<ReturnType<typeof adminConfigService.set>>
+				> => item.status === "fulfilled",
+			);
+			const rejected = settled.filter(
+				(item): item is PromiseRejectedResult => item.status === "rejected",
+			);
+			if (fulfilled.length > 0) {
+				dispatch({
+					type: "saved",
+					updated: fulfilled.map((item) => item.value.config),
+				});
+				for (const warning of fulfilled.flatMap(
+					(item) => item.value.warnings,
+				)) {
+					if (warning.message) toast.warning(warning.message);
+				}
+			}
+			if (rejected.length > 0) {
+				const last = rejected[rejected.length - 1].reason;
+				dispatch({
+					type: "save_failed",
+					message: `${formatError(last)} (${rejected.length}/${settled.length})`,
+				});
 			}
 		} catch (nextError) {
 			dispatch({ type: "save_failed", message: formatError(nextError) });
