@@ -98,22 +98,28 @@ export function useMinecraftProfilesPageController() {
 		}
 	}, [dispatch, profiles, selectedUuid]);
 
+	// Only the latest textures load may commit state: switching profiles while
+	// a request is in flight must not let the stale response overwrite the
+	// newly selected profile's textures or loading flag.
+	const textureLoadGeneration = useRef(0);
 	const loadTextures = useCallback(
 		async (uuid: string) => {
+			const generation = ++textureLoadGeneration.current;
 			if (!uuid) {
 				dispatch({ type: "textures", value: [] });
+				dispatch({ type: "texturesLoading", value: false });
 				return;
 			}
 			dispatch({ type: "texturesLoading", value: true });
 			try {
-				dispatch({
-					type: "textures",
-					value: await yggdrasilService.listProfileTextures(uuid),
-				});
+				const nextTextures = await yggdrasilService.listProfileTextures(uuid);
+				if (generation !== textureLoadGeneration.current) return;
+				dispatch({ type: "textures", value: nextTextures });
+				dispatch({ type: "texturesLoading", value: false });
 			} catch (nextError) {
+				if (generation !== textureLoadGeneration.current) return;
 				toast.error(formatUnknownError(nextError));
 				dispatch({ type: "textures", value: [] });
-			} finally {
 				dispatch({ type: "texturesLoading", value: false });
 			}
 		},
@@ -145,8 +151,11 @@ export function useMinecraftProfilesPageController() {
 	);
 
 	useEffect(() => {
+		// Drop the previous profile's textures immediately so the preview panel
+		// never shows stale data while the new profile's textures are loading.
+		dispatch({ type: "textures", value: [] });
 		void loadTextures(selectedUuid);
-	}, [selectedUuid, loadTextures]);
+	}, [dispatch, selectedUuid, loadTextures]);
 
 	useEffect(() => {
 		void loadProfileSkinUrls();

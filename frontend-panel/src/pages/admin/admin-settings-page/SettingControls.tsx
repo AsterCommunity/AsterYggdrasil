@@ -25,18 +25,33 @@ export function SettingControl({
 	draft,
 	onChange,
 	schema,
+	controlId,
+	labelledById,
 }: {
 	config: SystemConfig;
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
 	schema?: ConfigSchemaItem;
+	/** id applied to the primary form control (Label htmlFor target). */
+	controlId?: string;
+	/** id of the row's visible label, referenced by grouped controls. */
+	labelledById?: string;
 }) {
 	const { t } = useTranslation();
 	if (config.value_type === "boolean") {
-		return <BooleanControl draft={draft} onChange={onChange} />;
+		return (
+			<BooleanControl draft={draft} onChange={onChange} controlId={controlId} />
+		);
 	}
 	if (config.value_type === "number") {
-		return <NumberControl config={config} draft={draft} onChange={onChange} />;
+		return (
+			<NumberControl
+				config={config}
+				draft={draft}
+				onChange={onChange}
+				controlId={controlId}
+			/>
+		);
 	}
 	if (config.value_type === "string_enum") {
 		return (
@@ -44,6 +59,8 @@ export function SettingControl({
 				draft={draft}
 				options={schema?.options ?? []}
 				onChange={onChange}
+				controlId={controlId}
+				labelledById={labelledById}
 			/>
 		);
 	}
@@ -53,6 +70,8 @@ export function SettingControl({
 				draft={draft}
 				options={schema?.options ?? []}
 				onChange={onChange}
+				controlId={controlId}
+				labelledById={labelledById}
 			/>
 		);
 	}
@@ -62,6 +81,8 @@ export function SettingControl({
 				draft={draft}
 				options={schema?.options ?? []}
 				onChange={onChange}
+				controlId={controlId}
+				labelledById={labelledById}
 			/>
 		);
 	}
@@ -72,11 +93,13 @@ export function SettingControl({
 				draft={draft}
 				language={editorLanguage(config)}
 				onChange={onChange}
+				controlId={controlId}
 			/>
 		);
 	}
 	return (
 		<Input
+			id={controlId}
 			type={config.is_sensitive ? "password" : "text"}
 			value={draft.text}
 			placeholder={
@@ -93,15 +116,18 @@ export function SettingControl({
 function BooleanControl({
 	draft,
 	onChange,
+	controlId,
 }: {
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
+	controlId?: string;
 }) {
 	const { t } = useTranslation();
 	const checked = draft.text === "true";
 	return (
 		<div className="flex items-center gap-3">
 			<Switch
+				id={controlId}
 				checked={checked}
 				onCheckedChange={(nextChecked) =>
 					onChange({ ...draft, text: nextChecked ? "true" : "false" })
@@ -118,10 +144,12 @@ function NumberControl({
 	config,
 	draft,
 	onChange,
+	controlId,
 }: {
 	config: SystemConfig;
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
+	controlId?: string;
 }) {
 	const { t } = useTranslation();
 	const baseUnit = getTimeConfigBaseUnit(config);
@@ -133,6 +161,7 @@ function NumberControl({
 	if (!units) {
 		return (
 			<Input
+				id={controlId}
 				type="number"
 				inputMode="numeric"
 				min={0}
@@ -176,11 +205,19 @@ function NumberControl({
 			return;
 		}
 
+		// Pin the unit that produced this value: otherwise the recomputed
+		// preferred unit can silently switch (e.g. 86400s renders as "1" day)
+		// and the next keystroke would be interpreted in the wrong unit.
+		setDisplayUnits((previous) => ({
+			...previous,
+			[config.key]: selectedUnit.value,
+		}));
 		onChange({ ...draft, text: String(nextValue) });
 	}
 
 	return (
 		<AdminNumberUnitInput
+			id={controlId}
 			value={displayValue}
 			unit={selectedUnit.value}
 			units={availableUnits}
@@ -201,10 +238,14 @@ function EnumSetControl({
 	draft,
 	onChange,
 	options,
+	controlId,
+	labelledById,
 }: {
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
 	options: NonNullable<ConfigSchemaItem["options"]>;
+	controlId?: string;
+	labelledById?: string;
 }) {
 	const { t } = useTranslation();
 	const [filter, setFilter] = useState("");
@@ -217,7 +258,11 @@ function EnumSetControl({
 	);
 
 	return (
-		<div className="grid gap-2">
+		<fieldset
+			id={controlId}
+			aria-labelledby={labelledById}
+			className="grid gap-2"
+		>
 			<div className="flex flex-wrap items-center gap-2">
 				<Input
 					value={filter}
@@ -241,6 +286,7 @@ function EnumSetControl({
 							type="button"
 							variant={active ? "default" : "outline"}
 							size="xs"
+							aria-pressed={active}
 							onClick={() => {
 								const next = new Set(selected);
 								if (active) {
@@ -262,7 +308,7 @@ function EnumSetControl({
 					);
 				})}
 			</div>
-		</div>
+		</fieldset>
 	);
 }
 
@@ -270,16 +316,24 @@ function StringEnumControl({
 	draft,
 	onChange,
 	options,
+	controlId,
+	labelledById,
 }: {
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
 	options: NonNullable<ConfigSchemaItem["options"]>;
+	controlId?: string;
+	labelledById?: string;
 }) {
 	const { t } = useTranslation();
 	const selected = draft.text.trim();
 
 	return (
-		<div className="flex max-h-72 flex-wrap gap-2 overflow-auto rounded-lg border border-border/70 bg-muted/15 p-2 dark:border-white/10">
+		<fieldset
+			id={controlId}
+			aria-labelledby={labelledById}
+			className="flex max-h-72 flex-wrap gap-2 overflow-auto rounded-lg border border-border/70 bg-muted/15 p-2 dark:border-white/10"
+		>
 			{options.map((option) => {
 				const active = selected === option.value;
 				return (
@@ -288,6 +342,7 @@ function StringEnumControl({
 						type="button"
 						variant={active ? "default" : "outline"}
 						size="xs"
+						aria-pressed={active}
 						onClick={() =>
 							onChange({ ...draft, text: option.value, array: [] })
 						}
@@ -302,7 +357,7 @@ function StringEnumControl({
 					</Button>
 				);
 			})}
-		</div>
+		</fieldset>
 	);
 }
 
@@ -310,19 +365,33 @@ function StringArrayControl({
 	draft,
 	onChange,
 	options,
+	controlId,
+	labelledById,
 }: {
 	draft: DraftValue;
 	onChange: (draft: DraftValue) => void;
 	options: NonNullable<ConfigSchemaItem["options"]>;
+	controlId?: string;
+	labelledById?: string;
 }) {
 	const { t } = useTranslation();
 	if (options.length > 0) {
 		return (
-			<EnumSetControl draft={draft} options={options} onChange={onChange} />
+			<EnumSetControl
+				draft={draft}
+				options={options}
+				onChange={onChange}
+				controlId={controlId}
+				labelledById={labelledById}
+			/>
 		);
 	}
 	return (
-		<div className="grid gap-2">
+		<fieldset
+			id={controlId}
+			aria-labelledby={labelledById}
+			className="grid gap-2"
+		>
 			{draft.arrayRows.map((row, index) => (
 				<div key={row.id} className="flex gap-2">
 					<Input
@@ -381,7 +450,7 @@ function StringArrayControl({
 			>
 				{t("settings_string_array_add_item")}
 			</Button>
-		</div>
+		</fieldset>
 	);
 }
 
@@ -390,11 +459,13 @@ function CodeTextControl({
 	draft,
 	language,
 	onChange,
+	controlId,
 }: {
 	config: SystemConfig;
 	draft: DraftValue;
 	language: string;
 	onChange: (draft: DraftValue) => void;
+	controlId?: string;
 }) {
 	const { t } = useTranslation();
 	const lines = Math.max(6, draft.text.split("\n").length);
@@ -423,6 +494,7 @@ function CodeTextControl({
 					))}
 				</div>
 				<Textarea
+					id={controlId}
 					value={draft.text}
 					rows={Math.min(18, Math.max(6, lines))}
 					placeholder={

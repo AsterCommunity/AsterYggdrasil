@@ -122,6 +122,7 @@
 	"yggdrasil_rotate_signature_key": "Rotate signing key",
 	"yggdrasil_rotate_signature_key_running": "Rotating",
 	"yggdrasil_rotate_signature_key_hint": "Generate a new RSA private key and use it for future textures property signatures.",
+	"yggdrasil_rotate_signature_key_dirty_hint": "There are unsaved changes. Save or revert them before rotating the signing key.",
 	"yggdrasil_rotate_signature_key_success": "Yggdrasil signing key rotated",
 	"settings_mail_template_group_register_activation": "Registration activation",
 	"settings_mail_template_group_contact_change_confirmation": "Contact change confirmation",

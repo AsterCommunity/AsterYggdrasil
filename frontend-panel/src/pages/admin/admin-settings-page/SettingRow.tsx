@@ -43,12 +43,23 @@ export function SettingRow({
 		config.description,
 	);
 	const changed = !draftEqualsConfig(config, draft);
+	// Stable per-setting ids: the visible label is programmatically associated
+	// with the control (htmlFor for single controls, aria-labelledby for
+	// grouped controls) instead of relying on layout proximity.
+	const labelId = `setting-label-${config.key}`;
+	const controlId = `setting-control-${config.key}`;
 
 	return (
 		<div className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(16rem,0.72fr)_minmax(0,1fr)] lg:items-start">
 			<div className="min-w-0">
 				<div className="flex flex-wrap items-center gap-2">
-					<Label className="text-sm font-semibold">{label}</Label>
+					<Label
+						id={labelId}
+						htmlFor={controlId}
+						className="text-sm font-semibold"
+					>
+						{label}
+					</Label>
 					<SettingDescriptionHelp
 						description={description}
 						label={t("settings_config_description_help", { label })}
@@ -86,6 +97,8 @@ export function SettingRow({
 					draft={draft}
 					schema={schema}
 					onChange={onChange}
+					controlId={controlId}
+					labelledById={labelId}
 				/>
 			</div>
 		</div>

@@ -3,6 +3,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -170,7 +171,12 @@ export function useTextureLibraryTexturesController(mode: TexturePageMode) {
 	});
 	const reload = list.reload;
 
+	// Detail loads are numbered: when the URL switches from texture A to B and
+	// A's response lands after B's, A must not overwrite the displayed detail
+	// or its loading flag. Only the latest issued request may commit state.
+	const detailRequestGeneration = useRef(0);
 	const loadDetailTexture = useCallback(async () => {
+		const generation = ++detailRequestGeneration.current;
 		if (!detailMode) return;
 		if (!textureId) {
 			setDetailTexture(null);
@@ -179,12 +185,15 @@ export function useTextureLibraryTexturesController(mode: TexturePageMode) {
 		}
 		setDetailLoading(true);
 		try {
-			setDetailTexture(await adminTextureLibraryService.getTexture(textureId));
-		} catch (error) {
-			setDetailTexture(null);
-			handleApiError(error);
-		} finally {
+			const texture = await adminTextureLibraryService.getTexture(textureId);
+			if (generation !== detailRequestGeneration.current) return;
+			setDetailTexture(texture);
 			setDetailLoading(false);
+		} catch (error) {
+			if (generation !== detailRequestGeneration.current) return;
+			setDetailTexture(null);
+			setDetailLoading(false);
+			handleApiError(error);
 		}
 	}, [detailMode, textureId]);
 

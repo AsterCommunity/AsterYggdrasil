@@ -76,6 +76,7 @@ function AdminSettingsPageLayout({
 					empty={empty}
 					expandedTemplateGroups={expandedTemplateGroups}
 					groupedConfigs={groupedConfigs}
+					hasUnsavedChanges={controller.changedCount > 0}
 					loading={loading}
 					rotatingYggdrasilKey={rotatingYggdrasilKey}
 					schemaMap={schemaMap}

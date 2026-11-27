@@ -28,6 +28,7 @@ export function SettingsCategoryContent({
 	empty,
 	expandedTemplateGroups,
 	groupedConfigs,
+	hasUnsavedChanges,
 	loading,
 	onChange,
 	onOpenTemplateVariables,
@@ -41,6 +42,7 @@ export function SettingsCategoryContent({
 	empty: boolean;
 	expandedTemplateGroups: Record<string, boolean>;
 	groupedConfigs: Record<string, SystemConfig[]>;
+	hasUnsavedChanges: boolean;
 	loading: boolean;
 	onChange: (key: string, draft: DraftValue) => void;
 	onOpenTemplateVariables: (templateCode: string) => void;
@@ -90,6 +92,7 @@ export function SettingsCategoryContent({
 						drafts={drafts}
 						schemaMap={schemaMap}
 						expandedTemplateGroups={expandedTemplateGroups}
+						hasUnsavedChanges={hasUnsavedChanges}
 						rotatingYggdrasilKey={rotatingYggdrasilKey}
 						onChange={onChange}
 						onOpenTemplateVariables={onOpenTemplateVariables}
@@ -108,6 +111,7 @@ function SettingsGroup({
 	configs,
 	drafts,
 	expandedTemplateGroups,
+	hasUnsavedChanges,
 	onChange,
 	onOpenTemplateVariables,
 	onOpenTestEmail,
@@ -120,6 +124,7 @@ function SettingsGroup({
 	configs: SystemConfig[];
 	drafts: Record<string, DraftValue>;
 	expandedTemplateGroups: Record<string, boolean>;
+	hasUnsavedChanges: boolean;
 	onChange: (key: string, draft: DraftValue) => void;
 	onOpenTemplateVariables: (templateCode: string) => void;
 	onOpenTestEmail: () => void;
@@ -133,6 +138,7 @@ function SettingsGroup({
 	const isMailTemplateSection = category === "mail.template";
 	const action = getSettingsGroupAction({
 		category,
+		hasUnsavedChanges,
 		onOpenTestEmail,
 		onRotateYggdrasilSignatureKey,
 		rotatingYggdrasilKey,
@@ -274,12 +280,14 @@ function MailTemplateGroup({
 
 function getSettingsGroupAction({
 	category,
+	hasUnsavedChanges,
 	onOpenTestEmail,
 	onRotateYggdrasilSignatureKey,
 	rotatingYggdrasilKey,
 	t,
 }: {
 	category: string;
+	hasUnsavedChanges: boolean;
 	onOpenTestEmail: () => void;
 	onRotateYggdrasilSignatureKey: () => void;
 	rotatingYggdrasilKey: boolean;
@@ -304,13 +312,16 @@ function getSettingsGroupAction({
 	}
 
 	if (category === "yggdrasil.signing") {
+		// Rotating reloads every config, which would silently discard unrelated
+		// unsaved drafts — the rotation stays gated until they are saved.
+		const rotateDisabled = rotatingYggdrasilKey || hasUnsavedChanges;
 		return (
 			<div className="flex flex-col items-start gap-2 lg:items-end">
 				<Button
 					type="button"
 					variant="outline"
 					size="sm"
-					disabled={rotatingYggdrasilKey}
+					disabled={rotateDisabled}
 					onClick={onRotateYggdrasilSignatureKey}
 				>
 					{rotatingYggdrasilKey
@@ -318,7 +329,9 @@ function getSettingsGroupAction({
 						: t("yggdrasil_rotate_signature_key")}
 				</Button>
 				<p className="max-w-xs text-xs text-muted-foreground lg:text-right">
-					{t("yggdrasil_rotate_signature_key_hint")}
+					{hasUnsavedChanges
+						? t("yggdrasil_rotate_signature_key_dirty_hint")
+						: t("yggdrasil_rotate_signature_key_hint")}
 				</p>
 			</div>
 		);

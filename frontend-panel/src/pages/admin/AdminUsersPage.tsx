@@ -134,7 +134,7 @@ function useAdminUsersPageController() {
 	const [generatedPassword, setGeneratedPassword] =
 		useState<GeneratedPasswordState | null>(null);
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	const [keywordDraft, setKeywordDraft] = useState("");
+	const [keywordUserDraft, setKeywordDraft] = useState("");
 
 	usePageTitle(t("admin.users.title"));
 
@@ -153,11 +153,23 @@ function useAdminUsersPageController() {
 	});
 	const { keyword: committedKeyword, pageSize, role, status } = query;
 	// The input keeps intermediate drafts; the URL commits after a debounce.
+	// Only user edits start the debounce pipeline: the URL stays the source of
+	// truth for external navigation (deep links, back/forward), otherwise a
+	// mount-time empty draft would overwrite a restored `?keyword=...` filter.
+	const [keywordSource, setKeywordSource] = useState<"url" | "user">("url");
+	const keywordDraft =
+		keywordSource === "url" ? committedKeyword : keywordUserDraft;
 	const debouncedKeyword = useDebouncedValue(keywordDraft, 250);
 	useEffect(() => {
+		if (keywordSource === "url") return;
 		if (debouncedKeyword.trim() === committedKeyword) return;
 		setQuery({ keyword: debouncedKeyword });
-	}, [committedKeyword, debouncedKeyword, setQuery]);
+	}, [committedKeyword, debouncedKeyword, keywordSource, setQuery]);
+	// Adopt URL changes into the draft while the user is not typing.
+	useEffect(() => {
+		if (keywordSource === "user") return;
+		setKeywordDraft(committedKeyword);
+	}, [committedKeyword, keywordSource]);
 
 	const { pending: submitting, runWithPending } = usePendingAction();
 	const { pendingId: deletingId, runWithPending: runDeletion } =
@@ -254,7 +266,10 @@ function useAdminUsersPageController() {
 				roleOptions={roleOptions}
 				status={status}
 				statusOptions={statusOptions}
-				onKeywordChange={setKeywordDraft}
+				onKeywordChange={(value) => {
+					setKeywordSource("user");
+					setKeywordDraft(value);
+				}}
 				onRoleChange={(value) => {
 					setQuery({
 						role: (value as UserFilterValue<UserRole> | null) ?? "__all__",
@@ -266,6 +281,7 @@ function useAdminUsersPageController() {
 					});
 				}}
 				onResetFilters={() => {
+					setKeywordSource("url");
 					setKeywordDraft("");
 					setQuery({
 						keyword: "",
