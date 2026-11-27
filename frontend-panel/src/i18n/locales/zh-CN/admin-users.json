@@ -10,7 +10,6 @@
 			"inviteUser": "邀请用户",
 			"inviteUserDescription": "向指定邮箱发送注册链接；若该邮箱已有待接受邀请，将更新为最新邀请。",
 			"inviteEmail": "受邀邮箱",
-			"inviteEmailInvalid": "请输入有效的邮箱地址。",
 			"sendInvitation": "发送邀请",
 			"invitationCreated": "邀请已创建",
 			"invitationMailQueued": "邮件已入队",

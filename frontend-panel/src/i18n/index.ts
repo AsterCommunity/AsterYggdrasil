@@ -5,6 +5,31 @@ import { readStorageItem, STORAGE_KEYS, writeStorageItem } from "@/lib/storage";
 
 const supportedLanguages = Object.keys(resources);
 
+/**
+ * BCP 47 document tag for each supported UI language; index.html hardcodes
+ * `lang="en"`, so the active locale has to be mirrored onto <html lang> here.
+ */
+const DOCUMENT_LANGUAGE_TAGS = {
+	"en-US": "en-US",
+	"zh-CN": "zh-CN",
+} as const satisfies Record<string, string>;
+
+export function documentLanguageTag(language: string) {
+	const tag =
+		DOCUMENT_LANGUAGE_TAGS[language as keyof typeof DOCUMENT_LANGUAGE_TAGS];
+	if (tag) {
+		return tag;
+	}
+	return language.split("-")[0] || language;
+}
+
+function syncDocumentLanguage(language: string) {
+	if (typeof document === "undefined") {
+		return;
+	}
+	document.documentElement.lang = documentLanguageTag(language);
+}
+
 function supportedLanguageFor(value: string | null | undefined) {
 	if (!value) {
 		return null;
@@ -54,5 +79,8 @@ void i18next.use(initReactI18next).init({
 		escapeValue: false,
 	},
 });
+
+i18next.on("languageChanged", syncDocumentLanguage);
+syncDocumentLanguage(i18next.language);
 
 export { i18next };

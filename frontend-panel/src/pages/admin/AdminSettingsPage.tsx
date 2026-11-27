@@ -1255,7 +1255,7 @@ function MailTemplateVariablesDialog({
 						variant="outline"
 						onClick={() => onOpenChange(false)}
 					>
-						{t("cancel")}
+						{t("common.cancel")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -1334,7 +1334,7 @@ function TestEmailDialog({
 						disabled={sending}
 						onClick={() => onOpenChange(false)}
 					>
-						{t("cancel")}
+						{t("common.cancel")}
 					</Button>
 					<Button type="button" disabled={sending} onClick={onSend}>
 						{sending ? t("mail_test_email_sending") : t("mail_send_test_email")}

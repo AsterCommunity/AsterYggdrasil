@@ -684,6 +684,7 @@ function SystemInfoPanel({
 		{
 			label: t("admin.overview.system.uptime"),
 			value: formatDurationSeconds(
+				t,
 				overview?.system_info.uptime_seconds,
 				loading ? "..." : t("admin.overview.system.unknown"),
 				i18n.language,

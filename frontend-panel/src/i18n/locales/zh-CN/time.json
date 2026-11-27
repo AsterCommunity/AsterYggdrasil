@@ -1,0 +1,8 @@
+{
+	"duration": {
+		"day_other": "{{count}} 天",
+		"hour_other": "{{count}} 小时",
+		"minute_other": "{{count}} 分钟",
+		"second_other": "{{count}} 秒"
+	}
+}

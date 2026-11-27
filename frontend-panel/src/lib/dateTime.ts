@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 export function formatDateTime(value: string, locale?: string) {
 	const date = new Date(value);
 	if (!Number.isFinite(date.getTime())) return value;
@@ -17,6 +19,7 @@ export function formatDateTimeOrFallback(
 }
 
 export function formatDurationSeconds(
+	t: TFunction,
 	value: number | null | undefined,
 	fallback: string,
 	locale?: string,
@@ -43,30 +46,9 @@ export function formatDurationSeconds(
 		if (parts.length >= 2) break;
 	}
 
-	const isZh = locale?.toLowerCase().startsWith("zh") ?? false;
-	const formatter = new Intl.NumberFormat(locale);
-
 	return parts
-		.map((part) => {
-			const number = formatter.format(part.value);
-			if (isZh) {
-				const labels = {
-					day: "天",
-					hour: "小时",
-					minute: "分钟",
-					second: "秒",
-				} as const;
-				return `${number} ${labels[part.key]}`;
-			}
-			const labels = {
-				day: ["day", "days"],
-				hour: ["hour", "hours"],
-				minute: ["minute", "minutes"],
-				second: ["second", "seconds"],
-			} as const;
-			const label =
-				part.value === 1 ? labels[part.key][0] : labels[part.key][1];
-			return `${number} ${label}`;
-		})
+		.map((part) =>
+			t(`duration.${part.key}`, { count: part.value, lng: locale }),
+		)
 		.join(" ");
 }
