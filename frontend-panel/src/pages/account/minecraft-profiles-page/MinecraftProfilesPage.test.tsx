@@ -27,6 +27,12 @@ const toastMock = vi.hoisted(() => ({
 	success: vi.fn(),
 }));
 
+const loggerMock = vi.hoisted(() => ({
+	warn: vi.fn(),
+	error: vi.fn(),
+	debug: vi.fn(),
+}));
+
 const yggdrasilServiceMock = vi.hoisted(() => ({
 	bindProfileTexture: vi.fn(),
 	createProfile: vi.fn(),
@@ -56,6 +62,10 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("sonner", () => ({
 	toast: toastMock,
+}));
+
+vi.mock("@/lib/logger", () => ({
+	logger: loggerMock,
 }));
 
 vi.mock("@/services/yggdrasilService", async (importOriginal) => {
@@ -203,7 +213,6 @@ describe("MinecraftProfilesPage", () => {
 	});
 
 	it("falls back to the profile icon when skin avatar metadata fails to load", async () => {
-		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 		yggdrasilServiceMock.listProfileSkinTextureUrls.mockRejectedValueOnce(
 			new Error("avatar metadata unavailable"),
 		);
@@ -211,7 +220,7 @@ describe("MinecraftProfilesPage", () => {
 		await renderPage();
 
 		await waitFor(() => {
-			expect(warnSpy).toHaveBeenCalledWith(
+			expect(loggerMock.warn).toHaveBeenCalledWith(
 				"Failed to load Minecraft profile skin avatars",
 				expect.any(Error),
 			);
@@ -225,8 +234,6 @@ describe("MinecraftProfilesPage", () => {
 		expect(toastMock.error).not.toHaveBeenCalledWith(
 			"avatar metadata unavailable",
 		);
-
-		warnSpy.mockRestore();
 	});
 
 	it("searches profiles on the server after debounce and shows the empty state", async () => {

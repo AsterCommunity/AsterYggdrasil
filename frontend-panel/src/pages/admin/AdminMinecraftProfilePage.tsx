@@ -38,6 +38,7 @@ import { CopyField } from "@/components/yggdrasil/CopyField";
 import { MinecraftPreviewPanel } from "@/components/yggdrasil/MinecraftPreviewPanel";
 import { handleApiError } from "@/hooks/useApiError";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { logger } from "@/lib/logger";
 import { getUserDisplayName } from "@/lib/user";
 import { adminPaths, adminUserPath } from "@/routes/routePaths";
 import {
@@ -188,7 +189,7 @@ export default function AdminMinecraftProfilePage() {
 			const [nextTextures, nextOwnerUser] = await Promise.all([
 				adminMinecraftProfileService.listTextures(uuid),
 				adminUserService.get(nextProfile.user_id).catch((error) => {
-					console.warn("Failed to load Minecraft profile owner user", error);
+					logger.warn("Failed to load Minecraft profile owner user", error);
 					return null;
 				}),
 			]);

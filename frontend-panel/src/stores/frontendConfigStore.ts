@@ -5,6 +5,7 @@ import {
 	DEFAULT_BRANDING,
 	resolveBranding,
 } from "@/lib/branding";
+import { logger } from "@/lib/logger";
 import {
 	readStorageItem,
 	removeStorageItem,
@@ -273,7 +274,7 @@ export const useFrontendConfigStore = create<FrontendConfigState>(
 					writeCachedFrontendConfig(config);
 					set(applyFrontendConfig(config));
 				} catch (error) {
-					console.warn(
+					logger.warn(
 						"frontend config bootstrap failed, using cached/defaults",
 						error,
 					);

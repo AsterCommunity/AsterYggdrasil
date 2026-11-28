@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useCursorList } from "@/hooks/useCursorList";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { logger } from "@/lib/logger";
 import { validateMinecraftTextureFile } from "@/lib/minecraftTextureValidation";
 import { formatUnknownError } from "@/services/http";
 import { yggdrasilService } from "@/services/yggdrasilService";
@@ -140,10 +141,7 @@ export function useMinecraftProfilesPageController() {
 					),
 				});
 			} catch (nextError) {
-				console.warn(
-					"Failed to load Minecraft profile skin avatars",
-					nextError,
-				);
+				logger.warn("Failed to load Minecraft profile skin avatars", nextError);
 				dispatch({ type: "profileSkinUrls", value: {} });
 			}
 		},
