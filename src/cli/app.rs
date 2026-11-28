@@ -4,6 +4,11 @@ use super::common::help;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// `--help` footer for builds including the operational commands.
+const AFTER_HELP_WITH_OPERATIONS: &str = "Examples:\n  aster_yggdrasil serve\n  aster_yggdrasil serve api\n  aster_yggdrasil --data-dir /srv/asteryggdrasil serve worker\n  printf '%s' \"$PW\" | aster_yggdrasil hash-password\n\nRunning without a command starts all server roles.";
+/// `--help` footer for server-only builds without operational commands.
+const AFTER_HELP_SERVER_ONLY: &str = "Examples:\n  aster_yggdrasil serve\n  aster_yggdrasil serve api\n  aster_yggdrasil --data-dir /srv/asteryggdrasil serve worker\n\nRunning without a command starts all server roles.";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "aster_yggdrasil",
@@ -11,7 +16,11 @@ use std::path::PathBuf;
     version,
     propagate_version = true,
     about = env!("CARGO_PKG_DESCRIPTION"),
-    after_help = "Examples:\n  aster_yggdrasil serve\n  aster_yggdrasil serve api\n  aster_yggdrasil --data-dir /srv/asteryggdrasil serve worker\n  printf '%s' \"$PW\" | aster_yggdrasil hash-password\n\nRunning without a command starts all server roles.",
+    after_help = if cfg!(feature = "operations-cli") {
+        AFTER_HELP_WITH_OPERATIONS
+    } else {
+        AFTER_HELP_SERVER_ONLY
+    },
     styles = help::cli_styles()
 )]
 pub(super) struct RootCli {
@@ -45,19 +54,27 @@ pub(super) enum RootCommand {
         #[arg(value_enum, default_value = "all")]
         role: crate::runtime::role::ServeRole,
     },
+    #[cfg(feature = "operations-cli")]
     /// Generate an authentication verifier (masked terminal input, or stdin until EOF)
     HashPassword,
+    /// Show build information
+    Version {
+        /// Output build information as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[cfg(test)]
+fn parsed(args: &[&str]) -> RootCli {
+    let full = std::iter::once("aster_yggdrasil").chain(args.iter().copied());
+    RootCli::try_parse_from(full).unwrap_or_else(|error| panic!("args should parse: {error}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::runtime::role::ServeRole;
-
-    fn parsed(args: &[&str]) -> RootCli {
-        let full = std::iter::once("aster_yggdrasil").chain(args.iter().copied());
-        RootCli::try_parse_from(full).unwrap_or_else(|error| panic!("args should parse: {error}"))
-    }
 
     fn parsed_role(args: &[&str]) -> ServeRole {
         match parsed(args).command {
@@ -130,6 +147,29 @@ mod tests {
             assert_eq!(parsed_role(&["serve", role.as_str()]), role);
         }
     }
+
+    #[test]
+    fn version_subcommand_parses_with_and_without_json_flag() {
+        let plain = parsed(&["version"]);
+        assert!(matches!(
+            plain.command,
+            Some(RootCommand::Version { json: false })
+        ));
+        let json = parsed(&["version", "--json"]);
+        assert!(matches!(
+            json.command,
+            Some(RootCommand::Version { json: true })
+        ));
+        assert!(
+            RootCli::try_parse_from(["aster_yggdrasil", "version", "extra"]).is_err(),
+            "version must not accept positional arguments"
+        );
+    }
+}
+
+#[cfg(all(test, feature = "operations-cli"))]
+mod hash_password_cli_tests {
+    use super::*;
 
     #[test]
     fn hash_password_subcommand_parses_without_extra_arguments() {
