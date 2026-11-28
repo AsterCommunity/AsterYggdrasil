@@ -6,10 +6,12 @@ use std::{
     process::Command,
 };
 
-pub(crate) fn nearest_existing_watch_path(path: &Path) -> Option<PathBuf> {
-    path.ancestors()
-        .find(|candidate| candidate.exists())
-        .map(Path::to_path_buf)
+pub(crate) fn dirty_label(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "true",
+        Some(false) => "false",
+        None => "unknown",
+    }
 }
 
 pub(crate) fn feature_names(keys: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<String> {
@@ -31,7 +33,6 @@ pub(crate) fn feature_names(keys: impl IntoIterator<Item = impl AsRef<str>>) -> 
 pub(crate) struct SourceIdentity {
     pub(crate) revision: String,
     pub(crate) dirty: Option<bool>,
-    pub(crate) watch_paths: Vec<PathBuf>,
 }
 
 pub(crate) fn source_identity(
@@ -76,60 +77,7 @@ pub(crate) fn source_identity(
             )
         })
         .map(|status| !status.is_empty());
-    let mut watch_paths = Vec::new();
-    if own_repository {
-        for git_path in ["HEAD", "index", "packed-refs"] {
-            if let Some(path) = git_output(manifest_dir, &["rev-parse", "--git-path", git_path])
-                .and_then(|bytes| String::from_utf8(bytes).ok())
-            {
-                let path = PathBuf::from(path.trim());
-                watch_paths.push(if path.is_absolute() {
-                    path
-                } else {
-                    manifest_dir.join(path)
-                });
-            }
-        }
-        if let Some(reference) = git_output(manifest_dir, &["symbolic-ref", "--quiet", "HEAD"])
-            .and_then(|bytes| String::from_utf8(bytes).ok())
-            && let Some(path) =
-                git_output(manifest_dir, &["rev-parse", "--git-path", reference.trim()])
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-        {
-            let path = PathBuf::from(path.trim());
-            watch_paths.push(if path.is_absolute() {
-                path
-            } else {
-                manifest_dir.join(path)
-            });
-        }
-        if let Some(files) = git_output(
-            manifest_dir,
-            &[
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ],
-        ) {
-            for file in files
-                .split(|byte| *byte == 0)
-                .filter(|path| !path.is_empty())
-            {
-                if let Ok(file) = std::str::from_utf8(file)
-                    && !file.contains(['\r', '\n'])
-                {
-                    watch_paths.push(manifest_dir.join(file));
-                }
-            }
-        }
-    }
-    Ok(SourceIdentity {
-        revision,
-        dirty,
-        watch_paths,
-    })
+    Ok(SourceIdentity { revision, dirty })
 }
 
 fn valid_revision(value: &str) -> bool {
@@ -231,9 +179,6 @@ mod tests {
         let clean = source_identity(root.path(), None).unwrap();
         assert_eq!(clean.revision, head);
         assert_eq!(clean.dirty, Some(false));
-        assert!(clean.watch_paths.iter().any(|path| path.ends_with("HEAD")));
-        assert!(clean.watch_paths.iter().any(|path| path.ends_with("index")));
-        assert!(clean.watch_paths.contains(&root.path().join("source.rs")));
 
         std::fs::write(root.path().join("source.rs"), "modified\n").unwrap();
         assert_eq!(
@@ -253,52 +198,13 @@ mod tests {
         std::fs::write(root.path().join("new.rs"), "untracked\n").unwrap();
         let untracked = source_identity(root.path(), None).unwrap();
         assert_eq!(untracked.dirty, Some(true));
-        assert!(untracked.watch_paths.contains(&root.path().join("new.rs")));
     }
 
     #[test]
-    fn missing_git_and_source_paths_fall_back_to_existing_parents() {
-        let root = directory("missing-watch-paths");
-        let head = repository(root.path());
-        let packed_refs = root.path().join(".git/packed-refs");
-        if packed_refs.exists() {
-            std::fs::remove_file(&packed_refs).unwrap();
-        }
-        let packed_refs_identity = source_identity(root.path(), None).unwrap();
-        assert!(packed_refs_identity.watch_paths.contains(&packed_refs));
-        assert_eq!(
-            nearest_existing_watch_path(&packed_refs),
-            packed_refs.parent().map(Path::to_path_buf)
-        );
-
-        let branch = git(root.path(), &["symbolic-ref", "--short", "HEAD"]);
-        let loose_ref = root.path().join(git(
-            root.path(),
-            &["rev-parse", "--git-path", &format!("refs/heads/{branch}")],
-        ));
-        std::fs::remove_file(&loose_ref).unwrap();
-        let deleted_ref_identity = source_identity(root.path(), None).unwrap();
-        assert_eq!(deleted_ref_identity.revision, "unknown");
-        assert!(deleted_ref_identity.watch_paths.contains(&loose_ref));
-        assert_eq!(
-            nearest_existing_watch_path(&loose_ref),
-            loose_ref.parent().map(Path::to_path_buf)
-        );
-
-        let root = directory("deleted-tracked-watch");
-        let _head = repository(root.path());
-        let tracked = root.path().join("source.rs");
-        std::fs::remove_file(&tracked).unwrap();
-        let deleted_file_identity = source_identity(root.path(), None).unwrap();
-        assert!(deleted_file_identity.watch_paths.contains(&tracked));
-        assert_eq!(
-            nearest_existing_watch_path(&tracked),
-            tracked.parent().map(Path::to_path_buf)
-        );
-
-        // Keep the fixture's revision in scope so this test also proves the
-        // repository remained readable before the deliberate ref deletion.
-        assert!(!head.is_empty());
+    fn dirty_label_preserves_unknown_provenance() {
+        assert_eq!(dirty_label(Some(true)), "true");
+        assert_eq!(dirty_label(Some(false)), "false");
+        assert_eq!(dirty_label(None), "unknown");
     }
 
     #[test]
@@ -340,7 +246,6 @@ mod tests {
         let unknown = source_identity(&archive, None).unwrap();
         assert_eq!(unknown.revision, "unknown");
         assert_eq!(unknown.dirty, None);
-        assert!(unknown.watch_paths.is_empty());
         let explicit = source_identity(&archive, Some(short)).unwrap();
         assert_eq!(explicit.revision, short);
         assert_eq!(explicit.dirty, None);
@@ -368,8 +273,6 @@ mod tests {
         let clean = source_identity(&checkout, None).unwrap();
         assert_eq!(clean.revision, head);
         assert_eq!(clean.dirty, Some(false));
-        let index = PathBuf::from(git(&checkout, &["rev-parse", "--git-path", "index"]));
-        assert!(clean.watch_paths.contains(&index));
         std::fs::write(checkout.join("source.rs"), "linked changes\n").unwrap();
         assert_eq!(source_identity(&checkout, None).unwrap().dirty, Some(true));
         assert_eq!(

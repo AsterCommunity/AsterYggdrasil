@@ -1,5 +1,19 @@
 //! Build identity presentation for the version command.
 
+fn dirty_suffix(dirty: Option<bool>) -> &'static str {
+    match dirty {
+        Some(true) => " (dirty)",
+        Some(false) => "",
+        None => " (working tree unknown)",
+    }
+}
+
+fn pretty_json<T: serde::Serialize>(value: &T) -> crate::errors::Result<String> {
+    serde_json::to_string_pretty(value).map_err(|_| {
+        crate::errors::AsterError::internal_error("cannot serialize build information")
+    })
+}
+
 pub(in crate::cli) fn render_build_info(json: bool) -> crate::errors::Result<String> {
     #[derive(serde::Serialize)]
     struct BuildInfo {
@@ -31,15 +45,9 @@ pub(in crate::cli) fn render_build_info(json: bool) -> crate::errors::Result<Str
         build_time: env!("ASTER_BUILD_TIME"),
     };
     if json {
-        return serde_json::to_string_pretty(&info).map_err(|_| {
-            crate::errors::AsterError::internal_error("cannot serialize build information")
-        });
+        return pretty_json(&info);
     }
-    let revision = match info.dirty {
-        Some(true) => format!("{} (dirty)", info.revision),
-        Some(false) => info.revision.to_owned(),
-        None => format!("{} (working tree unknown)", info.revision),
-    };
+    let revision = format!("{}{}", info.revision, dirty_suffix(info.dirty));
     Ok([
         format!("{} {}", info.product, info.version),
         format!("Revision:  {revision}"),
@@ -56,4 +64,35 @@ pub(in crate::cli) fn render_build_info(json: bool) -> crate::errors::Result<Str
         format!("Built:     {}", info.build_time),
     ]
     .join("\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{dirty_suffix, pretty_json};
+    use serde::Serialize;
+
+    #[test]
+    fn dirty_suffix_distinguishes_clean_dirty_and_unknown_worktrees() {
+        assert_eq!(dirty_suffix(Some(true)), " (dirty)");
+        assert_eq!(dirty_suffix(Some(false)), "");
+        assert_eq!(dirty_suffix(None), " (working tree unknown)");
+    }
+
+    #[test]
+    fn json_serialization_failure_maps_to_a_safe_internal_error() {
+        struct FailsSerialization;
+        impl Serialize for FailsSerialization {
+            fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+                Err(serde::ser::Error::custom("private serializer detail"))
+            }
+        }
+
+        let error = pretty_json(&FailsSerialization).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("cannot serialize build information")
+        );
+        assert!(!error.message().contains("private serializer detail"));
+    }
 }

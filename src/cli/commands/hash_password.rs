@@ -18,6 +18,20 @@ fn valid_password(value: &str) -> bool {
     !value.is_empty() && value.len() <= 4096 && !value.chars().any(char::is_control)
 }
 
+#[cfg(feature = "operator-cli")]
+fn validate_terminal_password(value: &str) -> Validation {
+    if valid_password(value) {
+        Validation::Valid
+    } else {
+        Validation::Invalid(INVALID_PASSWORD.into())
+    }
+}
+
+#[cfg(feature = "operator-cli")]
+fn terminal_password_validator(value: &str) -> Result<Validation, inquire::error::CustomUserError> {
+    Ok(validate_terminal_password(value))
+}
+
 pub(in crate::cli) async fn execute() -> CliResult<String> {
     let input: SecretString = if std::io::stdin().is_terminal() {
         read_terminal_password()?
@@ -37,13 +51,11 @@ pub(in crate::cli) async fn execute() -> CliResult<String> {
 
 #[cfg(feature = "operator-cli")]
 fn read_terminal_password() -> CliResult<SecretString> {
-    super::super::common::input::read_terminal_value(true, "Password (masked)", |value: &str| {
-        Ok(if valid_password(value) {
-            Validation::Valid
-        } else {
-            Validation::Invalid(INVALID_PASSWORD.into())
-        })
-    })
+    super::super::common::input::read_terminal_value(
+        true,
+        "Password (masked)",
+        terminal_password_validator,
+    )
 }
 
 #[cfg(not(feature = "operator-cli"))]
@@ -55,10 +67,14 @@ fn read_terminal_password() -> CliResult<SecretString> {
 }
 
 fn read_piped_password() -> CliResult<SecretString> {
+    read_piped_password_from(std::io::stdin())
+}
+
+fn read_piped_password_from(reader: impl Read) -> CliResult<SecretString> {
     let mut password = String::new();
     // Include CRLF and one overflow byte so a long input cannot be
     // silently accepted after truncation at a line ending.
-    std::io::stdin()
+    reader
         .take(4099)
         .read_to_string(&mut password)
         .map_err(|_| AsterError::validation_error("input must be valid UTF-8"))?;
@@ -70,6 +86,40 @@ fn read_piped_password() -> CliResult<SecretString> {
 #[cfg(test)]
 mod tests {
     use super::valid_password;
+    use secrecy::ExposeSecret;
+    use std::io::Cursor;
+
+    #[cfg(feature = "operator-cli")]
+    #[test]
+    fn terminal_validator_uses_the_same_secret_boundaries() {
+        assert!(matches!(
+            super::validate_terminal_password("valid"),
+            inquire::validator::Validation::Valid
+        ));
+        assert!(matches!(
+            super::validate_terminal_password("\n"),
+            inquire::validator::Validation::Invalid(_)
+        ));
+    }
+
+    #[cfg(feature = "operator-cli")]
+    #[test]
+    fn terminal_prompt_requires_a_real_tty_before_opening_the_prompt() {
+        let error = super::read_terminal_password().unwrap_err().to_string();
+        assert!(error.contains("interactive input requires terminal stdin and stderr"));
+        assert!(matches!(
+            super::terminal_password_validator("valid"),
+            Ok(inquire::validator::Validation::Valid)
+        ));
+    }
+
+    #[test]
+    fn piped_reader_strips_line_endings_and_rejects_invalid_utf8() {
+        let value = super::read_piped_password_from(Cursor::new(b"secret\r\n")).unwrap();
+        assert_eq!(value.expose_secret(), "secret");
+        let error = super::read_piped_password_from(Cursor::new(vec![0xff])).unwrap_err();
+        assert!(error.to_string().contains("valid UTF-8"));
+    }
 
     #[cfg(not(feature = "operator-cli"))]
     #[test]

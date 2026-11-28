@@ -11,8 +11,10 @@ mod identity;
 const REVISION_ENV: &str = "ASTER_BUILD_REVISION";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:rerun-if-changed=frontend-panel/dist");
-    println!("cargo:rerun-if-env-changed={REVISION_ENV}");
+    // Keep Cargo's default package scan active. It detects new or modified
+    // package files while excluding the package target directory, which is
+    // required for build identity to notice untracked source changes without
+    // rebuilding on its own artifacts.
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     println!("cargo:rustc-env=ASTER_BUILD_TIME={now}");
@@ -44,19 +46,8 @@ fn configure_build_identity(manifest_dir: &Path) -> io::Result<()> {
     println!("cargo:rustc-env={REVISION_ENV}={}", source.revision);
     println!(
         "cargo:rustc-env=ASTER_BUILD_DIRTY={}",
-        source
-            .dirty
-            .map_or("unknown", |dirty| if dirty { "true" } else { "false" })
+        identity::dirty_label(source.dirty)
     );
-    for path in source.watch_paths {
-        if let Some(path) = identity::nearest_existing_watch_path(&path)
-            && let Some(path) = path.to_str()
-            && !path.contains(['\r', '\n'])
-        {
-            println!("cargo:rerun-if-changed={path}");
-        }
-    }
-
     let features =
         identity::feature_names(env::vars_os().filter_map(|(key, _)| key.into_string().ok()));
     println!(

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Build identity** — `aster_yggdrasil version [--json]` reports the package version, Git revision and working-tree state when known, target, profile, compiled features, and build time without loading instance configuration. (#68)
+- **Build identity** — `aster_yggdrasil version [--json]` reports the package version, Git revision and working-tree state when known, target, profile, compiled features, and build time without loading instance configuration. Cargo's package scan also refreshes the identity when untracked source files are added or modified without treating `target/` artifacts as source changes. (#68)
 
 ### Changed
 

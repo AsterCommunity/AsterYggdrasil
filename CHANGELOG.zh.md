@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **构建身份** — `aster_yggdrasil version [--json]` 无需加载实例配置，即可查看包版本、Git revision、可判定的工作树状态、目标平台、构建 profile、已编译 feature 和构建时间。（#68）
+- **构建身份** — `aster_yggdrasil version [--json]` 无需加载实例配置，即可查看包版本、Git revision、可判定的工作树状态、目标平台、构建 profile、已编译 feature 和构建时间。Cargo 的 package 扫描会在新增或修改未跟踪源码文件时刷新身份，同时不会把 `target/` 构建产物当成源码变化。（#68）
 
 ### Changed
 

@@ -21,10 +21,10 @@ pub(in crate::cli) enum ResolvedOutputFormat {
 
 impl OutputFormat {
     pub(in crate::cli) fn resolve(self) -> ResolvedOutputFormat {
-        self.resolve_for_terminal(io::stdout().is_terminal())
+        self.resolve_with_terminal(io::stdout().is_terminal())
     }
 
-    fn resolve_for_terminal(self, is_terminal: bool) -> ResolvedOutputFormat {
+    fn resolve_with_terminal(self, is_terminal: bool) -> ResolvedOutputFormat {
         match self {
             Self::Auto if is_terminal => ResolvedOutputFormat::Human,
             Self::Auto | Self::Json => ResolvedOutputFormat::Json,
@@ -79,15 +79,11 @@ mod tests {
             ),
         ] {
             assert_eq!(OutputFormat::from_str(name, false).unwrap(), format);
-            assert_eq!(format.resolve_for_terminal(true), tty);
-            assert_eq!(format.resolve_for_terminal(false), pipe);
+            assert_eq!(format.resolve_with_terminal(true), tty);
+            assert_eq!(format.resolve_with_terminal(false), pipe);
             assert_eq!(
                 format.resolve(),
-                if io::stdout().is_terminal() {
-                    tty
-                } else {
-                    pipe
-                }
+                format.resolve_with_terminal(io::stdout().is_terminal())
             );
         }
         assert!(OutputFormat::from_str("pretty_json", false).is_err());
