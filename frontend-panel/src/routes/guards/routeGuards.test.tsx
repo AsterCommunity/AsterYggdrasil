@@ -349,8 +349,10 @@ describe("route guards: authenticated gate", () => {
 		expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
 		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
 
+		// The gate hydrates on mount; assert the click adds one more call.
+		authState.hydrate.mockClear();
 		fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
-		expect(authState.hydrate).toHaveBeenCalled();
+		expect(authState.hydrate).toHaveBeenCalledTimes(1);
 	});
 });
 

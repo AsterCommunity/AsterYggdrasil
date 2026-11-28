@@ -169,4 +169,32 @@ describe("AdminUsersPage", () => {
 		});
 		expect(input).toHaveValue("external");
 	});
+
+	it("lets external navigation win over a debounce that has not settled yet", async () => {
+		renderPage({ withExternalNavigateProbe: true });
+
+		fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
+		const input = await screen.findByPlaceholderText(
+			"Search username or email",
+		);
+		fireEvent.change(input, { target: { value: "stale" } });
+		// Navigate before the 250ms debounce settles: the stale pre-
+		// navigation debounce value must never reach the URL.
+		fireEvent.click(screen.getByRole("button", { name: "navigate external" }));
+
+		await waitFor(() => {
+			expect(adminUserServiceMock.list).toHaveBeenCalledWith(
+				expect.objectContaining({ keyword: "external" }),
+			);
+		});
+		expect(input).toHaveValue("external");
+		// The only empty-keyword load is the initial mount; the unsettled
+		// "stale" debounce value must never reach the list.
+		const keywordCalls = adminUserServiceMock.list.mock.calls.map(
+			(call) => (call[0] as { keyword: string }).keyword,
+		);
+		expect(keywordCalls.filter((k) => k === "" || k === "stale")).toHaveLength(
+			1,
+		);
+	});
 });

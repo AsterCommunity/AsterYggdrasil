@@ -186,6 +186,10 @@ function useAdminUsersPageController() {
 	useEffect(() => {
 		if (keywordState.source !== "user") return;
 		if (keywordState.lastSubmitted === debouncedKeyword) return;
+		// Only submit a value the debounce has settled onto the current
+		// draft: a navigation landing before the settle (or a leftover
+		// debounce value from a retired draft) must not reach the URL.
+		if (debouncedKeyword !== keywordState.draft) return;
 		if (debouncedKeyword.trim() === committedKeyword) return;
 		setKeywordState({ ...keywordState, lastSubmitted: debouncedKeyword });
 		setQuery({ keyword: debouncedKeyword });
