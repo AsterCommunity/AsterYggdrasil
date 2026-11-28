@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **构建身份** — `aster_yggdrasil version [--json]` 无需加载实例配置，即可查看包版本、Git revision、可判定的工作树状态、目标平台、构建 profile、已编译 feature 和构建时间。（#68）
+
+### Changed
+
+- **运维 CLI 构建** — 默认构建、发布二进制和容器镜像均启用 `operator-cli`。使用 `--no-default-features --features server` 构建仍支持 `serve`、`version` 和管道输入的 `hash-password`。终端掩码输入需要 `operator-cli`。（#70）
+
 ## [v0.1.0-beta.2] - 2026-11-28
 
 ### Release Highlights

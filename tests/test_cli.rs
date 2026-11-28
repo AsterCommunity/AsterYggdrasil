@@ -34,28 +34,33 @@ fn uuid_for_tests() -> String {
     )
 }
 
+fn cli_command() -> Command {
+    let mut command = Command::new(aster_yggdrasil_bin());
+    for (key, _) in std::env::vars_os() {
+        if key
+            .to_string_lossy()
+            .to_ascii_uppercase()
+            .starts_with("ASTER_")
+        {
+            command.env_remove(key);
+        }
+    }
+    command
+}
+
 fn run_in_dir(args: &[&str], dir: &std::path::Path) -> Output {
-    Command::new(aster_yggdrasil_bin())
+    cli_command()
         .args(args)
         .current_dir(dir)
-        // CLI location env vars must not leak from the invoking shell: a test
-        // that relies on the temp dir's config would silently read an
-        // external instance instead (and `serve` could hang on it).
-        .env_remove("ASTER_CLI_CONFIG_FILE")
-        .env_remove("ASTER_CLI_DATA_DIR")
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
         .output()
         .expect("aster_yggdrasil should spawn")
 }
 
 fn run_hash_password_in_dir(input: &[u8], dir: &std::path::Path) -> Output {
-    let mut child = Command::new(aster_yggdrasil_bin())
+    let mut child = cli_command()
         .arg("hash-password")
         .current_dir(dir)
-        .env_remove("ASTER_CLI_CONFIG_FILE")
-        .env_remove("ASTER_CLI_DATA_DIR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -81,6 +86,7 @@ fn help_outputs_are_stable_and_never_touch_server_state() {
         vec!["serve", "--help"],
         vec!["serve", "-h"],
         vec!["hash-password", "--help"],
+        vec!["version", "--help"],
         vec!["--version"],
         vec!["-V"],
     ] {
@@ -129,9 +135,12 @@ fn root_help_lists_every_subcommand_and_the_no_argument_behavior() {
     assert!(stdout.contains("serve"));
     assert!(stdout.contains("Run the server with all, API, or worker responsibilities"));
     assert!(stdout.contains("hash-password"));
-    assert!(stdout.contains(
-        "Generate an authentication verifier (masked terminal input, or stdin until EOF)"
-    ));
+    assert!(stdout.contains("Report the version and build identity"));
+    assert!(stdout.contains("Generate an authentication verifier"));
+    assert_eq!(
+        stdout.contains("masked terminal input"),
+        cfg!(feature = "operator-cli")
+    );
     assert!(stdout.contains("--config-file <PATH>"));
     assert!(stdout.contains("--data-dir <PATH>"));
     assert!(stdout.contains("Examples:"));
@@ -140,6 +149,92 @@ fn root_help_lists_every_subcommand_and_the_no_argument_behavior() {
         !stdout.contains("\n\n\n"),
         "root help should stay compact: {stdout}"
     );
+}
+
+#[test]
+fn version_reports_build_identity_without_loading_configuration() {
+    let dir = temp_cli_dir("build-identity");
+    let path = dir.path().join("broken.toml");
+    let original = "[invalid-secret-fixture";
+    std::fs::write(&path, original).unwrap();
+    let json = run_in_dir(
+        &["--config-file", "broken.toml", "version", "--json"],
+        dir.path(),
+    );
+    assert!(json.status.success());
+    assert!(json.stderr.is_empty());
+    let json = String::from_utf8(json.stdout).unwrap();
+    assert!(json.starts_with("{\n  \"product\":"));
+    let identity: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(identity.as_object().unwrap().len(), 8);
+    assert_eq!(identity["product"], "AsterYggdrasil");
+    assert_eq!(identity["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(identity["target"], env!("ASTER_BUILD_TARGET"));
+    assert_eq!(identity["profile"], env!("ASTER_BUILD_PROFILE"));
+    assert!(chrono::DateTime::parse_from_rfc3339(identity["build_time"].as_str().unwrap()).is_ok());
+    let revision = identity["revision"].as_str().unwrap();
+    assert!(
+        revision == "unknown"
+            || ((7..=64).contains(&revision.len())
+                && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    );
+    assert_eq!(revision, env!("ASTER_BUILD_REVISION"));
+    assert_eq!(
+        identity["dirty"].as_bool(),
+        env!("ASTER_BUILD_DIRTY").parse().ok()
+    );
+    if revision == "unknown" {
+        assert!(identity["dirty"].is_null());
+    }
+    let features: Vec<_> = identity["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    assert!(features.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(!features.iter().any(|&f| matches!(f, "default" | "full")));
+    assert_eq!(features.contains(&"server"), cfg!(feature = "server"));
+    assert_eq!(
+        features.contains(&"operator-cli"),
+        cfg!(feature = "operator-cli")
+    );
+    if let Ok(expected) = std::env::var("ASTER_TEST_EXPECT_OPERATOR_CLI") {
+        assert_eq!(
+            features.contains(&"operator-cli"),
+            expected.parse::<bool>().unwrap()
+        );
+    }
+    let output = run_in_dir(&["version", "--config-file", "missing.toml"], dir.path());
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let suffix = match identity["dirty"].as_bool() {
+        Some(true) => " (dirty)",
+        Some(false) => "",
+        None => " (working tree unknown)",
+    };
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!(
+            "AsterYggdrasil {}\nRevision:  {revision}{suffix}\nTarget:    {}\nProfile:   {}\nFeatures:  {}\nBuilt:     {}\n",
+            env!("CARGO_PKG_VERSION"),
+            env!("ASTER_BUILD_TARGET"),
+            env!("ASTER_BUILD_PROFILE"),
+            if features.is_empty() {
+                "none".into()
+            } else {
+                features.join(", ")
+            },
+            identity["build_time"].as_str().unwrap(),
+        )
+    );
+    for args in [["version", "--unknown"], ["version", "unexpected"]] {
+        let output = run_in_dir(&args, dir.path());
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+    }
+    assert_eq!(std::fs::read_to_string(path).unwrap(), original);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
 }
 
 #[test]
@@ -372,4 +467,73 @@ fn hash_password_truncation_boundary_stays_rejecting() {
         !output.status.success(),
         "4097-byte CRLF-terminated input must be rejected, not truncated"
     );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn serve_roles_boot_and_shut_down_with_an_explicit_instance() {
+    use aster_forge_test::process::{TestProcess, available_loopback_port};
+    use std::time::Duration;
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    for role in ["all", "api", "worker"] {
+        let port = available_loopback_port();
+        let mut command = cli_command();
+        command
+            .args(["--data-dir", "instance", "serve", role])
+            .env("ASTER__SERVER__HOST", "127.0.0.1")
+            .env("ASTER__SERVER__PORT", port.to_string())
+            .env("ASTER__SERVER__WORKERS", "1")
+            .env("ASTER__AUTH__BOOTSTRAP_INSECURE_COOKIES", "true");
+        let mut process = TestProcess::spawn(&format!("serve-role-{role}"), &mut command);
+        let url = format!("http://127.0.0.1:{port}");
+        tokio::time::timeout(Duration::from_secs(30), async {
+            loop {
+                process.assert_running();
+                if client
+                    .get(format!("{url}/health/ready"))
+                    .send()
+                    .await
+                    .is_ok_and(|response| response.status().is_success())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|error| panic!("{role} not ready: {error}\n{}", process.diagnostics()));
+        assert_eq!(
+            client
+                .post(format!("{url}/api/v1/auth/login"))
+                .send()
+                .await
+                .unwrap()
+                .status()
+                == reqwest::StatusCode::NOT_FOUND,
+            role == "worker"
+        );
+        assert!(
+            process
+                .runtime_dir()
+                .join("instance/data/config.toml")
+                .is_file()
+        );
+        assert!(
+            process
+                .runtime_dir()
+                .join("instance/data/asteryggdrasil.db")
+                .is_file()
+        );
+        assert!(!process.runtime_dir().join("data").exists());
+        assert!(
+            process.terminate_gracefully(Duration::from_secs(20)),
+            "{}",
+            process.diagnostics()
+        );
+    }
 }

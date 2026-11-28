@@ -25,6 +25,8 @@ pub fn load() -> Result<Config> {
 #[derive(Debug, Clone)]
 pub struct ConfigLocation {
     path: PathBuf,
+    #[cfg(feature = "operator-cli")]
+    explicit: bool,
 }
 
 impl ConfigLocation {
@@ -44,12 +46,97 @@ impl ConfigLocation {
             (None, None) => PathBuf::from(DEFAULT_CONFIG_PATH),
         };
         Ok(Self {
+            #[cfg(feature = "operator-cli")]
+            explicit: config_file.is_some() || data_dir.is_some(),
             path: if path.is_absolute() {
                 path
             } else {
                 cwd.join(path)
             },
         })
+    }
+
+    /// Loads an existing instance without creating or backfilling any files.
+    /// An implicit location may be absent when a database override is supplied.
+    #[cfg(feature = "operator-cli")]
+    pub(crate) fn load_read_only(&self, database_url: Option<&str>) -> Result<Config> {
+        self.load_read_only_with_environment(database_url, process_environment())
+    }
+
+    #[cfg(feature = "operator-cli")]
+    fn load_read_only_with_environment(
+        &self,
+        database_url: Option<&str>,
+        environment: Environment,
+    ) -> Result<Config> {
+        if database_url.is_some_and(|url| url.trim().is_empty()) {
+            return Err(AsterError::validation_error(
+                "--database-url must not be empty",
+            ));
+        }
+        let invalid_config = || {
+            AsterError::config_error(format!(
+                "invalid configuration in '{}' or environment overrides",
+                self.path.display(),
+            ))
+        };
+        let environment = RawConfig::builder()
+            .add_source(environment)
+            .build()
+            .map_err(|_| invalid_config())?;
+        let env_database_url = environment.get_string("database.url").ok();
+        let allow_missing = !self.explicit
+            && (database_url.is_some()
+                || env_database_url
+                    .as_deref()
+                    .is_some_and(|url| !url.trim().is_empty()));
+        let mut builder = RawConfig::builder();
+        match std::fs::metadata(&self.path) {
+            Ok(metadata) if metadata.is_file() => {
+                let content = std::fs::read_to_string(&self.path).map_aster_err_ctx(
+                    &format!("failed to read {}", self.path.display()),
+                    AsterError::config_error,
+                )?;
+                // The parser can include raw TOML lines in diagnostics.
+                builder = builder.add_source(File::from_str(&content, FileFormat::Toml));
+            }
+            Err(error) if allow_missing && error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(AsterError::config_error(format!(
+                    "configuration file '{}' does not exist; specify --config-file/--data-dir or --database-url",
+                    self.path.display(),
+                )));
+            }
+            Err(error) => {
+                return Err(AsterError::config_error(format!(
+                    "cannot access configuration file '{}': {error}",
+                    self.path.display(),
+                )));
+            }
+            Ok(_) => {
+                return Err(AsterError::config_error(format!(
+                    "configuration path '{}' is not a file",
+                    self.path.display(),
+                )));
+            }
+        }
+        builder = builder.add_source(environment);
+        if let Some(url) = database_url {
+            builder = builder
+                .set_override("database.url", url)
+                .map_aster_err(AsterError::config_error)?;
+        }
+        let raw = builder.build().map_err(|_| invalid_config())?;
+        let cfg: Config = raw.try_deserialize().map_err(|_| invalid_config())?;
+        if cfg
+            .database
+            .url
+            .as_url()
+            .is_some_and(|url| url.trim().is_empty())
+        {
+            return Err(AsterError::config_error("database URL must not be empty"));
+        }
+        validate_config(cfg, self.base_dir(), &self.path)
     }
 
     /// The resolved config file path, always absolute.
@@ -133,11 +220,7 @@ fn load_from(
     };
 
     if include_env {
-        builder = builder.add_source(
-            Environment::with_prefix("ASTER")
-                .separator("__")
-                .try_parsing(true),
-        );
+        builder = builder.add_source(process_environment());
     } else if let Some(database_url) = env_database_url {
         builder = builder
             .set_override("database.url", database_url)
@@ -146,22 +229,35 @@ fn load_from(
 
     let raw = builder.build().map_aster_err(AsterError::config_error)?;
 
-    // Forge runs generated section validation and then the root
-    // cross-section validation; keep that sequence out of this file.
-    let cfg = aster_forge_config::load_config(|| {
-        let mut cfg = raw
-            .try_deserialize::<Config>()
-            .map_aster_err(AsterError::config_error)?;
-        resolve_loaded_paths(base_dir, config_path, &mut cfg)?;
-        Ok::<_, AsterError>(cfg)
-    })
-    .map_aster_err(AsterError::config_error)?;
-
+    let cfg = deserialize_config(raw, base_dir, config_path)?;
     eprintln!(
         "[INFO] Configuration loaded from: {}",
         config_path.display()
     );
     Ok(cfg)
+}
+
+fn process_environment() -> Environment {
+    Environment::with_prefix("ASTER")
+        .separator("__")
+        .try_parsing(true)
+}
+
+fn deserialize_config(raw: RawConfig, base_dir: &Path, config_path: &Path) -> Result<Config> {
+    let cfg = raw
+        .try_deserialize()
+        .map_aster_err(AsterError::config_error)?;
+    validate_config(cfg, base_dir, config_path)
+}
+
+fn validate_config(mut cfg: Config, base_dir: &Path, config_path: &Path) -> Result<Config> {
+    // Forge runs generated section validation and then the root
+    // cross-section validation; keep that sequence out of this file.
+    aster_forge_config::load_config(|| {
+        resolve_loaded_paths(base_dir, config_path, &mut cfg)?;
+        Ok::<_, AsterError>(cfg)
+    })
+    .map_aster_err(AsterError::config_error)
 }
 
 fn ensure_default_config_exists(config_path: &Path, default: &Config) -> Result<()> {
@@ -771,5 +867,131 @@ burst_size = 0
         assert!(err.to_string().contains("invalid value: integer `0`"));
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(all(test, feature = "operator-cli"))]
+mod operator_cli_tests {
+    use super::*;
+    use aster_forge_utils::raii::TempDirGuard;
+
+    fn root() -> TempDirGuard {
+        let root =
+            std::env::temp_dir().join(format!("aster-operator-loader-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        TempDirGuard::new(root, "operator config fixture")
+    }
+
+    fn env(values: &[(&str, &str)]) -> Environment {
+        process_environment().source(Some(
+            values
+                .iter()
+                .map(|&(key, value)| (key.to_owned(), value.to_owned()))
+                .collect(),
+        ))
+    }
+
+    #[test]
+    fn missing_implicit_config_requires_a_database_override_and_never_creates_files() {
+        let root = root();
+        let location = ConfigLocation {
+            path: root.path().join(DEFAULT_CONFIG_PATH),
+            explicit: false,
+        };
+        for values in [&[][..], &[("ASTER__DATABASE__URL", "   ")][..]] {
+            let error = location
+                .load_read_only_with_environment(None, env(values))
+                .unwrap_err();
+            assert!(error.message().contains("does not exist"));
+        }
+        for url in ["", " \t\n"] {
+            let error = location
+                .load_read_only_with_environment(Some(url), env(&[]))
+                .unwrap_err();
+            assert!(error.message().contains("--database-url must not be empty"));
+        }
+        let postgres = "postgres://localhost/example";
+        let cfg = location
+            .load_read_only_with_environment(None, env(&[("ASTER__DATABASE__URL", postgres)]))
+            .unwrap();
+        assert_eq!(cfg.database.url.as_url(), Some(postgres));
+        let cfg = location
+            .load_read_only_with_environment(Some("sqlite::memory:"), env(&[]))
+            .unwrap();
+        assert_eq!(cfg.database.url.as_url(), Some("sqlite::memory:"));
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn explicit_missing_or_non_file_config_is_an_error_even_with_an_override() {
+        let root = root();
+        for location in [
+            ConfigLocation::resolve(Some(&root.path().join("absent.toml")), None).unwrap(),
+            ConfigLocation::resolve(None, Some(root.path())).unwrap(),
+            ConfigLocation::resolve(Some(root.path()), None).unwrap(),
+        ] {
+            assert!(
+                location
+                    .load_read_only_with_environment(Some("sqlite::memory:"), env(&[]))
+                    .is_err()
+            );
+        }
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn database_precedence_is_flag_then_environment_then_file() {
+        let root = root();
+        let path = root.path().join("instance.conf");
+        let location = ConfigLocation::resolve(Some(&path), None).unwrap();
+        let original = "[database]\nurl = \"sqlite://file.db?mode=rw\"\n";
+        std::fs::write(&path, original).unwrap();
+        let cfg = location
+            .load_read_only_with_environment(None, env(&[]))
+            .unwrap();
+        let expected = format!("sqlite://{}?mode=rw", root.path().join("file.db").display());
+        assert_eq!(cfg.database.url.as_url(), Some(expected.as_str()));
+        let cfg = location
+            .load_read_only_with_environment(
+                None,
+                env(&[("ASTER__DATABASE__URL", "mysql://localhost/from_env")]),
+            )
+            .unwrap();
+        assert_eq!(
+            cfg.database.url.as_url(),
+            Some("mysql://localhost/from_env")
+        );
+        let cfg = location
+            .load_read_only_with_environment(
+                Some("postgres://localhost/from_flag"),
+                env(&[("ASTER__DATABASE__URL", "mysql://localhost/from_env")]),
+            )
+            .unwrap();
+        assert_eq!(
+            cfg.database.url.as_url(),
+            Some("postgres://localhost/from_flag")
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn malformed_or_invalid_existing_configuration_is_rejected_without_writes() {
+        let root = root();
+        let path = root.path().join("instance.toml");
+        let location = ConfigLocation::resolve(Some(&path), None).unwrap();
+        for original in [
+            "[fixture-secret-marker",
+            "[server]\nport = \"fixture-secret-marker\"\n",
+            "[deployment]\nprofile = \"cluster\"\n",
+        ] {
+            std::fs::write(&path, original).unwrap();
+            let error = location
+                .load_read_only_with_environment(Some("sqlite::memory:"), env(&[]))
+                .unwrap_err();
+            assert!(!error.message().contains("fixture-secret-marker"));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        }
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
     }
 }

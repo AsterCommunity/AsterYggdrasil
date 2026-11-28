@@ -21,19 +21,20 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 
-# Pre-build dependencies as a cache layer.
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && \
-    cargo build --release 2>/dev/null || true && \
+ARG CARGO_FEATURES="server,operator-cli"
+
+# Pre-build dependencies as a cache layer using the final feature selection.
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs && \
+    cargo build --release --locked --no-default-features --features "${CARGO_FEATURES}" && \
     rm -rf src
 
 COPY src/ src/
 COPY build.rs ./
+COPY build_support/ build_support/
 COPY --from=frontend /build/frontend-panel/dist/ frontend-panel/dist/
 
-ARG CARGO_FEATURES="server"
-ENV RUSTFLAGS="-C link-arg=-s"
-
-RUN cargo build --release --features "${CARGO_FEATURES}"
+ARG ASTER_BUILD_REVISION="unknown"
+RUN cargo build --release --locked --no-default-features --features "${CARGO_FEATURES}"
 
 # Stage 3: Alpine runtime
 FROM alpine:3.23
