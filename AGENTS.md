@@ -57,16 +57,16 @@ tmp/authlib-injector/wiki/   authlib-injector/Yggdrasil 参考资料入口
 # 后端
 cargo run
 cargo check
-cargo test
-cargo test --lib <test_filter>
-cargo test --test <test_name> <test_filter>
-cargo test --features openapi --test generate_openapi
-cargo test --features metrics
+cargo nextest run --profile ci
+cargo nextest run --profile ci --lib <test_filter>
+cargo nextest run --profile ci --test <test_name> <test_filter>
+cargo nextest run --profile ci --features openapi --test generate_openapi
+cargo nextest run --profile ci --features metrics
 
 # 指定集成测试数据库后端
-ASTER_TEST_DATABASE_BACKEND=sqlite cargo test --test test_database_backends
-ASTER_TEST_DATABASE_BACKEND=postgres cargo test --test test_database_backends
-ASTER_TEST_DATABASE_BACKEND=mysql cargo test --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=sqlite cargo nextest run --profile ci --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=postgres cargo nextest run --profile database --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=mysql cargo nextest run --profile database --test test_database_backends
 
 # 前端
 cd frontend-panel

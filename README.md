@@ -81,14 +81,16 @@ Point your authlib-injector launcher at `http://<host>:<port>/api/yggdrasil` (or
 - [Getting started](docs/en/guide/getting-started.md) · [launcher setup](docs/en/guide/launcher-setup.md) · [profiles](docs/en/guide/profiles.md) · [configuration](docs/en/guide/configuration.md)
 - [Admin guide](docs/en/guide/admin-guide.md) · [background tasks](docs/en/guide/audit-tasks.md) · [user bans](docs/en/guide/user-bans.md)
 - [Docker deployment](docs/en/deployment/docker.md) · [example config](config.example.toml)
-- [Developer docs](developer-docs/README.md) · [OpenAPI export](tests/generate_openapi.rs) (`cargo test --features openapi --test generate_openapi`)
+- [Developer docs](developer-docs/README.md) · [OpenAPI export](tests/generate_openapi.rs) (`cargo nextest run --profile ci --features openapi --test generate_openapi`)
 
 ## Development
+
+Test commands use [cargo-nextest](https://nexte.st/) (`cargo install cargo-nextest`); setup details are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 # backend
 cargo check
-cargo test --workspace --lib
+cargo nextest run --profile ci --workspace --lib
 cargo clippy --workspace --all-features
 
 # frontend
