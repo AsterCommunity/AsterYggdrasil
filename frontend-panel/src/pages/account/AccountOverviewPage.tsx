@@ -281,8 +281,10 @@ function CapabilityStatusPanel({ bans }: { bans: AccountUserBanInfo[] }) {
 
 function CapabilityBanRow({ ban }: { ban: AccountUserBanInfo }) {
 	const { t } = useTranslation();
-	const { permissions: capabilities } = useRegistryPermissions("capability");
-	const labels = permissionLabels(capabilities);
+	const registry = useRegistryPermissions("capability");
+	const labels = permissionLabels(
+		registry.status === "ready" ? registry.permissions : [],
+	);
 	const reason = ban.public_reason || ban.reason;
 
 	return (

@@ -43,31 +43,39 @@ function loadPermissions(): Promise<LoadResult> {
 	return current;
 }
 
-export type RegistryPermissionStatus = "loading" | "error" | "ready";
+type RegistryPermissionsState =
+	| { status: "error" }
+	| { status: "loading" }
+	| {
+			/** Descriptors of the requested kind. */
+			permissions: AdminPermissionInfo[];
+			status: "ready";
+	  };
 
 export type RegistryPermissions = {
-	/** Descriptors of the requested kind; empty while loading or on error. */
-	permissions: AdminPermissionInfo[];
-	/** Distinguishes an in-flight or failed load from an empty registry. */
-	status: RegistryPermissionStatus;
 	/** Retries the registry request after a failure. */
 	retry: () => void;
-};
+} & RegistryPermissionsState;
 
 /**
  * Loads the registered permissions of one semantic kind from the server
- * registry. Synchronous callers (static nav matrices) keep using the
- * built-in constant lists; this hook is for editors and label rendering.
+ * registry. The load phase travels with its outcome as a single union
+ * state value, so a loading or failed registry cannot present itself as
+ * an (empty) ready one. Synchronous callers (static nav matrices) keep
+ * using the built-in constant lists; this hook is for editors and label
+ * rendering.
  */
 export function useRegistryPermissions(
 	kind: PermissionKind,
 ): RegistryPermissions {
 	const [attempt, setAttempt] = useState(0);
-	const [permissions, setPermissions] = useState<AdminPermissionInfo[]>(
-		() => cachedPermissions?.filter((item) => item.kind === kind) ?? [],
-	);
-	const [status, setStatus] = useState<RegistryPermissionStatus>(() =>
-		cachedPermissions ? "ready" : "loading",
+	const [state, setState] = useState<RegistryPermissionsState>(() =>
+		cachedPermissions
+			? {
+					permissions: cachedPermissions.filter((item) => item.kind === kind),
+					status: "ready",
+				}
+			: { status: "loading" },
 	);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: attempt is an intentional retry trigger.
@@ -75,12 +83,16 @@ export function useRegistryPermissions(
 		let cancelled = false;
 		void loadPermissions().then((result) => {
 			if (cancelled) return;
-			if (result.ok) {
-				setPermissions(result.permissions.filter((item) => item.kind === kind));
-				setStatus("ready");
-			} else {
-				setStatus("error");
-			}
+			setState(
+				result.ok
+					? {
+							permissions: result.permissions.filter(
+								(item) => item.kind === kind,
+							),
+							status: "ready",
+						}
+					: { status: "error" },
+			);
 		});
 		return () => {
 			cancelled = true;
@@ -89,11 +101,11 @@ export function useRegistryPermissions(
 
 	const retry = useCallback(() => {
 		pendingLoad = null;
-		setStatus("loading");
 		setAttempt((current) => current + 1);
+		setState({ status: "loading" });
 	}, []);
 
-	return { permissions, status, retry };
+	return { ...state, retry };
 }
 
 /**

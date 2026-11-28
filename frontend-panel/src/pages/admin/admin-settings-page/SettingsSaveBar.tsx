@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type SaveBarPhase = "hidden" | "entering" | "visible" | "exiting";
-type SaveBarPhaseState = {
-	active: boolean;
-	phase: SaveBarPhase;
-};
 
 const SAVE_BAR_ENTER_DURATION_MS = 150;
 const SAVE_BAR_EXIT_DURATION_MS = 140;
@@ -136,40 +132,35 @@ export function SettingsSaveBar({
 }
 
 function useSettingsSaveBarPhase(active: boolean) {
-	const [state, setState] = useState<SaveBarPhaseState>(() => ({
-		active,
-		phase: active ? "entering" : "hidden",
-	}));
-	let phase = state.phase;
+	// The phase is the single state value; whether the bar should show is
+	// derived from it, so combinations like "hidden but active" or "visible
+	// but inactive" cannot exist.
+	const [phase, setPhase] = useState<SaveBarPhase>(() =>
+		active ? "entering" : "hidden",
+	);
+	const lastActiveRef = useRef(active);
 
-	if (active !== state.active) {
-		phase = active
+	if (active !== lastActiveRef.current) {
+		lastActiveRef.current = active;
+		const nextPhase = active
 			? "entering"
-			: state.phase === "hidden"
+			: phase === "hidden"
 				? "hidden"
 				: "exiting";
-		setState({ active, phase });
+		if (nextPhase !== phase) setPhase(nextPhase);
 	}
 
 	useEffect(() => {
 		if (phase === "entering") {
 			const timer = window.setTimeout(() => {
-				setState((current) =>
-					current.phase === "entering"
-						? { ...current, phase: "visible" }
-						: current,
-				);
+				setPhase((current) => (current === "entering" ? "visible" : current));
 			}, 0);
 			return () => window.clearTimeout(timer);
 		}
 
 		if (phase === "exiting") {
 			const timer = window.setTimeout(() => {
-				setState((current) =>
-					current.phase === "exiting"
-						? { ...current, phase: "hidden" }
-						: current,
-				);
+				setPhase((current) => (current === "exiting" ? "hidden" : current));
 			}, SAVE_BAR_EXIT_DURATION_MS + SAVE_BAR_EXIT_UNMOUNT_GRACE_MS);
 			return () => window.clearTimeout(timer);
 		}
