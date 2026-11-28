@@ -84,6 +84,58 @@ pub fn load_at(location: &ConfigLocation) -> Result<Config> {
     )
 }
 
+/// Loads configuration from a CLI-resolved location without writing anything.
+///
+/// Operational CLI commands use this so an inspection run can never bootstrap
+/// a deployment: nothing generates a default file, backfills stable keys to
+/// disk, or persists any derived content. Generated stable keys that an older
+/// file is missing are filled in from defaults in memory only. When
+/// `allow_missing` is false, a missing config file is an error; when true
+/// (an explicit `--database-url` or `ASTER__DATABASE__URL` is present),
+/// defaults are used for a missing file.
+pub fn load_read_only_at(location: &ConfigLocation, allow_missing: bool) -> Result<Config> {
+    let config_path = location.path();
+    if !config_path.exists() {
+        if !allow_missing {
+            return Err(AsterError::config_error(format!(
+                "config file '{}' does not exist; operational commands never create one — \
+                 start the server once or pass --database-url",
+                config_path.display()
+            )));
+        }
+        return finish_read_only_load(Config::default(), location);
+    }
+
+    let content = std::fs::read_to_string(config_path).map_err(|error| {
+        AsterError::config_error(format!(
+            "failed to read {}: {error}",
+            config_path.display()
+        ))
+    })?;
+    // The format must be explicit: extension-based inference silently drops
+    // a `--config-file` whose extension is not `.toml`.
+    let source = match ensure_stable_default_config_keys(config_path, Some(&content), false)? {
+        Some(patched) => File::from_str(&patched, FileFormat::Toml),
+        None => File::from_str(&content, FileFormat::Toml),
+    };
+    let raw = RawConfig::builder()
+        .add_source(source)
+        .build()
+        .map_aster_err(AsterError::config_error)?;
+    let cfg = raw
+        .try_deserialize::<Config>()
+        .map_aster_err(AsterError::config_error)?;
+    finish_read_only_load(cfg, location)
+}
+
+/// Resolves relative paths for a read-only load. The environment layer is
+/// intentionally not applied here; `--database-url` overrides are handled by
+/// the CLI context so the effective database target stays explicit.
+fn finish_read_only_load(mut cfg: Config, location: &ConfigLocation) -> Result<Config> {
+    resolve_loaded_paths(location.base_dir(), location.path(), &mut cfg)?;
+    Ok(cfg)
+}
+
 /// Writes the default config file to `<cwd>/data/config.toml` when missing
 /// and returns its path, without loading it.
 pub fn ensure_default_config_for_current_dir(default: &Config) -> Result<PathBuf> {
@@ -114,7 +166,7 @@ fn load_from(
     include_env: bool,
 ) -> Result<Config> {
     ensure_default_config_exists(config_path, &Config::default())?;
-    let stable_defaults_config = ensure_stable_default_config_keys(config_path, None)?;
+    let stable_defaults_config = ensure_stable_default_config_keys(config_path, None, true)?;
 
     let mut builder = RawConfig::builder();
     builder = match stable_defaults_config {
@@ -203,9 +255,14 @@ fn create_default_config(config_path: &Path, default: &Config) -> Result<()> {
     Ok(())
 }
 
+/// Fills in generated stable configuration keys that an existing file is
+/// missing, returning the patched content. With `persist` the patched content
+/// is written back to the file (normal startup); without it the patch only
+/// lives in the returned string, so read-only loads never touch the file.
 fn ensure_stable_default_config_keys(
     config_path: &Path,
     current_content: Option<&str>,
+    persist: bool,
 ) -> Result<Option<String>> {
     let content = match current_content {
         Some(content) => content.to_string(),
@@ -247,20 +304,22 @@ fn ensure_stable_default_config_keys(
     }
 
     let updated = doc.to_string();
-    if let Err(error) = std::fs::write(config_path, &updated) {
-        eprintln!(
-            "[ERROR] Failed to write generated stable configuration keys to {}: {error}. Fix config file permissions before starting.",
-            config_path.display()
-        );
-        return Err(AsterError::config_error(format!(
-            "failed to persist generated stable configuration keys to {}: {error}",
-            config_path.display()
-        )));
-    } else {
-        eprintln!(
-            "[INFO] Added generated stable configuration keys to: {}",
-            config_path.display()
-        );
+    if persist {
+        if let Err(error) = std::fs::write(config_path, &updated) {
+            eprintln!(
+                "[ERROR] Failed to write generated stable configuration keys to {}: {error}. Fix config file permissions before starting.",
+                config_path.display()
+            );
+            return Err(AsterError::config_error(format!(
+                "failed to persist generated stable configuration keys to {}: {error}",
+                config_path.display()
+            )));
+        } else {
+            eprintln!(
+                "[INFO] Added generated stable configuration keys to: {}",
+                config_path.display()
+            );
+        }
     }
     Ok(Some(updated))
 }
@@ -771,5 +830,97 @@ burst_size = 0
         assert!(err.to_string().contains("invalid value: integer `0`"));
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_read_only_rejects_missing_config_unless_allowed() {
+        use super::ConfigLocation;
+
+        let dir = make_temp_dir("read-only-missing");
+        let location = ConfigLocation::resolve(None, Some(&dir)).unwrap();
+        let err = super::load_read_only_at(&location, false)
+            .expect_err("missing config must not bootstrap a deployment");
+        assert!(err.to_string().contains("does not exist"));
+
+        let cfg = super::load_read_only_at(&location, true)
+            .expect("explicit database target allows a missing config");
+        assert_eq!(
+            cfg.database.url,
+            aster_forge_db::DatabaseUrl::Url(rooted_sqlite(
+                &dir,
+                "data/asteryggdrasil.db?mode=rwc"
+            ))
+        );
+        assert!(
+            !dir.join(DEFAULT_CONFIG_PATH).exists(),
+            "read-only loads must not create the default config file"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_read_only_loads_existing_file_without_writing_it() {
+        use super::ConfigLocation;
+
+        let instance = make_temp_dir("read-only-existing");
+        let config_path = instance.join("custom.toml");
+        let original = br#"[database]
+url = "sqlite://custom-instance.db?mode=rwc"
+
+[server]
+temp_dir = ".tmp"
+"#;
+        write(&config_path, original);
+
+        let location = ConfigLocation::resolve(Some(&config_path), None).unwrap();
+        let cfg = super::load_read_only_at(&location, false)
+            .expect("an existing minimal config must load read-only");
+        assert_eq!(
+            cfg.database.url,
+            aster_forge_db::DatabaseUrl::Url(rooted_sqlite(
+                &instance,
+                "custom-instance.db?mode=rwc"
+            ))
+        );
+        assert_eq!(
+            std::fs::read(&config_path).unwrap(),
+            original,
+            "read-only loads must not backfill generated keys to disk"
+        );
+
+        let _ = std::fs::remove_dir_all(instance);
+    }
+
+    #[test]
+    fn load_read_only_applies_missing_stable_keys_in_memory_only() {
+        use super::ConfigLocation;
+        use secrecy::ExposeSecret;
+
+        let instance = make_temp_dir("read-only-stable-keys");
+        let config_path = instance.join("config.toml");
+        let original = br#"[server]
+temp_dir = ".tmp"
+"#;
+        write(&config_path, original);
+
+        let location = ConfigLocation::resolve(Some(&config_path), None).unwrap();
+        let cfg = super::load_read_only_at(&location, false)
+            .expect("missing stable keys must fall back to defaults in memory");
+        // The generated defaults are per-load random secrets; assert the
+        // shape, not a specific value.
+        let patched = cfg.auth.mfa_secret_key.expose_secret();
+        assert_eq!(patched.len(), 64, "generated secret must be 32-byte hex");
+        assert!(
+            patched.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "generated secret must be hexadecimal"
+        );
+        assert_eq!(
+            std::fs::read(&config_path).unwrap(),
+            original,
+            "read-only loads must not persist the in-memory stable-key patch"
+        );
+
+        let _ = std::fs::remove_dir_all(instance);
     }
 }

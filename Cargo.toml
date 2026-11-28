@@ -176,8 +176,9 @@ undocumented_unsafe_blocks = "deny"
 [lints]
 workspace = true
 [features]
-default = ["server"]
+default = ["server", "operations-cli"]
 server = []
+operations-cli = ["server", "dep:inquire"]
 metrics = [
     "server",
     "dep:aster_forge_observability",
@@ -258,7 +259,7 @@ dotenvy = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 image = { workspace = true }
-inquire = { workspace = true, features = ["crossterm"] }
+inquire = { workspace = true, features = ["crossterm"], optional = true }
 jsonwebtoken = { workspace = true }
 num_cpus = { workspace = true }
 parking_lot = { workspace = true }
