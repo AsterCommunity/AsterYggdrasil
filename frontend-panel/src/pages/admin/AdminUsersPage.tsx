@@ -191,6 +191,11 @@ function useAdminUsersPageController() {
 		// debounce value from a retired draft) must not reach the URL.
 		if (debouncedKeyword !== keywordState.draft) return;
 		if (debouncedKeyword.trim() === committedKeyword) return;
+		// A committedKeyword change that has not been reconciled yet owns
+		// the URL first (external navigation, or our previous commit
+		// landing); skip this commit and let reconciliation settle the
+		// source before any new push.
+		if (lastReconciledKeywordRef.current !== committedKeyword) return;
 		setKeywordState({ ...keywordState, lastSubmitted: debouncedKeyword });
 		setQuery({ keyword: debouncedKeyword });
 	}, [committedKeyword, debouncedKeyword, keywordState, setQuery]);

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
@@ -196,5 +202,41 @@ describe("AdminUsersPage", () => {
 		expect(keywordCalls.filter((k) => k === "" || k === "stale")).toHaveLength(
 			1,
 		);
+	});
+
+	it("does not re-submit a trim-equal settled draft over an external navigation", async () => {
+		renderPage({
+			initialEntries: ["/admin/users?keyword=alice"],
+			withExternalNavigateProbe: true,
+		});
+
+		// A restored keyword shows as a count badge in the toggle name.
+		fireEvent.click(await screen.findByRole("button", { name: /^Filters/ }));
+		const input = await screen.findByPlaceholderText(
+			"Search username or email",
+		);
+		// The draft settles to a value whose trim equals the committed
+		// keyword, so the commit guard keeps it unsubmitted and
+		// lastSubmitted stays null.
+		fireEvent.change(input, { target: { value: "alice " } });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+		expect(input).toHaveValue("alice ");
+
+		fireEvent.click(screen.getByRole("button", { name: "navigate external" }));
+
+		await waitFor(() => {
+			expect(adminUserServiceMock.list).toHaveBeenCalledWith(
+				expect.objectContaining({ keyword: "external" }),
+			);
+		});
+		expect(input).toHaveValue("external");
+		// The only "alice" load is the initial mount; the settled-but-
+		// uncommitted draft must not push it back over the navigation.
+		const keywordCalls = adminUserServiceMock.list.mock.calls.map(
+			(call) => (call[0] as { keyword: string }).keyword,
+		);
+		expect(keywordCalls.filter((k) => k === "alice")).toHaveLength(1);
 	});
 });
