@@ -6,6 +6,7 @@ on:
       - '**/*.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.config/nextest.toml'
       - 'frontend-panel/package.json'
       - 'frontend-panel/generated/openapi.json'
       - 'frontend-panel/src/types/api.generated.ts'
@@ -17,6 +18,7 @@ on:
       - '**/*.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.config/nextest.toml'
       - 'frontend-panel/package.json'
       - 'frontend-panel/generated/openapi.json'
       - 'frontend-panel/src/types/api.generated.ts'
@@ -75,13 +77,18 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.143
+
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: openapi-v1
 
       - name: Generate OpenAPI specification
-        run: cargo test --features openapi --test generate_openapi
+        run: cargo nextest run --profile ci --features openapi --test generate_openapi
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
@@ -117,6 +124,11 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.143
+
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
@@ -139,7 +151,9 @@ jobs:
 
       # Single feature-complete run, matching AsterDrive's coverage job.
       - name: Run tests with coverage
-        run: cargo llvm-cov --workspace --features metrics,otlp-metrics,openapi --no-fail-fast --lcov --output-path coverage/rust/lcov.info
+        env:
+          NEXTEST_PROFILE: ci
+        run: cargo llvm-cov nextest --workspace --no-fail-fast --features metrics,otlp-metrics,openapi --lcov --output-path coverage/rust/lcov.info
 
       - name: Generate HTML coverage report
         if: success()
@@ -186,6 +200,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.143
+
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -195,7 +214,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
-      # cargo test --tests 会连 lib 单元测试一起执行，而 lib 内嵌的
+      # cargo nextest run --tests 会连 lib 单元测试一起执行，而 lib 内嵌的
       # frontend-panel/dist 需要构建产物（frontend asset 相关断言）
       - name: Install frontend dependencies
         working-directory: frontend-panel
@@ -209,6 +228,6 @@ jobs:
       - name: Verify Docker availability
         run: docker version
 
-      # 只跑集成测试（tests/ 下的），单元测试已在 coverage job 中覆盖
-      - name: Run integration tests against ${{ matrix.backend }}
-        run: cargo test --tests --no-fail-fast
+      # 覆盖 tests/ 下的集成测试和 lib 单元测试（进程隔离），数据库后端由 ASTER_TEST_DATABASE_BACKEND 选择
+      - name: Run tests against ${{ matrix.backend }}
+        run: cargo nextest run --profile database --tests

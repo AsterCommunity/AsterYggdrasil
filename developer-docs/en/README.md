@@ -199,7 +199,7 @@ When changing API contracts:
 Commands:
 
 ```bash
-cargo test --features openapi --test generate_openapi
+cargo nextest run --features openapi --test generate_openapi
 cd frontend-panel
 bun run generate-api
 ```
@@ -228,8 +228,8 @@ Useful commands:
 ```bash
 cargo fmt
 cargo check
-cargo test
-cargo test --features openapi --test generate_openapi
+cargo nextest run --profile ci
+cargo nextest run --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run check
@@ -240,19 +240,21 @@ bun run build
 Targeted commands used often:
 
 ```bash
-cargo test --test test_yggdrasil
-cargo test --test test_admin_tasks
-cargo test --test test_audit
-cargo test --test test_auth
-cargo test --test test_external_auth
-cargo test --test test_database_backends
-cargo test mail_template
-cargo test texture_service
-cargo test task_service::presentation
-cargo test shutdown_release_returns_processing_task_to_retry_without_failure_update
+cargo nextest run --test test_yggdrasil
+cargo nextest run --test test_admin_tasks
+cargo nextest run --test test_audit
+cargo nextest run --test test_auth
+cargo nextest run --test test_external_auth
+cargo nextest run --test test_database_backends
+cargo nextest run mail_template
+cargo nextest run texture_service
+cargo nextest run task_service::presentation
+cargo nextest run shutdown_release_returns_processing_task_to_retry_without_failure_update
 ```
 
-When changing migrations, repositories, or SQL, at least run the SQLite coverage; for cross-database semantics, run `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo test --test test_database_backends`. When changing frontend services or key pages, run `bun run test`; for page workflows, run the relevant Playwright tests.
+When changing migrations, repositories, or SQL, at least run the SQLite coverage; for cross-database semantics, run `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo nextest run --profile database --test test_database_backends`. When changing frontend services or key pages, run `bun run test`; for page workflows, run the relevant Playwright tests.
+
+`.config/nextest.toml` defines the profiles the Rust CI jobs use: `ci` (failures and slow tests only, no retries, no fail-fast) and `database` (the integration-job profile: 4 test threads and a slow-test timeout that leaves room for testcontainers bootstrap).
 
 Render benchmark baselines, the reference environment, and the comparability rules are recorded in [Render benchmark baseline](./render-benchmarks.md).
 

@@ -159,9 +159,9 @@ error
 常用命令：
 
 ```bash
-cargo test mail_template
-cargo test --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
-cargo test --features openapi --test generate_openapi
+cargo nextest run mail_template
+cargo nextest run --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
+cargo nextest run --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run generate-api

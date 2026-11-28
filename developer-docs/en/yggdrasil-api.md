@@ -403,9 +403,9 @@ Change workflow:
 
 ```bash
 cargo fmt
-cargo test --features openapi --test generate_openapi
+cargo nextest run --features openapi --test generate_openapi
 bun run --cwd frontend-panel generate-api
-cargo test --test test_yggdrasil
+cargo nextest run --test test_yggdrasil
 cargo check
 ```
 

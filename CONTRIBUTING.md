@@ -6,6 +6,8 @@ Please read and follow the [Code of Conduct](CODE_OF_CONDUCT.md) before particip
 
 ## Getting Started
 
+Backend tests use [cargo-nextest](https://nexte.st/). Install it before running the test commands below.
+
 1. Fork the repository
 2. Clone your fork:
    ```bash
@@ -63,7 +65,7 @@ docs: update launcher setup guide
 # Backend checks
 cargo fmt --all -- --check
 cargo check
-cargo test --workspace --lib
+cargo nextest run --profile ci --workspace --lib
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Frontend checks
@@ -72,13 +74,13 @@ bun run check
 bun run build
 ```
 
-Prefer a targeted `cargo test --lib <filter>` or `cargo test --test <name> <filter>` while iterating; run a
+Prefer a targeted `cargo nextest run --lib <filter>` or `cargo nextest run --test <name> <filter>` while iterating; run a
 broader suite when the change crosses service, database, texture storage, or protocol boundaries.
 For PostgreSQL or MySQL coverage, use the shared container suites rather than switching runners:
 
 ```bash
-ASTER_TEST_DATABASE_BACKEND=postgres cargo test --test test_database_backends
-ASTER_TEST_DATABASE_BACKEND=mysql cargo test --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=postgres cargo nextest run --profile database --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=mysql cargo nextest run --profile database --test test_database_backends
 ```
 
 Shared containers are managed by `aster_forge_test` (`TestContainerSuite`), keyed by checkout
@@ -88,7 +90,7 @@ automatically on the next run.
 If an API surface or OpenAPI schema changes, also run:
 
 ```bash
-cargo test --features openapi --test generate_openapi
+cargo nextest run --features openapi --test generate_openapi
 cd frontend-panel
 bun run generate-api
 ```
