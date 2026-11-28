@@ -87,6 +87,10 @@ type ManagedUsersQuery = {
 
 type UserCursor = { id: number; value: string };
 
+type KeywordState =
+	| { source: "url" }
+	| { source: "user"; draft: string; lastSubmitted: string | null };
+
 function createInviteForm(): CreateUserInvitationRequest {
 	return { email: "" };
 }
@@ -141,7 +145,6 @@ function useAdminUsersPageController() {
 	const [generatedPassword, setGeneratedPassword] =
 		useState<GeneratedPasswordState | null>(null);
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	const [keywordUserDraft, setKeywordDraft] = useState("");
 
 	usePageTitle(t("admin.users.title"));
 
@@ -159,47 +162,45 @@ function useAdminUsersPageController() {
 		setSearchParams,
 	});
 	const { keyword: committedKeyword, pageSize, role, status } = query;
-	// The input keeps intermediate drafts; the URL commits after a debounce.
-	// Only user edits start the debounce pipeline: the URL stays the source of
-	// truth for external navigation (deep links, back/forward), otherwise a
-	// mount-time empty draft would overwrite a restored `?keyword=...` filter.
-	const [keywordSource, setKeywordSource] = useState<"url" | "user">("url");
-	// Distinguishes our own debounced commits from external URL changes.
-	// `pendingCommit` holds the keyword the page just pushed into the URL and
-	// is cleared once the router reflects it; `lastSubmitted` is the last
-	// keyword this page authored. A committedKeyword matching neither means
-	// the URL was changed from outside (back/forward, in-app link), and the
-	// "user" mode must retire — a stale draft would otherwise push the old
-	// keyword back over the externally navigated one.
-	const pendingCommitRef = useRef<string | null>(null);
-	const lastSubmittedRef = useRef<string | null>(null);
+	// The keyword filter models "where does the draft come from" as a
+	// discriminated union: the source tag and its value travel together, so
+	// the illegal combination "source says url but the draft holds user
+	// text" is unrepresentable. The url branch carries no payload — the URL
+	// itself is the store — so adopting an externally navigated keyword is
+	// just a tag flip and the old draft-sync effect is gone.
+	//
+	// Only user edits start the debounce pipeline: the URL stays the source
+	// of truth for external navigation (deep links, back/forward), otherwise
+	// a mount-time empty draft would overwrite a restored `?keyword=...`
+	// filter. `lastSubmitted` is the debounced keyword the page last pushed
+	// into the URL; while the user branch is live, a committedKeyword equal
+	// to it is our own commit landing, and anything else is external
+	// navigation that must retire the branch before the stale draft can
+	// push the old keyword back over the navigated one.
+	const [keywordState, setKeywordState] = useState<KeywordState>({
+		source: "url",
+	});
 	const keywordDraft =
-		keywordSource === "url" ? committedKeyword : keywordUserDraft;
+		keywordState.source === "user" ? keywordState.draft : committedKeyword;
 	const debouncedKeyword = useDebouncedValue(keywordDraft, 250);
 	useEffect(() => {
-		if (keywordSource === "url") return;
+		if (keywordState.source !== "user") return;
+		if (keywordState.lastSubmitted === debouncedKeyword) return;
 		if (debouncedKeyword.trim() === committedKeyword) return;
-		pendingCommitRef.current = debouncedKeyword;
+		setKeywordState({ ...keywordState, lastSubmitted: debouncedKeyword });
 		setQuery({ keyword: debouncedKeyword });
-	}, [committedKeyword, debouncedKeyword, keywordSource, setQuery]);
+	}, [committedKeyword, debouncedKeyword, keywordState, setQuery]);
+	// Keystrokes only mutate the draft, so reconciliation is gated on the
+	// committed value actually changing.
+	const lastReconciledKeywordRef = useRef(committedKeyword);
 	useEffect(() => {
-		if (pendingCommitRef.current !== null) {
-			if (committedKeyword === pendingCommitRef.current) {
-				// Our own commit landed in the URL — stay in user mode.
-				pendingCommitRef.current = null;
-				lastSubmittedRef.current = committedKeyword;
-				return;
-			}
-			// Commit still in flight; do not treat the old URL as external.
-			return;
-		}
-		if (committedKeyword === lastSubmittedRef.current) {
-			return;
-		}
+		if (lastReconciledKeywordRef.current === committedKeyword) return;
+		lastReconciledKeywordRef.current = committedKeyword;
+		if (keywordState.source !== "user") return;
+		if (committedKeyword === keywordState.lastSubmitted) return;
 		// External navigation: adopt the URL keyword and drop the stale draft.
-		setKeywordSource("url");
-		setKeywordDraft(committedKeyword);
-	}, [committedKeyword]);
+		setKeywordState({ source: "url" });
+	}, [committedKeyword, keywordState]);
 
 	const { pending: submitting, runWithPending } = usePendingAction();
 	const { pendingId: deletingId, runWithPending: runDeletion } =
@@ -297,8 +298,11 @@ function useAdminUsersPageController() {
 				status={status}
 				statusOptions={statusOptions}
 				onKeywordChange={(value) => {
-					setKeywordSource("user");
-					setKeywordDraft(value);
+					setKeywordState((current) =>
+						current.source === "user"
+							? { ...current, draft: value }
+							: { source: "user", draft: value, lastSubmitted: null },
+					);
 				}}
 				onRoleChange={(value) => {
 					setQuery({
@@ -311,8 +315,7 @@ function useAdminUsersPageController() {
 					});
 				}}
 				onResetFilters={() => {
-					setKeywordSource("url");
-					setKeywordDraft("");
+					setKeywordState({ source: "url" });
 					setQuery({
 						keyword: "",
 						role: "__all__",
@@ -451,7 +454,6 @@ function useAdminUsersPageController() {
 		dispatchInvite,
 		setCreateDialogOpen,
 		setGeneratedPassword,
-		setKeywordDraft,
 		submitting,
 		toolbar,
 		actions: {

@@ -99,14 +99,14 @@ describe("UserDetailBanSection", () => {
 	it("loads user bans and renders active status, scope, and timing", async () => {
 		renderSection();
 
-		expect(
-			await screen.findByText("Texture upload and wardrobe"),
-		).toBeInTheDocument();
+		// The ban reason is a unique load sentinel: scope labels render in
+		// both the selector and the summary, so they cannot be awaited with
+		// a single-element query.
+		expect(await screen.findByText("upload abuse")).toBeInTheDocument();
 		expect(adminUserServiceMock.listBans).toHaveBeenCalledWith({
 			limit: 50,
 			user_id: 7,
 		});
-		expect(screen.getByText("upload abuse")).toBeInTheDocument();
 		expect(screen.getByText("1 active")).toBeInTheDocument();
 		expect(screen.getByText("visible reason")).toBeInTheDocument();
 	});
@@ -195,7 +195,7 @@ describe("UserDetailBanSection", () => {
 				createUserBanPage([createUserBan({ reason: "profile abuse" })]),
 			);
 		renderSection();
-		await screen.findByText("Texture upload and wardrobe");
+		await screen.findByText("upload abuse");
 
 		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 		const dialog = topDialog();
@@ -236,7 +236,7 @@ describe("UserDetailBanSection", () => {
 				]),
 			);
 		renderSection();
-		await screen.findByText("Texture upload and wardrobe");
+		await screen.findByText("upload abuse");
 
 		fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
 		let dialog = topDialog();
