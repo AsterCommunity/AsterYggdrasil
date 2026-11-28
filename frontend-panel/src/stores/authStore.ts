@@ -50,6 +50,10 @@ type AuthState = {
 	errorCode: ApiClientErrorCode | null;
 	expiresAt: number | null;
 	isAuthStale: boolean;
+	// The server could not be reached at boot and no cached user exists, so
+	// there is no session to fall back on; the guards render the dedicated
+	// unreachable-server state instead of the misleading stale-session one.
+	bootOffline: boolean;
 	isAuthenticated: boolean;
 	isAdmin: boolean;
 	isOperator: boolean;
@@ -282,6 +286,7 @@ function setAuthenticatedState(
 		errorCode: null,
 		expiresAt,
 		isAuthStale: false,
+		bootOffline: false,
 	});
 }
 
@@ -373,6 +378,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 	errorCode: null,
 	expiresAt: initialExpiresAt,
 	isAuthStale: Boolean(initialUser),
+	bootOffline: false,
 	isAuthenticated: initialFlags.isAuthenticated,
 	isAdmin: initialFlags.isAdmin,
 	isOperator: initialFlags.isOperator,
@@ -386,6 +392,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		if (inFlightPublicSessionCheck) return inFlightPublicSessionCheck;
 
 		inFlightPublicSessionCheck = (async () => {
+			set({ checking: true, error: null, errorCode: null, bootOffline: false });
 			try {
 				const user = await authService.me();
 				setAuthenticatedState(
@@ -397,13 +404,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 				const errorCode = apiErrorCode(error);
 				if (isApiConnectionError(error)) {
 					const currentUser = get().user;
+					if (currentUser) {
+						set({
+							...authStateFromUser(currentUser),
+							checking: false,
+							error: formatUnknownError(error),
+							errorCode,
+							expiresAt: get().expiresAt ?? readStoredExpiresAt(),
+							isAuthStale: true,
+						});
+						return;
+					}
 					set({
-						...authStateFromUser(currentUser),
+						...authStateFromUser(null),
 						checking: false,
 						error: formatUnknownError(error),
 						errorCode,
-						expiresAt: get().expiresAt ?? readStoredExpiresAt(),
-						isAuthStale: Boolean(currentUser),
+						expiresAt: null,
+						isAuthStale: false,
+						bootOffline: true,
 					});
 					return;
 				}
@@ -416,6 +435,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 					errorCode,
 					expiresAt: null,
 					isAuthStale: false,
+					bootOffline: false,
 				});
 			} finally {
 				inFlightPublicSessionCheck = null;
@@ -428,7 +448,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 		if (inFlightHydrate) return inFlightHydrate;
 
 		inFlightHydrate = (async () => {
-			set({ checking: true, error: null, errorCode: null });
+			set({ checking: true, error: null, errorCode: null, bootOffline: false });
 			try {
 				const user = await authService.me();
 				setAuthenticatedState(
@@ -440,13 +460,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 				const errorCode = apiErrorCode(error);
 				if (isApiConnectionError(error)) {
 					const currentUser = get().user;
+					if (currentUser) {
+						set({
+							...authStateFromUser(currentUser),
+							checking: false,
+							error: formatUnknownError(error),
+							errorCode,
+							expiresAt: get().expiresAt ?? readStoredExpiresAt(),
+							isAuthStale: true,
+						});
+						return;
+					}
 					set({
-						...authStateFromUser(currentUser),
+						...authStateFromUser(null),
 						checking: false,
 						error: formatUnknownError(error),
 						errorCode,
-						expiresAt: get().expiresAt ?? readStoredExpiresAt(),
-						isAuthStale: true,
+						expiresAt: null,
+						isAuthStale: false,
+						bootOffline: true,
 					});
 					return;
 				}
@@ -459,6 +491,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 					errorCode,
 					expiresAt: null,
 					isAuthStale: false,
+					bootOffline: false,
 				});
 			} finally {
 				inFlightHydrate = null;
