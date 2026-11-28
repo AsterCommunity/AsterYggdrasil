@@ -64,6 +64,21 @@ describe("usePwaUpdate", () => {
 		expect(mockState.toastInfo).not.toHaveBeenCalled();
 	});
 
+	it("does not apply an update without user confirmation", async () => {
+		mockState.needRefresh = true;
+
+		renderHook(() => usePwaUpdate());
+
+		await waitFor(() => {
+			expect(mockState.toastInfo).toHaveBeenCalled();
+		});
+
+		// Prompt semantics: the toast is the only path that applies the
+		// update. Reaching the toast must never auto-trigger the takeover;
+		// only the toast action below calls updateServiceWorker(true).
+		expect(mockState.updateServiceWorker).not.toHaveBeenCalled();
+	});
+
 	it("shows an update toast and refreshes the service worker from the action", async () => {
 		mockState.needRefresh = true;
 

@@ -288,6 +288,7 @@
       "paths": [
         "frontend-panel/**",
         "scripts/coverage-summary.mjs",
+        "scripts/rewrite-frontend-lcov-paths.mjs",
         ".github/workflows/frontend.yml"
       ]
     },

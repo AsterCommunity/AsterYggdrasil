@@ -2,14 +2,14 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 function logPwaUpdate(message: string, extra?: unknown) {
-	if (!import.meta.env.DEV) return;
 	if (extra === undefined) {
-		console.debug(`[pwa-update] ${message}`);
+		logger.debug(`[pwa-update] ${message}`);
 		return;
 	}
-	console.debug(`[pwa-update] ${message}`, extra);
+	logger.debug(`[pwa-update] ${message}`, extra);
 }
 
 function requestServiceWorkerUpdate(

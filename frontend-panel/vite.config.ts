@@ -102,7 +102,11 @@ export default defineConfig(({ command }) => {
 			react(),
 			tailwindcss(),
 			VitePWA({
-				registerType: "autoUpdate",
+				// Prompt mode keeps a new service worker in `waiting` until the user
+				// confirms the refresh in the update toast (usePwaUpdate), mirroring
+				// AsterDrive: open tabs never get their precache swapped underneath
+				// them, so lazy chunks referencing old hashed assets keep working.
+				registerType: "prompt",
 				includeAssets: ["favicon.svg"],
 				devOptions: {
 					enabled: true,

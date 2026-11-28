@@ -18,11 +18,7 @@ export function OperatorScopeSelector({
 	value: PermissionId[];
 }) {
 	const { t } = useTranslation();
-	const {
-		permissions: adminAreas,
-		status,
-		retry,
-	} = useRegistryPermissions("admin_area");
+	const registry = useRegistryPermissions("admin_area");
 	const selected = new Set(value);
 
 	return (
@@ -35,22 +31,27 @@ export function OperatorScopeSelector({
 					{t("admin.users.operatorScopesDescription")}
 				</p>
 			</div>
-			{status === "error" ? (
+			{registry.status === "error" ? (
 				<div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm">
 					<span className="text-destructive">
 						{t("admin.users.permissionsLoadFailed")}
 					</span>
-					<Button type="button" variant="outline" size="sm" onClick={retry}>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={registry.retry}
+					>
 						{t("admin.users.retryPermissionsLoad")}
 					</Button>
 				</div>
-			) : status === "loading" ? (
+			) : registry.status === "loading" ? (
 				<div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground text-sm dark:border-white/10 dark:bg-white/[0.03]">
 					{t("admin.users.operatorScopesLoading")}
 				</div>
 			) : (
 				<div className="grid gap-2 sm:grid-cols-2">
-					{adminAreas.map((permission) => {
+					{registry.permissions.map((permission) => {
 						const checked = selected.has(permission.id);
 						const inputId = `operator-scope-${permission.id}`;
 						return (

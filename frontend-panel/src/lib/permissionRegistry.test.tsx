@@ -19,7 +19,9 @@ function Probe({ registry }: { registry: RegistryPermissions }) {
 	return (
 		<div>
 			<span data-testid="status">{registry.status}</span>
-			<span data-testid="count">{registry.permissions.length}</span>
+			{registry.status === "ready" ? (
+				<span data-testid="count">{registry.permissions.length}</span>
+			) : null}
 		</div>
 	);
 }

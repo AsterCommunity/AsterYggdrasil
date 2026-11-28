@@ -10,11 +10,13 @@ function readMetaValue(name: string) {
 	return value;
 }
 
+import { runtimeFlags } from "@/config/runtime";
+
 export const config = {
 	apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "/api/v1",
 	rootBaseUrl: import.meta.env.VITE_ROOT_BASE_URL ?? "",
 	appName: "AsterYggdrasil",
 	appVersion:
 		readMetaValue("asteryggdrasil-version") ??
-		(import.meta.env.DEV ? "dev" : "unknown"),
+		(runtimeFlags.isDev ? "dev" : "unknown"),
 } as const;

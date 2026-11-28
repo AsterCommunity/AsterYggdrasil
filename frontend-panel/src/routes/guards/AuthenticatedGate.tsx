@@ -11,6 +11,7 @@ export function AuthenticatedGate() {
 	const checking = useAuthStore((state) => state.checking);
 	const errorCode = useAuthStore((state) => state.errorCode);
 	const isAuthStale = useAuthStore((state) => state.isAuthStale);
+	const bootOffline = useAuthStore((state) => state.bootOffline);
 	const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 	const mustChangePassword = useAuthStore(
 		(state) => state.user?.must_change_password ?? false,
@@ -22,6 +23,19 @@ export function AuthenticatedGate() {
 
 	if (checking) {
 		return <Loading />;
+	}
+	if (bootOffline) {
+		return (
+			<RouteAccessState
+				actionOnClick={() => void hydrate()}
+				actionLabelKey="shell.routeState.serverUnreachableAction"
+				descriptionKey="shell.routeState.serverUnreachableDescription"
+				icon="WifiX"
+				secondaryActionHref={publicPaths.login}
+				secondaryActionLabelKey="shell.routeState.serverUnreachableLogin"
+				titleKey="shell.routeState.serverUnreachableTitle"
+			/>
+		);
 	}
 	if (
 		isAuthStale &&

@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type SaveBarPhase = "hidden" | "entering" | "visible" | "exiting";
-type SaveBarPhaseState = {
-	active: boolean;
-	phase: SaveBarPhase;
-};
 
 const SAVE_BAR_ENTER_DURATION_MS = 150;
 const SAVE_BAR_EXIT_DURATION_MS = 140;
@@ -136,20 +132,28 @@ export function SettingsSaveBar({
 }
 
 function useSettingsSaveBarPhase(active: boolean) {
-	const [state, setState] = useState<SaveBarPhaseState>(() => ({
-		active,
-		phase: active ? "entering" : "hidden",
-	}));
-	let phase = state.phase;
+	// The phase is the single state value; whether the bar should show is
+	// derived from it, so combinations like "hidden but active" or "visible
+	// but inactive" cannot exist. The previous active flag lives in the
+	// same state object so the prop-driven adjustment is one atomic update
+	// (no render-phase ref writes that an abandoned render could leave
+	// inconsistent with the phase).
+	const [state, setState] = useState<{
+		lastActive: boolean;
+		phase: SaveBarPhase;
+	}>(() => ({ lastActive: active, phase: active ? "entering" : "hidden" }));
 
-	if (active !== state.active) {
-		phase = active
-			? "entering"
-			: state.phase === "hidden"
-				? "hidden"
-				: "exiting";
-		setState({ active, phase });
+	if (active !== state.lastActive) {
+		setState({
+			lastActive: active,
+			phase: active
+				? "entering"
+				: state.phase === "hidden"
+					? "hidden"
+					: "exiting",
+		});
 	}
+	const phase = state.phase;
 
 	useEffect(() => {
 		if (phase === "entering") {

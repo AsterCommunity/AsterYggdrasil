@@ -200,7 +200,7 @@ API contract 改动流程：
 命令：
 
 ```bash
-cargo test --features openapi --test generate_openapi
+cargo nextest run --profile ci --features openapi --test generate_openapi
 cd frontend-panel
 bun run generate-api
 ```
@@ -224,13 +224,13 @@ Admin screen 应该保持信息密度适中、可扫描、可重复操作。Prof
 
 ## 测试
 
-常用命令：
+常用命令（测试需要先安装 [cargo-nextest](https://nexte.st/)，见 [CONTRIBUTING.md](../CONTRIBUTING.md)）：
 
 ```bash
 cargo fmt
 cargo check
-cargo test
-cargo test --features openapi --test generate_openapi
+cargo nextest run --profile ci
+cargo nextest run --profile ci --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run check
@@ -241,19 +241,28 @@ bun run build
 常用目标测试：
 
 ```bash
-cargo test --test test_yggdrasil
-cargo test --test test_admin_tasks
-cargo test --test test_audit
-cargo test --test test_auth
-cargo test --test test_external_auth
-cargo test --test test_database_backends
-cargo test mail_template
-cargo test texture_service
-cargo test task_service::presentation
-cargo test shutdown_release_returns_processing_task_to_retry_without_failure_update
+cargo nextest run --profile ci --test test_yggdrasil
+cargo nextest run --profile ci --test test_admin_tasks
+cargo nextest run --profile ci --test test_audit
+cargo nextest run --profile ci --test test_auth
+cargo nextest run --profile ci --test test_external_auth
+cargo nextest run --profile ci --test test_database_backends
+cargo nextest run --profile ci mail_template
+cargo nextest run --profile ci services::texture::
+cargo nextest run --profile ci task::presentation
+cargo nextest run --profile ci shutdown_release_returns_processing_task_to_retry_without_failure_update
 ```
 
-改 migration、repository 或 SQL 时至少跑 SQLite 相关测试；涉及跨库语义时再跑 `ASTER_TEST_DATABASE_BACKEND=postgres|mysql cargo test --test test_database_backends`。改前端 service 或关键页面流程时跑 `bun run test`，涉及页面交互再跑对应 Playwright。
+改 migration、repository 或 SQL 时至少跑 SQLite 相关测试；涉及跨库语义时，对两个容器各跑一遍同一目标：
+
+```bash
+ASTER_TEST_DATABASE_BACKEND=postgres cargo nextest run --profile database --test test_database_backends
+ASTER_TEST_DATABASE_BACKEND=mysql cargo nextest run --profile database --test test_database_backends
+```
+
+改前端 service 或关键页面流程时跑 `bun run test`，涉及页面交互再跑对应 Playwright。
+
+`.config/nextest.toml` 定义了上面命令使用的 profile。`ci` 是 OpenAPI 与 coverage job 使用的 profile：只输出失败与慢测试、不重试、不 fail-fast。`database` 是集成 job 使用的 profile：固定 4 个测试线程，并为 testcontainers 启动保留慢测试超时窗口——单个测试跑满 4 个 120 s 周期仍未结束时会被终止并记为 `TIMEOUT`。
 
 渲染基准基线、参考环境和可比性规则见 [渲染基准基线](./render-benchmarks.md)。
 

@@ -1,0 +1,24 @@
+[profile.default]
+fail-fast = false
+retries = 0
+
+[profile.ci]
+inherits = "default"
+status-level = "fail"
+final-status-level = "slow"
+
+# The three cross-database CLI migration cases start real server-side
+# containers; serialize them so they do not compete for the MySQL DDL cache.
+[[profile.database.overrides]]
+filter = 'test(/^cross_backend::(sqlite_to_postgres|postgres_to_mysql|mysql_to_sqlite)_copies_all_tables$/)'
+test-group = "database-migrations"
+
+[test-groups.database-migrations]
+max-threads = 1
+
+[profile.database]
+inherits = "ci"
+# PostgreSQL/MySQL integration tests share one testcontainer per backend. The Forge test helper
+# reclaims per-test databases left by exited processes during the same nextest run.
+test-threads = 4
+slow-timeout = { period = "120s", terminate-after = 4 }
