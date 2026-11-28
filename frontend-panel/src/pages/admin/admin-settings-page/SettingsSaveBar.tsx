@@ -134,33 +134,46 @@ export function SettingsSaveBar({
 function useSettingsSaveBarPhase(active: boolean) {
 	// The phase is the single state value; whether the bar should show is
 	// derived from it, so combinations like "hidden but active" or "visible
-	// but inactive" cannot exist.
-	const [phase, setPhase] = useState<SaveBarPhase>(() =>
-		active ? "entering" : "hidden",
-	);
-	const lastActiveRef = useRef(active);
+	// but inactive" cannot exist. The previous active flag lives in the
+	// same state object so the prop-driven adjustment is one atomic update
+	// (no render-phase ref writes that an abandoned render could leave
+	// inconsistent with the phase).
+	const [state, setState] = useState<{
+		lastActive: boolean;
+		phase: SaveBarPhase;
+	}>(() => ({ lastActive: active, phase: active ? "entering" : "hidden" }));
 
-	if (active !== lastActiveRef.current) {
-		lastActiveRef.current = active;
-		const nextPhase = active
-			? "entering"
-			: phase === "hidden"
-				? "hidden"
-				: "exiting";
-		if (nextPhase !== phase) setPhase(nextPhase);
+	if (active !== state.lastActive) {
+		setState({
+			lastActive: active,
+			phase: active
+				? "entering"
+				: state.phase === "hidden"
+					? "hidden"
+					: "exiting",
+		});
 	}
+	const phase = state.phase;
 
 	useEffect(() => {
 		if (phase === "entering") {
 			const timer = window.setTimeout(() => {
-				setPhase((current) => (current === "entering" ? "visible" : current));
+				setState((current) =>
+					current.phase === "entering"
+						? { ...current, phase: "visible" }
+						: current,
+				);
 			}, 0);
 			return () => window.clearTimeout(timer);
 		}
 
 		if (phase === "exiting") {
 			const timer = window.setTimeout(() => {
-				setPhase((current) => (current === "exiting" ? "hidden" : current));
+				setState((current) =>
+					current.phase === "exiting"
+						? { ...current, phase: "hidden" }
+						: current,
+				);
 			}, SAVE_BAR_EXIT_DURATION_MS + SAVE_BAR_EXIT_UNMOUNT_GRACE_MS);
 			return () => window.clearTimeout(timer);
 		}

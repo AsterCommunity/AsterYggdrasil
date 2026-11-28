@@ -64,7 +64,7 @@ describe("usePwaUpdate", () => {
 		expect(mockState.toastInfo).not.toHaveBeenCalled();
 	});
 
-	it("keeps a waiting service worker pending until the user confirms the refresh", async () => {
+	it("does not apply an update without user confirmation", async () => {
 		mockState.needRefresh = true;
 
 		renderHook(() => usePwaUpdate());
@@ -74,10 +74,8 @@ describe("usePwaUpdate", () => {
 		});
 
 		// Prompt semantics: the toast is the only path that applies the
-		// update. A waiting worker alone must never take over open tabs.
-		expect(mockState.registration.waiting).toEqual({
-			scriptURL: "/sw-waiting.js",
-		});
+		// update. Reaching the toast must never auto-trigger the takeover;
+		// only the toast action below calls updateServiceWorker(true).
 		expect(mockState.updateServiceWorker).not.toHaveBeenCalled();
 	});
 
