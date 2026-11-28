@@ -13,6 +13,8 @@ type RouteAccessStateProps = {
 	actionOnClick?: () => void;
 	descriptionKey: string;
 	icon: IconName;
+	secondaryActionHref?: string;
+	secondaryActionLabelKey?: string;
 	titleKey: string;
 };
 
@@ -22,6 +24,8 @@ export function RouteAccessState({
 	actionOnClick,
 	descriptionKey,
 	icon,
+	secondaryActionHref,
+	secondaryActionLabelKey,
 	titleKey,
 }: RouteAccessStateProps) {
 	const { t } = useTranslation();
@@ -49,22 +53,35 @@ export function RouteAccessState({
 							{t(descriptionKey)}
 						</p>
 					</div>
-					{actionHref ? (
-						<Link
-							to={actionHref}
-							className={cn(buttonVariants({ size: "sm" }), "w-fit")}
-						>
-							{t(actionLabelKey)}
-						</Link>
-					) : (
-						<button
-							type="button"
-							onClick={actionOnClick}
-							className={cn(buttonVariants({ size: "sm" }), "w-fit")}
-						>
-							{t(actionLabelKey)}
-						</button>
-					)}
+					<div className="flex flex-wrap items-center gap-2">
+						{actionHref ? (
+							<Link
+								to={actionHref}
+								className={cn(buttonVariants({ size: "sm" }), "w-fit")}
+							>
+								{t(actionLabelKey)}
+							</Link>
+						) : (
+							<button
+								type="button"
+								onClick={actionOnClick}
+								className={cn(buttonVariants({ size: "sm" }), "w-fit")}
+							>
+								{t(actionLabelKey)}
+							</button>
+						)}
+						{secondaryActionHref && secondaryActionLabelKey ? (
+							<Link
+								to={secondaryActionHref}
+								className={cn(
+									buttonVariants({ size: "sm", variant: "outline" }),
+									"w-fit",
+								)}
+							>
+								{t(secondaryActionLabelKey)}
+							</Link>
+						) : null}
+					</div>
 				</section>
 			</main>
 		</PublicEntryShell>

@@ -346,6 +346,10 @@ describe("route guards: authenticated gate", () => {
 		expect(
 			screen.getByRole("button", { name: "Retry connection" }),
 		).toBeInTheDocument();
+		// The login escape hatch mirrors Drive's boot fallback affordance.
+		expect(
+			screen.getByRole("link", { name: "Go to login anyway" }),
+		).toHaveAttribute("href", "/login");
 		expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
 		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
 

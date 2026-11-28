@@ -31,6 +31,8 @@ export function AuthenticatedGate() {
 				actionLabelKey="shell.routeState.serverUnreachableAction"
 				descriptionKey="shell.routeState.serverUnreachableDescription"
 				icon="WifiX"
+				secondaryActionHref={publicPaths.login}
+				secondaryActionLabelKey="shell.routeState.serverUnreachableLogin"
 				titleKey="shell.routeState.serverUnreachableTitle"
 			/>
 		);

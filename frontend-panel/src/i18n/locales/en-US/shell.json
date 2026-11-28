@@ -81,6 +81,7 @@
 			"serverUnreachableTitle": "Cannot reach the server",
 			"serverUnreachableDescription": "The server could not be reached while starting up, and there is no local session to fall back on. Check the network or backend service and retry; the login page remains reachable.",
 			"serverUnreachableAction": "Retry connection",
+			"serverUnreachableLogin": "Go to login anyway",
 			"alreadySignedInTitle": "Already signed in",
 			"alreadySignedInDescription": "You are already signed in. Open the workbench to continue managing profiles and textures.",
 			"alreadySignedInAction": "Open workbench",
