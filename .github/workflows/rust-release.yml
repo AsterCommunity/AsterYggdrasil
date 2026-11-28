@@ -11,6 +11,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  ASTER_BUILD_REVISION: ${{ github.sha }}
+  CARGO_RELEASE_FEATURES: server,operator-cli
 
 jobs:
   build-frontend:
@@ -85,7 +87,7 @@ jobs:
       - name: Build
         run: |
           RUSTFLAGS="-C link-arg=-s" \
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --release --locked --no-default-features --features "$CARGO_RELEASE_FEATURES" --target "${{ matrix.target }}"
 
       - name: Rename binary
         run: |
@@ -147,7 +149,7 @@ jobs:
       - name: Build
         env:
           RUSTFLAGS: "-C link-arg=-s"
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --no-default-features --features "$CARGO_RELEASE_FEATURES" --target "${{ matrix.target }}"
 
       - name: Rename binary
         run: |
@@ -188,7 +190,7 @@ jobs:
       - name: Build
         env:
           RUSTFLAGS: "-C link-arg=-s"
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --no-default-features --features "$CARGO_RELEASE_FEATURES" --target "${{ matrix.target }}"
 
       - name: Rename binary
         run: |
@@ -220,7 +222,7 @@ jobs:
           key: aarch64-pc-windows-msvc
 
       - name: Build
-        run: cargo build --release --target aarch64-pc-windows-msvc
+        run: cargo build --release --locked --no-default-features --features "$env:CARGO_RELEASE_FEATURES" --target aarch64-pc-windows-msvc
 
       - name: Rename binary
         shell: pwsh

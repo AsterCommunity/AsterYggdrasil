@@ -176,8 +176,9 @@ undocumented_unsafe_blocks = "deny"
 [lints]
 workspace = true
 [features]
-default = ["server"]
+default = ["server", "operator-cli"]
 server = []
+operator-cli = ["server", "dep:inquire"]
 metrics = [
     "server",
     "dep:aster_forge_observability",
@@ -205,7 +206,7 @@ openapi = [
     "aster_forge_runtime/openapi",
     "aster_forge_tasks/openapi",
 ]
-full = ["server", "metrics", "otlp-metrics", "openapi"]
+full = ["server", "operator-cli", "metrics", "otlp-metrics", "openapi"]
 benchmarks = ["dep:criterion"]
 jemalloc = ["dep:tikv-jemallocator", "aster_forge_alloc/jemalloc"]
 jemalloc-stats = [
@@ -258,7 +259,7 @@ dotenvy = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 image = { workspace = true }
-inquire = { workspace = true, features = ["crossterm"] }
+inquire = { workspace = true, features = ["crossterm"], optional = true }
 jsonwebtoken = { workspace = true }
 num_cpus = { workspace = true }
 parking_lot = { workspace = true }
@@ -293,7 +294,7 @@ chrono = { workspace = true, default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 actix-http = { workspace = true }
-aster_forge_test = { workspace = true, features = ["mysql", "postgres", "logs"] }
+aster_forge_test = { workspace = true, features = ["mysql", "postgres", "logs", "process"] }
 fs2 = { workspace = true }
 rand_08 = { workspace = true }
 getrandom = { workspace = true }

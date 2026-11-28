@@ -3,6 +3,7 @@
 /// Distinguishes user-initiated cancellation from business failures.
 #[derive(Debug)]
 pub(in crate::cli) enum CliError {
+    #[cfg(feature = "operator-cli")]
     Canceled,
     Failed(crate::errors::AsterError),
 }
@@ -16,6 +17,7 @@ impl From<crate::errors::AsterError> for CliError {
 impl std::fmt::Display for CliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "operator-cli")]
             Self::Canceled => f.write_str("canceled"),
             Self::Failed(error) => std::fmt::Display::fmt(error, f),
         }
@@ -25,6 +27,7 @@ impl std::fmt::Display for CliError {
 impl std::error::Error for CliError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "operator-cli")]
             Self::Canceled => None,
             Self::Failed(error) => Some(error),
         }

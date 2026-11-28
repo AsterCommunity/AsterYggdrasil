@@ -33,25 +33,25 @@ jobs:
       matrix:
         include:
           - variant: default
-            features: server
+            features: server,operator-cli
             suffix: ""
             platform: linux/amd64
             arch: amd64
             runner: ubuntu-latest
           - variant: default
-            features: server
+            features: server,operator-cli
             suffix: ""
             platform: linux/arm64
             arch: arm64
             runner: ubuntu-24.04-arm
           - variant: metrics
-            features: server,metrics
+            features: server,operator-cli,metrics
             suffix: "-metrics"
             platform: linux/amd64
             arch: amd64
             runner: ubuntu-latest
           - variant: metrics
-            features: server,metrics
+            features: server,operator-cli,metrics
             suffix: "-metrics"
             platform: linux/arm64
             arch: arm64
@@ -139,6 +139,7 @@ jobs:
             type=registry,ref=${{ env.REGISTRY_IMAGE_GHCR }}:buildcache-${{ matrix.variant }}-${{ matrix.arch }},mode=max
           build-args: |
             CARGO_FEATURES=${{ matrix.features }}
+            ASTER_BUILD_REVISION=${{ github.sha }}
           provenance: true
           sbom: true
 

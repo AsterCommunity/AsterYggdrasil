@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Build identity** — `aster_yggdrasil version [--json]` reports the package version, Git revision and working-tree state when known, target, profile, compiled features, and build time without loading instance configuration. Cargo's package scan also refreshes the identity when untracked source files are added or modified without treating `target/` artifacts as source changes. (#68)
+
+### Changed
+
+- **Operator CLI builds** — Default builds, release binaries, and published images include `operator-cli`. A build with `--no-default-features --features server` keeps `serve`, `version`, and piped `hash-password` input. Masked terminal input requires `operator-cli`. (#70)
+
 ## [v0.1.0-beta.2] - 2026-11-28
 
 ### Release Highlights

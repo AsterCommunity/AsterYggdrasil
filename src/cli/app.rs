@@ -45,7 +45,18 @@ pub(super) enum RootCommand {
         #[arg(value_enum, default_value = "all")]
         role: crate::runtime::role::ServeRole,
     },
-    /// Generate an authentication verifier (masked terminal input, or stdin until EOF)
+    /// Report the version and build identity
+    Version {
+        /// Print build identity as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Generate an authentication verifier
+    #[command(about = if cfg!(feature = "operator-cli") {
+        "Generate an authentication verifier (masked terminal input, or stdin until EOF)"
+    } else {
+        "Generate an authentication verifier (stdin until EOF)"
+    })]
     HashPassword,
 }
 
@@ -128,6 +139,26 @@ mod tests {
     fn role_values_survive_roundtrip_through_value_parser() {
         for role in [ServeRole::All, ServeRole::Api, ServeRole::Worker] {
             assert_eq!(parsed_role(&["serve", role.as_str()]), role);
+        }
+    }
+
+    #[test]
+    fn version_subcommand_accepts_only_its_json_switch() {
+        assert!(matches!(
+            parsed(&["version"]).command,
+            Some(RootCommand::Version { json: false })
+        ));
+        assert!(matches!(
+            parsed(&["version", "--json"]).command,
+            Some(RootCommand::Version { json: true })
+        ));
+        for args in [
+            ["version", "--json=false"],
+            ["version", "extra"],
+            ["serve", "--json"],
+        ] {
+            let args = std::iter::once("aster_yggdrasil").chain(args);
+            assert!(RootCli::try_parse_from(args).is_err());
         }
     }
 

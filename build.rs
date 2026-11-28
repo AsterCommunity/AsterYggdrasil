@@ -1,24 +1,72 @@
-//! Build script: inject build time and provide fallback frontend assets.
+//! Build script: inject build identity and provide fallback frontend assets.
 
 use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
 
+#[path = "build_support/identity.rs"]
+mod identity;
+
+const REVISION_ENV: &str = "ASTER_BUILD_REVISION";
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:rerun-if-changed=frontend-panel/dist");
+    // Keep Cargo's default package scan active. It detects new or modified
+    // package files while excluding the package target directory, which is
+    // required for build identity to notice untracked source changes without
+    // rebuilding on its own artifacts.
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     println!("cargo:rustc-env=ASTER_BUILD_TIME={now}");
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR")
         .map_err(|error| io::Error::other(format!("missing CARGO_MANIFEST_DIR: {error}")))?;
-    let dist_path = Path::new(&manifest_dir).join("frontend-panel/dist");
+    let manifest_dir = Path::new(&manifest_dir);
+    configure_build_identity(manifest_dir)?;
+    let dist_path = manifest_dir.join("frontend-panel/dist");
 
     if !dist_path.exists() {
         create_fallback_files(&dist_path)?;
     }
 
+    Ok(())
+}
+
+fn configure_build_identity(manifest_dir: &Path) -> io::Result<()> {
+    let revision_override = match env::var(REVISION_ENV) {
+        Ok(value) => Some(value),
+        Err(env::VarError::NotPresent) => None,
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::other(format!(
+                "{REVISION_ENV} must contain valid Unicode"
+            )));
+        }
+    };
+    let source = identity::source_identity(manifest_dir, revision_override.as_deref())?;
+    println!("cargo:rustc-env={REVISION_ENV}={}", source.revision);
+    println!(
+        "cargo:rustc-env=ASTER_BUILD_DIRTY={}",
+        identity::dirty_label(source.dirty)
+    );
+    let features =
+        identity::feature_names(env::vars_os().filter_map(|(key, _)| key.into_string().ok()));
+    println!(
+        "cargo:rustc-env=ASTER_BUILD_FEATURES={}",
+        features.join(",")
+    );
+    for (cargo_key, aster_key) in [
+        ("TARGET", "ASTER_BUILD_TARGET"),
+        ("PROFILE", "ASTER_BUILD_PROFILE"),
+    ] {
+        let value = env::var(cargo_key)
+            .map_err(|error| io::Error::other(format!("missing {cargo_key}: {error}")))?;
+        if value.is_empty() || value.contains(['\r', '\n']) {
+            return Err(io::Error::other(format!(
+                "{cargo_key} must be a non-empty single-line value"
+            )));
+        }
+        println!("cargo:rustc-env={aster_key}={value}");
+    }
     Ok(())
 }
 

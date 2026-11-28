@@ -67,6 +67,37 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+  cli-feature-matrix:
+    name: CLI (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            args: ''
+            operator-cli: 'true'
+          - name: server-only
+            args: --no-default-features --features server
+            operator-cli: 'false'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.143
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli-${{ matrix.name }}-v1
+      - name: Test CLI and build identity
+        env:
+          ASTER_TEST_EXPECT_OPERATOR_CLI: ${{ matrix.operator-cli }}
+        run: >-
+          cargo nextest run --locked --profile ci ${{ matrix.args }}
+          --lib --test test_cli --test test_build_identity
+          -E 'binary(test_cli) | binary(test_build_identity) | test(cli::) | test(operator_cli_tests::)'
+
   openapi-sdk-drift:
     name: OpenAPI and generated SDK drift
     runs-on: ubuntu-latest
@@ -153,7 +184,7 @@ jobs:
       - name: Run tests with coverage
         env:
           NEXTEST_PROFILE: ci
-        run: cargo llvm-cov nextest --workspace --no-fail-fast --features metrics,otlp-metrics,openapi --lcov --output-path coverage/rust/lcov.info
+        run: cargo llvm-cov nextest --workspace --no-fail-fast --no-default-features --features full --lcov --output-path coverage/rust/lcov.info
 
       - name: Generate HTML coverage report
         if: success()
