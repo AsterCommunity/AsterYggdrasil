@@ -160,9 +160,9 @@ When adding fields, update backend presentation and frontend presentation fallba
 Useful commands:
 
 ```bash
-cargo nextest run mail_template
-cargo nextest run --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
-cargo nextest run --features openapi --test generate_openapi
+cargo nextest run --profile ci mail_template
+cargo nextest run --profile ci --test test_audit mail_outbox_dispatch_records_delivery_audit_logs
+cargo nextest run --profile ci --features openapi --test generate_openapi
 
 cd frontend-panel
 bun run generate-api

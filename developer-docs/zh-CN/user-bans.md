@@ -155,7 +155,7 @@ Audit entity type 是 `UserBan`，details 包含 `scopes` 数组、目标用户�
 API 类型来自 OpenAPI 生成文件。后端 DTO 变化后需要运行：
 
 ```bash
-cargo nextest run --features openapi --test generate_openapi
+cargo nextest run --profile ci --features openapi --test generate_openapi
 cd frontend-panel && bun run generate-api
 ```
 
@@ -186,8 +186,8 @@ cd frontend-panel && bun run generate-api
 推荐验证命令：
 
 ```bash
-cargo nextest run --test test_user_bans
-cargo nextest run --test test_yggdrasil user_ban_texture_upload_scope_blocks_wardrobe_upload_before_temp_or_record_write
+cargo nextest run --profile ci --test test_user_bans
+cargo nextest run --profile ci --test test_yggdrasil user_ban_texture_upload_scope_blocks_wardrobe_upload_before_temp_or_record_write
 cd frontend-panel && bun run test -- src/components/admin/admin-users-page/UserDetailBanSection.test.tsx src/pages/account/AccountOverviewPage.test.tsx src/services/apiServices.test.ts
 cd frontend-panel && bun run check
 ```

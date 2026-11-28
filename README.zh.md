@@ -81,14 +81,16 @@ cargo run
 - [快速开始](docs/guide/getting-started.md) · [启动器接入](docs/guide/launcher-setup.md) · [玩家档案](docs/guide/profiles.md) · [配置说明](docs/guide/configuration.md)
 - [管理员指南](docs/guide/admin-guide.md) · [后台任务](docs/guide/audit-tasks.md) · [用户封禁](docs/guide/user-bans.md)
 - [Docker 部署](docs/deployment/docker.md) · [配置示例](config.example.toml)
-- [开发者文档](developer-docs/README.md) · [OpenAPI 导出](tests/generate_openapi.rs)（`cargo nextest run --features openapi --test generate_openapi`）
+- [开发者文档](developer-docs/README.md) · [OpenAPI 导出](tests/generate_openapi.rs)（`cargo nextest run --profile ci --features openapi --test generate_openapi`）
 
 ## 开发
+
+测试命令使用 [cargo-nextest](https://nexte.st/)（`cargo install cargo-nextest`），环境准备见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```bash
 # 后端
 cargo check
-cargo nextest run --workspace --lib
+cargo nextest run --profile ci --workspace --lib
 cargo clippy --workspace --all-features
 
 # 前端

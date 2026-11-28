@@ -74,7 +74,7 @@ bun run check
 bun run build
 ```
 
-Prefer a targeted `cargo nextest run --lib <filter>` or `cargo nextest run --test <name> <filter>` while iterating; run a
+Prefer a targeted `cargo nextest run --profile ci --lib <filter>` or `cargo nextest run --profile ci --test <name> <filter>` while iterating; run a
 broader suite when the change crosses service, database, texture storage, or protocol boundaries.
 For PostgreSQL or MySQL coverage, use the shared container suites rather than switching runners:
 
@@ -90,7 +90,7 @@ automatically on the next run.
 If an API surface or OpenAPI schema changes, also run:
 
 ```bash
-cargo nextest run --features openapi --test generate_openapi
+cargo nextest run --profile ci --features openapi --test generate_openapi
 cd frontend-panel
 bun run generate-api
 ```

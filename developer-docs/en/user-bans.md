@@ -157,7 +157,7 @@ The audit entity type is `UserBan`. Details include the `scopes` array, target u
 API types come from the generated OpenAPI file. After backend DTO changes, run:
 
 ```bash
-cargo nextest run --features openapi --test generate_openapi
+cargo nextest run --profile ci --features openapi --test generate_openapi
 cd frontend-panel && bun run generate-api
 ```
 
@@ -188,8 +188,8 @@ Changes should cover at least:
 Recommended verification:
 
 ```bash
-cargo nextest run --test test_user_bans
-cargo nextest run --test test_yggdrasil user_ban_texture_upload_scope_blocks_wardrobe_upload_before_temp_or_record_write
+cargo nextest run --profile ci --test test_user_bans
+cargo nextest run --profile ci --test test_yggdrasil user_ban_texture_upload_scope_blocks_wardrobe_upload_before_temp_or_record_write
 cd frontend-panel && bun run test -- src/components/admin/admin-users-page/UserDetailBanSection.test.tsx src/pages/account/AccountOverviewPage.test.tsx src/services/apiServices.test.ts
 cd frontend-panel && bun run check
 ```
