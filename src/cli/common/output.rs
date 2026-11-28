@@ -91,15 +91,13 @@ pub fn render_error_json(error: &AsterError, pretty: bool) -> String {
         },
     };
     if pretty {
-        serde_json::to_string_pretty(&envelope)
-            .unwrap_or_else(|serialization_error| {
-                render_serialization_error(serialization_error, true)
-            })
+        serde_json::to_string_pretty(&envelope).unwrap_or_else(|serialization_error| {
+            render_serialization_error(serialization_error, true)
+        })
     } else {
-        serde_json::to_string(&envelope)
-            .unwrap_or_else(|serialization_error| {
-                render_serialization_error(serialization_error, false)
-            })
+        serde_json::to_string(&envelope).unwrap_or_else(|serialization_error| {
+            render_serialization_error(serialization_error, false)
+        })
     }
 }
 
@@ -140,9 +138,12 @@ mod tests {
 
     #[test]
     fn success_envelope_wraps_data_with_ok_flag() {
-        let rendered = render_success_envelope(&SampleData {
-            key: "value".to_string(),
-        }, false);
+        let rendered = render_success_envelope(
+            &SampleData {
+                key: "value".to_string(),
+            },
+            false,
+        );
         let parsed: serde_json::Value = serde_json::from_str(&rendered).unwrap();
         assert_eq!(parsed["ok"], serde_json::Value::Bool(true));
         assert_eq!(parsed["data"]["key"], "value");

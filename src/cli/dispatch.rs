@@ -43,5 +43,8 @@ pub(super) async fn execute(cli: RootCli) -> io::Result<CommandOutcome> {
     )
     .map_err(io::Error::other)?;
 
-    Ok(CommandOutcome::Serve { role: serve_role, location })
+    Ok(CommandOutcome::Serve {
+        role: serve_role,
+        location,
+    })
 }

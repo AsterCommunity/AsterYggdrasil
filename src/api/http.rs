@@ -7,7 +7,8 @@
 
 use std::io;
 
-use actix_web::{App, HttpServer, middleware, web};
+use actix_web::dev::{ServiceFactory, ServiceRequest};
+use actix_web::{App, Error, HttpServer, middleware, web};
 use aster_forge_runtime::{
     RuntimeComponentKind, RuntimeServiceComponent, TryRuntimeComponentWithShutdown,
 };
@@ -64,15 +65,51 @@ fn configure_product_api(
     }
 }
 
+/// Registers the metrics-backend app data whose shape depends on the compiled
+/// exporter: the Prometheus export resource reads the instance-owned Forge
+/// provider from app data, and the scrape-auth checker is registered once per
+/// process as `Data<MetricsAuth>` even when Basic auth is disabled, keeping a
+/// single wiring path from drifting into an unauthenticated variant.
 #[cfg(feature = "metrics")]
-fn prometheus_provider_data(
+fn register_exporter_data<T>(
+    app: App<T>,
     metrics_data: &web::Data<dyn aster_forge_metrics::MetricsRecorder>,
-    prometheus_enabled: bool,
-) -> Option<web::Data<aster_forge_metrics::MetricsProvider>> {
-    prometheus_enabled
+    observability: &aster_forge_metrics::ObservabilityConfig,
+) -> App<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
+    let metrics_auth = web::Data::new(crate::api::middleware::metrics_auth::MetricsAuth::new(
+        observability
+            .prometheus
+            .basic_auth
+            .clone()
+            .unwrap_or_default(),
+    ));
+    let provider = observability
+        .prometheus
+        .enabled
         .then(|| metrics_data.provider())
         .flatten()
-        .map(web::Data::new)
+        .map(web::Data::new);
+    match provider {
+        Some(provider) => app.app_data(provider),
+        None => app,
+    }
+    .app_data(metrics_auth)
+}
+
+/// No-op variant for binaries without the Prometheus exporter.
+#[cfg(not(feature = "metrics"))]
+fn register_exporter_data<T>(
+    app: App<T>,
+    _metrics_data: &web::Data<dyn aster_forge_metrics::MetricsRecorder>,
+    _observability: &aster_forge_metrics::ObservabilityConfig,
+) -> App<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
+    app
 }
 
 fn build_http_service_component(
@@ -86,33 +123,13 @@ fn build_http_service_component(
     let role_health = web::Data::new(role_health);
     let role = role_health.role;
     let observability = state.config().observability.clone();
-    // One scrape-auth checker per process, shared by all HTTP workers and
-    // independent of login's Argon2 work budget.
-    #[cfg(feature = "metrics")]
-    let metrics_auth = web::Data::new(crate::api::middleware::metrics_auth::MetricsAuth::new(
-        observability
-            .prometheus
-            .basic_auth
-            .clone()
-            .unwrap_or_default(),
-    ));
     let server = HttpServer::new(move || {
-        // The Prometheus export resource reads the instance-owned Forge provider
-        // from app data. Only inject it when the pull exporter is configured.
-        #[cfg(feature = "metrics")]
-        let app = match prometheus_provider_data(&metrics_data, observability.prometheus.enabled) {
-            Some(provider) => App::new().app_data(provider),
-            None => App::new(),
-        };
-        #[cfg(not(feature = "metrics"))]
-        let app = App::new();
-        #[cfg(feature = "metrics")]
-        let app = app.app_data(metrics_auth.clone());
         // Request observability follows AsterDrive: Prometheus metrics and
         // request IDs, no per-request access log. actix's Logger::default()
         // would emit an INFO line for every asset request, and the embedded
         // frontend's service-worker prefetch makes that pure noise.
-        app.wrap(middleware::Compress::default())
+        register_exporter_data(App::new(), &metrics_data, &observability)
+            .wrap(middleware::Compress::default())
             .wrap(aster_forge_middleware::actix::request_id::RequestIdMiddleware)
             .wrap(crate::api::middleware::cors::RuntimeCors)
             .wrap(aster_forge_middleware::actix::security_headers::default_headers())

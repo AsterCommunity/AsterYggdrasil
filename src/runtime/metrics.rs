@@ -58,6 +58,35 @@ mod tests {
         ))
     }
 
+    /// Metrics builds register the scrape-auth checker on every test app,
+    /// mirroring the HTTP component wiring.
+    #[cfg(feature = "metrics")]
+    fn with_scrape_auth<T>(app: App<T>) -> App<T>
+    where
+        T: actix_web::dev::ServiceFactory<
+                actix_web::dev::ServiceRequest,
+                Config = (),
+                Error = actix_web::Error,
+                InitError = (),
+            >,
+    {
+        app.app_data(scrape_auth_data(&Default::default()))
+    }
+
+    /// No-op variant for builds without the Prometheus exporter.
+    #[cfg(not(feature = "metrics"))]
+    fn with_scrape_auth<T>(app: App<T>) -> App<T>
+    where
+        T: actix_web::dev::ServiceFactory<
+                actix_web::dev::ServiceRequest,
+                Config = (),
+                Error = actix_web::Error,
+                InitError = (),
+            >,
+    {
+        app
+    }
+
     #[actix_web::test]
     async fn disabled_metrics_leave_health_up_and_scrape_unavailable() {
         crate::runtime::test_support::ensure_static_config();
@@ -228,9 +257,7 @@ mod tests {
                 );
             }
 
-            let app = App::new().app_data(web::Data::new(provider.clone()));
-            #[cfg(feature = "metrics")]
-            let app = app.app_data(scrape_auth_data(&Default::default()));
+            let app = with_scrape_auth(App::new().app_data(web::Data::new(provider.clone())));
             let app =
                 actix_test::init_service(app.configure(|cfg| crate::api::configure(cfg, &config)))
                     .await;

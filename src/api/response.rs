@@ -60,7 +60,8 @@ impl<T: Serialize + ToSchema> utoipa::__dev::ComposeSchema for ApiResponse<T> {
 
 #[expect(
     clippy::expect_used,
-    reason = "Yggdrasil supplies a fixed success code or an AsterError-mapped failure code; a classification mismatch is a product programming error"
+    reason = "Yggdrasil supplies a fixed success code or an AsterError-mapped failure code; \
+              a classification mismatch is a product programming error"
 )]
 fn adapt_envelope<T: Serialize>(
     response: Result<ForgeApiResponse<T, AsterErrorCode>, ResponseEnvelopeError>,

@@ -17,13 +17,34 @@ where
 /// deserializer zeroes uncompiled sections, so a config file written for a
 /// full build cannot fail startup of one that lacks the exporter.
 fn effective_config(config: ObservabilityConfig) -> ObservabilityConfig {
-    ObservabilityConfig {
-        #[cfg(not(feature = "metrics"))]
-        prometheus: Default::default(),
-        #[cfg(not(feature = "otlp-metrics"))]
-        otlp_metrics: Default::default(),
-        ..config
-    }
+    let config = effective_prometheus(config);
+    effective_otlp_metrics(config)
+}
+
+/// Compiled-in exporters keep the configured values.
+#[cfg(feature = "metrics")]
+fn effective_prometheus(config: ObservabilityConfig) -> ObservabilityConfig {
+    config
+}
+
+/// Prometheus sections are zeroed when the exporter is not compiled in.
+#[cfg(not(feature = "metrics"))]
+fn effective_prometheus(mut config: ObservabilityConfig) -> ObservabilityConfig {
+    config.prometheus = Default::default();
+    config
+}
+
+/// Compiled-in exporters keep the configured values.
+#[cfg(feature = "otlp-metrics")]
+fn effective_otlp_metrics(config: ObservabilityConfig) -> ObservabilityConfig {
+    config
+}
+
+/// OTLP sections are zeroed when the exporter is not compiled in.
+#[cfg(not(feature = "otlp-metrics"))]
+fn effective_otlp_metrics(mut config: ObservabilityConfig) -> ObservabilityConfig {
+    config.otlp_metrics = Default::default();
+    config
 }
 
 /// Builds the Forge provider under Yggdrasil's product identity.
@@ -51,7 +72,9 @@ pub fn create_provider(
 #[cfg(test)]
 mod tests {
     use crate::config::Config;
+    #[cfg(feature = "metrics")]
     use aster_forge_config::ValidatableConfig as _;
+    #[cfg(feature = "metrics")]
     use aster_forge_metrics::ObservabilityConfig;
 
     #[test]
@@ -77,22 +100,47 @@ mod tests {
         let observability = config.observability;
         assert_eq!(observability.environment, "staging");
         assert!(!observability.prometheus.enabled);
-        // A compiled exporter keeps its configured values…
-        #[cfg(feature = "otlp-metrics")]
-        {
-            assert!(observability.otlp_metrics.enabled);
-            assert_eq!(observability.otlp_metrics.interval_seconds, 60);
-            assert_eq!(observability.otlp_metrics.timeout_seconds, 5);
-            assert_eq!(
-                observability.otlp_metrics.headers["Authorization"],
-                "Bearer test-secret"
-            );
-            let debug = format!("{observability:?}");
-            assert!(!debug.contains("test-secret"));
-            assert!(!debug.contains("127.0.0.1"));
-        }
-        // …while `effective_config` zeroes an exporter this build lacks.
-        #[cfg(not(feature = "otlp-metrics"))]
+    }
+
+    /// A compiled OTLP exporter keeps its configured values, with secrets
+    /// still redacted from `Debug`.
+    #[cfg(feature = "otlp-metrics")]
+    #[test]
+    fn compiled_otlp_exporter_keeps_configured_values() {
+        let config: Config = toml::from_str(
+            r#"
+            [observability.otlp_metrics]
+            enabled = true
+            [observability.otlp_metrics.headers]
+            Authorization = "Bearer test-secret"
+            "#,
+        )
+        .unwrap();
+        let observability = config.observability;
+        assert!(observability.otlp_metrics.enabled);
+        assert_eq!(observability.otlp_metrics.interval_seconds, 60);
+        assert_eq!(observability.otlp_metrics.timeout_seconds, 5);
+        assert_eq!(
+            observability.otlp_metrics.headers["Authorization"],
+            "Bearer test-secret"
+        );
+        let debug = format!("{observability:?}");
+        assert!(!debug.contains("test-secret"));
+        assert!(!debug.contains("127.0.0.1"));
+    }
+
+    /// `effective_config` zeroes an exporter this build lacks.
+    #[cfg(not(feature = "otlp-metrics"))]
+    #[test]
+    fn uncompiled_otlp_exporter_is_zeroed() {
+        let config: Config = toml::from_str(
+            r#"
+            [observability.otlp_metrics]
+            enabled = true
+            "#,
+        )
+        .unwrap();
+        let observability = config.observability;
         assert!(!observability.otlp_metrics.enabled);
     }
 
@@ -113,18 +161,49 @@ mod tests {
             "#,
         )
         .unwrap();
-        #[cfg(feature = "metrics")]
-        {
-            let auth = config
-                .observability
-                .prometheus
-                .basic_auth
-                .expect("auth section must deserialize");
-            assert!(!auth.enabled);
-            assert_eq!(auth.username, "file-user");
-            assert_eq!(auth.password_hash, "file-hash");
-        }
-        #[cfg(not(feature = "metrics"))]
+        let _ = config;
+    }
+
+    /// A compiled metrics backend keeps the staged auth section.
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn compiled_metrics_keeps_staged_basic_auth_section() {
+        let config: Config = toml::from_str(
+            r#"
+            [observability.prometheus]
+            enabled = false
+            [observability.prometheus.basic_auth]
+            enabled = false
+            username = "file-user"
+            password_hash = "file-hash"
+            "#,
+        )
+        .unwrap();
+        let auth = config
+            .observability
+            .prometheus
+            .basic_auth
+            .expect("auth section must deserialize");
+        assert!(!auth.enabled);
+        assert_eq!(auth.username, "file-user");
+        assert_eq!(auth.password_hash, "file-hash");
+    }
+
+    /// Without the metrics feature the whole Prometheus section is zeroed.
+    #[cfg(not(feature = "metrics"))]
+    #[test]
+    fn uncompiled_metrics_zeroes_staged_basic_auth_section() {
+        let config: Config = toml::from_str(
+            r#"
+            [observability.prometheus]
+            enabled = false
+            [observability.prometheus.basic_auth]
+            enabled = false
+            username = "file-user"
+            password_hash = "file-hash"
+            "#,
+        )
+        .unwrap();
         assert!(config.observability.prometheus.basic_auth.is_none());
     }
 

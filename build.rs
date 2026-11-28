@@ -78,14 +78,15 @@ fn configure_build_time() -> io::Result<()> {
 /// from an export or CI artifact) must be `unknown` or a 7-64 character
 /// hexadecimal revision.
 fn configure_build_revision(manifest_dir: &Path) -> io::Result<()> {
-    let revision_override = env::var(BUILD_REVISION_ENV)
-        .map(Some)
-        .or_else(|error| match error {
-            env::VarError::NotPresent => Ok(None),
-            _ => Err(io::Error::other(
-                format!("{BUILD_REVISION_ENV} must contain valid Unicode"),
-            )),
-        })?;
+    let revision_override =
+        env::var(BUILD_REVISION_ENV)
+            .map(Some)
+            .or_else(|error| match error {
+                env::VarError::NotPresent => Ok(None),
+                _ => Err(io::Error::other(format!(
+                    "{BUILD_REVISION_ENV} must contain valid Unicode"
+                ))),
+            })?;
     let identity = source_identity(manifest_dir, revision_override.as_deref())?;
     println!("cargo:rustc-env={BUILD_REVISION_ENV}={}", identity.revision);
     println!(
@@ -131,10 +132,7 @@ fn configure_build_features() {
 /// Injects the cargo profile and target triple; both are required, single-line
 /// values.
 fn configure_build_context(profile: &str, target: &str) -> io::Result<()> {
-    for (name, value) in [
-        (BUILD_PROFILE_ENV, profile),
-        (BUILD_TARGET_ENV, target),
-    ] {
+    for (name, value) in [(BUILD_PROFILE_ENV, profile), (BUILD_TARGET_ENV, target)] {
         if value.is_empty() || value.contains(['\r', '\n']) {
             return Err(io::Error::other(format!(
                 "{name} must be a non-empty single-line value, got: {value:?}"

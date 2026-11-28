@@ -107,10 +107,7 @@ pub fn load_read_only_at(location: &ConfigLocation, allow_missing: bool) -> Resu
     }
 
     let content = std::fs::read_to_string(config_path).map_err(|error| {
-        AsterError::config_error(format!(
-            "failed to read {}: {error}",
-            config_path.display()
-        ))
+        AsterError::config_error(format!("failed to read {}: {error}", config_path.display()))
     })?;
     // The format must be explicit: extension-based inference silently drops
     // a `--config-file` whose extension is not `.toml`.

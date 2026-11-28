@@ -79,10 +79,7 @@ mod tests {
         let parsed: serde_json::Value =
             serde_json::from_str(&rendered).expect("json output must parse");
         assert_eq!(parsed["product"], "AsterYggdrasil");
-        assert_eq!(
-            parsed["version"],
-            env!("CARGO_PKG_VERSION")
-        );
+        assert_eq!(parsed["version"], env!("CARGO_PKG_VERSION"));
         assert!(parsed["revision"].is_string());
         assert!(parsed["features"].is_array());
     }

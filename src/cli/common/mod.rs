@@ -3,11 +3,11 @@
 //! resolution.
 
 #[cfg(feature = "operations-cli")]
+pub(in crate::cli) mod context;
+#[cfg(feature = "operations-cli")]
 pub(in crate::cli) mod error;
 pub(in crate::cli) mod help;
 #[cfg(feature = "operations-cli")]
 pub(in crate::cli) mod input;
 #[cfg(feature = "operations-cli")]
 pub(in crate::cli) mod output;
-#[cfg(feature = "operations-cli")]
-pub(in crate::cli) mod context;

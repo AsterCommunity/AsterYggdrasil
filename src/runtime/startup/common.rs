@@ -104,6 +104,7 @@ async fn create_runtime_cache(
 #[cfg(test)]
 mod observability_startup_tests {
     use super::prepare_common_state;
+    use super::tests::assert_provider_matches_compiled_metrics;
     use crate::config::Config;
     use std::{
         path::PathBuf,
@@ -164,15 +165,7 @@ mod observability_startup_tests {
             .await
             .expect("runtime state should prepare with an isolated SQLite database");
 
-        #[cfg(feature = "metrics")]
-        assert!(
-            state
-                .metrics()
-                .provider()
-                .is_some_and(|provider| provider.enabled())
-        );
-        #[cfg(not(feature = "metrics"))]
-        assert!(state.metrics().provider().is_none());
+        assert_provider_matches_compiled_metrics(&state);
 
         crate::runtime::shutdown::shutdown_metrics(state.metrics())
             .await
@@ -280,6 +273,25 @@ mod observability_startup_tests {
 mod tests {
     use super::create_runtime_cache;
     use crate::config::{Config, DeploymentProfile};
+    use crate::runtime::AppState;
+
+    /// Compiled metrics: the provider is present and enabled; otherwise the
+    /// metrics component stays absent. Lives on the shared module so the
+    /// observability startup tests can assert against the compiled backend.
+    #[cfg(feature = "metrics")]
+    pub(super) fn assert_provider_matches_compiled_metrics(state: &AppState) {
+        assert!(
+            state
+                .metrics()
+                .provider()
+                .is_some_and(|provider| provider.enabled())
+        );
+    }
+
+    #[cfg(not(feature = "metrics"))]
+    pub(super) fn assert_provider_matches_compiled_metrics(state: &AppState) {
+        assert!(state.metrics().provider().is_none());
+    }
 
     fn redis_config(profile: DeploymentProfile) -> Config {
         let mut config = Config::default();

@@ -32,11 +32,20 @@ pub fn configure(
     cfg.service(web::scope("/api/v1").configure(routes::configure_api))
         .service(routes::health::routes(observability));
 
-    #[cfg(all(debug_assertions, feature = "openapi"))]
-    configure_openapi(cfg);
+    apply_debug_openapi(cfg);
 
     cfg.service(routes::frontend::routes());
 }
+
+/// Mounts the debug OpenAPI docs in builds with the openapi feature.
+#[cfg(all(debug_assertions, feature = "openapi"))]
+fn apply_debug_openapi(cfg: &mut web::ServiceConfig) {
+    configure_openapi(cfg);
+}
+
+/// No-op variant for builds without the debug OpenAPI docs.
+#[cfg(not(all(debug_assertions, feature = "openapi")))]
+fn apply_debug_openapi(_cfg: &mut web::ServiceConfig) {}
 
 #[cfg(all(debug_assertions, feature = "openapi"))]
 fn configure_openapi(cfg: &mut web::ServiceConfig) {
