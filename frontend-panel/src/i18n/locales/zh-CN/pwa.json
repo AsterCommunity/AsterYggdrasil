@@ -1,6 +1,6 @@
 {
 	"pwa": {
-		"updateAvailable": "有新版本可用",
-		"refresh": "刷新"
+		"updateAvailable": "当前页面有新版本可用",
+		"refresh": "刷新页面"
 	}
 }

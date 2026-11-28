@@ -1,6 +1,6 @@
 {
 	"pwa": {
-		"updateAvailable": "A new version is available",
-		"refresh": "Refresh"
+		"updateAvailable": "A new version of this page is available",
+		"refresh": "Refresh page"
 	}
 }

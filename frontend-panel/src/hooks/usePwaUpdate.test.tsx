@@ -64,6 +64,23 @@ describe("usePwaUpdate", () => {
 		expect(mockState.toastInfo).not.toHaveBeenCalled();
 	});
 
+	it("keeps a waiting service worker pending until the user confirms the refresh", async () => {
+		mockState.needRefresh = true;
+
+		renderHook(() => usePwaUpdate());
+
+		await waitFor(() => {
+			expect(mockState.toastInfo).toHaveBeenCalled();
+		});
+
+		// Prompt semantics: the toast is the only path that applies the
+		// update. A waiting worker alone must never take over open tabs.
+		expect(mockState.registration.waiting).toEqual({
+			scriptURL: "/sw-waiting.js",
+		});
+		expect(mockState.updateServiceWorker).not.toHaveBeenCalled();
+	});
+
 	it("shows an update toast and refreshes the service worker from the action", async () => {
 		mockState.needRefresh = true;
 
