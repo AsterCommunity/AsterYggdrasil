@@ -193,6 +193,12 @@ describe("AdminUsersPage", () => {
 				expect.objectContaining({ keyword: "external" }),
 			);
 		});
+		// Let the debounce window fully elapse before judging: a regression
+		// that re-submits the stale value after the navigation must be
+		// observable here.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
 		expect(input).toHaveValue("external");
 		// The only empty-keyword load is the initial mount; the unsettled
 		// "stale" debounce value must never reach the list.
@@ -202,6 +208,30 @@ describe("AdminUsersPage", () => {
 		expect(keywordCalls.filter((k) => k === "" || k === "stale")).toHaveLength(
 			1,
 		);
+	});
+
+	it("keeps the raw draft when a trailing-space commit serializes trimmed", async () => {
+		renderPage();
+
+		fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
+		const input = await screen.findByPlaceholderText(
+			"Search username or email",
+		);
+		fireEvent.change(input, { target: { value: "alice " } });
+
+		await waitFor(() => {
+			expect(adminUserServiceMock.list).toHaveBeenCalledWith(
+				expect.objectContaining({ keyword: "alice" }),
+			);
+		});
+		// The URL keyword serializes trimmed, but the commit must not be
+		// mistaken for an external navigation: the raw draft survives with
+		// its trailing space and exactly one load follows the commit.
+		expect(input).toHaveValue("alice ");
+		const keywordCalls = adminUserServiceMock.list.mock.calls.map(
+			(call) => (call[0] as { keyword: string }).keyword,
+		);
+		expect(keywordCalls).toEqual(["", "alice"]);
 	});
 
 	it("does not re-submit a trim-equal settled draft over an external navigation", async () => {

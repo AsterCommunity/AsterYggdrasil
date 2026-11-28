@@ -183,22 +183,32 @@ function useAdminUsersPageController() {
 	const keywordDraft =
 		keywordState.source === "user" ? keywordState.draft : committedKeyword;
 	const debouncedKeyword = useDebouncedValue(keywordDraft, 250);
+	// The URL serializes the keyword trimmed, so the commit bookkeeping
+	// (dedup against lastSubmitted, trim-equality guard) works in the same
+	// normalized space; the raw draft is only preserved for the input.
+	const debouncedCommitted = debouncedKeyword.trim();
 	useEffect(() => {
 		if (keywordState.source !== "user") return;
-		if (keywordState.lastSubmitted === debouncedKeyword) return;
+		if (keywordState.lastSubmitted === debouncedCommitted) return;
 		// Only submit a value the debounce has settled onto the current
 		// draft: a navigation landing before the settle (or a leftover
 		// debounce value from a retired draft) must not reach the URL.
 		if (debouncedKeyword !== keywordState.draft) return;
-		if (debouncedKeyword.trim() === committedKeyword) return;
+		if (debouncedCommitted === committedKeyword) return;
 		// A committedKeyword change that has not been reconciled yet owns
 		// the URL first (external navigation, or our previous commit
 		// landing); skip this commit and let reconciliation settle the
 		// source before any new push.
 		if (lastReconciledKeywordRef.current !== committedKeyword) return;
-		setKeywordState({ ...keywordState, lastSubmitted: debouncedKeyword });
-		setQuery({ keyword: debouncedKeyword });
-	}, [committedKeyword, debouncedKeyword, keywordState, setQuery]);
+		setKeywordState({ ...keywordState, lastSubmitted: debouncedCommitted });
+		setQuery({ keyword: debouncedCommitted });
+	}, [
+		committedKeyword,
+		debouncedCommitted,
+		debouncedKeyword,
+		keywordState,
+		setQuery,
+	]);
 	// Keystrokes only mutate the draft, so reconciliation is gated on the
 	// committed value actually changing.
 	const lastReconciledKeywordRef = useRef(committedKeyword);
