@@ -73,8 +73,16 @@ mod tests {
         app.app_data(scrape_auth_data(&Default::default()))
     }
 
-    /// No-op variant for builds without the Prometheus exporter.
+    /// No-op variant for builds without the Prometheus exporter. Only the
+    /// OTLP tests consume this shape, so plain test builds hold it as dead.
     #[cfg(not(feature = "metrics"))]
+    #[cfg_attr(
+        not(feature = "otlp-metrics"),
+        expect(
+            dead_code,
+            reason = "only the otlp-metrics tests mount the no-op shape"
+        )
+    )]
     fn with_scrape_auth<T>(app: App<T>) -> App<T>
     where
         T: actix_web::dev::ServiceFactory<

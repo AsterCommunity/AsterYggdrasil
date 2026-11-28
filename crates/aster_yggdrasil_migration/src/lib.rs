@@ -14,6 +14,10 @@
 
 pub use sea_orm_migration::prelude::*;
 
+/// Re-exports the migration framework so the application shell can consume
+/// `MigratorTrait` without adding its own dependency.
+pub use sea_orm_migration;
+
 mod m20260606_000001_foundation_schema;
 mod m20260615_000001_yggdrasil_profiles;
 mod m20260615_000002_minecraft_textures;

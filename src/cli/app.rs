@@ -57,6 +57,19 @@ pub(super) enum RootCommand {
     #[cfg(feature = "operations-cli")]
     /// Generate an authentication verifier (masked terminal input, or stdin until EOF)
     HashPassword,
+    #[cfg(feature = "operations-cli")]
+    /// Migrate data between database backends
+    DatabaseMigrate {
+        #[arg(
+            long,
+            env = "ASTER_CLI_OUTPUT_FORMAT",
+            default_value = "auto",
+            value_enum
+        )]
+        output_format: crate::cli::common::output::OutputFormat,
+        #[command(flatten)]
+        args: crate::cli::commands::database_migration::DatabaseMigrateArgs,
+    },
     /// Show build information
     Version {
         /// Output build information as JSON

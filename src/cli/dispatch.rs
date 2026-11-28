@@ -5,6 +5,8 @@ use super::app::{RootCli, RootCommand};
 use std::io;
 
 #[cfg(feature = "operations-cli")]
+use super::commands::database_migration;
+#[cfg(feature = "operations-cli")]
 use super::commands::hash_password;
 #[cfg(feature = "operations-cli")]
 use super::common::error::CliError;
@@ -28,6 +30,36 @@ pub(super) async fn execute(cli: RootCli) -> io::Result<CommandOutcome> {
                     CommandOutcome::Exit(1)
                 }
             });
+        }
+        #[cfg(feature = "operations-cli")]
+        Some(RootCommand::DatabaseMigrate {
+            output_format,
+            args,
+        }) => {
+            if !args.dry_run && !args.verify_only {
+                match super::common::input::confirm_write(
+                    "Apply database migrations and copy data to the target? \
+                     Run with --dry-run first to preview.",
+                    args.yes,
+                ) {
+                    Ok(()) => {}
+                    Err(super::common::error::CliError::Canceled) => {
+                        eprintln!("\nCanceled.");
+                        return Ok(CommandOutcome::Exit(130));
+                    }
+                    Err(error) => {
+                        eprintln!("{error}");
+                        return Ok(CommandOutcome::Exit(1));
+                    }
+                }
+            }
+            let result = database_migration::execute_database_migration(&args).await;
+            let failed = result.is_err();
+            println!(
+                "{}",
+                database_migration::render::render_result(&output_format, &result)
+            );
+            return Ok(CommandOutcome::Exit(if failed { 1 } else { 0 }));
         }
         Some(RootCommand::Version { json }) => {
             println!("{}", super::commands::version::render_build_info(json));

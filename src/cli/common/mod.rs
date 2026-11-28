@@ -5,6 +5,8 @@
 #[cfg(feature = "operations-cli")]
 pub(in crate::cli) mod context;
 #[cfg(feature = "operations-cli")]
+pub(in crate::cli) mod database;
+#[cfg(feature = "operations-cli")]
 pub(in crate::cli) mod error;
 pub(in crate::cli) mod help;
 #[cfg(feature = "operations-cli")]

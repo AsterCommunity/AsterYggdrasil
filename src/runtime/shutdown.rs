@@ -113,6 +113,7 @@ mod tests {
 
     /// A writer that cannot confirm its records: the drain deadline passes with
     /// the record still unconfirmed.
+    #[cfg(feature = "metrics")]
     async fn failed_audit_writer() -> AuditWriter {
         use aster_forge_db::AuditLogCreate;
 
@@ -142,6 +143,7 @@ mod tests {
         writer
     }
 
+    #[cfg(feature = "metrics")]
     fn prometheus_recorder() -> aster_forge_metrics::SharedMetricsRecorder {
         let mut config = aster_forge_metrics::ObservabilityConfig::default();
         config.prometheus.enabled = true;

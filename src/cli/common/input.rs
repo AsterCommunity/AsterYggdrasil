@@ -58,6 +58,28 @@ pub(in crate::cli) fn terminal_error(error: InquireError) -> CliError {
     }
 }
 
+/// Asks for explicit confirmation before a write operation. `yes` short
+/// circuits the prompt; a non-terminal stdin rejects the operation rather
+/// than guessing.
+pub(in crate::cli) fn confirm_write(message: &str, yes: bool) -> CliResult<()> {
+    if yes {
+        return Ok(());
+    }
+    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+        return Err(AsterError::validation_error(
+            "refusing to write without a terminal; pass --yes to confirm explicitly",
+        )
+        .into());
+    }
+    let answer = Text::new(format!("{message} [y/N]").as_str())
+        .prompt()
+        .map_err(terminal_error)?;
+    match answer.trim().to_ascii_lowercase().as_str() {
+        "y" | "yes" => Ok(()),
+        _ => Err(CliError::Canceled),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
