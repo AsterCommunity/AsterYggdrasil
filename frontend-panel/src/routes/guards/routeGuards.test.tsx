@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
 	createMemoryRouter,
 	MemoryRouter,
@@ -24,6 +24,7 @@ const authState = vi.hoisted(() => ({
 	isAdmin: false,
 	isAuthenticated: false,
 	isAuthStale: false,
+	bootOffline: false,
 	operatorScopes: [] as string[],
 	user: null as { must_change_password?: boolean; role?: string } | null,
 }));
@@ -101,6 +102,7 @@ function resetAuthState() {
 	authState.isAdmin = false;
 	authState.isAuthenticated = false;
 	authState.isAuthStale = false;
+	authState.bootOffline = false;
 	authState.operatorScopes = [];
 	authState.user = null;
 }
@@ -315,6 +317,46 @@ describe("route guards: authenticated gate", () => {
 		).toBeInTheDocument();
 		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
 		expect(screen.queryByText("login-route")).not.toBeInTheDocument();
+	});
+
+	it("shows the unreachable-server state when boot fails with no cached session", async () => {
+		authState.bootOffline = true;
+		authState.hydrate.mockResolvedValue(undefined);
+		const router = createMemoryRouter(
+			[
+				{
+					element: <AuthenticatedGate />,
+					children: [
+						{
+							path: "/account",
+							element: <Outlet />,
+						},
+					],
+				},
+				{ path: "/login", element: <div>login-route</div> },
+			],
+			{ initialEntries: ["/account"] },
+		);
+
+		render(<RouterProvider router={router} />);
+
+		expect(
+			await screen.findByText("Cannot reach the server"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Retry connection" }),
+		).toBeInTheDocument();
+		// The login escape hatch mirrors Drive's boot fallback affordance.
+		expect(
+			screen.getByRole("link", { name: "Go to login anyway" }),
+		).toHaveAttribute("href", "/login");
+		expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
+		expect(screen.queryByText("Login required")).not.toBeInTheDocument();
+
+		// The gate hydrates on mount; assert the click adds one more call.
+		authState.hydrate.mockClear();
+		fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+		expect(authState.hydrate).toHaveBeenCalledTimes(1);
 	});
 });
 

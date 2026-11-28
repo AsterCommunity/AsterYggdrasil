@@ -258,9 +258,61 @@ describe("authStore persistence", () => {
 			error: "Network error",
 			errorCode: "network_error",
 			isAuthenticated: false,
-			isAuthStale: true,
+			// Without a cached user there is no session to fall back on, so
+			// booting offline is the honest state instead of a stale session.
+			isAuthStale: false,
+			bootOffline: true,
 			user: null,
 		});
+	});
+
+	it("drops the boot-offline flag when a later hydration succeeds", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValueOnce(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+
+		await useAuthStore.getState().hydrate();
+		expect(useAuthStore.getState().bootOffline).toBe(true);
+
+		await useAuthStore.getState().hydrate();
+		expect(useAuthStore.getState()).toMatchObject({
+			bootOffline: false,
+			isAuthenticated: true,
+			isAuthStale: false,
+		});
+	});
+
+	it("marks boot offline when the public session check cannot reach the server without a cached user", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValue(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+
+		await useAuthStore.getState().checkPublicSession();
+
+		expect(useAuthStore.getState()).toMatchObject({
+			bootOffline: true,
+			isAuthStale: false,
+			isAuthenticated: false,
+		});
+	});
+
+	it("clears boot offline after a successful login", async () => {
+		const { useAuthStore } = await loadStore();
+		const { ApiError } = await import("@/services/http");
+		authServiceMock.me.mockRejectedValueOnce(
+			new ApiError("network_error", "Network error", { retryable: true }),
+		);
+		await useAuthStore.getState().hydrate();
+		expect(useAuthStore.getState().bootOffline).toBe(true);
+
+		await useAuthStore.getState().login("steve", "password");
+
+		expect(useAuthStore.getState().bootOffline).toBe(false);
+		expect(useAuthStore.getState().isAuthenticated).toBe(true);
 	});
 
 	it("checks public sessions without keeping public pages in a blocking state", async () => {
@@ -307,6 +359,7 @@ describe("authStore persistence", () => {
 			errorCode: "auth.token_invalid",
 			isAuthenticated: false,
 			isAuthStale: false,
+			bootOffline: false,
 			user: null,
 		});
 		expect(localStorage.getItem("asteryggdrasil-cached-user")).toBeNull();

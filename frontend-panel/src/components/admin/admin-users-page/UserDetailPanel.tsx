@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { handleApiError } from "@/hooks/useApiError";
+import { logger } from "@/lib/logger";
 import { passwordSchema } from "@/lib/validation";
 import { adminMinecraftProfileService } from "@/services/adminService";
 import type {
@@ -185,7 +186,7 @@ async function attachMinecraftProfileSkinUrls(
 					skinUrl: findBoundSkinTexture(textures)?.url ?? null,
 				};
 			} catch (error) {
-				console.warn("Failed to load Minecraft profile skin avatar", error);
+				logger.warn("Failed to load Minecraft profile skin avatar", error);
 				return { ...profile, skinUrl: null };
 			}
 		}),
